@@ -20,6 +20,9 @@ export const CAT_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 export const FLAVOR_POOL = ['mint', 'strawberry', 'blueberry', 'watermelon', 'grape', 'coconut', 'melon'];
 export const SPLIFF_POOL = ['spliff5050', 'spliff7030'];
 export const LOW_STOCK_THRESHOLD = 5;
+export const COOKIE_STOCK_CAPACITY = 100;
+/** Cookie bar + label below this share of capacity (30 → running low under 30 cookies). */
+export const COOKIE_LOW_PCT = 0.3;
 
 export const PRODUCTS = [
   { id: 'scout', name: 'Scout Pack', price: 8000, joints: 1, rule: 'choose_any' },

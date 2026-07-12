@@ -42,23 +42,11 @@ export function renderShell(currentPage) {
           </svg>
           <span class="fab-badge" id="debugBadge" style="display:none;">0</span>
         </button>
-        <button class="icon-btn" id="themeHeaderBtn" aria-label="Theme" title="Theme" type="button">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
-          </svg>
-        </button>
       </div>
     </div>
 
     <nav class="tabs" aria-label="Main navigation">
       ${desktopTabs}
-      <div class="theme-wrap">
-        <button class="tab-btn" id="themeTabBtn" type="button">Theme</button>
-        <div class="theme-popover" id="themePopover" hidden>
-          <button class="theme-icon-btn" data-theme-choice="light" type="button">☀ Light</button>
-          <button class="theme-icon-btn" data-theme-choice="dark" type="button">☾ Dark</button>
-        </div>
-      </div>
     </nav>
 
     <nav class="bottom-nav" aria-label="Primary navigation">
@@ -74,8 +62,13 @@ export function renderModals() {
       <span class="fab-badge" id="fabBadge" style="display:none;">0</span>
     </button>
 
-    <div class="modal-overlay" id="orderModal" hidden>
-      <div class="modal" id="orderModalBody"></div>
+    <div class="modal-overlay modal-overlay--sheet" id="orderModal" hidden>
+      <div class="modal modal--sheet" id="orderModalPanel" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle">
+        <div class="sheet-handle-wrap" data-sheet-drag-handle aria-hidden="true">
+          <div class="sheet-handle"></div>
+        </div>
+        <div class="modal-sheet-body" id="orderModalBody"></div>
+      </div>
     </div>
 
     <div class="modal-overlay" id="confirmOverlay" hidden>
@@ -112,15 +105,8 @@ export function renderModals() {
       </div>
     </div>
 
-    <div class="modal-overlay" id="themeMobileOverlay" hidden>
-      <div class="modal" style="max-width:320px;">
-        <div class="modal-title">Appearance</div>
-        <div style="display:flex; flex-direction:column; gap:6px; margin-top:14px;">
-          <button class="theme-icon-btn" data-theme-choice="light" type="button" style="text-align:center;">☀ Light mode</button>
-          <button class="theme-icon-btn" data-theme-choice="dark" type="button" style="text-align:center;">☾ Dark mode</button>
-        </div>
-        <button id="themeMobileClose" class="modal-btn cancel" style="width:100%; margin-top:14px;" type="button">Close</button>
-      </div>
+    <div class="modal-overlay" id="editOverlay" hidden>
+      <div class="modal" id="editModalBody"></div>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

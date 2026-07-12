@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Venus POS</title>
   <meta name="description" content="Venus POS register — today's sales, stock glance, and product checkout.">
-  <meta name="theme-color" content="#080c10">
+  <meta name="theme-color" content="#eef2f6">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://xiangrykfxlnacthjcad.supabase.co">
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css">
 </head>
 <body data-page="home">
@@ -36,11 +36,25 @@
       </div>
 
       <div class="stock-card stock-summary" id="stockGlance">
-        <div class="donut-container" role="button" tabindex="0" aria-label="View inventory">
-          <div class="donut" id="donutRing"></div>
-          <div class="donut-hole">
-            <div class="donut-total" id="donutTotal">0</div>
-            <div class="donut-caption">in stock</div>
+        <div class="stock-split" role="button" tabindex="0" aria-label="View inventory">
+          <div class="stock-split-item stock-joints">
+            <div class="donut-container mini">
+              <div class="donut" id="donutJoints"></div>
+              <div class="donut-hole">
+                <div class="donut-total" id="donutJointsTotal">0</div>
+                <div class="donut-caption">joints</div>
+              </div>
+            </div>
+          </div>
+          <div class="stock-split-sep"></div>
+          <div class="stock-split-item stock-cookies">
+            <div class="stock-stat">
+              <div class="stock-stat-val" id="cookieStockTotal">0</div>
+              <div class="stock-stat-label">cookies</div>
+              <div class="stock-stat-meter" aria-hidden="true">
+                <div class="stock-stat-meter-fill" id="cookieStockFill"></div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="donut-status" id="donutStatus"></div>

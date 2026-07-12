@@ -26,14 +26,16 @@ export function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+import { animateToastIn, animateToastOut, closeModal, openModal } from './animations.js';
+
 export function showToast(msg, isError = false) {
   const t = document.getElementById('toast');
   if (!t) return;
   t.textContent = msg;
   t.classList.toggle('error', isError);
-  t.classList.add('show');
+  animateToastIn(t);
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => t.classList.remove('show'), 2200);
+  showToast._t = setTimeout(() => animateToastOut(t), 2200);
 }
 
 let confirmResolve = null;
@@ -43,7 +45,7 @@ export function showConfirm(message) {
   const confirmMessageEl = document.getElementById('confirmMessage');
   if (!confirmOverlay || !confirmMessageEl) return Promise.resolve(false);
   confirmMessageEl.textContent = message;
-  confirmOverlay.hidden = false;
+  openModal(confirmOverlay);
   return new Promise((resolve) => {
     confirmResolve = resolve;
   });
@@ -51,7 +53,7 @@ export function showConfirm(message) {
 
 export function resolveConfirm(result) {
   const confirmOverlay = document.getElementById('confirmOverlay');
-  if (confirmOverlay) confirmOverlay.hidden = true;
+  if (confirmOverlay) closeModal(confirmOverlay);
   if (confirmResolve) {
     confirmResolve(result);
     confirmResolve = null;
@@ -68,6 +70,23 @@ export function wireConfirmDialog() {
   confirmCancelBtn?.addEventListener('click', () => resolveConfirm(false));
   confirmOverlay.addEventListener('click', (e) => {
     if (e.target === confirmOverlay) resolveConfirm(false);
+  });
+}
+
+export function openEditModal() {
+  const overlay = document.getElementById('editOverlay');
+  if (overlay) openModal(overlay);
+}
+
+export function closeEditModal() {
+  const overlay = document.getElementById('editOverlay');
+  if (overlay) closeModal(overlay);
+}
+
+export function wireEditOverlay() {
+  const overlay = document.getElementById('editOverlay');
+  overlay?.addEventListener('click', (e) => {
+    if (e.target === overlay) closeEditModal();
   });
 }
 

@@ -7,7 +7,8 @@ import {
   PRODUCTS,
   SPLIFF_POOL,
 } from './config.js';
-import { addClient, filterClients, findClientByName, highlightClientName, resolveClientId } from './clients.js';
+import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
+import { resolveClientId } from './clients.js';
 import {
   ICON_CASH,
   ICON_LOCATE,
@@ -16,6 +17,15 @@ import {
   loadGoogleMaps,
 } from './delivery.js';
 import { adjustStock, renderStockGlance } from './inventory.js';
+import {
+  animateCheckoutSuccess,
+  closeSheetModal,
+  openSheetModal,
+  pressButton,
+  pulseFabBadge,
+  registerSheetModal,
+  wireGsapAccordions,
+} from './animations.js';
 import { loadSalesToday } from './sales.js';
 import {
   cartTotal,
@@ -33,6 +43,8 @@ import { escapeHtml, fmtUGX, showToast } from './utils.js';
 let modalMode = 'cart';
 let configProduct = null;
 let configSelection = {};
+let editingCartKey = null;
+let editingCartItem = null;
 let checkoutOrigin = null;
 let checkoutPickupText = '';
 let checkoutDest = null;
@@ -43,6 +55,8 @@ let checkoutFeeValue = '';
 let pickupAutocomplete = null;
 let destAutocomplete = null;
 let pickupAutoRequested = false;
+let cartAccordions = null;
+let lastCheckoutReceipt = null;
 
 function getOrderClientName() {
   return getOrderMeta().clientName || '';
@@ -74,6 +88,21 @@ function setOrderIsCredit(isCredit) {
   setOrderMeta(meta);
 }
 
+function cartItemToConfigSelection(item) {
+  const p = PRODUCTS.find((pr) => pr.id === item.productId);
+  if (!p) return {};
+  if (p.rule === 'choose_any' || p.rule === 'spliff_qty') return { ...item.breakdown };
+  if (p.rule === 'choose_variety') {
+    const sel = { ...item.breakdown };
+    delete sel.classic;
+    return sel;
+  }
+  if (p.rule === 'single_qty') {
+    return { qty: item.breakdown[p.categoryId] || 0 };
+  }
+  return {};
+}
+
 function resetCheckoutDelivery() {
   checkoutOrigin = null;
   checkoutPickupText = '';
@@ -95,6 +124,7 @@ export function updateFabBadge() {
   } else {
     fabBadge.style.display = 'none';
   }
+  pulseFabBadge(cart.length);
 }
 
 function productDetailLabel(p) {
@@ -104,15 +134,117 @@ function productDetailLabel(p) {
 }
 
 function closeOrderModal() {
+  if (modalMode === 'success') {
+    dismissSuccessView();
+    return;
+  }
+
+  if (editingCartItem) {
+    Object.entries(editingCartItem.breakdown).forEach(([id, qty]) => {
+      draftStock[id] -= qty;
+    });
+    const cart = getCart();
+    cart.push(editingCartItem);
+    setCart(cart);
+    editingCartKey = null;
+    editingCartItem = null;
+    updateFabBadge();
+  }
   const orderModal = document.getElementById('orderModal');
-  if (orderModal) orderModal.hidden = true;
+  if (orderModal) closeSheetModal(orderModal);
 }
 
 function renderOrderModal() {
+  const orderModalBody = document.getElementById('orderModalBody');
+  if (orderModalBody) {
+    orderModalBody.className = 'modal-sheet-body';
+    if (modalMode === 'cart') orderModalBody.classList.add('cart-sheet-layout');
+    if (modalMode === 'success') orderModalBody.classList.add('success-sheet-layout');
+  }
+
   if (modalMode === 'cart') renderCartView();
   else if (modalMode === 'pick') renderPickView();
-  else if (modalMode === 'pickClient') renderPickClientView();
   else if (modalMode === 'config') renderConfigView();
+  else if (modalMode === 'success') renderSuccessView();
+}
+
+function dismissSuccessView() {
+  lastCheckoutReceipt = null;
+  modalMode = 'cart';
+  const orderModal = document.getElementById('orderModal');
+  if (orderModal) closeSheetModal(orderModal);
+}
+
+function renderSuccessView() {
+  const orderModalBody = document.getElementById('orderModalBody');
+  if (!orderModalBody || !lastCheckoutReceipt) return;
+
+  const { items, total, clientName, isCredit, delivery, deliveryFailed } = lastCheckoutReceipt;
+  const itemLabel = items.length === 1 ? '1 item' : `${items.length} items`;
+
+  orderModalBody.innerHTML = `
+    <div class="checkout-success">
+      <div class="checkout-success-hero">
+        <div class="checkout-success-icon" id="checkoutSuccessIcon" aria-hidden="true">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 6L9 17l-5-5"/>
+          </svg>
+        </div>
+        <div class="modal-title checkout-success-title" id="orderModalTitle">${isCredit ? 'Recorded on credit' : 'Order recorded'}</div>
+        <div class="checkout-success-total">${fmtUGX(total)}</div>
+        <div class="checkout-success-sub">${itemLabel}</div>
+      </div>
+      ${clientName || isCredit || delivery || deliveryFailed ? `
+      <div class="checkout-success-badges">
+        ${clientName ? `<span class="checkout-badge checkout-badge--client">${escapeHtml(clientName)}</span>` : ''}
+        ${isCredit ? `<span class="checkout-badge checkout-badge--credit">Credit — unpaid</span>` : ''}
+        ${delivery ? `<span class="checkout-badge checkout-badge--delivery">Delivery logged</span>` : ''}
+        ${deliveryFailed ? `<span class="checkout-badge checkout-badge--warn">Delivery not saved</span>` : ''}
+      </div>` : ''}
+      <div class="checkout-success-receipt">
+        <div class="checkout-receipt-items">
+          ${items
+            .map(
+              (item) => `
+            <div class="checkout-receipt-item">
+              <div class="checkout-receipt-item-main">
+                <div class="ci-name">${escapeHtml(item.name)}</div>
+                <div class="ci-detail">${escapeHtml(item.detail)}</div>
+              </div>
+              <div class="checkout-receipt-item-price">${fmtUGX(item.lineTotal)}</div>
+            </div>`,
+            )
+            .join('')}
+        </div>
+        ${delivery ? `
+        <div class="checkout-delivery-summary">
+          <div class="checkout-delivery-summary-label">Delivery</div>
+          <div class="checkout-delivery-route">
+            <div class="checkout-delivery-stop">${ICON_LOCATE}<span>${escapeHtml(delivery.pickup || 'Pickup')}</span></div>
+            <div class="checkout-delivery-stop">${ICON_PIN}<span>${escapeHtml(delivery.dest || 'Drop-off')}</span></div>
+          </div>
+          <div class="checkout-delivery-stats">
+            ${delivery.distanceKm != null ? `<span>${ICON_ROUTE} ${delivery.distanceKm.toFixed(1)} km · ~${Math.round(delivery.durationMin || 0)} min</span>` : ''}
+            ${delivery.fee ? `<span>${ICON_CASH} ${fmtUGX(delivery.fee)}</span>` : ''}
+          </div>
+        </div>` : ''}
+      </div>
+      <div class="checkout-success-footer">
+        <div class="modal-btns">
+          <button class="modal-btn cancel" id="checkoutSuccessNewBtn" type="button">New order</button>
+          <button class="modal-btn confirm" id="checkoutSuccessDoneBtn" type="button">Done</button>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('checkoutSuccessDoneBtn')?.addEventListener('click', dismissSuccessView);
+  document.getElementById('checkoutSuccessNewBtn')?.addEventListener('click', () => {
+    lastCheckoutReceipt = null;
+    modalMode = 'pick';
+    renderOrderModal();
+  });
+
+  animateCheckoutSuccess(orderModalBody);
 }
 
 export function openOrderModal(productId) {
@@ -121,7 +253,7 @@ export function openOrderModal(productId) {
   modalMode = 'config';
   renderOrderModal();
   const orderModal = document.getElementById('orderModal');
-  if (orderModal) orderModal.hidden = false;
+  if (orderModal) openSheetModal(orderModal);
 }
 
 function clearAutocompleteWidgets() {
@@ -216,6 +348,24 @@ function autoFillPickupLocation() {
   );
 }
 
+function updateCartCheckoutState() {
+  const cart = getCart();
+  const orderClientName = getOrderClientName();
+  const orderIsCredit = getOrderIsCredit();
+  const creditBlocked = orderIsCredit && !orderClientName;
+  const checkoutBtn = document.getElementById('checkoutBtn');
+  if (checkoutBtn) {
+    checkoutBtn.disabled = !cart.length || creditBlocked;
+    checkoutBtn.textContent = orderIsCredit ? 'Record on credit' : 'Checkout';
+  }
+  const creditCheckbox = document.getElementById('creditCheckbox');
+  if (creditCheckbox) creditCheckbox.checked = orderIsCredit;
+  const creditStatus = document.getElementById('creditSummaryStatus');
+  if (creditStatus) creditStatus.textContent = orderIsCredit ? ' · on' : '';
+  const creditWarning = document.getElementById('cartCreditWarning');
+  if (creditWarning) creditWarning.hidden = !(orderIsCredit && !orderClientName);
+}
+
 function renderCartView() {
   const orderModalBody = document.getElementById('orderModalBody');
   if (!orderModalBody) return;
@@ -223,101 +373,139 @@ function renderCartView() {
   const cart = getCart();
   const orderClientName = getOrderClientName();
   const orderIsCredit = getOrderIsCredit();
+  const itemLabel = cart.length === 1 ? '1 item' : `${cart.length} items`;
 
-  let inner = `
-    <div class="modal-header">
-      <div class="modal-title">Current order</div>
-      <button class="modal-close" id="orderClose" type="button">✕</button>
+  let scrollInner = `
+    <div class="modal-header modal-header--cart">
+      <div class="modal-header-copy">
+        <div class="modal-title" id="orderModalTitle">Current order</div>
+        <div class="modal-subtitle">${cart.length ? itemLabel : 'No items yet'}</div>
+      </div>
+      <button class="modal-close" id="orderClose" type="button" data-order-close aria-label="Close order">✕</button>
     </div>
     <div class="client-picker">
-      <label>Client</label>
-      ${
-        orderClientName
-          ? `<div class="client-chip">
-              <button class="client-chip-main" id="pickClientBtn" type="button" title="Change client">
-                <span>${escapeHtml(orderClientName)}</span>
-                <span class="client-chip-hint">Change</span>
-              </button>
-              <button class="cl-icon-btn" id="clearClientBtn" title="Remove client" type="button">✕</button>
-            </div>`
-          : `<button class="add-item-btn" id="pickClientBtn" style="margin-top:0;" type="button">+ Select or add client</button>`
-      }
+      <label for="cartClientInput">Client</label>
+      ${clientAutocompleteMarkup({
+        inputId: 'cartClientInput',
+        dropdownId: 'cartClientDropdown',
+        clearId: 'cartClientClear',
+        value: orderClientName,
+        placeholder: 'Search or type a new name…',
+      })}
     </div>
-    <label class="credit-toggle-row">
-      <input type="checkbox" id="creditCheckbox" ${orderIsCredit ? 'checked' : ''} />
-      <span>Record as credit (unpaid — front to client)</span>
-    </label>`;
-
-  if (orderIsCredit && !orderClientName) {
-    inner += `<div class="credit-warning">Select a client above before recording credit</div>`;
-  }
-
-  inner += `
-    <div class="delivery-mini">
-      <div class="delivery-mini-label">Delivery (optional)</div>
-      <div class="delivery-input-wrap pickup">
-        <span class="di-icon">${ICON_LOCATE}</span>
-        <input type="text" class="client-input" id="deliveryPickupInput" placeholder="Pickup location" autocomplete="off" value="${escapeHtml(checkoutPickupText)}" />
+    <div class="sheet-accordion credit-mini" data-accordion data-accordion-id="credit" data-accordion-open="${orderIsCredit ? 'true' : 'false'}">
+      <button type="button" class="sheet-accordion__trigger" data-accordion-trigger aria-expanded="${orderIsCredit ? 'true' : 'false'}">
+        <span class="sheet-accordion__label">Credit sale<span id="creditSummaryStatus">${orderIsCredit ? ' · on' : ''}</span> <span class="delivery-mini-hint">optional</span></span>
+        <span class="sheet-accordion__caret" aria-hidden="true"></span>
+      </button>
+      <div class="sheet-accordion__panel" data-accordion-panel>
+        <div class="credit-mini-fields">
+          <label class="credit-toggle-row credit-toggle-row--compact">
+            <input type="checkbox" id="creditCheckbox" ${orderIsCredit ? 'checked' : ''} />
+            <span>Record as credit (unpaid — front to client)</span>
+          </label>
+          <div class="credit-warning" id="cartCreditWarning" ${orderIsCredit && !orderClientName ? '' : 'hidden'}>Select a client above before recording credit</div>
+        </div>
       </div>
-      <div class="delivery-input-wrap dropoff">
-        <span class="di-icon">${ICON_PIN}</span>
-        <input type="text" class="client-input" id="deliveryDestInput" placeholder="Drop-off location" autocomplete="off" value="${escapeHtml(checkoutDestText)}" />
+    </div>
+    <div class="sheet-accordion delivery-mini" data-accordion data-accordion-id="delivery" data-accordion-open="${checkoutPickupText || checkoutDestText || checkoutFeeValue ? 'true' : 'false'}">
+      <button type="button" class="sheet-accordion__trigger" data-accordion-trigger aria-expanded="${checkoutPickupText || checkoutDestText || checkoutFeeValue ? 'true' : 'false'}">
+        <span class="sheet-accordion__label">Delivery <span class="delivery-mini-hint">optional</span></span>
+        <span class="sheet-accordion__caret" aria-hidden="true"></span>
+      </button>
+      <div class="sheet-accordion__panel" data-accordion-panel>
+        <div class="delivery-mini-fields">
+          <div class="delivery-input-wrap pickup">
+            <span class="di-icon">${ICON_LOCATE}</span>
+            <input type="text" class="client-input" id="deliveryPickupInput" placeholder="Pickup location" autocomplete="off" value="${escapeHtml(checkoutPickupText)}" />
+          </div>
+          <div class="delivery-input-wrap dropoff">
+            <span class="di-icon">${ICON_PIN}</span>
+            <input type="text" class="client-input" id="deliveryDestInput" placeholder="Drop-off location" autocomplete="off" value="${escapeHtml(checkoutDestText)}" />
+          </div>
+          <div class="delivery-input-wrap fee">
+            <span class="di-icon">${ICON_CASH}</span>
+            <input type="text" inputmode="numeric" pattern="[0-9]*" class="client-input" id="deliveryFeeInputCart" placeholder="SafeBoda fee charged (UGX)" autocomplete="off" value="${escapeHtml(checkoutFeeValue)}" />
+          </div>
+          ${checkoutDistanceKm != null ? `<div class="delivery-mini-readout">${ICON_ROUTE} ${checkoutDistanceKm.toFixed(1)} km · ~${Math.round(checkoutDurationMin)} min</div>` : ''}
+        </div>
       </div>
-      <div class="delivery-input-wrap fee">
-        <span class="di-icon">${ICON_CASH}</span>
-        <input type="text" inputmode="numeric" pattern="[0-9]*" class="client-input" id="deliveryFeeInputCart" placeholder="SafeBoda fee charged (UGX)" autocomplete="off" value="${escapeHtml(checkoutFeeValue)}" />
-      </div>
-      ${checkoutDistanceKm != null ? `<div class="delivery-mini-readout">${ICON_ROUTE} ${checkoutDistanceKm.toFixed(1)} km · ~${Math.round(checkoutDurationMin)} min</div>` : ''}
     </div>`;
 
   if (cart.length === 0) {
-    inner += `<div class="cart-empty">No items yet — tap "Add item" below</div>`;
+    scrollInner += `
+      <div class="cart-empty">
+        <div class="cart-empty-icon" aria-hidden="true">🛒</div>
+        <div class="cart-empty-title">Your order is empty</div>
+        <div class="cart-empty-hint">Tap "Add item" below to start building the order</div>
+      </div>`;
   } else {
-    inner += cart
-      .map(
-        (item) => `
-      <div class="cart-item">
-        <div>
-          <div class="ci-name">${escapeHtml(item.name)}</div>
-          <div class="ci-detail">${escapeHtml(item.detail)}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div class="ci-price">${fmtUGX(item.lineTotal)}</div>
-          <button class="cart-remove" data-remove="${item.key}" type="button">✕</button>
-        </div>
-      </div>`,
-      )
-      .join('');
-    inner += `
-      <div class="cart-total-row">
-        <div class="ct-label">Total</div>
-        <div class="ct-val">${fmtUGX(cartTotal(cart))}</div>
+    scrollInner += `
+      <div class="cart-items-list">
+        ${cart
+          .map(
+            (item) => `
+          <div class="cart-item">
+            <div class="cart-item-main">
+              <div class="ci-name">${escapeHtml(item.name)}</div>
+              <div class="ci-detail">${escapeHtml(item.detail)}</div>
+            </div>
+            <div class="cart-item-actions">
+              <div class="ci-price">${fmtUGX(item.lineTotal)}</div>
+              <div class="cart-item-btns">
+                <button class="cart-edit" data-edit="${item.key}" type="button" title="Edit item" aria-label="Edit ${escapeHtml(item.name)}">✎</button>
+                <button class="cart-remove" data-remove="${item.key}" type="button" aria-label="Remove ${escapeHtml(item.name)}">✕</button>
+              </div>
+            </div>
+          </div>`,
+          )
+          .join('')}
       </div>`;
   }
 
   const creditBlocked = orderIsCredit && !orderClientName;
-  inner += `
+  const footerInner = `
+    ${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}
     <button class="add-item-btn" id="addItemBtn" type="button">+ Add item</button>
     <div class="modal-btns">
       <button class="modal-btn cancel" id="cancelOrderBtn" type="button">Cancel order</button>
       <button class="modal-btn confirm" id="checkoutBtn" ${cart.length && !creditBlocked ? '' : 'disabled'} type="button">${orderIsCredit ? 'Record on credit' : 'Checkout'}</button>
     </div>`;
 
-  orderModalBody.innerHTML = inner;
-  document.getElementById('orderClose')?.addEventListener('click', closeOrderModal);
-  document.getElementById('pickClientBtn')?.addEventListener('click', () => {
-    modalMode = 'pickClient';
-    renderOrderModal();
-  });
-  document.getElementById('clearClientBtn')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    setOrderClient(null);
-    setOrderIsCredit(false);
-    renderCartView();
+  orderModalBody.innerHTML = `
+    <div class="cart-sheet-scroll">${scrollInner}</div>
+    <div class="cart-sheet-footer">${footerInner}</div>`;
+  orderModalBody.classList.add('cart-sheet-layout');
+
+  cartAccordions = wireGsapAccordions(orderModalBody);
+
+  wireClientAutocomplete({
+    inputId: 'cartClientInput',
+    dropdownId: 'cartClientDropdown',
+    clearId: 'cartClientClear',
+    showAllOnFocus: true,
+    maxResults: 8,
+    onChange: (name, client) => {
+      if (client) {
+        setOrderClient(client);
+      } else if (!name) {
+        setOrderClient(null);
+        if (getOrderIsCredit()) setOrderIsCredit(false);
+      } else {
+        const meta = getOrderMeta();
+        meta.clientName = name;
+        meta.clientId = '';
+        setOrderMeta(meta);
+      }
+      updateCartCheckoutState();
+    },
   });
   document.getElementById('creditCheckbox')?.addEventListener('change', (e) => {
     setOrderIsCredit(e.target.checked);
-    renderCartView();
+    if (e.target.checked) cartAccordions?.open('credit');
+    const creditStatus = document.getElementById('creditSummaryStatus');
+    if (creditStatus) creditStatus.textContent = e.target.checked ? ' · on' : '';
+    updateCartCheckoutState();
   });
   document.getElementById('addItemBtn')?.addEventListener('click', () => {
     modalMode = 'pick';
@@ -357,6 +545,27 @@ function renderCartView() {
     closeOrderModal();
   });
   document.getElementById('checkoutBtn')?.addEventListener('click', checkout);
+  orderModalBody.querySelectorAll('[data-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.edit;
+      const currentCart = getCart();
+      const idx = currentCart.findIndex((i) => i.key === key);
+      if (idx === -1) return;
+      const item = currentCart[idx];
+      editingCartKey = key;
+      editingCartItem = { ...item, breakdown: { ...item.breakdown } };
+      configProduct = PRODUCTS.find((p) => p.id === item.productId);
+      configSelection = cartItemToConfigSelection(item);
+      Object.entries(item.breakdown).forEach(([id, qty]) => {
+        draftStock[id] += qty;
+      });
+      currentCart.splice(idx, 1);
+      setCart(currentCart);
+      updateFabBadge();
+      modalMode = 'config';
+      renderOrderModal();
+    });
+  });
   orderModalBody.querySelectorAll('[data-remove]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const key = btn.dataset.remove;
@@ -384,7 +593,7 @@ function renderPickView() {
   let inner = `
     <div class="modal-header">
       <div class="modal-title">Add item</div>
-      <button class="modal-close" id="orderClose" type="button">✕</button>
+      <button class="modal-close" id="orderClose" type="button" data-order-close>✕</button>
     </div>`;
   inner += PRODUCTS.map(
     (p) => `
@@ -399,7 +608,6 @@ function renderPickView() {
   inner += `<div class="modal-btns"><button class="modal-btn cancel" id="backToCart" type="button">‹ Back to order</button></div>`;
 
   orderModalBody.innerHTML = inner;
-  document.getElementById('orderClose')?.addEventListener('click', closeOrderModal);
   document.getElementById('backToCart')?.addEventListener('click', () => {
     modalMode = 'cart';
     renderOrderModal();
@@ -414,136 +622,6 @@ function renderPickView() {
   });
 }
 
-function selectOrderClient(client) {
-  if (!client) return;
-  setOrderClient(client);
-  modalMode = 'cart';
-  renderOrderModal();
-}
-
-function updateClientPickList(query) {
-  const list = document.getElementById('clientPickList');
-  const meta = document.getElementById('clientPickMeta');
-  if (!list) return;
-
-  const trimmed = query?.trim() || '';
-  const filtered = filterClients(trimmed);
-  const exact = trimmed ? findClientByName(trimmed) : null;
-  const showCreate = trimmed.length > 0 && !exact;
-
-  if (meta) {
-    if (!clients.length && !trimmed) meta.textContent = '';
-    else if (!trimmed) meta.textContent = `${clients.length} saved client${clients.length === 1 ? '' : 's'}`;
-    else if (filtered.length === 0 && !showCreate) meta.textContent = 'No matches';
-    else meta.textContent = showCreate ? 'Tap a match or create new' : `${filtered.length} match${filtered.length === 1 ? '' : 'es'}`;
-  }
-
-  let html = '';
-  if (showCreate) {
-    html += `
-      <button class="client-pick-create" data-create-client type="button">
-        <span class="client-pick-create-label">Create</span>
-        <span class="client-pick-create-name">“${escapeHtml(trimmed)}”</span>
-      </button>`;
-  }
-
-  if (filtered.length === 0 && !showCreate) {
-    html += `<div class="client-empty client-empty-compact">${clients.length ? `No clients match “${escapeHtml(trimmed)}”` : 'No saved clients yet — type a name above'}</div>`;
-  } else {
-    html += filtered
-      .map(
-        (c) => `
-      <button class="pick-product-row client-pick-row" data-client="${c.id}" type="button">
-        <div class="ppr-name">${highlightClientName(c.name, trimmed)}</div>
-      </button>`,
-      )
-      .join('');
-  }
-
-  list.innerHTML = html;
-
-  list.querySelector('[data-create-client]')?.addEventListener('click', async () => {
-    const created = await addClient(trimmed);
-    if (created) selectOrderClient(created);
-    else showToast('Could not add client — name may already exist', true);
-  });
-
-  list.querySelectorAll('[data-client]').forEach((row) => {
-    row.addEventListener('click', () => {
-      const client = clients.find((c) => c.id === row.dataset.client);
-      selectOrderClient(client);
-    });
-  });
-}
-
-function renderPickClientView() {
-  const orderModalBody = document.getElementById('orderModalBody');
-  if (!orderModalBody) return;
-
-  const inner = `
-    <div class="modal-header">
-      <div class="modal-title">Select client</div>
-      <button class="modal-close" id="orderClose" type="button">✕</button>
-    </div>
-    <div class="client-search-wrap client-search-wrap-modal">
-      <input type="search" id="clientPickSearch" class="client-input" placeholder="Search or type a new name…" autocomplete="off" enterkeyhint="search" />
-      <button class="client-search-clear" id="clientPickSearchClear" type="button" hidden aria-label="Clear search">✕</button>
-    </div>
-    <div class="client-list-meta" id="clientPickMeta"></div>
-    <div class="client-pick-list" id="clientPickList"></div>
-    <div class="modal-btns"><button class="modal-btn cancel" id="backToCart" type="button">‹ Back to order</button></div>`;
-
-  orderModalBody.innerHTML = inner;
-  document.getElementById('orderClose')?.addEventListener('click', closeOrderModal);
-  document.getElementById('backToCart')?.addEventListener('click', () => {
-    modalMode = 'cart';
-    renderOrderModal();
-  });
-
-  const searchInput = document.getElementById('clientPickSearch');
-  const searchClear = document.getElementById('clientPickSearchClear');
-  updateClientPickList('');
-
-  searchInput?.focus();
-  searchInput?.addEventListener('input', () => {
-    const q = searchInput.value;
-    if (searchClear) {
-      if (q) searchClear.removeAttribute('hidden');
-      else searchClear.setAttribute('hidden', '');
-    }
-    updateClientPickList(q);
-  });
-  searchClear?.addEventListener('click', () => {
-    if (searchInput) searchInput.value = '';
-    searchClear.setAttribute('hidden', '');
-    searchInput?.focus();
-    updateClientPickList('');
-  });
-
-  searchInput?.addEventListener('keydown', async (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    const trimmed = searchInput.value.trim();
-    if (!trimmed) return;
-
-    const exact = findClientByName(trimmed);
-    if (exact) {
-      selectOrderClient(exact);
-      return;
-    }
-
-    const filtered = filterClients(trimmed);
-    if (filtered.length === 1) {
-      selectOrderClient(filtered[0]);
-      return;
-    }
-
-    const created = await addClient(trimmed);
-    if (created) selectOrderClient(created);
-    else showToast('Could not add client — name may already exist', true);
-  });
-}
-
 function configTotalSelected() {
   return Object.values(configSelection).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
 }
@@ -555,8 +633,8 @@ function renderConfigView() {
 
   let inner = `
     <div class="modal-header">
-      <div class="modal-title">${escapeHtml(p.name)}</div>
-      <button class="modal-close" id="orderClose" type="button">✕</button>
+      <div class="modal-title">${editingCartKey ? `Edit — ${escapeHtml(p.name)}` : escapeHtml(p.name)}</div>
+      <button class="modal-close" id="orderClose" type="button" data-order-close>✕</button>
     </div>`;
 
   if (p.rule === 'choose_any') {
@@ -585,7 +663,7 @@ function renderConfigView() {
     const ready = configTotalSelected() === p.joints;
     inner += `<div class="modal-btns">
       <button class="modal-btn cancel" id="backBtn" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">Add to order</button>
+      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">${editingCartKey ? 'Save changes' : 'Add to order'}</button>
     </div>`;
   } else if (p.rule === 'choose_variety') {
     inner += `<div class="modal-price">${fmtUGX(p.price)}</div>`;
@@ -617,7 +695,7 @@ function renderConfigView() {
     const ready = flavorSelected === flavorTarget && plainOk;
     inner += `<div class="modal-btns">
       <button class="modal-btn cancel" id="backBtn" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">Add to order</button>
+      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">${editingCartKey ? 'Save changes' : 'Add to order'}</button>
     </div>`;
   } else if (p.rule === 'single_qty') {
     const qty = configSelection.qty || 0;
@@ -628,7 +706,7 @@ function renderConfigView() {
     const ready = qty > 0 && qty <= draftStock[catId];
     inner += `<div class="modal-btns">
       <button class="modal-btn cancel" id="backBtn" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">Add to order</button>
+      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">${editingCartKey ? 'Save changes' : 'Add to order'}</button>
     </div>`;
   } else if (p.rule === 'spliff_qty') {
     inner += `<div class="modal-progress">Enter quantity for each</div>`;
@@ -651,7 +729,7 @@ function renderConfigView() {
     const ready = totalQty > 0 && !overStock;
     inner += `<div class="modal-btns">
       <button class="modal-btn cancel" id="backBtn" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">Add to order</button>
+      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">${editingCartKey ? 'Save changes' : 'Add to order'}</button>
     </div>`;
   }
 
@@ -661,9 +739,19 @@ function renderConfigView() {
 
 function wireConfigEvents() {
   const cart = getCart();
-  document.getElementById('orderClose')?.addEventListener('click', closeOrderModal);
   document.getElementById('backBtn')?.addEventListener('click', () => {
-    modalMode = cart.length ? 'cart' : 'pick';
+    if (editingCartItem) {
+      Object.entries(editingCartItem.breakdown).forEach(([id, qty]) => {
+        draftStock[id] -= qty;
+      });
+      const currentCart = getCart();
+      currentCart.push(editingCartItem);
+      setCart(currentCart);
+      editingCartKey = null;
+      editingCartItem = null;
+      updateFabBadge();
+    }
+    modalMode = getCart().length ? 'cart' : 'pick';
     renderOrderModal();
   });
 
@@ -712,6 +800,11 @@ function wireConfigEvents() {
 function addConfiguredItemToCart() {
   const p = configProduct;
   if (!p) return;
+
+  if (editingCartKey) {
+    editingCartKey = null;
+    editingCartItem = null;
+  }
 
   let breakdown = {};
   let lineTotal = 0;
@@ -829,7 +922,12 @@ async function checkout() {
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
 
     const feeVal = parseInt(checkoutFeeValue, 10);
-    if (checkoutOrigin && checkoutDest && checkoutDistanceKm != null && feeVal > 0) {
+    const deliveryAttempted =
+      checkoutOrigin && checkoutDest && checkoutDistanceKm != null && feeVal > 0;
+    let deliverySaved = false;
+    let deliveryFailed = false;
+
+    if (deliveryAttempted) {
       try {
         await sbFetch('deliveries', {
           method: 'POST',
@@ -848,41 +946,68 @@ async function checkout() {
             fee_ugx: feeVal,
           }),
         });
+        deliverySaved = true;
       } catch (e) {
         console.error('save delivery failed', e);
-        showToast('Order recorded, but delivery details did not save', true);
+        deliveryFailed = true;
       }
     }
 
-    showToast(orderIsCredit ? `Recorded on credit — ${fmtUGX(total)}` : `Order recorded — ${fmtUGX(total)}`);
+    lastCheckoutReceipt = {
+      items: cart.map((item) => ({
+        name: item.name,
+        detail: item.detail,
+        lineTotal: item.lineTotal,
+      })),
+      total,
+      clientName: orderClientName,
+      isCredit: orderIsCredit,
+      delivery: deliverySaved
+        ? {
+            pickup: checkoutPickupText,
+            dest: checkoutDestText,
+            distanceKm: checkoutDistanceKm,
+            durationMin: checkoutDurationMin,
+            fee: feeVal,
+          }
+        : null,
+      deliveryFailed,
+    };
+
     setCart([]);
     setOrderMeta({ clientName: '', clientId: '', isCredit: false });
     resetCheckoutDelivery();
     updateFabBadge();
-    closeOrderModal();
     renderStockGlance();
 
     clearCache('sales');
     const { updateTodayStrip } = await import('./home.js');
     await loadSalesToday();
     updateTodayStrip();
+
+    modalMode = 'success';
+    renderOrderModal();
   } catch (e) {
     console.error('checkout failed', e);
     showToast('Checkout failed — check connection', true);
+    updateCartCheckoutState();
   }
 }
 
 export function wireOrders() {
   const orderModal = document.getElementById('orderModal');
+  registerSheetModal(orderModal, { onDismiss: closeOrderModal });
+
   orderModal?.addEventListener('click', (e) => {
     if (e.target === orderModal) closeOrderModal();
   });
 
   document.getElementById('fabNewOrder')?.addEventListener('click', () => {
+    lastCheckoutReceipt = null;
     const cart = getCart();
     modalMode = cart.length ? 'cart' : 'pick';
     renderOrderModal();
-    if (orderModal) orderModal.hidden = false;
+    if (orderModal) openSheetModal(orderModal);
   });
 
   updateFabBadge();
@@ -901,12 +1026,14 @@ export function renderProductList() {
       </div>
       <div class="p-right">
         <div class="pprice">${fmtUGX(p.price || p.unitPrice)}</div>
-        <span class="p-arrow" aria-hidden="true">›</span>
       </div>
     </button>`,
   ).join('');
 
   productList.querySelectorAll('[data-product]').forEach((row) => {
-    row.addEventListener('click', () => openOrderModal(row.dataset.product));
+    row.addEventListener('click', () => {
+      pressButton(row);
+      openOrderModal(row.dataset.product);
+    });
   });
 }

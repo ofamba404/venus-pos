@@ -1,6 +1,7 @@
 import { sbFetch } from './api.js';
 import { readStaleCache, writeCache } from './cache.js';
 import { clients } from './state.js';
+import { staggerChildren } from './animations.js';
 import { debounce, escapeHtml, showConfirm, showToast } from './utils.js';
 
 function applyClients(rows) {
@@ -136,6 +137,7 @@ export function renderClientsTab() {
   list.querySelectorAll('[data-delete]').forEach((btn) => {
     btn.addEventListener('click', () => deleteClient(btn.dataset.delete));
   });
+  staggerChildren(list, '.client-row');
 }
 
 function startRenameClient(id) {

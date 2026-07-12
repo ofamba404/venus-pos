@@ -1,3 +1,5 @@
+import { closeModal, openModal } from './animations.js';
+
 const debugLogEntries = [];
 
 export function logDebug(msg) {
@@ -49,15 +51,15 @@ export function wireDebugPanel() {
 
   debugBtn?.addEventListener('click', () => {
     if (debugLogText) debugLogText.value = debugLogEntries.length ? debugLogEntries.join('\n') : '';
-    if (debugOverlay) debugOverlay.hidden = false;
+    if (debugOverlay) openModal(debugOverlay);
   });
 
   document.getElementById('debugCloseBtn')?.addEventListener('click', () => {
-    if (debugOverlay) debugOverlay.hidden = true;
+    if (debugOverlay) closeModal(debugOverlay);
   });
 
   debugOverlay?.addEventListener('click', (e) => {
-    if (e.target === debugOverlay) debugOverlay.hidden = true;
+    if (e.target === debugOverlay) closeModal(debugOverlay);
   });
 
   document.getElementById('debugClearBtn')?.addEventListener('click', () => {

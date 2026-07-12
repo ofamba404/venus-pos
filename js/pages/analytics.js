@@ -12,7 +12,7 @@ async function boot() {
     wireAnalyticsPage();
     renderAnalytics();
     await loadPageData();
-    renderAnalytics();
+    renderAnalytics({ animate: false });
   } finally {
     setPageLoading(false);
   }

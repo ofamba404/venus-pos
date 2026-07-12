@@ -1,6 +1,14 @@
 import { sbFetch } from './api.js';
 import { readStaleCache, writeCache } from './cache.js';
-import { CATEGORIES, CAT_MAP, LOW_STOCK_THRESHOLD, getPageHref } from './config.js';
+import { animateCounter, bumpElement, closeModal, openModal } from './animations.js';
+import {
+  CATEGORIES,
+  CAT_MAP,
+  COOKIE_LOW_PCT,
+  COOKIE_STOCK_CAPACITY,
+  LOW_STOCK_THRESHOLD,
+  getPageHref,
+} from './config.js';
 import { inventory, draftStock } from './state.js';
 import { showToast } from './utils.js';
 
@@ -45,12 +53,9 @@ export function refreshInvCard(id) {
   const el = document.getElementById(`inv-count-${id}`);
   if (!el) return;
   el.textContent = inventory[id];
-  el.classList.remove('bump');
-  void el.offsetWidth;
-  el.classList.add('bump');
+  bumpElement(el);
   const card = el.closest('.card');
-  card?.classList.add('pulse');
-  setTimeout(() => card?.classList.remove('pulse'), 200);
+  if (card) bumpElement(card);
 }
 
 export function adjustStock(id, delta) {
@@ -175,44 +180,89 @@ export async function loadInventory() {
   renderStockGlance();
 }
 
+function isCookieCategory(cat) {
+  return cat.id === 'cookie';
+}
+
+function countByStatus(categories) {
+  const out = categories.filter((c) => inventory[c.id] === 0).length;
+  const low = categories.filter((c) => inventory[c.id] > 0 && inventory[c.id] < LOW_STOCK_THRESHOLD).length;
+  const ok = categories.length - out - low;
+  return { ok, low, out };
+}
+
+function buildDonutGradient(categories, total) {
+  if (total === 0) return 'var(--btn-bg)';
+  let cursor = 0;
+  const stops = [];
+  categories.forEach((c) => {
+    const stock = inventory[c.id];
+    if (stock <= 0) return;
+    const start = cursor;
+    const end = cursor + (stock / total) * 100;
+    stops.push(`${c.color} ${start}% ${end}%`);
+    cursor = end;
+  });
+  return stops.length ? `conic-gradient(${stops.join(', ')})` : 'var(--btn-bg)';
+}
+
+function formatStatusParts({ ok, low, out }, showZeros = true) {
+  const parts = [];
+  if (showZeros || ok) parts.push(`<span class="ds-ok">${ok} well stocked</span>`);
+  if (showZeros || low) parts.push(`<span class="ds-low">${low} running low</span>`);
+  if (showZeros || out) parts.push(`<span class="ds-out">${out} out of stock</span>`);
+  return parts.length ? parts.join('<span class="ds-sep">·</span>') : '<span class="ds-out">out of stock</span>';
+}
+
+function cookieStockLevel(stock) {
+  const pct = stock <= 0 ? 0 : Math.min(100, Math.round((stock / COOKIE_STOCK_CAPACITY) * 100));
+  if (stock === 0) return { pct, state: 'out' };
+  const lowCutoff = Math.max(LOW_STOCK_THRESHOLD, Math.round(COOKIE_STOCK_CAPACITY * COOKIE_LOW_PCT));
+  if (stock < lowCutoff) return { pct, state: 'low' };
+  return { pct, state: 'ok' };
+}
+
+function renderStatusGroup(label, status, typeClass, statsHtml) {
+  return `
+    <div class="ds-group ${typeClass}">
+      <div class="ds-group-label">${label}</div>
+      <div class="ds-group-stats">${statsHtml ?? formatStatusParts(status)}</div>
+    </div>`;
+}
+
 export function renderStockGlance() {
-  const donutRing = document.getElementById('donutRing');
-  const donutTotal = document.getElementById('donutTotal');
+  const donutJoints = document.getElementById('donutJoints');
+  const donutJointsTotal = document.getElementById('donutJointsTotal');
+  const cookieStockTotal = document.getElementById('cookieStockTotal');
+  const cookieStockFill = document.getElementById('cookieStockFill');
   const donutStatus = document.getElementById('donutStatus');
-  if (!donutRing) return;
+  if (!donutJoints) return;
 
-  const total = CATEGORIES.reduce((sum, c) => sum + inventory[c.id], 0);
-  donutTotal.textContent = total;
+  const jointCats = CATEGORIES.filter((c) => !isCookieCategory(c));
+  const cookieCats = CATEGORIES.filter(isCookieCategory);
 
-  if (total === 0) {
-    donutRing.style.background = 'var(--btn-bg)';
-  } else {
-    let cursor = 0;
-    const stops = [];
-    CATEGORIES.forEach((c) => {
-      const stock = inventory[c.id];
-      if (stock <= 0) return;
-      const start = cursor;
-      const end = cursor + (stock / total) * 100;
-      stops.push(`${c.color} ${start}% ${end}%`);
-      cursor = end;
-    });
-    donutRing.style.background = `conic-gradient(${stops.join(', ')})`;
+  const jointsTotal = jointCats.reduce((sum, c) => sum + inventory[c.id], 0);
+  const cookiesTotal = cookieCats.reduce((sum, c) => sum + inventory[c.id], 0);
+
+  animateCounter(donutJointsTotal, jointsTotal);
+  donutJoints.style.background = buildDonutGradient(jointCats, jointsTotal);
+
+  if (cookieStockTotal) animateCounter(cookieStockTotal, cookiesTotal);
+  if (cookieStockFill) {
+    const meter = cookieStockLevel(cookiesTotal);
+    cookieStockFill.style.width = `${meter.pct}%`;
+    cookieStockFill.dataset.state = meter.state;
   }
 
-  const outCount = CATEGORIES.filter((c) => inventory[c.id] === 0).length;
-  const lowCount = CATEGORIES.filter((c) => inventory[c.id] > 0 && inventory[c.id] < LOW_STOCK_THRESHOLD).length;
-  const okCount = CATEGORIES.length - outCount - lowCount;
+  if (donutStatus) {
+    donutStatus.innerHTML = renderStatusGroup('Joints', countByStatus(jointCats), 'ds-joints');
+  }
 
-  donutStatus.innerHTML = `
-    <div class="ds-row ds-ok" data-status-link="ok"><span class="ds-dot"></span>${okCount} well stocked</div>
-    <div class="ds-row ds-low" data-status-link="low"><span class="ds-dot"></span>${lowCount} running low</div>
-    <div class="ds-row ds-out" data-status-link="out"><span class="ds-dot"></span>${outCount} out of stock</div>
-  `;
-
-  donutStatus.querySelectorAll('[data-status-link]').forEach((row) => {
-    row.addEventListener('click', () => {
-      setActiveStatusHighlight(row.dataset.statusLink);
+  donutStatus.querySelectorAll('.ds-ok, .ds-low, .ds-out').forEach((chip) => {
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const status = chip.classList.contains('ds-low') ? 'low' : chip.classList.contains('ds-out') ? 'out' : 'ok';
+      setActiveStatusHighlight(status);
       window.location.href = getPageHref('analytics', '#stock');
     });
   });
@@ -247,12 +297,12 @@ export function wireInventoryPage() {
     amountModalTitle.textContent = dir > 0 ? `Add stock — ${label}` : `Remove stock — ${label}`;
     amountContext = { id, dir };
     amountInput.value = '';
-    amountModal.hidden = false;
+    openModal(amountModal);
     setTimeout(() => amountInput.focus(), 50);
   }
 
   function closeAmountModal() {
-    amountModal.hidden = true;
+    closeModal(amountModal);
     amountContext = null;
   }
 
