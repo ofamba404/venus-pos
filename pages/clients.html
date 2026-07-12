@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Clients · Venus POS</title>
+  <meta name="description" content="Manage Venus POS client list for orders and credit tracking.">
+  <meta name="theme-color" content="#080c10">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://xiangrykfxlnacthjcad.supabase.co">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body data-page="clients">
+  <div id="app-root">
+    <div class="client-add-row">
+      <input type="text" id="newClientInput" class="client-input" placeholder="New client name…" autocomplete="name" />
+      <button class="modal-btn confirm" id="addClientBtn" style="flex:0 0 auto; padding: 0 20px;" type="button">Add</button>
+    </div>
+    <div class="client-search-wrap">
+      <input type="search" id="clientSearchInput" class="client-input" placeholder="Search clients…" autocomplete="off" enterkeyhint="search" />
+      <button class="client-search-clear" id="clientSearchClear" type="button" hidden aria-label="Clear search">✕</button>
+    </div>
+    <div class="client-list-meta" id="clientListMeta"></div>
+    <div class="client-list" id="clientList"></div>
+  </div>
+  <script type="module" src="../js/pages/clients.js"></script>
+</body>
+</html>

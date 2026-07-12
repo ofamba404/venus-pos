@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Venus POS</title>
+  <meta name="description" content="Venus POS register — today's sales, stock glance, and product checkout.">
+  <meta name="theme-color" content="#080c10">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://xiangrykfxlnacthjcad.supabase.co">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body data-page="home">
+  <div id="app-root">
+    <div class="dashboard">
+      <div class="kpi-grid">
+        <button class="kpi-card kpi-revenue" id="todayRevenueStat" type="button">
+          <div class="val" id="todayRevenue">UGX 0</div>
+          <div class="lbl">Today's revenue</div>
+        </button>
+        <button class="kpi-card kpi-units" id="todayUnitsStat" type="button">
+          <div class="sold-row">
+            <div class="sold-item">
+              <div class="val" id="todayJoints">0</div>
+              <div class="sold-sub">joints</div>
+            </div>
+            <div class="sold-sep"></div>
+            <div class="sold-item">
+              <div class="val" id="todayCookies">0</div>
+              <div class="sold-sub">cookies</div>
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <div class="stock-card stock-summary" id="stockGlance">
+        <div class="donut-container" role="button" tabindex="0" aria-label="View inventory">
+          <div class="donut" id="donutRing"></div>
+          <div class="donut-hole">
+            <div class="donut-total" id="donutTotal">0</div>
+            <div class="donut-caption">in stock</div>
+          </div>
+        </div>
+        <div class="donut-status" id="donutStatus"></div>
+      </div>
+
+      <div class="section-head">
+        <h2>Checkout</h2>
+        <span class="section-hint">Tap a product to sell</span>
+      </div>
+      <div class="product-list" id="productList"></div>
+    </div>
+  </div>
+  <script type="module" src="js/pages/home.js"></script>
+</body>
+</html>

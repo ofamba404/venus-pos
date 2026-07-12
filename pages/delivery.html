@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Delivery · Venus POS</title>
+  <meta name="description" content="Venus POS delivery pricing model and trip history.">
+  <meta name="theme-color" content="#080c10">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://xiangrykfxlnacthjcad.supabase.co">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body data-page="delivery">
+  <div id="app-root">
+    <p class="page-hint">Pricing model — Base Fee + (Distance × Per-KM Rate)</p>
+    <div class="analytics-grid" id="deliveryStats"></div>
+    <div class="delivery-scatter-wrap" id="deliveryScatter"></div>
+
+    <div class="section-title">Delivery log</div>
+    <div id="deliveryLogList"></div>
+  </div>
+  <script type="module" src="../js/pages/delivery.js"></script>
+</body>
+</html>

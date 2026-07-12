@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Analytics · Venus POS</title>
+  <meta name="description" content="Venus POS revenue, credit, stock, and order analytics.">
+  <meta name="theme-color" content="#080c10">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://xiangrykfxlnacthjcad.supabase.co">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body data-page="analytics">
+  <div id="app-root">
+    <div class="analytics-grid" id="statCards"></div>
+
+    <div class="section-title">Credit outstanding</div>
+    <div id="creditList"></div>
+
+    <div class="section-title" id="revenueTrendLabel">Revenue — last 7 days</div>
+    <div id="revenueTrend"></div>
+
+    <div class="section-title" id="stockLevelsLabel">Stock levels</div>
+    <div id="stockBars"></div>
+
+    <div class="section-title">Revenue by product</div>
+    <div id="productRevenue"></div>
+
+    <div class="section-title">Top clients</div>
+    <div id="topClients"></div>
+
+    <div class="section-title" id="ordersLabel">Recent orders</div>
+    <div class="receipt-edge top"></div>
+    <div class="receipt" id="receiptList"></div>
+    <div class="receipt-edge bottom" id="analyticsBottom"></div>
+  </div>
+  <script type="module" src="../js/pages/analytics.js"></script>
+</body>
+</html>
