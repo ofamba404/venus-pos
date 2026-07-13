@@ -1,4 +1,4 @@
-import { initApp, revealApp } from '../app.js';
+import { finishAppInit, mountApp, revealApp } from '../app.js';
 import { loadClients, renderClientsTab, wireClientsPage } from '../clients.js';
 import { hydrateFromCache } from '../bootstrap.js';
 import { resetPageDataSettled, setPageDataSettled } from '../state.js';
@@ -10,12 +10,13 @@ async function boot() {
   setPageLoading(true);
 
   try {
-    await initApp('clients');
-    wireClientsPage();
-    await loadClients();
-    setPageDataSettled();
-    renderClientsTab();
+    mountApp('clients');
     revealApp();
+    wireClientsPage();
+    renderClientsTab();
+
+    await Promise.all([finishAppInit(), loadClients()]);
+    setPageDataSettled();
   } finally {
     setPageLoading(false);
   }

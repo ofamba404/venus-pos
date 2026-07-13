@@ -1,4 +1,4 @@
-import { initApp, revealApp } from '../app.js';
+import { finishAppInit, mountApp, revealApp } from '../app.js';
 import { renderAnalytics, wireAnalyticsPage } from '../analytics.js';
 import { hydrateFromCache, loadPageData } from '../bootstrap.js';
 import { resetPageDataSettled, setPageDataSettled } from '../state.js';
@@ -10,12 +10,14 @@ async function boot() {
   setPageLoading(true);
 
   try {
-    await initApp('analytics');
+    mountApp('analytics');
+    revealApp();
     wireAnalyticsPage();
-    await loadPageData();
+    renderAnalytics();
+
+    await Promise.all([finishAppInit(), loadPageData()]);
     setPageDataSettled();
     renderAnalytics();
-    revealApp();
   } finally {
     setPageLoading(false);
   }

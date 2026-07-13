@@ -1,0 +1,103 @@
+# Fast push + deploy for Venus POS
+# Usage: .\scripts\ship.ps1 "Optional commit message"
+param(
+    [string]$Message = ""
+)
+
+$ErrorActionPreference = "Stop"
+$Root = Split-Path -Parent $PSScriptRoot
+Set-Location $Root
+
+function Get-NetlifyCli {
+    $local = Join-Path $Root "node_modules\.bin\netlify.cmd"
+    if (Test-Path $local) { return $local }
+    return "netlify"
+}
+
+function Get-GitHubNoreplyEmail {
+    $remote = git remote get-url origin 2>$null
+    if ($remote -match 'github\.com[:/]([^/]+)') {
+        return "$($Matches[1])@users.noreply.github.com"
+    }
+    return $null
+}
+
+function Set-CommitIdentity {
+    $email = Get-GitHubNoreplyEmail
+    if (-not $email) { return }
+    $name = git log -1 --format="%an" 2>$null
+    if (-not $name) { $name = "Joshua Ofamba" }
+    $env:GIT_AUTHOR_EMAIL = $email
+    $env:GIT_COMMITTER_EMAIL = $email
+    $env:GIT_AUTHOR_NAME = $name
+    $env:GIT_COMMITTER_NAME = $name
+}
+
+function Test-GitContinuousDeployment {
+    $configPath = Join-Path $Root "netlify.deploy.json"
+    if (Test-Path $configPath) {
+        $config = Get-Content $configPath -Raw | ConvertFrom-Json
+        if ($config.gitContinuousDeployment -eq $true) { return $true }
+    }
+
+    $netlify = Get-NetlifyCli
+    try {
+        $site = & $netlify api getSite --data "{`"site_id`":`"1f57b669-95c4-4477-af88-244c98dd983e`"}" 2>$null | ConvertFrom-Json
+        return [bool]$site.build_settings.repo_url
+    } catch {
+        return $false
+    }
+}
+
+function Invoke-GitPush {
+    param([string]$Branch)
+
+    $pushOutput = git push -u origin $Branch 2>&1 | Out-String
+    if ($LASTEXITCODE -eq 0) { return }
+
+    if ($pushOutput -notmatch "GH007") {
+        throw "git push failed: $pushOutput"
+    }
+
+    $email = Get-GitHubNoreplyEmail
+    $name = $env:GIT_AUTHOR_NAME
+    if (-not $email) { throw "git push blocked by GH007 and GitHub noreply email could not be derived." }
+
+    git commit --amend --author="$name <$email>" --no-edit
+    if ($LASTEXITCODE -ne 0) { throw "Failed to amend commit author for GH007." }
+    git push -u origin $Branch
+    if ($LASTEXITCODE -ne 0) { throw "git push failed after GH007 fix." }
+}
+
+Set-CommitIdentity
+
+$branch = git branch --show-current
+if (-not $branch) { throw "Not on a git branch." }
+
+git add -A
+$pending = git status --porcelain
+if ($pending) {
+    if (-not $Message) { $Message = "Deploy update." }
+    git commit -m $Message
+    if ($LASTEXITCODE -ne 0) { throw "git commit failed." }
+    Write-Host "Committed changes."
+} else {
+    Write-Host "No changes to commit."
+}
+
+$commit = git rev-parse --short HEAD
+Invoke-GitPush -Branch $branch
+Write-Host "Pushed $branch @ $commit"
+
+if (Test-GitContinuousDeployment) {
+    Write-Host "Git continuous deployment is enabled - Netlify will build from the push."
+    Write-Host "Production: https://posvenus.netlify.app"
+    exit 0
+}
+
+$netlify = Get-NetlifyCli
+Write-Host "Deploying to Netlify production..."
+& $netlify deploy --prod --dir . --message "ship $commit"
+if ($LASTEXITCODE -ne 0) { throw "Netlify deploy failed." }
+
+Write-Host "Done. Production: https://posvenus.netlify.app"

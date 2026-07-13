@@ -1,0 +1,7 @@
+{
+  "siteId": "1f57b669-95c4-4477-af88-244c98dd983e",
+  "productionUrl": "https://posvenus.netlify.app",
+  "productionBranch": "master",
+  "publishDir": ".",
+  "gitContinuousDeployment": false
+}

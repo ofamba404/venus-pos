@@ -3947,11 +3947,12 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 35%;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--jade), transparent);
+    width: 18%;
+    height: 1px;
+    opacity: 0.4;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--jade) 55%, transparent), transparent);
     z-index: 500;
-    animation: loadBar 1.1s ease-in-out infinite;
+    animation: loadBar 1.8s ease-in-out infinite;
     pointer-events: none;
   }
 
@@ -3959,12 +3960,6 @@
     0% { transform: translateX(-100%); }
     100% { transform: translateX(320%); }
   }
-
-  body:not(.is-ready) #app-root {
-    visibility: hidden;
-  }
-
-  body:not(.is-ready) .page-view { opacity: 0; }
 
   body.has-gsap .page-view { animation: none; }
   body.has-gsap .modal { animation: none; }

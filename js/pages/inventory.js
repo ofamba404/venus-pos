@@ -1,4 +1,4 @@
-import { initApp, revealApp } from '../app.js';
+import { finishAppInit, mountApp, revealApp } from '../app.js';
 import { renderInventoryGrid, syncInventoryToDom, wireInventoryPage } from '../inventory.js';
 import { hydrateFromCache, loadPageData } from '../bootstrap.js';
 import { resetPageDataSettled, setPageDataSettled } from '../state.js';
@@ -6,17 +6,19 @@ import { setPageLoading } from '../utils.js';
 
 async function boot() {
   resetPageDataSettled();
-  hydrateFromCache();
+  const cached = hydrateFromCache();
   setPageLoading(true);
 
   try {
-    await initApp('inventory');
-    await loadPageData();
+    mountApp('inventory');
+    revealApp();
+    renderInventoryGrid({ pending: !cached.inventory });
+
+    await Promise.all([finishAppInit(), loadPageData()]);
     setPageDataSettled();
     renderInventoryGrid();
     wireInventoryPage();
     syncInventoryToDom();
-    revealApp();
   } finally {
     setPageLoading(false);
   }

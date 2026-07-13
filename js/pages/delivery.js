@@ -1,4 +1,4 @@
-import { initApp, revealApp } from '../app.js';
+import { finishAppInit, mountApp, revealApp } from '../app.js';
 import { loadDeliveries, renderDeliveryAnalysis } from '../delivery.js';
 import { hydrateFromCache } from '../bootstrap.js';
 import { prepareOrderContext } from '../order-context.js';
@@ -11,11 +11,13 @@ async function boot() {
   setPageLoading(true);
 
   try {
-    await initApp('delivery');
-    await Promise.all([loadDeliveries(), prepareOrderContext()]);
+    mountApp('delivery');
+    revealApp();
+    renderDeliveryAnalysis();
+
+    await Promise.all([finishAppInit(), loadDeliveries(), prepareOrderContext()]);
     setPageDataSettled();
     renderDeliveryAnalysis();
-    revealApp();
   } finally {
     setPageLoading(false);
   }
