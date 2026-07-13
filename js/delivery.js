@@ -480,24 +480,24 @@ function renderEditDeliveryModal() {
       setDeliveryFieldValue('editDeliveryDest', label);
       computeEditDistance();
     },
+    onPickupInput: (value) => {
+      editPickupText = value;
+      if (!value) {
+        editOrigin = null;
+        editDistanceKm = null;
+        updateEditDistanceReadout();
+      }
+    },
+    onDestInput: (value) => {
+      editDestText = value;
+      if (!value) {
+        editDest = null;
+        editDistanceKm = null;
+        updateEditDistanceReadout();
+      }
+    },
   });
 
-  document.getElementById('editDeliveryPickup')?.addEventListener('input', (e) => {
-    editPickupText = e.target.value;
-    if (!e.target.value) {
-      editOrigin = null;
-      editDistanceKm = null;
-      updateEditDistanceReadout();
-    }
-  });
-  document.getElementById('editDeliveryDest')?.addEventListener('input', (e) => {
-    editDestText = e.target.value;
-    if (!e.target.value) {
-      editDest = null;
-      editDistanceKm = null;
-      updateEditDistanceReadout();
-    }
-  });
   document.getElementById('editDeliveryFee')?.addEventListener('input', (e) => {
     editFeeValue = e.target.value;
   });

@@ -326,6 +326,24 @@ function wireDeliveryAutocompletes() {
       setDeliveryFieldValue('deliveryDestInput', label);
       computeCheckoutDistance();
     },
+    onPickupFocus: () => cartAccordions?.open('delivery'),
+    onDestFocus: () => cartAccordions?.open('delivery'),
+    onPickupInput: (value) => {
+      checkoutPickupText = value;
+      if (!value) {
+        checkoutOrigin = null;
+        checkoutDistanceKm = null;
+        updateCheckoutDistanceReadout();
+      }
+    },
+    onDestInput: (value) => {
+      checkoutDestText = value;
+      if (!value) {
+        checkoutDest = null;
+        checkoutDistanceKm = null;
+        updateCheckoutDistanceReadout();
+      }
+    },
   });
 }
 
@@ -515,25 +533,6 @@ function renderCartView() {
   });
 
   wireDeliveryAutocompletes();
-  const openDeliveryAccordion = () => cartAccordions?.open('delivery');
-  document.getElementById('deliveryPickupInput')?.addEventListener('focus', openDeliveryAccordion);
-  document.getElementById('deliveryDestInput')?.addEventListener('focus', openDeliveryAccordion);
-  document.getElementById('deliveryPickupInput')?.addEventListener('input', (e) => {
-    checkoutPickupText = e.target.value;
-    if (!e.target.value) {
-      checkoutOrigin = null;
-      checkoutDistanceKm = null;
-      updateCheckoutDistanceReadout();
-    }
-  });
-  document.getElementById('deliveryDestInput')?.addEventListener('input', (e) => {
-    checkoutDestText = e.target.value;
-    if (!e.target.value) {
-      checkoutDest = null;
-      checkoutDistanceKm = null;
-      updateCheckoutDistanceReadout();
-    }
-  });
   if (!pickupAutoRequested) {
     pickupAutoRequested = true;
     autoFillPickupLocation();

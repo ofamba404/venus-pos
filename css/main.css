@@ -2521,8 +2521,6 @@
     background: linear-gradient(135deg, var(--jade), color-mix(in srgb, var(--jade) 75%, #14b8a6));
     color: #052e1f;
     border: none;
-    font-size: 30px;
-    font-weight: 300;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2530,6 +2528,14 @@
     box-shadow: 0 4px 20px var(--jade-glow), var(--shadow-md);
     -webkit-tap-highlight-color: transparent;
     transition: transform 0.12s ease, box-shadow 0.15s ease;
+  }
+
+  .fab-icon {
+    width: 26px;
+    height: 26px;
+    stroke: currentColor;
+    fill: none;
+    flex-shrink: 0;
   }
 
   .fab:active {
@@ -3576,40 +3582,6 @@
     flex: none;
   }
 
-  .delivery-input-wrap gmp-place-autocomplete.delivery-place-autocomplete {
-    display: block;
-    width: 100%;
-    box-sizing: border-box;
-    margin-bottom: 0;
-    color-scheme: light;
-    --gmpx-color-surface: var(--surface-raised);
-    --gmpx-color-on-surface: var(--text);
-    --gmpx-color-on-surface-variant: var(--text-dim);
-    --gmpx-color-primary: var(--jade);
-    --gmpx-font-family: var(--font-sans);
-    --gmpx-font-size-base: var(--text-base);
-  }
-
-  .delivery-input-wrap gmp-place-autocomplete.delivery-place-autocomplete::part(input) {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 12px 14px 12px 40px;
-    margin-bottom: 0;
-    background: var(--btn-bg);
-    color: var(--text);
-    border: 1px solid var(--panel-edge);
-    border-radius: var(--radius-md);
-    font-family: var(--font-sans);
-    font-size: var(--text-base);
-    line-height: var(--leading-normal);
-  }
-
-  .delivery-input-wrap gmp-place-autocomplete.delivery-place-autocomplete::part(input):focus {
-    outline: none;
-    border-color: var(--jade);
-    box-shadow: 0 0 0 3px var(--jade-dim);
-  }
-
   .delivery-input-wrap .di-icon {
     position: absolute;
     left: 14px;
@@ -3626,64 +3598,124 @@
   .delivery-input-wrap.dropoff .di-icon { color: var(--danger); }
   .delivery-input-wrap.fee .di-icon { color: var(--gold); }
 
-  /* Google Places Autocomplete dropdown (legacy .pac-container + new widget list) */
+  .delivery-input-wrap gmp-place-autocomplete.delivery-place-autocomplete {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 0;
+    color-scheme: light;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    --gmpx-color-surface: transparent;
+    --gmpx-color-on-surface: var(--text);
+    --gmpx-color-on-surface-variant: var(--text-dim);
+    --gmpx-color-primary: var(--jade);
+    --gmpx-font-family: var(--font-sans);
+    --gmpx-font-size-base: var(--text-sm);
+  }
+
+  .delivery-input-wrap gmp-place-autocomplete.delivery-place-autocomplete::part(input) {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px var(--space-4) 14px 40px;
+    margin-bottom: 0;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    line-height: var(--leading-snug);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .delivery-input-wrap gmp-place-autocomplete.delivery-place-autocomplete::part(input):focus {
+    outline: none;
+    border-color: var(--jade);
+    box-shadow: 0 0 0 3px var(--jade-dim);
+  }
+
+  /* Google Places dropdown — match client-autocomplete-dropdown */
   .pac-container,
-  gmp-place-autocomplete::part(prediction-list) {
+  gmp-place-autocomplete.delivery-place-autocomplete::part(prediction-list) {
     font-family: var(--font-sans) !important;
-    background: var(--surface-raised) !important;
+    background: var(--surface) !important;
     border: 1px solid var(--panel-edge) !important;
     border-radius: var(--radius-md) !important;
-    box-shadow: var(--shadow-lg) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28) !important;
     margin-top: 4px !important;
-    overflow: hidden !important;
+    max-height: 180px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
     z-index: 10000 !important;
     box-sizing: border-box !important;
   }
 
   .pac-item {
-    display: flex !important;
-    align-items: flex-start !important;
-    gap: 10px !important;
-    border-top: 1px solid var(--panel-edge-subtle) !important;
+    display: block !important;
+    border-bottom: 1px solid var(--panel-edge) !important;
+    border-top: none !important;
     padding: 11px 14px !important;
     cursor: pointer !important;
-    color: var(--text-secondary) !important;
-    font-size: 12.5px !important;
-    line-height: 1.45 !important;
+    color: var(--text-dim) !important;
+    font-size: var(--text-sm) !important;
+    line-height: var(--leading-snug) !important;
     background: transparent !important;
     transition: background 0.12s ease !important;
   }
 
-  .pac-item:first-child { border-top: none !important; }
-
-  .pac-item:hover,
-  .pac-item-selected {
-    background: var(--jade-dim) !important;
+  gmp-place-autocomplete.delivery-place-autocomplete::part(prediction-item) {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    border-bottom: 1px solid var(--panel-edge) !important;
+    border-top: none !important;
+    padding: 11px 14px !important;
+    cursor: pointer !important;
+    color: var(--text-dim) !important;
+    font-size: var(--text-sm) !important;
+    line-height: var(--leading-snug) !important;
+    background: transparent !important;
+    transition: background 0.12s ease !important;
   }
 
-  .pac-item-query {
-    display: block !important;
+  .pac-item:last-child,
+  gmp-place-autocomplete.delivery-place-autocomplete::part(prediction-item):last-child {
+    border-bottom: none !important;
+  }
+
+  .pac-item:hover,
+  .pac-item-selected,
+  gmp-place-autocomplete.delivery-place-autocomplete::part(prediction-item-selected),
+  gmp-place-autocomplete.delivery-place-autocomplete::part(prediction-item):hover {
+    background: var(--btn-bg) !important;
+  }
+
+  .pac-item-query,
+  gmp-place-autocomplete.delivery-place-autocomplete::part(prediction-item-main-text) {
+    display: inline !important;
     color: var(--text) !important;
-    font-size: 14px !important;
+    font-size: var(--text-sm) !important;
     font-weight: 600 !important;
     padding-right: 3px !important;
   }
 
-  .pac-matched {
+  .pac-matched,
+  gmp-place-autocomplete.delivery-place-autocomplete::part(prediction-item-match) {
     color: var(--jade) !important;
     font-weight: 700 !important;
   }
 
   .pac-icon {
-    width: 18px !important;
-    height: 22px !important;
-    margin-top: 1px !important;
-    background-size: contain !important;
-    flex-shrink: 0 !important;
+    display: none !important;
   }
 
   .pac-logo,
-  .pac-logo::after {
+  .pac-logo::after,
+  gmp-place-autocomplete.delivery-place-autocomplete::part(attribution) {
     display: none !important;
     height: 0 !important;
     padding: 0 !important;
@@ -4058,7 +4090,7 @@
   .cart-sheet-footer {
     flex-shrink: 0;
     padding: var(--space-5) var(--space-6);
-    padding-bottom: max(var(--space-8), calc(env(safe-area-inset-bottom) + var(--space-5)));
+    padding-bottom: max(var(--space-8), calc(env(safe-area-inset-bottom) + var(--space-8)));
     border-top: 1px solid var(--panel-edge);
     background: var(--surface-raised);
     box-shadow: 0 -10px 28px rgb(15 23 42 / 6%);
@@ -4071,9 +4103,15 @@
     margin-bottom: var(--space-3);
   }
 
-  .cart-sheet-footer .add-item-btn { margin-top: 0; }
+  .cart-sheet-footer .add-item-btn {
+    margin-top: 0;
+    margin-bottom: var(--space-5);
+  }
 
-  .cart-sheet-footer .modal-btns { margin-top: var(--space-5); }
+  .cart-sheet-footer .modal-btns {
+    margin-top: 0;
+    margin-bottom: var(--space-5);
+  }
 
   .cart-items-list {
     display: flex;

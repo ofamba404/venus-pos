@@ -63,7 +63,11 @@ export function renderModals(currentPage = 'home') {
       </nav>
       <div class="fab-stack" id="fabStack">
         <button class="fab" id="fabNewOrder" aria-label="New order" type="button">
-          +
+          <svg class="fab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="8" cy="21" r="1"/>
+            <circle cx="19" cy="21" r="1"/>
+            <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.58L23 6H6"/>
+          </svg>
           <span class="fab-badge" id="fabBadge" style="display:none;">0</span>
         </button>
         <button class="fab fab-nav" id="fabNavToggle" aria-label="Open navigation" aria-expanded="false" aria-controls="floatingNav" type="button">

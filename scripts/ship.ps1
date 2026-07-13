@@ -73,7 +73,7 @@ function Invoke-GitCommand {
 function Invoke-GitPush {
     param([string]$Branch)
 
-    $result = Invoke-GitCommand -Args @("push", "-u", "origin", $Branch)
+    $result = Invoke-GitCommand -GitArgs @("push", "-u", "origin", $Branch)
     if ($result.ExitCode -eq 0) { return }
 
     if ($result.Output -notmatch "GH007") {
@@ -87,7 +87,7 @@ function Invoke-GitPush {
     git commit --amend --author="$name <$email>" --no-edit
     if ($LASTEXITCODE -ne 0) { throw "Failed to amend commit author for GH007." }
 
-    $retry = Invoke-GitCommand -Args @("push", "-u", "origin", $Branch)
+    $retry = Invoke-GitCommand -GitArgs @("push", "-u", "origin", $Branch)
     if ($retry.ExitCode -ne 0) { throw "git push failed after GH007 fix: $($retry.Output)" }
 }
 
