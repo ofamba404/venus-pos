@@ -49,14 +49,30 @@ function Test-GitContinuousDeployment {
     }
 }
 
+function Invoke-GitCommand {
+    param([string[]]$Args)
+
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = & git @Args 2>&1 | Out-String
+        return @{
+            ExitCode = $LASTEXITCODE
+            Output = $output
+        }
+    } finally {
+        $ErrorActionPreference = $previous
+    }
+}
+
 function Invoke-GitPush {
     param([string]$Branch)
 
-    $pushOutput = git push -u origin $Branch 2>&1 | Out-String
-    if ($LASTEXITCODE -eq 0) { return }
+    $result = Invoke-GitCommand -Args @("push", "-u", "origin", $Branch)
+    if ($result.ExitCode -eq 0) { return }
 
-    if ($pushOutput -notmatch "GH007") {
-        throw "git push failed: $pushOutput"
+    if ($result.Output -notmatch "GH007") {
+        throw "git push failed: $($result.Output)"
     }
 
     $email = Get-GitHubNoreplyEmail
@@ -65,8 +81,9 @@ function Invoke-GitPush {
 
     git commit --amend --author="$name <$email>" --no-edit
     if ($LASTEXITCODE -ne 0) { throw "Failed to amend commit author for GH007." }
-    git push -u origin $Branch
-    if ($LASTEXITCODE -ne 0) { throw "git push failed after GH007 fix." }
+
+    $retry = Invoke-GitCommand -Args @("push", "-u", "origin", $Branch)
+    if ($retry.ExitCode -ne 0) { throw "git push failed after GH007 fix: $($retry.Output)" }
 }
 
 Set-CommitIdentity
