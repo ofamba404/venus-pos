@@ -4553,6 +4553,77 @@
     100% { background-position: -200% 0; }
   }
 
+  /* In-place pending shimmer — same box, values only */
+  .is-pending {
+    color: transparent !important;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--btn-bg) 0%, color-mix(in srgb, var(--btn-bg) 70%, var(--text-dim)) 50%, var(--btn-bg) 100%);
+    background-size: 200% 100%;
+    animation: skShimmer 1.1s ease-in-out infinite;
+    min-width: 2.5rem;
+    min-height: 1em;
+    display: inline-block;
+    vertical-align: baseline;
+  }
+
+  .ao-hero-value.is-pending,
+  .ao-tile-value.is-pending,
+  .rev-stat-val.is-pending,
+  .card .count.is-pending {
+    min-width: 3.5rem;
+    min-height: 1.1em;
+    border-radius: 8px;
+  }
+
+  .bar-fill.is-pending,
+  .ao-tile-fill.is-pending,
+  .mix-paid.is-pending,
+  .mix-credit.is-pending,
+  .pattern-bar-fill.is-pending {
+    color: transparent !important;
+    min-height: 4px;
+    opacity: 0.85;
+  }
+
+  .rev-chart-area-pending {
+    width: 100%;
+    height: 180px;
+    border-radius: var(--radius-md);
+    display: block;
+  }
+
+  .client-list,
+  #deliveryLogList,
+  #receiptList,
+  #productRevenue,
+  #topClients,
+  #stockBars,
+  #statCards,
+  #revenueChart,
+  #salesPatterns,
+  #deliveryModel {
+    min-height: 0;
+  }
+
+  .client-list:has(.client-row--placeholder) { min-height: 320px; }
+  #deliveryLogList:has(.delivery-day-group--placeholder) { min-height: 280px; }
+  #receiptList:has(.order-day-group--placeholder) { min-height: 240px; }
+  #productRevenue:has(.bar-row--placeholder),
+  #topClients:has(.fixed-item--placeholder) { min-height: 160px; }
+  #statCards:has(.ao-hero) { min-height: 280px; }
+  #revenueChart:has(.rev-chart-card--placeholder) { min-height: 300px; }
+  #salesPatterns:has(.pattern-grid--placeholder) { min-height: 220px; }
+  #deliveryModel:has(.dl-model-card.empty) { min-height: 200px; }
+
+  .client-row--placeholder,
+  .delivery-trip--placeholder,
+  .receipt-order--placeholder,
+  .bar-row--placeholder,
+  .fixed-item--placeholder {
+    pointer-events: none;
+    user-select: none;
+  }
+
   body.pending-today-stats .kpi-grid .val,
   body.pending-stock-glance .donut-total,
   body.pending-stock-glance .stock-stat-val {
@@ -4566,6 +4637,4 @@
     display: inline-block;
   }
 
-  body.pending-stock-glance .donut-status {
-    visibility: hidden;
-  }
+  .donut-status { min-height: 2.25rem; }

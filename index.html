@@ -19,18 +19,18 @@
     <div class="dashboard">
       <div class="kpi-grid">
         <button class="kpi-card kpi-revenue" id="todayRevenueStat" type="button">
-          <div class="val" id="todayRevenue">UGX 0</div>
+          <div class="val is-pending" id="todayRevenue">UGX —</div>
           <div class="lbl">Today's revenue</div>
         </button>
         <button class="kpi-card kpi-units" id="todayUnitsStat" type="button">
           <div class="sold-row">
             <div class="sold-item">
-              <div class="val" id="todayJoints">0</div>
+              <div class="val is-pending" id="todayJoints">—</div>
               <div class="sold-sub">joints</div>
             </div>
             <div class="sold-sep"></div>
             <div class="sold-item">
-              <div class="val" id="todayCookies">0</div>
+              <div class="val is-pending" id="todayCookies">—</div>
               <div class="sold-sub">cookies</div>
             </div>
           </div>
@@ -43,7 +43,7 @@
             <div class="donut-container mini">
               <div class="donut" id="donutJoints"></div>
               <div class="donut-hole">
-                <div class="donut-total" id="donutJointsTotal">0</div>
+                <div class="donut-total is-pending" id="donutJointsTotal">—</div>
                 <div class="donut-caption">joints</div>
               </div>
             </div>
@@ -51,7 +51,7 @@
           <div class="stock-split-sep"></div>
           <div class="stock-split-item stock-cookies">
             <div class="stock-stat">
-              <div class="stock-stat-val" id="cookieStockTotal">0</div>
+              <div class="stock-stat-val is-pending" id="cookieStockTotal">—</div>
               <div class="stock-stat-label">cookies</div>
               <div class="stock-stat-meter" aria-hidden="true">
                 <div class="stock-stat-meter-fill" id="cookieStockFill"></div>
@@ -59,7 +59,18 @@
             </div>
           </div>
         </div>
-        <div class="donut-status" id="donutStatus"></div>
+        <div class="donut-status" id="donutStatus">
+          <div class="ds-group ds-joints">
+            <div class="ds-group-label">Joints</div>
+            <div class="ds-group-stats">
+              <span class="ds-ok is-pending">···</span>
+              <span class="ds-sep">·</span>
+              <span class="ds-low is-pending">···</span>
+              <span class="ds-sep">·</span>
+              <span class="ds-out is-pending">···</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="section-head">

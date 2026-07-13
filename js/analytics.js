@@ -2,7 +2,7 @@ import { clearCache, writeCache } from './cache.js';
 import { sbFetch } from './api.js';
 import { CATEGORIES, LOW_STOCK_THRESHOLD } from './config.js';
 import { applyActiveHighlight, getActiveStatusHighlight } from './inventory.js';
-import { animateCartSheetContent, applyBarFillWidths, isSheetModalOpen, setAccordionPanelInstant, wireHeaderBodyAccordions } from './animations.js';
+import { animateCartSheetContent, animateAccordionPanel, applyBarFillWidths, isSheetModalOpen, setAccordionPanelInstant, wireHeaderBodyAccordions } from './animations.js';
 import {
   filterSalesByRange,
   getChartRange,
@@ -12,7 +12,7 @@ import {
 import { loadSalesToday } from './sales.js';
 import { resolveClientId } from './clients.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
-import { clients, inventory, isPageDataSettled, salesCache } from './state.js';
+import { clients, inventory, salesCache } from './state.js';
 import {
   closeEditModal,
   escapeHtml,
@@ -23,11 +23,14 @@ import {
   openEditModal,
   showConfirm,
   showToast,
-  skeletonChart,
-  skeletonLines,
-  skeletonRows,
-  skeletonStatCards,
 } from './utils.js';
+import {
+  analyticsOverviewPlaceholder,
+  barRowPlaceholders,
+  fixedItemPlaceholders,
+  receiptListPlaceholder,
+  showPlaceholder,
+} from './pending.js';
 
 let editingSaleId = null;
 let editSaleItems = [];
@@ -145,8 +148,8 @@ function revenueDelta(today, yesterday) {
 }
 
 function renderOverviewSections() {
-  if (!isPageDataSettled() && salesCache.length === 0) {
-    document.getElementById('statCards').innerHTML = skeletonStatCards();
+  if (showPlaceholder('sales', salesCache.length)) {
+    document.getElementById('statCards').innerHTML = analyticsOverviewPlaceholder();
     return;
   }
 
@@ -265,8 +268,8 @@ function renderRangeSections() {
   if (productRevenueEl) {
     productRevenueEl.innerHTML =
       sortedProducts.length === 0
-        ? !isPageDataSettled()
-          ? skeletonLines(4)
+        ? showPlaceholder('sales', rangeSales.length)
+          ? barRowPlaceholders(4, true)
           : `<div class="receipt-empty">No sales in this period</div>`
         : sortedProducts
           .map(
@@ -297,8 +300,8 @@ function renderRangeSections() {
   if (topClientsEl) {
     topClientsEl.innerHTML =
       rankedClients.length === 0
-        ? !isPageDataSettled()
-          ? skeletonRows(3)
+        ? showPlaceholder('sales', rangeSales.length)
+          ? fixedItemPlaceholders(3)
           : `<div class="receipt-empty">No client-attributed sales in this period</div>`
         : rankedClients
           .map(
@@ -317,6 +320,7 @@ export function renderAnalytics() {
   renderRangeSections();
 
   const maxStock = Math.max(1, ...CATEGORIES.map((c) => inventory[c.id]));
+  const stockPending = showPlaceholder('inventory');
   document.getElementById('stockBars').innerHTML = CATEGORIES.map((c) => {
     const stock = inventory[c.id];
     const status = stock === 0 ? 'out' : stock < LOW_STOCK_THRESHOLD ? 'low' : 'ok';
@@ -324,8 +328,8 @@ export function renderAnalytics() {
     const label = c.sub ? `${c.name} ${c.sub}` : c.name;
     return `<div class="bar-row" data-status="${status}">
       <div class="bar-label">${escapeHtml(label)}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${c.color};"></div></div>
-      <div class="bar-value" style="${status !== 'ok' ? `color:var(--${status === 'low' ? 'gold' : 'danger'});` : ''}">${stock}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${stockPending ? 0 : pct}%; background:${c.color};"></div></div>
+      <div class="bar-value${stockPending ? ' is-pending' : ''}" style="${!stockPending && status !== 'ok' ? `color:var(--${status === 'low' ? 'gold' : 'danger'});` : ''}">${stockPending ? '··' : stock}</div>
     </div>`;
   }).join('');
   applyActiveHighlight();
@@ -333,8 +337,8 @@ export function renderAnalytics() {
 
   const list = document.getElementById('receiptList');
   if (salesCache.length === 0) {
-    list.innerHTML = !isPageDataSettled()
-      ? skeletonRows(4)
+    list.innerHTML = showPlaceholder('sales')
+      ? receiptListPlaceholder()
       : `<div class="receipt-empty">No orders yet — ring one up on the Home tab</div>`;
   } else {
     const dayMap = new Map();

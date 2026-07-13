@@ -1,5 +1,5 @@
-import { fmtCompact, fmtUGX, isSameDay, skeletonChart, skeletonLines } from './utils.js';
-import { isPageDataSettled } from './state.js';
+import { fmtCompact, fmtUGX, isSameDay } from './utils.js';
+import { revenueChartPlaceholder, salesPatternsPlaceholder, showPlaceholder } from './pending.js';
 
 export const CHART_RANGES = [
   { id: '7', label: '7 days', short: '7D', days: 7 },
@@ -329,8 +329,8 @@ function wireChartInteraction(block, points) {
 
 export function renderRevenueChart(block, sales, range, onRangeChange) {
   if (!block) return;
-  if (!sales.length && !isPageDataSettled()) {
-    block.innerHTML = `<div class="rev-chart-card">${skeletonChart()}</div>`;
+  if (showPlaceholder('sales', sales.length)) {
+    block.innerHTML = revenueChartPlaceholder();
     return;
   }
   const buckets = buildTimeSeries(sales, range);
@@ -457,8 +457,8 @@ export function renderSalesPatterns(container, sales, range) {
   const p = computeSalesPatterns(rangeSales);
 
   if (!rangeSales.length) {
-    container.innerHTML = !isPageDataSettled()
-      ? skeletonLines(5)
+    container.innerHTML = showPlaceholder('sales', sales.length)
+      ? salesPatternsPlaceholder()
       : `<div class="receipt-empty">No sales in this period yet</div>`;
     return;
   }

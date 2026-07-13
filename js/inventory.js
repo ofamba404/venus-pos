@@ -9,8 +9,9 @@ import {
   LOW_STOCK_THRESHOLD,
   getPageHref,
 } from './config.js';
-import { inventory, draftStock, isPageDataSettled } from './state.js';
-import { showToast, skeletonInvGrid } from './utils.js';
+import { inventory, draftStock } from './state.js';
+import { showToast } from './utils.js';
+import { showPlaceholder, stockStatusPlaceholder } from './pending.js';
 
 const HIGHLIGHT_KEY = 'venus-pos-stock-highlight';
 
@@ -129,15 +130,21 @@ export function buildInvCard(cat) {
   return card;
 }
 
-export function renderInventoryGrid({ pending = false } = {}) {
+export function renderInventoryGrid() {
   const invGrid = document.getElementById('invGrid');
   if (!invGrid) return;
-  if (pending && !isPageDataSettled()) {
-    invGrid.innerHTML = skeletonInvGrid(CATEGORIES.length);
-    return;
-  }
+
+  const pending = showPlaceholder('inventory');
   invGrid.innerHTML = '';
-  CATEGORIES.forEach((cat) => invGrid.appendChild(buildInvCard(cat)));
+  CATEGORIES.forEach((cat) => {
+    const card = buildInvCard(cat);
+    const countEl = card.querySelector('.count');
+    if (pending && countEl) {
+      countEl.classList.add('is-pending');
+      countEl.textContent = '··';
+    }
+    invGrid.appendChild(card);
+  });
 }
 
 function applyInventoryRows(rows) {
@@ -161,7 +168,9 @@ export function restoreInventoryFromCache() {
 export function syncInventoryToDom() {
   CATEGORIES.forEach((cat) => {
     const el = document.getElementById(`inv-count-${cat.id}`);
-    if (el && !el.querySelector('input')) el.textContent = inventory[cat.id];
+    if (!el || el.querySelector('input')) return;
+    el.classList.remove('is-pending');
+    el.textContent = inventory[cat.id];
   });
 }
 
@@ -247,19 +256,28 @@ export function renderStockGlance() {
 
   const jointsTotal = jointCats.reduce((sum, c) => sum + inventory[c.id], 0);
   const cookiesTotal = cookieCats.reduce((sum, c) => sum + inventory[c.id], 0);
+  const stockPending = showPlaceholder('inventory');
 
-  if (donutJointsTotal) donutJointsTotal.textContent = String(jointsTotal);
-  donutJoints.style.background = buildDonutGradient(jointCats, jointsTotal);
+  if (donutJointsTotal) {
+    donutJointsTotal.classList.toggle('is-pending', stockPending);
+    donutJointsTotal.textContent = stockPending ? '—' : String(jointsTotal);
+  }
+  donutJoints.style.background = stockPending ? 'var(--btn-bg)' : buildDonutGradient(jointCats, jointsTotal);
 
-  if (cookieStockTotal) cookieStockTotal.textContent = String(cookiesTotal);
+  if (cookieStockTotal) {
+    cookieStockTotal.classList.toggle('is-pending', stockPending);
+    cookieStockTotal.textContent = stockPending ? '—' : String(cookiesTotal);
+  }
   if (cookieStockFill) {
     const meter = cookieStockLevel(cookiesTotal);
-    cookieStockFill.style.width = `${meter.pct}%`;
-    cookieStockFill.dataset.state = meter.state;
+    cookieStockFill.style.width = stockPending ? '0%' : `${meter.pct}%`;
+    cookieStockFill.dataset.state = stockPending ? 'ok' : meter.state;
   }
 
   if (donutStatus) {
-    donutStatus.innerHTML = renderStatusGroup('Joints', countByStatus(jointCats), 'ds-joints');
+    donutStatus.innerHTML = showPlaceholder('inventory')
+      ? stockStatusPlaceholder()
+      : renderStatusGroup('Joints', countByStatus(jointCats), 'ds-joints');
   }
 
   donutStatus.querySelectorAll('.ds-ok, .ds-low, .ds-out').forEach((chip) => {

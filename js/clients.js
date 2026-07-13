@@ -1,7 +1,8 @@
 import { sbFetch } from './api.js';
 import { readStaleCache, writeCache } from './cache.js';
-import { clients, isPageDataSettled } from './state.js';
-import { debounce, escapeHtml, showConfirm, showToast, skeletonRows } from './utils.js';
+import { clients } from './state.js';
+import { debounce, escapeHtml, showConfirm, showToast } from './utils.js';
+import { clientRowPlaceholders, showPlaceholder } from './pending.js';
 
 function applyClients(rows) {
   clients.length = 0;
@@ -105,8 +106,8 @@ export function renderClientsTab() {
   updateClientListMeta(filtered.length, clients.length, query);
 
   if (clients.length === 0) {
-    list.innerHTML = !isPageDataSettled()
-      ? skeletonRows(5)
+    list.innerHTML = showPlaceholder('clients')
+      ? clientRowPlaceholders(5)
       : `<div class="client-empty">No clients yet — add one above, or save one while checking out a sale</div>`;
     return;
   }

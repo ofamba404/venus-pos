@@ -2,13 +2,12 @@ import { finishAppInit, mountApp, revealApp } from '../app.js';
 import { renderStockGlance } from '../inventory.js';
 import { renderProductList } from '../orders.js';
 import { hydrateFromCache, loadPageData } from '../bootstrap.js';
+import { applyPendingFlags, clearPendingFlags } from '../pending.js';
 import { resetPageDataSettled, setPageDataSettled } from '../state.js';
 import { setPageLoading } from '../utils.js';
 import { updateTodayStrip, wireHomePage } from '../home.js';
 
-function paintHome(cached) {
-  document.body.classList.toggle('pending-today-stats', !cached.sales);
-  document.body.classList.toggle('pending-stock-glance', !cached.inventory);
+function paintHome() {
   renderProductList();
   updateTodayStrip();
   renderStockGlance();
@@ -17,17 +16,18 @@ function paintHome(cached) {
 async function boot() {
   resetPageDataSettled();
   const cached = hydrateFromCache();
+  applyPendingFlags(cached);
   setPageLoading(true);
 
   try {
     mountApp('home');
     revealApp();
     wireHomePage();
-    paintHome(cached);
+    paintHome();
 
     await Promise.all([finishAppInit(), loadPageData()]);
     setPageDataSettled();
-    document.body.classList.remove('pending-today-stats', 'pending-stock-glance');
+    clearPendingFlags();
     updateTodayStrip();
     renderStockGlance();
   } finally {

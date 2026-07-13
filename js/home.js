@@ -1,8 +1,10 @@
 import { getPageHref } from './config.js';
+import { isDataPending } from './pending.js';
 import { salesCache } from './state.js';
 import { fmtUGX, isToday } from './utils.js';
 
 export function updateTodayStrip() {
+  const pending = isDataPending('sales');
   const todaySales = salesCache.filter((s) => isToday(s.created_at));
   const revenue = todaySales.reduce((sum, s) => sum + s.total_ugx, 0);
   let joints = 0;
@@ -19,9 +21,18 @@ export function updateTodayStrip() {
   const todayRevenue = document.getElementById('todayRevenue');
   const todayJoints = document.getElementById('todayJoints');
   const todayCookies = document.getElementById('todayCookies');
-  if (todayRevenue) todayRevenue.textContent = fmtUGX(revenue);
-  if (todayJoints) todayJoints.textContent = String(joints);
-  if (todayCookies) todayCookies.textContent = String(cookies);
+  if (todayRevenue) {
+    todayRevenue.classList.toggle('is-pending', pending);
+    todayRevenue.textContent = pending ? 'UGX —' : fmtUGX(revenue);
+  }
+  if (todayJoints) {
+    todayJoints.classList.toggle('is-pending', pending);
+    todayJoints.textContent = pending ? '—' : String(joints);
+  }
+  if (todayCookies) {
+    todayCookies.classList.toggle('is-pending', pending);
+    todayCookies.textContent = pending ? '—' : String(cookies);
+  }
 }
 
 export function wireHomePage() {

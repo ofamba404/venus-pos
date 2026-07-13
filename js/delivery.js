@@ -7,7 +7,7 @@ import {
   setDeliveryFieldValue,
   wireDeliveryPlacesInputs,
 } from './places-autocomplete.js';
-import { deliveries, isPageDataSettled } from './state.js';
+import { deliveries } from './state.js';
 import {
   closeEditModal,
   escapeHtml,
@@ -17,9 +17,12 @@ import {
   openEditModal,
   showConfirm,
   showToast,
-  skeletonChart,
-  skeletonRows,
 } from './utils.js';
+import {
+  deliveryLogPlaceholder,
+  deliveryModelPlaceholder,
+  showPlaceholder,
+} from './pending.js';
 
 let editingDeliveryId = null;
 let editOrigin = null;
@@ -161,8 +164,8 @@ function renderDeliveryModel(reg) {
 
   const sampleCount = deliveries.length;
 
-  if (!reg && !isPageDataSettled() && sampleCount === 0) {
-    el.innerHTML = `<div class="dl-model-card">${skeletonChart()}</div>`;
+  if (!reg && showPlaceholder('deliveries', sampleCount)) {
+    el.innerHTML = deliveryModelPlaceholder();
     return;
   }
 
@@ -270,8 +273,8 @@ function renderDeliveryLog(reg) {
   const listEl = document.getElementById('deliveryLogList');
   if (!listEl) return;
 
-  if (deliveries.length === 0 && !isPageDataSettled()) {
-    listEl.innerHTML = skeletonRows(3);
+  if (deliveries.length === 0 && showPlaceholder('deliveries')) {
+    listEl.innerHTML = deliveryLogPlaceholder();
     return;
   }
 
