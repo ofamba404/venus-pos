@@ -55,12 +55,12 @@ function Test-GitContinuousDeployment {
 }
 
 function Invoke-GitCommand {
-    param([string[]]$Args)
+    param([string[]]$GitArgs)
 
     $previous = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try {
-        $output = & git @Args 2>&1 | Out-String
+        $output = & git @GitArgs 2>&1 | Out-String
         return @{
             ExitCode = $LASTEXITCODE
             Output = $output
