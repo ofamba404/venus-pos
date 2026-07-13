@@ -1,5 +1,5 @@
-import { fmtCompact, fmtUGX, isSameDay } from './utils.js';
-import { animateRevenueChart, animateBarFills } from './animations.js';
+import { fmtCompact, fmtUGX, isSameDay, skeletonChart, skeletonLines } from './utils.js';
+import { isPageDataSettled } from './state.js';
 
 export const CHART_RANGES = [
   { id: '7', label: '7 days', short: '7D', days: 7 },
@@ -329,6 +329,10 @@ function wireChartInteraction(block, points) {
 
 export function renderRevenueChart(block, sales, range, onRangeChange) {
   if (!block) return;
+  if (!sales.length && !isPageDataSettled()) {
+    block.innerHTML = `<div class="rev-chart-card">${skeletonChart()}</div>`;
+    return;
+  }
   const buckets = buildTimeSeries(sales, range);
   const rangeSales = range.days ? filterSalesByRange(sales, range) : sales;
   const total = sumRevenue(rangeSales);
@@ -378,7 +382,6 @@ export function renderRevenueChart(block, sales, range, onRangeChange) {
   });
 
   wireChartInteraction(block, points);
-  animateRevenueChart(block);
 }
 
 const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -454,7 +457,9 @@ export function renderSalesPatterns(container, sales, range) {
   const p = computeSalesPatterns(rangeSales);
 
   if (!rangeSales.length) {
-    container.innerHTML = `<div class="receipt-empty">No sales in this period yet</div>`;
+    container.innerHTML = !isPageDataSettled()
+      ? skeletonLines(5)
+      : `<div class="receipt-empty">No sales in this period yet</div>`;
     return;
   }
 
@@ -529,6 +534,4 @@ export function renderSalesPatterns(container, sales, range) {
         </div>
       </div>
     </div>`;
-
-  animateBarFills(container);
 }

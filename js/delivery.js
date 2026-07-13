@@ -1,13 +1,25 @@
 import { sbFetch } from './api.js';
-import { animateModalContent, animateScatterPoints, staggerChildren } from './animations.js';
+import { readStaleCache, writeCache } from './cache.js';
+import { animateCartSheetContent, isSheetModalOpen, wireHeaderBodyAccordions } from './animations.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
-import { GOOGLE_MAPS_API_KEY } from './config.js';
-import { deliveries } from './state.js';
-import { closeEditModal, escapeHtml, fmtCompact, fmtUGX, isToday, openEditModal, showConfirm, showToast } from './utils.js';
-import { logDebug } from './debug.js';
-
-let gmapsLoaded = false;
-let gmapsLoading = false;
+import {
+  loadGoogleMaps,
+  setDeliveryFieldValue,
+  wireDeliveryPlacesInputs,
+} from './places-autocomplete.js';
+import { deliveries, isPageDataSettled } from './state.js';
+import {
+  closeEditModal,
+  escapeHtml,
+  fmtCompact,
+  fmtUGX,
+  isToday,
+  openEditModal,
+  showConfirm,
+  showToast,
+  skeletonChart,
+  skeletonRows,
+} from './utils.js';
 
 let editingDeliveryId = null;
 let editOrigin = null;
@@ -18,52 +30,37 @@ let editDistanceKm = null;
 let editDurationMin = null;
 let editFeeValue = '';
 let editClientName = '';
-let editPickupAutocomplete = null;
-let editDestAutocomplete = null;
-
-export function loadGoogleMaps(cb) {
-  if (gmapsLoaded && window.google) {
-    cb();
-    return;
-  }
-  window.__venusGmapsQueue = window.__venusGmapsQueue || [];
-  window.__venusGmapsQueue.push(cb);
-  if (gmapsLoading) return;
-  gmapsLoading = true;
-  window.__venusGmapsReady = () => {
-    gmapsLoaded = true;
-    gmapsLoading = false;
-    window.__venusGmapsQueue.forEach((fn) => fn());
-    window.__venusGmapsQueue = [];
-  };
-  const script = document.createElement('script');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=__venusGmapsReady`;
-  script.async = true;
-  script.onerror = () => {
-    gmapsLoading = false;
-    logDebug('Google Maps script failed to load.');
-    showToast('Could not load Google Maps — check the API key', true);
-  };
-  document.head.appendChild(script);
-}
+export { loadGoogleMaps } from './places-autocomplete.js';
 
 export const ICON_LOCATE = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3.6M12 17.9v3.6M2.5 12h3.6M17.9 12h3.6"></path></svg>`;
 export const ICON_PIN = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.2s7.2-6.8 7.2-12.4a7.2 7.2 0 1 0-14.4 0c0 5.6 7.2 12.4 7.2 12.4z"></path><circle cx="12" cy="8.8" r="2.4"></circle></svg>`;
 export const ICON_CASH = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.3" y="6.2" width="19.4" height="11.6" rx="2.1"></rect><circle cx="12" cy="12" r="2.7"></circle><path d="M6 9.4v.01M18 14.6v.01"></path></svg>`;
 export const ICON_ROUTE = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"></circle><circle cx="18" cy="18" r="2.4"></circle><path d="M6 8.4v4.2a3.4 3.4 0 0 0 3.4 3.4h5.2"></path></svg>`;
 
+export function restoreDeliveriesFromCache() {
+  const stale = readStaleCache('deliveries');
+  if (!stale?.length) return false;
+  deliveries.length = 0;
+  deliveries.push(...stale);
+  return true;
+}
+
 export async function loadDeliveries() {
+  const hadData = deliveries.length > 0;
+
   try {
     const res = await sbFetch('deliveries?select=*&order=created_at.desc&limit=500');
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
     const rows = await res.json();
+    writeCache('deliveries', rows);
     deliveries.length = 0;
     deliveries.push(...rows);
   } catch (e) {
     console.error('load deliveries failed', e);
-    showToast('Could not load delivery history', true);
+    if (!hadData && !deliveries.length) {
+      showToast('Could not load delivery history', true);
+    }
   }
-  renderDeliveryAnalysis();
 }
 
 function linearRegression(points) {
@@ -164,6 +161,11 @@ function renderDeliveryModel(reg) {
 
   const sampleCount = deliveries.length;
 
+  if (!reg && !isPageDataSettled() && sampleCount === 0) {
+    el.innerHTML = `<div class="dl-model-card">${skeletonChart()}</div>`;
+    return;
+  }
+
   if (!reg) {
     el.innerHTML = `
       <div class="dl-model-card empty">
@@ -262,13 +264,16 @@ function renderDeliveryModel(reg) {
     const km = parseFloat(kmInput.value);
     if (feeEl) feeEl.textContent = fmtUGX(quoteFee(km, reg));
   });
-
-  animateScatterPoints(el.querySelector('.dl-scatter-svg'));
 }
 
 function renderDeliveryLog(reg) {
   const listEl = document.getElementById('deliveryLogList');
   if (!listEl) return;
+
+  if (deliveries.length === 0 && !isPageDataSettled()) {
+    listEl.innerHTML = skeletonRows(3);
+    return;
+  }
 
   if (deliveries.length === 0) {
     listEl.innerHTML = `<div class="receipt-empty">No quotes logged yet — at checkout, add pickup, drop-off, and the SafeBoda fee you were charged</div>`;
@@ -337,27 +342,14 @@ function renderDeliveryLog(reg) {
               <span class="day-caret">▸</span>
             </span>
           </button>
-          <div class="delivery-day-body" data-dl-body="${gIdx}"${isTodayGroup ? '' : ' hidden'}>
+          <div class="delivery-day-body" data-dl-body="${gIdx}">
             ${rows}
           </div>
         </div>`;
     })
     .join('');
 
-  listEl.querySelectorAll('[data-dl-day]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const idx = btn.dataset.dlDay;
-      const body = listEl.querySelector(`[data-dl-body="${idx}"]`);
-      const expanded = body?.hasAttribute('hidden');
-      if (expanded) {
-        body.removeAttribute('hidden');
-        btn.classList.add('expanded');
-      } else {
-        body?.setAttribute('hidden', '');
-        btn.classList.remove('expanded');
-      }
-    });
-  });
+  wireHeaderBodyAccordions(listEl, { headerSelector: '.delivery-day-header' });
 
   listEl.querySelectorAll('[data-edit-delivery]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -365,8 +357,6 @@ function renderDeliveryLog(reg) {
       openEditDelivery(btn.dataset.editDelivery);
     });
   });
-
-  staggerChildren(listEl, '.delivery-day-group');
 }
 
 export function renderDeliveryAnalysis() {
@@ -379,16 +369,24 @@ export function renderDeliveryAnalysis() {
   renderDeliveryLog(reg);
 }
 
-function clearEditAutocompleteWidgets() {
-  document.querySelectorAll('.pac-container').forEach((el) => el.remove());
-  if (editPickupAutocomplete && window.google) {
-    google.maps.event.clearInstanceListeners(editPickupAutocomplete);
+function updateEditDistanceReadout() {
+  const fields = document.querySelector('#editModalBody .delivery-mini');
+  if (!fields) return;
+  let readout = fields.querySelector('.delivery-mini-readout');
+  if (editDistanceKm != null) {
+    const html = `${ICON_ROUTE} ${editDistanceKm.toFixed(1)} km · ~${Math.round(editDurationMin)} min`;
+    if (readout) readout.innerHTML = html;
+    else {
+      readout = document.createElement('div');
+      readout.className = 'delivery-mini-readout';
+      readout.innerHTML = html;
+      const feeWrap = fields.querySelector('.delivery-input-wrap.fee');
+      if (feeWrap) feeWrap.insertAdjacentElement('afterend', readout);
+      else fields.appendChild(readout);
+    }
+  } else if (readout) {
+    readout.remove();
   }
-  if (editDestAutocomplete && window.google) {
-    google.maps.event.clearInstanceListeners(editDestAutocomplete);
-  }
-  editPickupAutocomplete = null;
-  editDestAutocomplete = null;
 }
 
 function computeEditDistance() {
@@ -413,40 +411,9 @@ function computeEditDistance() {
           editDistanceKm = null;
           editDurationMin = null;
         }
-        renderEditDeliveryModal();
+        updateEditDistanceReadout();
       },
     );
-  });
-}
-
-function wireEditDeliveryAutocompletes(pickupInput, destInput) {
-  if (!pickupInput || !destInput) return;
-  loadGoogleMaps(() => {
-    clearEditAutocompleteWidgets();
-    editPickupAutocomplete = new google.maps.places.Autocomplete(pickupInput, {
-      fields: ['geometry', 'formatted_address', 'name'],
-      componentRestrictions: { country: 'ug' },
-    });
-    editPickupAutocomplete.addListener('place_changed', () => {
-      const place = editPickupAutocomplete.getPlace();
-      if (!place.geometry) return;
-      editOrigin = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
-      editPickupText = place.formatted_address || place.name || pickupInput.value;
-      pickupInput.value = editPickupText;
-      computeEditDistance();
-    });
-    editDestAutocomplete = new google.maps.places.Autocomplete(destInput, {
-      fields: ['geometry', 'formatted_address', 'name'],
-      componentRestrictions: { country: 'ug' },
-    });
-    editDestAutocomplete.addListener('place_changed', () => {
-      const place = editDestAutocomplete.getPlace();
-      if (!place.geometry) return;
-      editDest = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
-      editDestText = place.formatted_address || place.name || destInput.value;
-      destInput.value = editDestText;
-      computeEditDistance();
-    });
   });
 }
 
@@ -474,7 +441,7 @@ function renderEditDeliveryModal() {
 
   body.innerHTML = `
     <div class="modal-header">
-      <div class="modal-title">Edit delivery</div>
+      <div class="modal-title" id="editModalTitle">Edit delivery</div>
       <button class="modal-close" id="editDeliveryClose" type="button">✕</button>
     </div>
     <div class="client-picker">
@@ -509,26 +476,41 @@ function renderEditDeliveryModal() {
       <button class="modal-btn confirm" id="editDeliverySave" type="button">Save</button>
     </div>`;
 
-  animateModalContent(body);
+  const editOverlay = document.getElementById('editOverlay');
+  if (isSheetModalOpen(editOverlay)) animateCartSheetContent(body);
+
   document.getElementById('editDeliveryClose')?.addEventListener('click', closeEditModal);
   document.getElementById('editDeliveryCancel')?.addEventListener('click', closeEditModal);
 
-  const pickupInput = document.getElementById('editDeliveryPickup');
-  const destInput = document.getElementById('editDeliveryDest');
-  wireEditDeliveryAutocompletes(pickupInput, destInput);
+  wireDeliveryPlacesInputs('editDeliveryPickup', 'editDeliveryDest', {
+    onPickupSelect: ({ lat, lng, label }) => {
+      editOrigin = { lat, lng };
+      editPickupText = label;
+      setDeliveryFieldValue('editDeliveryPickup', label);
+      computeEditDistance();
+    },
+    onDestSelect: ({ lat, lng, label }) => {
+      editDest = { lat, lng };
+      editDestText = label;
+      setDeliveryFieldValue('editDeliveryDest', label);
+      computeEditDistance();
+    },
+  });
 
-  pickupInput?.addEventListener('input', () => {
-    editPickupText = pickupInput.value;
-    if (!pickupInput.value) {
+  document.getElementById('editDeliveryPickup')?.addEventListener('input', (e) => {
+    editPickupText = e.target.value;
+    if (!e.target.value) {
       editOrigin = null;
       editDistanceKm = null;
+      updateEditDistanceReadout();
     }
   });
-  destInput?.addEventListener('input', () => {
-    editDestText = destInput.value;
-    if (!destInput.value) {
+  document.getElementById('editDeliveryDest')?.addEventListener('input', (e) => {
+    editDestText = e.target.value;
+    if (!e.target.value) {
       editDest = null;
       editDistanceKm = null;
+      updateEditDistanceReadout();
     }
   });
   document.getElementById('editDeliveryFee')?.addEventListener('input', (e) => {
@@ -580,6 +562,8 @@ async function saveDeliveryEdit() {
     const idx = deliveries.findIndex((d) => d.id === editingDeliveryId);
     if (idx > -1) Object.assign(deliveries[idx], payload);
 
+    writeCache('deliveries', [...deliveries]);
+
     editingDeliveryId = null;
     closeEditModal();
     showToast('Delivery updated');
@@ -604,6 +588,8 @@ async function deleteDelivery() {
 
     const idx = deliveries.findIndex((d) => d.id === editingDeliveryId);
     if (idx > -1) deliveries.splice(idx, 1);
+
+    writeCache('deliveries', [...deliveries]);
 
     editingDeliveryId = null;
     closeEditModal();

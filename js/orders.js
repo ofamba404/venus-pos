@@ -16,10 +16,16 @@ import {
   ICON_ROUTE,
   loadGoogleMaps,
 } from './delivery.js';
+import {
+  setDeliveryFieldValue,
+  wireDeliveryPlacesInputs,
+} from './places-autocomplete.js';
 import { adjustStock, renderStockGlance } from './inventory.js';
 import {
+  animateCartSheetContent,
   animateCheckoutSuccess,
   closeSheetModal,
+  isSheetModalOpen,
   openSheetModal,
   pressButton,
   pulseFabBadge,
@@ -52,8 +58,6 @@ let checkoutDestText = '';
 let checkoutDistanceKm = null;
 let checkoutDurationMin = null;
 let checkoutFeeValue = '';
-let pickupAutocomplete = null;
-let destAutocomplete = null;
 let pickupAutoRequested = false;
 let cartAccordions = null;
 let lastCheckoutReceipt = null;
@@ -166,6 +170,11 @@ function renderOrderModal() {
   else if (modalMode === 'pick') renderPickView();
   else if (modalMode === 'config') renderConfigView();
   else if (modalMode === 'success') renderSuccessView();
+
+  const orderModal = document.getElementById('orderModal');
+  if (orderModalBody && modalMode !== 'success' && isSheetModalOpen(orderModal)) {
+    animateCartSheetContent(orderModalBody);
+  }
 }
 
 function dismissSuccessView() {
@@ -256,16 +265,24 @@ export function openOrderModal(productId) {
   if (orderModal) openSheetModal(orderModal);
 }
 
-function clearAutocompleteWidgets() {
-  document.querySelectorAll('.pac-container').forEach((el) => el.remove());
-  if (pickupAutocomplete && window.google) {
-    google.maps.event.clearInstanceListeners(pickupAutocomplete);
+function updateCheckoutDistanceReadout() {
+  const fields = document.querySelector('#orderModalBody .delivery-mini-fields');
+  if (!fields) return;
+  let readout = fields.querySelector('.delivery-mini-readout');
+  if (checkoutDistanceKm != null) {
+    const html = `${ICON_ROUTE} ${checkoutDistanceKm.toFixed(1)} km · ~${Math.round(checkoutDurationMin)} min`;
+    if (readout) readout.innerHTML = html;
+    else {
+      readout = document.createElement('div');
+      readout.className = 'delivery-mini-readout';
+      readout.innerHTML = html;
+      const feeWrap = fields.querySelector('.delivery-input-wrap.fee');
+      if (feeWrap) feeWrap.insertAdjacentElement('afterend', readout);
+      else fields.appendChild(readout);
+    }
+  } else if (readout) {
+    readout.remove();
   }
-  if (destAutocomplete && window.google) {
-    google.maps.event.clearInstanceListeners(destAutocomplete);
-  }
-  pickupAutocomplete = null;
-  destAutocomplete = null;
 }
 
 function computeCheckoutDistance() {
@@ -290,40 +307,26 @@ function computeCheckoutDistance() {
           checkoutDistanceKm = null;
           checkoutDurationMin = null;
         }
-        if (modalMode === 'cart') renderCartView();
+        updateCheckoutDistanceReadout();
       },
     );
   });
 }
 
-function wireDeliveryAutocompletes(pickupInput, destInput) {
-  if (!pickupInput || !destInput) return;
-  loadGoogleMaps(() => {
-    clearAutocompleteWidgets();
-    pickupAutocomplete = new google.maps.places.Autocomplete(pickupInput, {
-      fields: ['geometry', 'formatted_address', 'name'],
-      componentRestrictions: { country: 'ug' },
-    });
-    pickupAutocomplete.addListener('place_changed', () => {
-      const place = pickupAutocomplete.getPlace();
-      if (!place.geometry) return;
-      checkoutOrigin = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
-      checkoutPickupText = place.formatted_address || place.name || pickupInput.value;
-      pickupInput.value = checkoutPickupText;
+function wireDeliveryAutocompletes() {
+  wireDeliveryPlacesInputs('deliveryPickupInput', 'deliveryDestInput', {
+    onPickupSelect: ({ lat, lng, label }) => {
+      checkoutOrigin = { lat, lng };
+      checkoutPickupText = label;
+      setDeliveryFieldValue('deliveryPickupInput', label);
       computeCheckoutDistance();
-    });
-    destAutocomplete = new google.maps.places.Autocomplete(destInput, {
-      fields: ['geometry', 'formatted_address', 'name'],
-      componentRestrictions: { country: 'ug' },
-    });
-    destAutocomplete.addListener('place_changed', () => {
-      const place = destAutocomplete.getPlace();
-      if (!place.geometry) return;
-      checkoutDest = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
-      checkoutDestText = place.formatted_address || place.name || destInput.value;
-      destInput.value = checkoutDestText;
+    },
+    onDestSelect: ({ lat, lng, label }) => {
+      checkoutDest = { lat, lng };
+      checkoutDestText = label;
+      setDeliveryFieldValue('deliveryDestInput', label);
       computeCheckoutDistance();
-    });
+    },
   });
 }
 
@@ -338,8 +341,8 @@ function autoFillPickupLocation() {
             status === 'OK' && results[0]
               ? results[0].formatted_address
               : `${checkoutOrigin.lat.toFixed(5)}, ${checkoutOrigin.lng.toFixed(5)}`;
+          setDeliveryFieldValue('deliveryPickupInput', checkoutPickupText);
           computeCheckoutDistance();
-          if (modalMode === 'cart') renderCartView();
         });
       });
     },
@@ -512,21 +515,24 @@ function renderCartView() {
     renderOrderModal();
   });
 
-  const pickupInput = document.getElementById('deliveryPickupInput');
-  const destInput = document.getElementById('deliveryDestInput');
-  wireDeliveryAutocompletes(pickupInput, destInput);
-  pickupInput?.addEventListener('input', () => {
-    checkoutPickupText = pickupInput.value;
-    if (!pickupInput.value) {
+  wireDeliveryAutocompletes();
+  const openDeliveryAccordion = () => cartAccordions?.open('delivery');
+  document.getElementById('deliveryPickupInput')?.addEventListener('focus', openDeliveryAccordion);
+  document.getElementById('deliveryDestInput')?.addEventListener('focus', openDeliveryAccordion);
+  document.getElementById('deliveryPickupInput')?.addEventListener('input', (e) => {
+    checkoutPickupText = e.target.value;
+    if (!e.target.value) {
       checkoutOrigin = null;
       checkoutDistanceKm = null;
+      updateCheckoutDistanceReadout();
     }
   });
-  destInput?.addEventListener('input', () => {
-    checkoutDestText = destInput.value;
-    if (!destInput.value) {
+  document.getElementById('deliveryDestInput')?.addEventListener('input', (e) => {
+    checkoutDestText = e.target.value;
+    if (!e.target.value) {
       checkoutDest = null;
       checkoutDistanceKm = null;
+      updateCheckoutDistanceReadout();
     }
   });
   if (!pickupAutoRequested) {
@@ -580,7 +586,7 @@ function renderCartView() {
         setCart(currentCart);
       }
       updateFabBadge();
-      renderCartView();
+      renderOrderModal();
     });
   });
 }

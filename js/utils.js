@@ -26,7 +26,7 @@ export function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-import { animateToastIn, animateToastOut, closeModal, openModal } from './animations.js';
+import { animateToastIn, animateToastOut, closeModal, closeSheetModal, openModal, openSheetModal, registerSheetModal } from './animations.js';
 
 export function showToast(msg, isError = false) {
   const t = document.getElementById('toast');
@@ -75,23 +75,48 @@ export function wireConfirmDialog() {
 
 export function openEditModal() {
   const overlay = document.getElementById('editOverlay');
-  if (overlay) openModal(overlay);
+  if (overlay) openSheetModal(overlay);
 }
 
 export function closeEditModal() {
   const overlay = document.getElementById('editOverlay');
-  if (overlay) closeModal(overlay);
+  if (overlay) closeSheetModal(overlay);
 }
 
 export function wireEditOverlay() {
   const overlay = document.getElementById('editOverlay');
-  overlay?.addEventListener('click', (e) => {
+  if (!overlay) return;
+  registerSheetModal(overlay, { onDismiss: closeEditModal });
+  overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closeEditModal();
   });
 }
 
 export function setPageLoading(isLoading) {
   document.body.classList.toggle('is-loading', isLoading);
+}
+
+export function skeletonLines(count = 3, widths = ['wide', 'medium', 'short']) {
+  return `<div class="data-skeleton" aria-hidden="true">${Array.from({ length: count }, (_, i) => `<div class="sk-line ${widths[i % widths.length]}"></div>`).join('')}</div>`;
+}
+
+export function skeletonRows(count = 4) {
+  return `<div class="data-skeleton data-skeleton-rows" aria-hidden="true">${Array.from({ length: count }, () => '<div class="sk-row"><div class="sk-line wide"></div><div class="sk-line short"></div></div>').join('')}</div>`;
+}
+
+export function skeletonStatCards() {
+  return `<div class="data-skeleton data-skeleton-stat" aria-hidden="true">
+    <div class="sk-hero"><div class="sk-line short"></div><div class="sk-line hero"></div><div class="sk-line medium"></div></div>
+    <div class="sk-tiles"><div class="sk-tile"></div><div class="sk-tile"></div></div>
+  </div>`;
+}
+
+export function skeletonChart() {
+  return `<div class="data-skeleton data-skeleton-chart" aria-hidden="true"><div class="sk-chart-area"></div></div>`;
+}
+
+export function skeletonInvGrid(count = 4) {
+  return `<div class="data-skeleton data-skeleton-inv" aria-hidden="true">${Array.from({ length: count }, () => '<div class="sk-inv-card"><div class="sk-line medium"></div><div class="sk-line hero"></div></div>').join('')}</div>`;
 }
 
 export function debounce(fn, ms = 200) {

@@ -2,7 +2,7 @@ import { clearCache, writeCache } from './cache.js';
 import { sbFetch } from './api.js';
 import { CATEGORIES, LOW_STOCK_THRESHOLD } from './config.js';
 import { applyActiveHighlight, getActiveStatusHighlight } from './inventory.js';
-import { animateBarFills, animateCounter, animateModalContent, animateReveal, applyBarFillWidths, staggerChildren } from './animations.js';
+import { animateCartSheetContent, applyBarFillWidths, isSheetModalOpen, setAccordionPanelInstant, wireHeaderBodyAccordions } from './animations.js';
 import {
   filterSalesByRange,
   getChartRange,
@@ -12,7 +12,7 @@ import {
 import { loadSalesToday } from './sales.js';
 import { resolveClientId } from './clients.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
-import { clients, inventory, salesCache } from './state.js';
+import { clients, inventory, isPageDataSettled, salesCache } from './state.js';
 import {
   closeEditModal,
   escapeHtml,
@@ -23,6 +23,10 @@ import {
   openEditModal,
   showConfirm,
   showToast,
+  skeletonChart,
+  skeletonLines,
+  skeletonRows,
+  skeletonStatCards,
 } from './utils.js';
 
 let editingSaleId = null;
@@ -112,15 +116,15 @@ function wireCreditPanel() {
   const panel = document.getElementById('creditPanel');
   if (!panel) return;
 
+  const body = panel.querySelector('#creditPanelBody');
+  const btn = panel.querySelector('.credit-panel-toggle');
+  if (body) setAccordionPanelInstant(body, creditPanelOpen);
+
   panel.querySelector('.credit-panel-toggle')?.addEventListener('click', () => {
     creditPanelOpen = !creditPanelOpen;
-    const body = panel.querySelector('.credit-panel-body');
-    const btn = panel.querySelector('.credit-panel-toggle');
     panel.classList.toggle('expanded', creditPanelOpen);
     btn?.setAttribute('aria-expanded', String(creditPanelOpen));
-    if (creditPanelOpen) {
-      staggerChildren(body, '.credit-panel-item');
-    }
+    if (body) animateAccordionPanel(body, creditPanelOpen);
   });
 
   panel.querySelectorAll('[data-clear-credit]').forEach((btn) => {
@@ -140,7 +144,12 @@ function revenueDelta(today, yesterday) {
   return { text: `${pct}% vs yesterday`, cls: 'down' };
 }
 
-function renderOverviewSections({ animate = true } = {}) {
+function renderOverviewSections() {
+  if (!isPageDataSettled() && salesCache.length === 0) {
+    document.getElementById('statCards').innerHTML = skeletonStatCards();
+    return;
+  }
+
   const todaySales = salesCache.filter((s) => isToday(s.created_at));
   const revenueToday = todaySales.reduce((sum, s) => sum + s.total_ugx, 0);
   const revenueAll = salesCache.reduce((sum, s) => sum + s.total_ugx, 0);
@@ -204,7 +213,7 @@ function renderOverviewSections({ animate = true } = {}) {
           <span class="ao-tile-pill">${monthShare}% of all-time</span>
         </div>
         <div class="ao-tile-value">${fmtCompact(revenueMonth)}</div>
-        <div class="ao-tile-track"><div class="ao-tile-fill" data-fill-width="${monthShare}%" style="width:0%"></div></div>
+        <div class="ao-tile-track"><div class="ao-tile-fill" style="width:${monthShare}%"></div></div>
       </div>
       <div class="ao-tile">
         <div class="ao-tile-top">
@@ -228,17 +237,11 @@ function renderOverviewSections({ animate = true } = {}) {
     ${renderCreditPanel(outstandingCredit, totalCreditOwed)}
   `;
 
-  const heroValue = document.querySelector('.ao-hero-value');
-  if (heroValue) animateCounter(heroValue, revenueToday, fmtUGX);
-  if (animate) animateBarFills(document.getElementById('statCards'));
-  else applyBarFillWidths(document.getElementById('statCards'));
+  applyBarFillWidths(document.getElementById('statCards'));
   wireCreditPanel();
-  if (creditPanelOpen) {
-    staggerChildren(document.getElementById('creditPanelBody'), '.credit-panel-item');
-  }
 }
 
-function renderRangeSections({ animate = true } = {}) {
+function renderRangeSections() {
   const range = getChartRange();
   const rangeSales = filterSalesByRange(salesCache, range);
 
@@ -258,22 +261,26 @@ function renderRangeSections({ animate = true } = {}) {
   );
   const sortedProducts = Object.entries(productRevenueMap).sort((a, b) => b[1] - a[1]);
   const maxProdRev = Math.max(1, ...sortedProducts.map(([, v]) => v));
-  document.getElementById('productRevenue').innerHTML =
-    sortedProducts.length === 0
-      ? `<div class="receipt-empty">No sales in this period</div>`
-      : sortedProducts
+  const productRevenueEl = document.getElementById('productRevenue');
+  if (productRevenueEl) {
+    productRevenueEl.innerHTML =
+      sortedProducts.length === 0
+        ? !isPageDataSettled()
+          ? skeletonLines(4)
+          : `<div class="receipt-empty">No sales in this period</div>`
+        : sortedProducts
           .map(
             ([name, rev]) => `
         <div class="bar-row">
           <div class="bar-label wide">${escapeHtml(name)}</div>
-          <div class="bar-track"><div class="bar-fill" data-fill-width="${Math.round((rev / maxProdRev) * 100)}%" style="width:0%; background:var(--jade);"></div></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${Math.round((rev / maxProdRev) * 100)}%; background:var(--jade);"></div></div>
           <div class="bar-value">${fmtCompact(rev)}</div>
         </div>`,
           )
           .join('');
+  }
 
-  if (animate) animateBarFills(document.getElementById('productRevenue'));
-  else applyBarFillWidths(document.getElementById('productRevenue'));
+  applyBarFillWidths(productRevenueEl);
 
   const clientTotals = {};
   rangeSales.forEach((s) => {
@@ -286,23 +293,28 @@ function renderRangeSections({ animate = true } = {}) {
     .map(([id, data]) => ({ name: clients.find((c) => c.id === id)?.name || 'Unknown', ...data }))
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5);
-  document.getElementById('topClients').innerHTML =
-    rankedClients.length === 0
-      ? `<div class="receipt-empty">No client-attributed sales in this period</div>`
-      : rankedClients
+  const topClientsEl = document.getElementById('topClients');
+  if (topClientsEl) {
+    topClientsEl.innerHTML =
+      rankedClients.length === 0
+        ? !isPageDataSettled()
+          ? skeletonRows(3)
+          : `<div class="receipt-empty">No client-attributed sales in this period</div>`
+        : rankedClients
           .map(
             (c, i) => `
         <div class="fixed-item">
           <span>${i + 1}. ${escapeHtml(c.name)}</span>
-          <span style="font-family:var(--font-mono); color:var(--gold); font-size:12px;">${fmtUGX(c.revenue)} · ${c.orders} order${c.orders > 1 ? 's' : ''}</span>
+          <span style="color:var(--gold); font-size:12px;">${fmtUGX(c.revenue)} · ${c.orders} order${c.orders > 1 ? 's' : ''}</span>
         </div>`,
           )
           .join('');
+  }
 }
 
-export function renderAnalytics({ animate = true } = {}) {
-  renderOverviewSections({ animate });
-  renderRangeSections({ animate });
+export function renderAnalytics() {
+  renderOverviewSections();
+  renderRangeSections();
 
   const maxStock = Math.max(1, ...CATEGORIES.map((c) => inventory[c.id]));
   document.getElementById('stockBars').innerHTML = CATEGORIES.map((c) => {
@@ -312,17 +324,18 @@ export function renderAnalytics({ animate = true } = {}) {
     const label = c.sub ? `${c.name} ${c.sub}` : c.name;
     return `<div class="bar-row" data-status="${status}">
       <div class="bar-label">${escapeHtml(label)}</div>
-      <div class="bar-track"><div class="bar-fill" data-fill-width="${pct}%" style="width:0%; background:${c.color};"></div></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${c.color};"></div></div>
       <div class="bar-value" style="${status !== 'ok' ? `color:var(--${status === 'low' ? 'gold' : 'danger'});` : ''}">${stock}</div>
     </div>`;
   }).join('');
   applyActiveHighlight();
-  if (animate) animateBarFills(document.getElementById('stockBars'));
-  else applyBarFillWidths(document.getElementById('stockBars'));
+  applyBarFillWidths(document.getElementById('stockBars'));
 
   const list = document.getElementById('receiptList');
   if (salesCache.length === 0) {
-    list.innerHTML = `<div class="receipt-empty">No orders yet — ring one up on the Home tab</div>`;
+    list.innerHTML = !isPageDataSettled()
+      ? skeletonRows(4)
+      : `<div class="receipt-empty">No orders yet — ring one up on the Home tab</div>`;
   } else {
     const dayMap = new Map();
     salesCache.forEach((s) => {
@@ -366,26 +379,14 @@ export function renderAnalytics({ animate = true } = {}) {
                 <span class="day-caret">▸</span>
               </span>
             </button>
-            <div class="order-day-body" data-day-body="${idx}" ${isTodayGroup ? '' : 'hidden'}>
+            <div class="order-day-body" data-day-body="${idx}">
               ${rows}
             </div>
           </div>`;
       })
       .join('');
 
-    list.querySelectorAll('[data-day-toggle]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const idx = btn.dataset.dayToggle;
-        const body = list.querySelector(`[data-day-body="${idx}"]`);
-        if (body.hasAttribute('hidden')) {
-          animateReveal(body);
-          btn.classList.add('expanded');
-        } else {
-          body.setAttribute('hidden', '');
-          btn.classList.remove('expanded');
-        }
-      });
-    });
+    wireHeaderBodyAccordions(list, { headerSelector: '.order-day-header' });
 
     list.querySelectorAll('[data-edit-sale]').forEach((btn) => {
       btn.addEventListener('click', () => openEditSale(btn.dataset.editSale));
@@ -485,7 +486,7 @@ function renderEditSaleModal() {
 
   body.innerHTML = `
     <div class="modal-header">
-      <div class="modal-title">Edit order</div>
+      <div class="modal-title" id="editModalTitle">Edit order</div>
       <button class="modal-close" id="editSaleClose" type="button">✕</button>
     </div>
     <div class="modal-progress">${escapeHtml(time)}</div>
@@ -515,7 +516,9 @@ function renderEditSaleModal() {
       <button class="modal-btn confirm" id="editSaleSave" type="button" ${editSaleItems.length ? '' : 'disabled'}>Save</button>
     </div>`;
 
-  animateModalContent(body);
+  const editOverlay = document.getElementById('editOverlay');
+  if (isSheetModalOpen(editOverlay)) animateCartSheetContent(body);
+
   document.getElementById('editSaleClose')?.addEventListener('click', closeEditModal);
   document.getElementById('editSaleCancel')?.addEventListener('click', closeEditModal);
   wireClientAutocomplete({

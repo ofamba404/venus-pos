@@ -1,5 +1,4 @@
 import { getPageHref } from './config.js';
-import { animateCounter } from './animations.js';
 import { salesCache } from './state.js';
 import { fmtUGX, isToday } from './utils.js';
 
@@ -20,9 +19,9 @@ export function updateTodayStrip() {
   const todayRevenue = document.getElementById('todayRevenue');
   const todayJoints = document.getElementById('todayJoints');
   const todayCookies = document.getElementById('todayCookies');
-  if (todayRevenue) animateCounter(todayRevenue, revenue, fmtUGX);
-  if (todayJoints) animateCounter(todayJoints, joints);
-  if (todayCookies) animateCounter(todayCookies, cookies);
+  if (todayRevenue) todayRevenue.textContent = fmtUGX(revenue);
+  if (todayJoints) todayJoints.textContent = String(joints);
+  if (todayCookies) todayCookies.textContent = String(cookies);
 }
 
 export function wireHomePage() {

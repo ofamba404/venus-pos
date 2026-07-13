@@ -1,4 +1,4 @@
-import { PAGES, getPageHref } from './config.js';
+import { PAGES, getAssetHref, getPageHref } from './config.js';
 
 const PAGE_ICONS = {
   home: '<path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-7H10v7H5a1 1 0 0 1-1-1V10.5z"/>',
@@ -23,16 +23,17 @@ function navLink(page, currentPage, mobile = false) {
 
 export function renderShell(currentPage) {
   const desktopTabs = PAGES.map((p) => navLink(p, currentPage)).join('');
-  const bottomNav = PAGES.map((p) => navLink(p, currentPage, true)).join('');
 
   return `
     <a class="skip-link" href="#page-content">Skip to content</a>
     <div class="header">
       <div class="header-left">
-        <a class="brand-mark" href="${getPageHref('home')}" aria-label="Venus POS home">V</a>
+        <a class="brand-logo" href="${getPageHref('home')}" aria-label="Venus POS home">
+          <img src="${getAssetHref('logo.svg')}" alt="" width="40" height="40" decoding="async" />
+        </a>
         <div>
-          <h1>Venus POS</h1>
-          <div class="sub">inventory &amp; register</div>
+          <h1>POS</h1>
+          <div class="sub">Inventory &amp; register</div>
         </div>
       </div>
       <div class="header-actions">
@@ -48,19 +49,34 @@ export function renderShell(currentPage) {
     <nav class="tabs" aria-label="Main navigation">
       ${desktopTabs}
     </nav>
-
-    <nav class="bottom-nav" aria-label="Primary navigation">
-      ${bottomNav}
-    </nav>
   `;
 }
 
-export function renderModals() {
+export function renderModals(currentPage = 'home') {
+  const bottomNav = PAGES.map((p) => navLink(p, currentPage, true)).join('');
+
   return `
-    <button class="fab" id="fabNewOrder" aria-label="New order" type="button">
-      +
-      <span class="fab-badge" id="fabBadge" style="display:none;">0</span>
-    </button>
+    <div class="bottom-dock" id="bottomDock">
+      <nav class="bottom-nav-drawer" id="floatingNav" aria-label="Primary navigation" aria-hidden="true" hidden>
+        <div class="bottom-nav-track" id="bottomNavTrack">
+          ${bottomNav}
+        </div>
+      </nav>
+      <div class="fab-stack" id="fabStack">
+        <button class="fab" id="fabNewOrder" aria-label="New order" type="button">
+          +
+          <span class="fab-badge" id="fabBadge" style="display:none;">0</span>
+        </button>
+        <button class="fab fab-nav" id="fabNavToggle" aria-label="Open navigation" aria-expanded="false" aria-controls="floatingNav" type="button">
+          <svg class="fab-nav-icon fab-nav-icon--menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16"/>
+          </svg>
+          <svg class="fab-nav-icon fab-nav-icon--close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
 
     <div class="modal-overlay modal-overlay--sheet" id="orderModal" hidden>
       <div class="modal modal--sheet" id="orderModalPanel" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle">
@@ -105,22 +121,24 @@ export function renderModals() {
       </div>
     </div>
 
-    <div class="modal-overlay" id="editOverlay" hidden>
-      <div class="modal" id="editModalBody"></div>
+    <div class="modal-overlay modal-overlay--sheet" id="editOverlay" hidden>
+      <div class="modal modal--sheet" id="editModalPanel" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+        <div class="sheet-handle-wrap" data-sheet-drag-handle aria-hidden="true">
+          <div class="sheet-handle"></div>
+        </div>
+        <div class="modal-sheet-body" id="editModalBody"></div>
+      </div>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   `;
 }
 
-export function wireMobileNav() {
-  /* Bottom nav links navigate directly — no dropdown wiring needed */
-}
-
 export function mountShell(currentPage) {
   const root = document.getElementById('app-root');
   if (!root) return;
 
+  document.body.dataset.page = currentPage;
   const content = root.innerHTML;
-  root.innerHTML = renderShell(currentPage) + `<main id="page-content" class="page-view">${content}</main>` + renderModals();
+  root.innerHTML = renderShell(currentPage) + `<main id="page-content" class="page-view">${content}</main>` + renderModals(currentPage);
 }

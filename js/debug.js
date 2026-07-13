@@ -31,7 +31,7 @@ export function wireDebugPanel() {
 
   window.gm_authFailure = function gmAuthFailure() {
     logDebug(
-      'Google Maps auth failure — check Maps JavaScript API, Places API, Distance Matrix API, billing, and referrer restrictions.',
+      'Google Maps auth failure — enable Maps JavaScript API, Places API (New), Distance Matrix API, billing, and referrer restrictions.',
     );
   };
 

@@ -232,6 +232,12 @@ export function setupSheetModal(overlay) {
   sheetState.set(overlay, state);
 }
 
+export function isSheetModalOpen(overlay) {
+  if (!overlay) return false;
+  const state = sheetState.get(overlay);
+  return state?.isOpen ?? !overlay.hidden;
+}
+
 export function openSheetModal(overlay) {
   if (!overlay) return;
 
@@ -353,28 +359,44 @@ export function animateToastOut(el) {
   });
 }
 
-export function animatePageEntrance() {
-  const page = document.getElementById('page-content');
-  if (!page) return;
+const PAGE_CONTENT_SELECTOR =
+  '.kpi-grid > *, .stock-card, .section-head, .page-hint, .client-add-row, .client-search-wrap, .ao-hero, .ao-tiles > *, .ao-feature, .credit-panel, .analytics-block, .rev-chart-card, .pattern-card, .dl-model-card, .delivery-day-group, .delivery-stats, .delivery-log, .card, .section-title, .product-row, .client-row, .credit-row, .bar-row';
 
-  if (!hasGsap() || prefersReducedMotion()) return;
+function markAppReady() {
+  document.body.classList.add('is-ready');
+}
+
+export function animatePageEntrance() {
+  const root = document.getElementById('app-root');
+  const page = document.getElementById('page-content');
+  if (!root || !page) {
+    markAppReady();
+    return;
+  }
+
+  if (!hasGsap() || prefersReducedMotion()) {
+    markAppReady();
+    return;
+  }
 
   const targets = [
-    ...page.querySelectorAll(
-      '.header, .tabs, .bottom-nav, .kpi-grid > *, .stock-card, .section-head, .page-hint, .client-add-row, .client-search-wrap, .ao-hero, .ao-tiles > *, .ao-feature, .credit-panel, .analytics-block, .rev-chart-card, .pattern-card, .dl-model-card, .delivery-day-group, .delivery-stats, .delivery-log',
-    ),
-    ...page.querySelectorAll('.product-row, .client-row, .credit-row, .bar-row'),
+    ...root.querySelectorAll('.header, .tabs, .bottom-dock'),
+    ...page.querySelectorAll(PAGE_CONTENT_SELECTOR),
   ];
 
   gsap().set(page, { opacity: 1 });
   if (!targets.length) {
-    gsap().fromTo(page, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: DURATION.normal, ease: EASE.out });
+    gsap().set(page, { opacity: 0, y: 10 });
+    markAppReady();
+    gsap().to(page, { opacity: 1, y: 0, duration: DURATION.normal, ease: EASE.out, clearProps: 'opacity,transform' });
     return;
   }
 
-  gsap().from(targets, {
-    y: 12,
-    opacity: 0,
+  gsap().set(targets, { opacity: 0, y: 12 });
+  markAppReady();
+  gsap().to(targets, {
+    opacity: 1,
+    y: 0,
     duration: DURATION.normal,
     stagger: 0.04,
     ease: EASE.out,
@@ -430,7 +452,7 @@ export function animateModalContent(container) {
   if (!container || !hasGsap() || prefersReducedMotion()) return;
 
   const items = container.querySelectorAll(
-    '.modal-header, .client-picker, .sheet-accordion, .delivery-mini, .cart-item, .cart-empty, .cart-total-row, .pick-product-row, .pick-row, .fixed-item, .modal-btns, .modal-price, .modal-progress, .qty-input, .client-search-wrap, .client-autocomplete-dropdown > *, .add-item-btn, .credit-warning, .debug-note, .debug-log-text',
+    '.modal-header, .client-picker, .sheet-accordion, .delivery-mini, .cart-item, .cart-empty, .cart-total-row, .pick-product-row, .pick-row, .fixed-item, .modal-btns, .modal-price, .modal-progress, .qty-input, .qty-mini-input, .mini-step, .client-search-wrap, .client-autocomplete-dropdown > *, .add-item-btn, .credit-warning, .debug-note, .debug-log-text, .cart-sheet-footer',
   );
 
   gsap().from(items.length ? items : container.children, {
@@ -443,30 +465,128 @@ export function animateModalContent(container) {
   });
 }
 
-export function animateCounter(el, toValue, formatter = (n) => String(Math.round(n))) {
-  if (!el) return;
+/** Slide-up content transition inside an already-open cart sheet (edit, pick, config, etc.). */
+export function animateCartSheetContent(container) {
+  if (!container || !hasGsap() || prefersReducedMotion()) return;
+
+  gsap().killTweensOf(container);
+  gsap().fromTo(
+    container,
+    { y: 36, opacity: 0 },
+    { y: 0, opacity: 1, duration: 0.55, ease: 'power3.out', clearProps: 'opacity,transform' },
+  );
+  animateModalContent(container);
+}
+
+export function animateDropdown(panel, open) {
+  if (!panel) return;
 
   if (!hasGsap() || prefersReducedMotion()) {
-    el.textContent = formatter(toValue);
-    el.dataset.counterValue = String(toValue);
+    panel.classList.toggle('open', open);
     return;
   }
 
-  const from = parseFloat(el.dataset.counterValue);
-  const start = Number.isFinite(from) ? from : 0;
-  const obj = { val: start };
+  gsap().killTweensOf(panel);
 
-  gsap().killTweensOf(obj);
-  gsap().to(obj, {
-    val: toValue,
+  if (open) {
+    panel.classList.add('open');
+    gsap()
+      .timeline()
+      .set(panel, { overflow: 'hidden', pointerEvents: 'none', display: 'flex' })
+      .fromTo(
+        panel,
+        { height: 0, opacity: 0 },
+        { height: 'auto', duration: ACCORDION_HEIGHT_DURATION, ease: ACCORDION_HEIGHT_EASE },
+      )
+      .to(
+        panel,
+        { opacity: 1, duration: ACCORDION_FADE_DURATION, ease: ACCORDION_FADE_EASE, pointerEvents: 'auto' },
+        ACCORDION_FADE_DELAY,
+      );
+    return;
+  }
+
+  gsap()
+    .timeline()
+    .set(panel, { overflow: 'hidden', pointerEvents: 'none' })
+    .to(panel, { opacity: 0, duration: ACCORDION_FADE_DURATION * 0.65, ease: 'sine.in' })
+    .to(panel, { height: 0, duration: ACCORDION_HEIGHT_DURATION * 0.85, ease: ACCORDION_HEIGHT_EASE }, 0.04)
+    .call(() => {
+      panel.classList.remove('open');
+      gsap().set(panel, { clearProps: 'height,opacity,overflow,pointerEvents' });
+    });
+}
+
+/** Wire header/body collapsible groups with the shared accordion animation. */
+export function wireHeaderBodyAccordions(root, { headerSelector, getPanel = (header) => header.nextElementSibling }) {
+  if (!root) return;
+
+  root.querySelectorAll(headerSelector).forEach((header) => {
+    const panel = getPanel(header);
+    if (!panel) return;
+
+    const startOpen = header.classList.contains('expanded');
+    header.setAttribute('aria-expanded', String(startOpen));
+    panel.removeAttribute('hidden');
+    setAccordionPanelInstant(panel, startOpen);
+
+    header.addEventListener('click', () => {
+      const willOpen = !header.classList.contains('expanded');
+      header.classList.toggle('expanded', willOpen);
+      header.setAttribute('aria-expanded', String(willOpen));
+      animateAccordionPanel(panel, willOpen);
+    });
+  });
+}
+
+const counterStates = new WeakMap();
+
+export function animateCounter(el, toValue, formatter = (n) => String(Math.round(n)), { animate = true, fromValue } = {}) {
+  if (!el) return;
+
+  const to = Number(toValue);
+  if (!Number.isFinite(to)) return;
+
+  const fromDataset = parseFloat(el.dataset.counterValue);
+  const fromText = parseUGX(el.textContent);
+  const from = fromValue !== undefined ? Number(fromValue) : Number.isFinite(fromDataset) ? fromDataset : fromText;
+
+  if (!animate || !hasGsap() || prefersReducedMotion()) {
+    counterStates.get(el)?.tween?.kill();
+    el.textContent = formatter(to);
+    el.dataset.counterValue = String(to);
+    return;
+  }
+
+  if (from === to) {
+    counterStates.get(el)?.tween?.kill();
+    el.textContent = formatter(to);
+    el.dataset.counterValue = String(to);
+    return;
+  }
+
+  let state = counterStates.get(el);
+  if (!state) {
+    state = { obj: { val: from } };
+    counterStates.set(el, state);
+  }
+
+  state.obj.val = from;
+  el.textContent = formatter(from);
+  el.dataset.counterValue = String(from);
+
+  state.tween?.kill();
+  state.tween = gsap().to(state.obj, {
+    val: to,
     duration: 0.55,
     ease: EASE.out,
     onUpdate: () => {
-      el.textContent = formatter(obj.val);
+      el.textContent = formatter(state.obj.val);
     },
     onComplete: () => {
-      el.textContent = formatter(toValue);
-      el.dataset.counterValue = String(toValue);
+      el.textContent = formatter(to);
+      el.dataset.counterValue = String(to);
+      state.tween = null;
     },
   });
 }
@@ -505,7 +625,7 @@ export function bumpElement(el) {
 }
 
 export function applyBarFillWidths(root = document) {
-  root.querySelectorAll('.bar-fill, .ao-tile-fill').forEach((fill) => {
+  root.querySelectorAll('.bar-fill, .ao-tile-fill, .stock-stat-meter-fill').forEach((fill) => {
     const targetW = fill.dataset.fillWidth;
     const targetH = fill.dataset.fillHeight;
     if (targetW) fill.style.width = targetW;
@@ -514,7 +634,7 @@ export function applyBarFillWidths(root = document) {
 }
 
 export function animateBarFills(root = document) {
-  const fills = root.querySelectorAll('.bar-fill, .ao-tile-fill');
+  const fills = root.querySelectorAll('.bar-fill, .ao-tile-fill, .stock-stat-meter-fill');
   if (!fills.length || !hasGsap() || prefersReducedMotion()) return;
 
   fills.forEach((fill) => {
@@ -624,7 +744,7 @@ const ACCORDION_FADE_DELAY = 0.06;
 const ACCORDION_HEIGHT_EASE = 'power1.inOut';
 const ACCORDION_FADE_EASE = 'sine.out';
 
-function animateAccordionPanel(panel, open) {
+export function animateAccordionPanel(panel, open) {
   if (!hasGsap() || prefersReducedMotion()) {
     panel.hidden = !open;
     return;
@@ -656,7 +776,7 @@ function animateAccordionPanel(panel, open) {
     .to(panel, { height: 0, duration: ACCORDION_HEIGHT_DURATION * 0.85, ease: ACCORDION_HEIGHT_EASE }, 0.04);
 }
 
-function setAccordionPanelInstant(panel, open) {
+export function setAccordionPanelInstant(panel, open) {
   if (hasGsap() && !prefersReducedMotion()) {
     gsap().killTweensOf(panel);
     if (open) {
@@ -717,4 +837,134 @@ export function wireGsapAccordions(root) {
     close: (id, animate = true) => controllers.get(id)?.close(animate),
     toggle: (id, animate = true) => controllers.get(id)?.toggle(animate),
   };
+}
+
+let floatingNavOpen = false;
+let floatingNavTween = null;
+
+function resetNavClosed(nav, track, links) {
+  nav.hidden = true;
+  nav.setAttribute('aria-hidden', 'true');
+  if (hasGsap()) {
+    gsap().set(track, { scaleX: 0, opacity: 0, transformOrigin: '100% 50%' });
+    gsap().set(links, { opacity: 0, y: 0, clearProps: 'transform' });
+  } else {
+    track.style.transform = 'scaleX(0)';
+    track.style.opacity = '0';
+    links.forEach((link) => {
+      link.style.opacity = '0';
+      link.style.transform = '';
+    });
+  }
+}
+
+export function wireFloatingNav() {
+  const dock = document.getElementById('bottomDock');
+  const toggle = document.getElementById('fabNavToggle');
+  const nav = document.getElementById('floatingNav');
+  const track = document.getElementById('bottomNavTrack');
+  if (!dock || !toggle || !nav || !track) return;
+
+  const items = () => nav.querySelectorAll('.bottom-nav-item');
+
+  dock.classList.remove('is-open');
+  toggle.classList.remove('is-open');
+  toggle.setAttribute('aria-expanded', 'false');
+  resetNavClosed(nav, track, items());
+
+  const close = ({ animate = true } = {}) => {
+    if (!floatingNavOpen) return;
+
+    floatingNavOpen = false;
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Open navigation');
+    toggle.classList.remove('is-open');
+
+    floatingNavTween?.kill();
+    const links = items();
+
+    const finish = () => {
+      dock.classList.remove('is-open');
+      resetNavClosed(nav, track, links);
+    };
+
+    if (!animate || !hasGsap() || prefersReducedMotion()) {
+      finish();
+      return;
+    }
+
+    floatingNavTween = gsap()
+      .timeline({ onComplete: finish })
+      .to(links, {
+        opacity: 0,
+        y: 5,
+        duration: 0.14,
+        stagger: { each: 0.02, from: 'start' },
+        ease: EASE.in,
+      })
+      .to(track, { scaleX: 0, opacity: 0, duration: 0.26, ease: 'power2.in' }, '-=0.04');
+  };
+
+  const open = () => {
+    if (floatingNavOpen) return;
+
+    floatingNavOpen = true;
+    toggle.setAttribute('aria-expanded', 'true');
+    toggle.setAttribute('aria-label', 'Close navigation');
+    toggle.classList.add('is-open');
+    dock.classList.add('is-open');
+    nav.hidden = false;
+    nav.setAttribute('aria-hidden', 'false');
+
+    floatingNavTween?.kill();
+    const links = items();
+
+    if (!hasGsap() || prefersReducedMotion()) {
+      track.style.transform = 'scaleX(1)';
+      track.style.opacity = '1';
+      links.forEach((link) => {
+        link.style.opacity = '1';
+        link.style.transform = 'none';
+      });
+      return;
+    }
+
+    gsap().set(track, { scaleX: 0, opacity: 0, transformOrigin: '100% 50%' });
+    gsap().set(links, { opacity: 0, y: 8 });
+
+    floatingNavTween = gsap()
+      .timeline()
+      .to(track, { scaleX: 1, opacity: 1, duration: 0.42, ease: 'power3.out' })
+      .to(
+        links,
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.24,
+          stagger: { each: 0.04, from: 'end' },
+          ease: EASE.out,
+        },
+        '-=0.24',
+      );
+  };
+
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (floatingNavOpen) close();
+    else open();
+  });
+
+  nav.addEventListener('click', (e) => {
+    if (e.target.closest('.bottom-nav-item')) close();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!floatingNavOpen) return;
+    if (e.target.closest('#bottomDock')) return;
+    close();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && floatingNavOpen) close();
+  });
 }

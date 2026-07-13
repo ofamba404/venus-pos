@@ -6,6 +6,21 @@ export let salesCache = [];
 export let clients = [];
 export let deliveries = [];
 
+let pageDataSettled = false;
+
+/** False until the first fetch on the current page finishes (success or error). */
+export function isPageDataSettled() {
+  return pageDataSettled;
+}
+
+export function setPageDataSettled(value = true) {
+  pageDataSettled = value;
+}
+
+export function resetPageDataSettled() {
+  pageDataSettled = false;
+}
+
 CATEGORIES.forEach((c) => {
   inventory[c.id] = 0;
   draftStock[c.id] = 0;

@@ -1,8 +1,7 @@
 import { sbFetch } from './api.js';
 import { readStaleCache, writeCache } from './cache.js';
-import { clients } from './state.js';
-import { staggerChildren } from './animations.js';
-import { debounce, escapeHtml, showConfirm, showToast } from './utils.js';
+import { clients, isPageDataSettled } from './state.js';
+import { debounce, escapeHtml, showConfirm, showToast, skeletonRows } from './utils.js';
 
 function applyClients(rows) {
   clients.length = 0;
@@ -106,7 +105,9 @@ export function renderClientsTab() {
   updateClientListMeta(filtered.length, clients.length, query);
 
   if (clients.length === 0) {
-    list.innerHTML = `<div class="client-empty">No clients yet — add one above, or save one while checking out a sale</div>`;
+    list.innerHTML = !isPageDataSettled()
+      ? skeletonRows(5)
+      : `<div class="client-empty">No clients yet — add one above, or save one while checking out a sale</div>`;
     return;
   }
 
@@ -137,7 +138,6 @@ export function renderClientsTab() {
   list.querySelectorAll('[data-delete]').forEach((btn) => {
     btn.addEventListener('click', () => deleteClient(btn.dataset.delete));
   });
-  staggerChildren(list, '.client-row');
 }
 
 function startRenameClient(id) {

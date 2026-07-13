@@ -1,4 +1,5 @@
 import { addClient, filterClients, findClientByName, highlightClientName } from './clients.js';
+import { animateDropdown } from './animations.js';
 import { clients } from './state.js';
 import { escapeHtml, showToast } from './utils.js';
 
@@ -32,7 +33,7 @@ export function wireClientAutocomplete({
   const clearBtn = clearId ? document.getElementById(clearId) : null;
   if (!input || !dropdown) return;
 
-  const hide = () => dropdown.classList.remove('open');
+  const hide = () => animateDropdown(dropdown, false);
 
   const notify = (name) => {
     const client = findClientByName(name);
@@ -51,7 +52,7 @@ export function wireClientAutocomplete({
         trimmed || clients.length
           ? `<div class="client-ac-empty">${trimmed ? 'No matches' : 'No saved clients yet'}</div>`
           : '';
-      if (dropdown.innerHTML) dropdown.classList.add('open');
+      if (dropdown.innerHTML) animateDropdown(dropdown, true);
       else hide();
       return;
     }
@@ -75,7 +76,7 @@ export function wireClientAutocomplete({
       .join('');
 
     dropdown.innerHTML = html;
-    dropdown.classList.add('open');
+    animateDropdown(dropdown, true);
 
     dropdown.querySelectorAll('button').forEach((btn) => {
       btn.addEventListener('mousedown', (e) => e.preventDefault());

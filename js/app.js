@@ -1,18 +1,21 @@
-import { animatePageEntrance, ensureGsap, initSheetModals } from './animations.js';
+import { ensureGsap, initSheetModals, wireFloatingNav } from './animations.js';
 import { wireDebugPanel } from './debug.js';
-import { mountShell, wireMobileNav } from './layout.js';
+import { mountShell } from './layout.js';
 import { wireOrders } from './orders.js';
 import { wireConfirmDialog, wireEditOverlay } from './utils.js';
 
 export async function initApp(page) {
   mountShell(page);
-  wireMobileNav();
   wireDebugPanel();
   wireConfirmDialog();
   wireEditOverlay();
   wireOrders();
   await ensureGsap();
+  wireFloatingNav();
   initSheetModals();
+}
+
+/** Show the shell after data is rendered — no entrance motion. */
+export function revealApp() {
   document.body.classList.add('is-ready');
-  animatePageEntrance();
 }

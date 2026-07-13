@@ -46,6 +46,12 @@ function inPagesDir() {
   return /\/pages(?:\/|$)/.test(location.pathname);
 }
 
+/** Resolve asset paths from root or /pages/ */
+export function getAssetHref(filename) {
+  const root = inPagesDir();
+  return root ? `../assets/${filename}` : `assets/${filename}`;
+}
+
 /** Resolve correct href whether the app is served from / or /pages/ */
 export function getPageHref(pageId, hash = '') {
   const root = inPagesDir();

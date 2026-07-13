@@ -1,6 +1,6 @@
 import { sbFetch } from './api.js';
 import { readStaleCache, writeCache } from './cache.js';
-import { animateCounter, bumpElement, closeModal, openModal } from './animations.js';
+import { bumpElement, closeModal, openModal } from './animations.js';
 import {
   CATEGORIES,
   CAT_MAP,
@@ -9,8 +9,8 @@ import {
   LOW_STOCK_THRESHOLD,
   getPageHref,
 } from './config.js';
-import { inventory, draftStock } from './state.js';
-import { showToast } from './utils.js';
+import { inventory, draftStock, isPageDataSettled } from './state.js';
+import { showToast, skeletonInvGrid } from './utils.js';
 
 const HIGHLIGHT_KEY = 'venus-pos-stock-highlight';
 
@@ -129,9 +129,13 @@ export function buildInvCard(cat) {
   return card;
 }
 
-export function renderInventoryGrid() {
+export function renderInventoryGrid({ pending = false } = {}) {
   const invGrid = document.getElementById('invGrid');
   if (!invGrid) return;
+  if (pending && !isPageDataSettled()) {
+    invGrid.innerHTML = skeletonInvGrid(CATEGORIES.length);
+    return;
+  }
   invGrid.innerHTML = '';
   CATEGORIES.forEach((cat) => invGrid.appendChild(buildInvCard(cat)));
 }
@@ -244,10 +248,10 @@ export function renderStockGlance() {
   const jointsTotal = jointCats.reduce((sum, c) => sum + inventory[c.id], 0);
   const cookiesTotal = cookieCats.reduce((sum, c) => sum + inventory[c.id], 0);
 
-  animateCounter(donutJointsTotal, jointsTotal);
+  if (donutJointsTotal) donutJointsTotal.textContent = String(jointsTotal);
   donutJoints.style.background = buildDonutGradient(jointCats, jointsTotal);
 
-  if (cookieStockTotal) animateCounter(cookieStockTotal, cookiesTotal);
+  if (cookieStockTotal) cookieStockTotal.textContent = String(cookiesTotal);
   if (cookieStockFill) {
     const meter = cookieStockLevel(cookiesTotal);
     cookieStockFill.style.width = `${meter.pct}%`;
