@@ -1,5 +1,5 @@
 import { sbFetch } from './api.js';
-import { readStaleCache, writeCache } from './cache.js';
+import { dataStore } from './store/index.js';
 import { bumpElement, closeModal, openModal } from './animations.js';
 import {
   CATEGORIES,
@@ -11,7 +11,7 @@ import {
 } from './config.js';
 import { inventory, draftStock } from './state.js';
 import { showToast } from './utils.js';
-import { showPlaceholder, stockStatusPlaceholder } from './pending.js';
+import { showPlaceholder, revealLoaded, stockStatusPlaceholder } from './pending.js';
 
 const HIGHLIGHT_KEY = 'venus-pos-stock-highlight';
 
@@ -40,10 +40,7 @@ export async function persistStock(id) {
       body: JSON.stringify({ stock: inventory[id], updated_at: new Date().toISOString() }),
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
-    writeCache(
-      'inventory',
-      CATEGORIES.map((c) => ({ category_id: c.id, stock: inventory[c.id] })),
-    );
+    await dataStore.persistCurrent('inventory');
   } catch (e) {
     console.error('persist stock failed', e);
     showToast('Could not save — check connection', true);
@@ -159,10 +156,7 @@ function applyInventoryRows(rows) {
 }
 
 export function restoreInventoryFromCache() {
-  const stale = readStaleCache('inventory');
-  if (!stale?.length) return false;
-  applyInventoryRows(stale);
-  return true;
+  return dataStore.hasData('inventory');
 }
 
 export function syncInventoryToDom() {
@@ -171,24 +165,12 @@ export function syncInventoryToDom() {
     if (!el || el.querySelector('input')) return;
     el.classList.remove('is-pending');
     el.textContent = inventory[cat.id];
+    revealLoaded(el);
   });
 }
 
 export async function loadInventory() {
-  const hadData = Object.values(inventory).some((n) => n > 0);
-
-  try {
-    const res = await sbFetch('inventory?select=category_id,stock');
-    if (!res.ok) throw new Error(`Supabase ${res.status}`);
-    const rows = await res.json();
-    writeCache('inventory', rows);
-    applyInventoryRows(rows);
-  } catch (e) {
-    console.error('load inventory failed', e);
-    if (!hadData && !Object.values(inventory).some((n) => n > 0)) {
-      showToast('Could not load inventory', true);
-    }
-  }
+  await dataStore.fetch('inventory');
   syncInventoryToDom();
   renderStockGlance();
 }

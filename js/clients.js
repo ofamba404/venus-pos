@@ -1,13 +1,11 @@
 import { sbFetch } from './api.js';
-import { readStaleCache, writeCache } from './cache.js';
+import { dataStore } from './store/index.js';
 import { clients } from './state.js';
 import { debounce, escapeHtml, showConfirm, showToast } from './utils.js';
 import { clientRowPlaceholders, showPlaceholder } from './pending.js';
+import { mountVirtualList } from './virtual-list.js';
 
-function applyClients(rows) {
-  clients.length = 0;
-  clients.push(...rows);
-}
+let clientListVirtual = null;
 
 export function findClientByName(name) {
   const q = name?.trim().toLowerCase();
@@ -49,27 +47,11 @@ export function highlightClientName(name, query) {
 }
 
 export function restoreClientsFromCache() {
-  const stale = readStaleCache('clients');
-  if (!stale?.length) return false;
-  applyClients(stale);
-  return true;
+  return dataStore.hasData('clients');
 }
 
 export async function loadClients() {
-  const hadData = clients.length > 0;
-
-  try {
-    const res = await sbFetch('clients?select=*&order=name.asc');
-    if (!res.ok) throw new Error(`Supabase ${res.status}`);
-    const rows = await res.json();
-    writeCache('clients', rows);
-    applyClients(rows);
-  } catch (e) {
-    console.error('load clients failed', e);
-    if (!hadData && !clients.length) {
-      showToast('Could not load clients', true);
-    }
-  }
+  await dataStore.fetch('clients');
   renderClientsTab();
 }
 
@@ -117,8 +99,10 @@ export function renderClientsTab() {
     return;
   }
 
-  list.innerHTML = filtered
-    .map((c) => {
+  clientListVirtual?.destroy();
+  clientListVirtual = mountVirtualList(list, {
+    items: filtered,
+    renderRow: (c) => {
       const d = new Date(c.created_at);
       const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
       return `
@@ -130,14 +114,7 @@ export function renderClientsTab() {
             <button class="cl-icon-btn delete" data-delete="${c.id}" title="Delete" type="button">✕</button>
           </div>
         </div>`;
-    })
-    .join('');
-
-  list.querySelectorAll('[data-rename]').forEach((btn) => {
-    btn.addEventListener('click', () => startRenameClient(btn.dataset.rename));
-  });
-  list.querySelectorAll('[data-delete]').forEach((btn) => {
-    btn.addEventListener('click', () => deleteClient(btn.dataset.delete));
+    },
   });
 }
 
@@ -184,7 +161,7 @@ async function finishRenameClient(id, newName) {
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
     if (client) client.name = newName;
     clients.sort((a, b) => a.name.localeCompare(b.name));
-    writeCache('clients', [...clients]);
+    await dataStore.persistCurrent('clients');
     renderClientsTab();
     showToast('Client renamed');
   } catch (e) {
@@ -205,7 +182,7 @@ async function deleteClient(id) {
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
     const idx = clients.findIndex((c) => c.id === id);
     if (idx > -1) clients.splice(idx, 1);
-    writeCache('clients', [...clients]);
+    await dataStore.persistCurrent('clients');
     renderClientsTab();
     showToast('Client removed');
   } catch (e) {
@@ -232,7 +209,7 @@ export async function addClient(name) {
     const newClient = rows[0];
     clients.push(newClient);
     clients.sort((a, b) => a.name.localeCompare(b.name));
-    writeCache('clients', [...clients]);
+    await dataStore.persistCurrent('clients');
     return newClient;
   } catch (e) {
     console.error('add client failed', e);
@@ -245,6 +222,17 @@ export function wireClientsPage() {
   const addInput = document.getElementById('newClientInput');
   const searchInput = document.getElementById('clientSearchInput');
   const searchClear = document.getElementById('clientSearchClear');
+  const list = document.getElementById('clientList');
+
+  list?.addEventListener('click', (e) => {
+    const renameBtn = e.target.closest('[data-rename]');
+    if (renameBtn) {
+      startRenameClient(renameBtn.dataset.rename);
+      return;
+    }
+    const deleteBtn = e.target.closest('[data-delete]');
+    if (deleteBtn) deleteClient(deleteBtn.dataset.delete);
+  });
 
   const submitNewClient = async () => {
     const name = addInput?.value.trim();

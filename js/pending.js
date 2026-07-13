@@ -1,16 +1,24 @@
+import { dataStore } from './store/index.js';
+
 const PENDING_KEYS = ['sales', 'inventory', 'clients', 'deliveries'];
 
 const ICON_ROUTE = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"></circle><circle cx="18" cy="18" r="2.4"></circle><path d="M6 8.4v4.2a3.4 3.4 0 0 0 3.4 3.4h5.2"></path></svg>`;
 
 const CHART_RANGE_SHORT = ['7D', '14D', '30D', '90D', 'All'];
 
-export function applyPendingFlags(cached = {}) {
-  document.body.classList.toggle('pending-sales', !cached.sales);
-  document.body.classList.toggle('pending-inventory', !cached.inventory);
-  document.body.classList.toggle('pending-clients', !cached.clients);
-  document.body.classList.toggle('pending-deliveries', !cached.deliveries);
-  document.body.classList.toggle('pending-today-stats', !cached.sales);
-  document.body.classList.toggle('pending-stock-glance', !cached.inventory);
+export function applyPendingFlags(hydrated = {}) {
+  PENDING_KEYS.forEach((key) => {
+    const has = hydrated[key] ?? dataStore.hasData(key);
+    document.body.classList.toggle(`pending-${key}`, !has);
+  });
+  document.body.classList.toggle(
+    'pending-today-stats',
+    !(hydrated.sales ?? dataStore.hasData('sales')),
+  );
+  document.body.classList.toggle(
+    'pending-stock-glance',
+    !(hydrated.inventory ?? dataStore.hasData('inventory')),
+  );
 }
 
 export function clearPendingFlags() {
@@ -24,7 +32,9 @@ export function isDataPending(key) {
 
 /** True when a dataset is still fetching and has nothing to show yet. */
 export function showPlaceholder(key, count = 0) {
-  return isDataPending(key) && count === 0;
+  const status = dataStore.getStatus(key);
+  const empty = count === 0 && !dataStore.hasData(key);
+  return (isDataPending(key) || status.fetching) && empty;
 }
 
 function pt(wide = false) {
@@ -271,4 +281,16 @@ export function stockStatusPlaceholder() {
         <span class="ds-out is-pending">${pt()}</span>
       </div>
     </div>`;
+}
+
+/** Fade content in when replacing a pending placeholder. */
+export function revealLoaded(el) {
+  if (!el) return;
+  el.classList.remove('is-pending');
+  el.classList.add('data-loaded');
+  el.addEventListener(
+    'animationend',
+    () => el.classList.remove('data-loaded'),
+    { once: true },
+  );
 }

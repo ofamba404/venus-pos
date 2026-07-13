@@ -1,5 +1,5 @@
 import { getPageHref } from './config.js';
-import { isDataPending } from './pending.js';
+import { isDataPending, revealLoaded } from './pending.js';
 import { salesCache } from './state.js';
 import { fmtUGX, isToday } from './utils.js';
 
@@ -24,14 +24,17 @@ export function updateTodayStrip() {
   if (todayRevenue) {
     todayRevenue.classList.toggle('is-pending', pending);
     todayRevenue.textContent = pending ? 'UGX —' : fmtUGX(revenue);
+    if (!pending) revealLoaded(todayRevenue);
   }
   if (todayJoints) {
     todayJoints.classList.toggle('is-pending', pending);
     todayJoints.textContent = pending ? '—' : String(joints);
+    if (!pending) revealLoaded(todayJoints);
   }
   if (todayCookies) {
     todayCookies.classList.toggle('is-pending', pending);
     todayCookies.textContent = pending ? '—' : String(cookies);
+    if (!pending) revealLoaded(todayCookies);
   }
 }
 

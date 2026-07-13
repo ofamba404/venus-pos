@@ -1,4 +1,4 @@
-import { clearCache, writeCache } from './cache.js';
+import { dataStore } from './store/index.js';
 import { sbFetch } from './api.js';
 import {
   CAT_MAP,
@@ -32,7 +32,6 @@ import {
   registerSheetModal,
   wireGsapAccordions,
 } from './animations.js';
-import { loadSalesToday } from './sales.js';
 import {
   cartTotal,
   draftStock,
@@ -893,10 +892,7 @@ async function checkout() {
       if (el) el.textContent = inventory[id];
     }
     resetDraftStock();
-    writeCache(
-      'inventory',
-      CATEGORIES.map((c) => ({ category_id: c.id, stock: inventory[c.id] })),
-    );
+    await dataStore.persistCurrent('inventory');
 
     const total = cartTotal(cart);
     const items = cart.map((i) => ({
@@ -935,9 +931,9 @@ async function checkout() {
 
     if (deliveryAttempted) {
       try {
-        await sbFetch('deliveries', {
+        const delRes = await sbFetch('deliveries', {
           method: 'POST',
-          headers: { Prefer: 'return=minimal' },
+          headers: { Prefer: 'return=representation' },
           body: JSON.stringify({
             client_id: clientId,
             client_name: orderClientName || null,
@@ -952,6 +948,9 @@ async function checkout() {
             fee_ugx: feeVal,
           }),
         });
+        if (!delRes.ok) throw new Error(`Supabase ${delRes.status}`);
+        const delRows = await delRes.json();
+        if (delRows[0]) await dataStore.appendDelivery(delRows[0]);
         deliverySaved = true;
       } catch (e) {
         console.error('save delivery failed', e);
@@ -986,9 +985,8 @@ async function checkout() {
     updateFabBadge();
     renderStockGlance();
 
-    clearCache('sales');
     const { updateTodayStrip } = await import('./home.js');
-    await loadSalesToday();
+    await dataStore.invalidate('sales');
     updateTodayStrip();
 
     modalMode = 'success';

@@ -1,4 +1,4 @@
-import { clearCache, writeCache } from './cache.js';
+import { dataStore } from './store/index.js';
 import { sbFetch } from './api.js';
 import { CATEGORIES, LOW_STOCK_THRESHOLD } from './config.js';
 import { applyActiveHighlight, getActiveStatusHighlight } from './inventory.js';
@@ -9,7 +9,6 @@ import {
   renderRevenueChart,
   renderSalesPatterns,
 } from './analytics-chart.js';
-import { loadSalesToday } from './sales.js';
 import { resolveClientId } from './clients.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
 import { clients, inventory, salesCache } from './state.js';
@@ -31,6 +30,9 @@ import {
   receiptListPlaceholder,
   showPlaceholder,
 } from './pending.js';
+import { createMemo, salesFingerprint } from './store/memo.js';
+
+const memoOverview = createMemo();
 
 let editingSaleId = null;
 let editSaleItems = [];
@@ -153,51 +155,88 @@ function renderOverviewSections() {
     return;
   }
 
-  const todaySales = salesCache.filter((s) => isToday(s.created_at));
-  const revenueToday = todaySales.reduce((sum, s) => sum + s.total_ugx, 0);
-  const revenueAll = salesCache.reduce((sum, s) => sum + s.total_ugx, 0);
-  const ordersCount = salesCache.length;
-  const avgOrder = ordersCount > 0 ? revenueAll / ordersCount : 0;
+  const metrics = memoOverview(`${salesFingerprint(salesCache)}:${clients.length}`, () => {
+    const todaySales = salesCache.filter((s) => isToday(s.created_at));
+    const revenueToday = todaySales.reduce((sum, s) => sum + s.total_ugx, 0);
+    const revenueAll = salesCache.reduce((sum, s) => sum + s.total_ugx, 0);
+    const ordersCount = salesCache.length;
+    const avgOrder = ordersCount > 0 ? revenueAll / ordersCount : 0;
 
-  const now = new Date();
-  const weekAgo = new Date(now);
-  weekAgo.setDate(weekAgo.getDate() - 6);
-  weekAgo.setHours(0, 0, 0, 0);
-  const revenueWeek = salesCache.filter((s) => new Date(s.created_at) >= weekAgo).reduce((sum, s) => sum + s.total_ugx, 0);
-  const revenueMonth = salesCache
-    .filter((s) => {
-      const d = new Date(s.created_at);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    })
-    .reduce((sum, s) => sum + s.total_ugx, 0);
+    const now = new Date();
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 6);
+    weekAgo.setHours(0, 0, 0, 0);
+    const revenueWeek = salesCache
+      .filter((s) => new Date(s.created_at) >= weekAgo)
+      .reduce((sum, s) => sum + s.total_ugx, 0);
+    const revenueMonth = salesCache
+      .filter((s) => {
+        const d = new Date(s.created_at);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      })
+      .reduce((sum, s) => sum + s.total_ugx, 0);
 
-  const productTotals = {};
-  salesCache.forEach((s) =>
-    (s.items || []).forEach((i) => {
-      productTotals[i.product_name] = (productTotals[i.product_name] || 0) + 1;
-    }),
-  );
-  let topProduct = '—';
-  let topCount = 0;
-  Object.entries(productTotals).forEach(([name, count]) => {
-    if (count > topCount) {
-      topCount = count;
-      topProduct = name;
-    }
+    const productTotals = {};
+    salesCache.forEach((s) =>
+      (s.items || []).forEach((i) => {
+        productTotals[i.product_name] = (productTotals[i.product_name] || 0) + 1;
+      }),
+    );
+    let topProduct = '—';
+    let topCount = 0;
+    Object.entries(productTotals).forEach(([name, count]) => {
+      if (count > topCount) {
+        topCount = count;
+        topProduct = name;
+      }
+    });
+
+    const outstandingCredit = salesCache.filter((s) => s.is_credit && !s.credit_cleared);
+    const totalCreditOwed = outstandingCredit.reduce((sum, s) => sum + s.total_ugx, 0);
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayRev = salesCache
+      .filter((s) => isSameDay(new Date(s.created_at), yesterday))
+      .reduce((sum, s) => sum + s.total_ugx, 0);
+    const delta = revenueDelta(revenueToday, yesterdayRev);
+    const monthShare = revenueAll > 0 ? Math.round((revenueMonth / revenueAll) * 100) : 0;
+    const ordersToday = todaySales.length;
+
+    return {
+      revenueToday,
+      revenueAll,
+      ordersCount,
+      avgOrder,
+      revenueWeek,
+      revenueMonth,
+      topProduct,
+      topCount,
+      outstandingCredit,
+      totalCreditOwed,
+      delta,
+      monthShare,
+      ordersToday,
+    };
   });
 
-  const outstandingCredit = salesCache.filter((s) => s.is_credit && !s.credit_cleared);
-  const totalCreditOwed = outstandingCredit.reduce((sum, s) => sum + s.total_ugx, 0);
-  if (outstandingCredit.length === 0) creditPanelOpen = false;
+  if (metrics.outstandingCredit.length === 0) creditPanelOpen = false;
 
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayRev = salesCache
-    .filter((s) => isSameDay(new Date(s.created_at), yesterday))
-    .reduce((sum, s) => sum + s.total_ugx, 0);
-  const delta = revenueDelta(revenueToday, yesterdayRev);
-  const monthShare = revenueAll > 0 ? Math.round((revenueMonth / revenueAll) * 100) : 0;
-  const ordersToday = todaySales.length;
+  const {
+    revenueToday,
+    revenueAll,
+    ordersCount,
+    avgOrder,
+    revenueWeek,
+    revenueMonth,
+    topProduct,
+    topCount,
+    outstandingCredit,
+    totalCreditOwed,
+    delta,
+    monthShare,
+    ordersToday,
+  } = metrics;
 
   document.getElementById('statCards').innerHTML = `
     <div class="ao-hero">
@@ -248,7 +287,7 @@ function renderRangeSections() {
   const range = getChartRange();
   const rangeSales = filterSalesByRange(salesCache, range);
 
-  renderRevenueChart(document.getElementById('revenueChart'), salesCache, range, () => renderRangeSections());
+  renderRevenueChart(document.getElementById('revenueChart'), salesCache, range, () => renderAnalyticsCharts());
   renderSalesPatterns(document.getElementById('salesPatterns'), salesCache, range);
 
   const rangeLabel = document.getElementById('productRevenueLabel');
@@ -315,13 +354,21 @@ function renderRangeSections() {
   }
 }
 
-export function renderAnalytics() {
+export function renderAnalyticsOverview() {
   renderOverviewSections();
-  renderRangeSections();
+}
 
+export function renderAnalyticsCharts() {
+  renderRangeSections();
+}
+
+export function renderAnalyticsStock() {
   const maxStock = Math.max(1, ...CATEGORIES.map((c) => inventory[c.id]));
   const stockPending = showPlaceholder('inventory');
-  document.getElementById('stockBars').innerHTML = CATEGORIES.map((c) => {
+  const stockBars = document.getElementById('stockBars');
+  if (!stockBars) return;
+
+  stockBars.innerHTML = CATEGORIES.map((c) => {
     const stock = inventory[c.id];
     const status = stock === 0 ? 'out' : stock < LOW_STOCK_THRESHOLD ? 'low' : 'ok';
     const pct = Math.round((stock / maxStock) * 100);
@@ -333,48 +380,54 @@ export function renderAnalytics() {
     </div>`;
   }).join('');
   applyActiveHighlight();
-  applyBarFillWidths(document.getElementById('stockBars'));
+  applyBarFillWidths(stockBars);
+}
 
+export function renderAnalyticsOrders() {
   const list = document.getElementById('receiptList');
+  if (!list) return;
+
   if (salesCache.length === 0) {
     list.innerHTML = showPlaceholder('sales')
       ? receiptListPlaceholder()
       : `<div class="receipt-empty">No orders yet — ring one up on the Home tab</div>`;
-  } else {
-    const dayMap = new Map();
-    salesCache.forEach((s) => {
-      const key = new Date(s.created_at).toDateString();
-      if (!dayMap.has(key)) dayMap.set(key, { dateObj: new Date(s.created_at), sales: [] });
-      dayMap.get(key).sales.push(s);
-    });
-    const dayGroups = Array.from(dayMap.values()).sort((a, b) => b.dateObj - a.dateObj);
+    return;
+  }
 
-    list.innerHTML = dayGroups
-      .map((group, idx) => {
-        const isTodayGroup = isToday(group.dateObj);
-        const dayLabel = isTodayGroup
-          ? 'Today'
-          : group.dateObj.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-        const dayTotal = group.sales.reduce((sum, s) => sum + s.total_ugx, 0);
+  const dayMap = new Map();
+  salesCache.forEach((s) => {
+    const key = new Date(s.created_at).toDateString();
+    if (!dayMap.has(key)) dayMap.set(key, { dateObj: new Date(s.created_at), sales: [] });
+    dayMap.get(key).sales.push(s);
+  });
+  const dayGroups = Array.from(dayMap.values()).sort((a, b) => b.dateObj - a.dateObj);
 
-        const rows = group.sales
-          .map((s) => {
-            const t = new Date(s.created_at);
-            const time = t.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-            const itemLines = (s.items || [])
-              .map((i) => `${escapeHtml(i.product_name)}${i.detail ? ` — ${escapeHtml(i.detail)}` : ''}`)
-              .join('<br>');
-            const client = s.client_id ? clients.find((c) => c.id === s.client_id) : null;
-            const clientLine = client ? `<div class="r-client">${escapeHtml(client.name)}</div>` : '';
-            return `<button class="receipt-order" type="button" data-edit-sale="${s.id}">
+  list.innerHTML = dayGroups
+    .map((group, idx) => {
+      const isTodayGroup = isToday(group.dateObj);
+      const dayLabel = isTodayGroup
+        ? 'Today'
+        : group.dateObj.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      const dayTotal = group.sales.reduce((sum, s) => sum + s.total_ugx, 0);
+
+      const rows = group.sales
+        .map((s) => {
+          const t = new Date(s.created_at);
+          const time = t.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+          const itemLines = (s.items || [])
+            .map((i) => `${escapeHtml(i.product_name)}${i.detail ? ` — ${escapeHtml(i.detail)}` : ''}`)
+            .join('<br>');
+          const client = s.client_id ? clients.find((c) => c.id === s.client_id) : null;
+          const clientLine = client ? `<div class="r-client">${escapeHtml(client.name)}</div>` : '';
+          return `<button class="receipt-order" type="button" data-edit-sale="${s.id}">
             <div class="r-head"><span class="r-time">${time}</span><span class="r-amt">${fmtUGX(s.total_ugx)}${s.is_credit && !s.credit_cleared ? '<span class="credit-tag">credit</span>' : ''}</span></div>
             ${clientLine}
             <div class="r-items">${itemLines}</div>
           </button>`;
-          })
-          .join('');
+        })
+        .join('');
 
-        return `
+      return `
           <div class="order-day-group">
             <button class="order-day-header ${isTodayGroup ? 'expanded' : ''}" data-day-toggle="${idx}" type="button">
               <span class="day-label">${dayLabel} <span class="day-meta">(${group.sales.length})</span></span>
@@ -387,15 +440,21 @@ export function renderAnalytics() {
               ${rows}
             </div>
           </div>`;
-      })
-      .join('');
+    })
+    .join('');
 
-    wireHeaderBodyAccordions(list, { headerSelector: '.order-day-header' });
+  wireHeaderBodyAccordions(list, { headerSelector: '.order-day-header' });
 
-    list.querySelectorAll('[data-edit-sale]').forEach((btn) => {
-      btn.addEventListener('click', () => openEditSale(btn.dataset.editSale));
-    });
-  }
+  list.querySelectorAll('[data-edit-sale]').forEach((btn) => {
+    btn.addEventListener('click', () => openEditSale(btn.dataset.editSale));
+  });
+}
+
+export function renderAnalytics() {
+  renderAnalyticsOverview();
+  renderAnalyticsCharts();
+  renderAnalyticsStock();
+  renderAnalyticsOrders();
 }
 
 async function clearCredit(saleId) {
@@ -408,9 +467,8 @@ async function clearCredit(saleId) {
       body: JSON.stringify({ credit_cleared: true, cleared_at: new Date().toISOString() }),
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
-    clearCache('sales');
+    await dataStore.invalidate('sales');
     showToast('Credit cleared');
-    await loadSalesToday();
     renderAnalytics();
   } catch (e) {
     console.error('clear credit failed', e);
@@ -571,10 +629,7 @@ async function applyStockDelta(oldBreakdown, newBreakdown) {
     const el = document.getElementById(`inv-count-${id}`);
     if (el) el.textContent = inventory[id];
   }
-  writeCache(
-    'inventory',
-    CATEGORIES.map((c) => ({ category_id: c.id, stock: inventory[c.id] })),
-  );
+  await dataStore.persistCurrent('inventory');
 }
 
 async function saveSaleEdit() {
@@ -621,9 +676,8 @@ async function saveSaleEdit() {
     Object.assign(sale, payload);
     editingSaleId = null;
     closeEditModal();
-    clearCache('sales');
+    await dataStore.invalidate('sales');
     showToast('Order updated');
-    await loadSalesToday();
     renderAnalytics();
     const { updateTodayStrip } = await import('./home.js');
     updateTodayStrip();
@@ -657,9 +711,8 @@ async function voidSale() {
 
     editingSaleId = null;
     closeEditModal();
-    clearCache('sales');
+    await dataStore.invalidate('sales');
     showToast('Order voided');
-    await loadSalesToday();
     renderAnalytics();
     const { updateTodayStrip } = await import('./home.js');
     updateTodayStrip();

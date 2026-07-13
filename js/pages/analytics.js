@@ -1,29 +1,20 @@
-import { finishAppInit, mountApp, revealApp } from '../app.js';
-import { renderAnalytics, wireAnalyticsPage } from '../analytics.js';
-import { hydrateFromCache, loadPageData } from '../bootstrap.js';
-import { applyPendingFlags, clearPendingFlags } from '../pending.js';
-import { resetPageDataSettled, setPageDataSettled } from '../state.js';
-import { setPageLoading } from '../utils.js';
+import { runPageBoot } from '../bootstrap.js';
+import {
+  renderAnalytics,
+  renderAnalyticsCharts,
+  renderAnalyticsOrders,
+  renderAnalyticsOverview,
+  renderAnalyticsStock,
+  wireAnalyticsPage,
+} from '../analytics.js';
 
-async function boot() {
-  resetPageDataSettled();
-  const cached = hydrateFromCache();
-  applyPendingFlags(cached);
-  setPageLoading(true);
-
-  try {
-    mountApp('analytics');
-    revealApp();
-    wireAnalyticsPage();
-    renderAnalytics();
-
-    await Promise.all([finishAppInit(), loadPageData()]);
-    setPageDataSettled();
-    clearPendingFlags();
-    renderAnalytics();
-  } finally {
-    setPageLoading(false);
-  }
-}
-
-boot();
+runPageBoot({
+  page: 'analytics',
+  wire: wireAnalyticsPage,
+  paint: renderAnalytics,
+  slices: {
+    sales: [renderAnalyticsOverview, renderAnalyticsCharts, renderAnalyticsOrders],
+    inventory: renderAnalyticsStock,
+    clients: renderAnalyticsCharts,
+  },
+});

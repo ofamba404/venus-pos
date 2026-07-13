@@ -1979,6 +1979,35 @@
 
   .client-list { display: flex; flex-direction: column; gap: var(--list-gap); }
 
+  .client-list.virtual-list-host {
+    display: block;
+    max-height: calc(100dvh - 280px);
+    min-height: 320px;
+  }
+
+  .virtual-list-viewport {
+    position: relative;
+    overflow-y: auto;
+    max-height: inherit;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .virtual-list-spacer {
+    width: 1px;
+    pointer-events: none;
+  }
+
+  .virtual-list-window {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--list-gap);
+    will-change: transform;
+  }
+
   .client-row {
     display: flex;
     align-items: center;
@@ -4490,9 +4519,8 @@
   .sk-line {
     height: 12px;
     border-radius: 6px;
-    background: linear-gradient(90deg, var(--btn-bg) 0%, color-mix(in srgb, var(--btn-bg) 70%, var(--text-dim)) 50%, var(--btn-bg) 100%);
-    background-size: 200% 100%;
-    animation: skShimmer 1.1s ease-in-out infinite;
+    background: var(--btn-bg);
+    animation: skPulse 1.8s ease-in-out infinite;
   }
 
   .sk-line.wide { width: 100%; }
@@ -4516,18 +4544,16 @@
   .sk-tile {
     height: 72px;
     border-radius: var(--radius-md);
-    background: linear-gradient(90deg, var(--btn-bg) 0%, color-mix(in srgb, var(--btn-bg) 70%, var(--text-dim)) 50%, var(--btn-bg) 100%);
-    background-size: 200% 100%;
-    animation: skShimmer 1.1s ease-in-out infinite;
+    background: var(--btn-bg);
+    animation: skPulse 1.8s ease-in-out infinite;
   }
 
   .data-skeleton-chart { padding: var(--space-3) 0; }
   .sk-chart-area {
     height: 180px;
     border-radius: var(--radius-md);
-    background: linear-gradient(90deg, var(--btn-bg) 0%, color-mix(in srgb, var(--btn-bg) 70%, var(--text-dim)) 50%, var(--btn-bg) 100%);
-    background-size: 200% 100%;
-    animation: skShimmer 1.1s ease-in-out infinite;
+    background: var(--btn-bg);
+    animation: skPulse 1.8s ease-in-out infinite;
   }
 
   .data-skeleton-inv {
@@ -4548,22 +4574,30 @@
     justify-content: flex-end;
   }
 
-  @keyframes skShimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+  @keyframes skPulse {
+    0%, 100% { opacity: 0.95; }
+    50% { opacity: 0.85; }
   }
 
-  /* In-place pending shimmer — same box, values only */
+  /* In-place pending placeholders — fixed dimensions, subtle pulse */
   .is-pending {
     color: transparent !important;
     border-radius: 6px;
-    background: linear-gradient(90deg, var(--btn-bg) 0%, color-mix(in srgb, var(--btn-bg) 70%, var(--text-dim)) 50%, var(--btn-bg) 100%);
-    background-size: 200% 100%;
-    animation: skShimmer 1.1s ease-in-out infinite;
+    background: var(--btn-bg);
+    animation: skPulse 1.8s ease-in-out infinite;
     min-width: 2.5rem;
     min-height: 1em;
     display: inline-block;
     vertical-align: baseline;
+  }
+
+  .data-loaded {
+    animation: dataFadeIn 0.28s ease-out forwards;
+  }
+
+  @keyframes dataFadeIn {
+    from { opacity: 0.82; }
+    to { opacity: 1; }
   }
 
   .ao-hero-value.is-pending,
@@ -4629,9 +4663,8 @@
   body.pending-stock-glance .stock-stat-val {
     color: transparent;
     border-radius: 8px;
-    background: linear-gradient(90deg, var(--btn-bg) 0%, color-mix(in srgb, var(--btn-bg) 70%, var(--text-dim)) 50%, var(--btn-bg) 100%);
-    background-size: 200% 100%;
-    animation: skShimmer 1.1s ease-in-out infinite;
+    background: var(--btn-bg);
+    animation: skPulse 1.8s ease-in-out infinite;
     min-width: 3.5rem;
     min-height: 1.1em;
     display: inline-block;

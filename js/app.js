@@ -2,6 +2,7 @@ import { ensureGsap, initSheetModals, wireFloatingNav } from './animations.js';
 import { wireDebugPanel } from './debug.js';
 import { mountShell } from './layout.js';
 import { wireOrders } from './orders.js';
+import { registerServiceWorker } from './sw-register.js';
 import { wireConfirmDialog, wireEditOverlay } from './utils.js';
 
 export function mountApp(page) {
@@ -13,6 +14,7 @@ export function mountApp(page) {
 }
 
 export async function finishAppInit() {
+  registerServiceWorker();
   await ensureGsap();
   wireFloatingNav();
   initSheetModals();

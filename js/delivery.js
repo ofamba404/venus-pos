@@ -1,5 +1,5 @@
 import { sbFetch } from './api.js';
-import { readStaleCache, writeCache } from './cache.js';
+import { dataStore } from './store/index.js';
 import { animateCartSheetContent, isSheetModalOpen, wireHeaderBodyAccordions } from './animations.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
 import {
@@ -41,29 +41,11 @@ export const ICON_CASH = `<svg width="15" height="15" viewBox="0 0 24 24" fill="
 export const ICON_ROUTE = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"></circle><circle cx="18" cy="18" r="2.4"></circle><path d="M6 8.4v4.2a3.4 3.4 0 0 0 3.4 3.4h5.2"></path></svg>`;
 
 export function restoreDeliveriesFromCache() {
-  const stale = readStaleCache('deliveries');
-  if (!stale?.length) return false;
-  deliveries.length = 0;
-  deliveries.push(...stale);
-  return true;
+  return dataStore.hasData('deliveries');
 }
 
 export async function loadDeliveries() {
-  const hadData = deliveries.length > 0;
-
-  try {
-    const res = await sbFetch('deliveries?select=*&order=created_at.desc&limit=500');
-    if (!res.ok) throw new Error(`Supabase ${res.status}`);
-    const rows = await res.json();
-    writeCache('deliveries', rows);
-    deliveries.length = 0;
-    deliveries.push(...rows);
-  } catch (e) {
-    console.error('load deliveries failed', e);
-    if (!hadData && !deliveries.length) {
-      showToast('Could not load delivery history', true);
-    }
-  }
+  await dataStore.fetch('deliveries');
 }
 
 function linearRegression(points) {
@@ -565,7 +547,7 @@ async function saveDeliveryEdit() {
     const idx = deliveries.findIndex((d) => d.id === editingDeliveryId);
     if (idx > -1) Object.assign(deliveries[idx], payload);
 
-    writeCache('deliveries', [...deliveries]);
+    await dataStore.persistCurrent('deliveries');
 
     editingDeliveryId = null;
     closeEditModal();
@@ -592,7 +574,7 @@ async function deleteDelivery() {
     const idx = deliveries.findIndex((d) => d.id === editingDeliveryId);
     if (idx > -1) deliveries.splice(idx, 1);
 
-    writeCache('deliveries', [...deliveries]);
+    await dataStore.persistCurrent('deliveries');
 
     editingDeliveryId = null;
     closeEditModal();

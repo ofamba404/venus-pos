@@ -1,38 +1,28 @@
-const PREFIX = 'venus-pos-cache:';
-const FRESH_MS = 60_000;
+import { idbClear, idbRead, idbWrite } from './store/idb.js';
+import { STALE_MS } from './store/repository.js';
 
-export function readCache(key, maxAge = FRESH_MS) {
-  try {
-    const raw = sessionStorage.getItem(PREFIX + key);
-    if (!raw) return null;
-    const { ts, data } = JSON.parse(raw);
-    if (maxAge >= 0 && Date.now() - ts > maxAge) return null;
-    return data;
-  } catch {
-    return null;
-  }
+/** @deprecated Use dataStore — kept for gradual migration. */
+export const FRESH_MS = STALE_MS.sales;
+
+export async function readCache(key, maxAge = STALE_MS.sales) {
+  const row = await idbRead(key, maxAge);
+  return row?.data ?? null;
 }
 
-export function readStaleCache(key) {
-  return readCache(key, Infinity);
+export async function readStaleCache(key) {
+  const row = await idbRead(key, Infinity);
+  return row?.data ?? null;
 }
 
-export function writeCache(key, data) {
-  try {
-    sessionStorage.setItem(PREFIX + key, JSON.stringify({ ts: Date.now(), data }));
-  } catch {
-    /* storage full — skip */
-  }
+export async function writeCache(key, data) {
+  await idbWrite(key, data);
 }
 
-export function clearCache(key) {
-  try {
-    sessionStorage.removeItem(PREFIX + key);
-  } catch {
-    /* ignore */
-  }
+export async function clearCache(key) {
+  await idbClear(key);
 }
 
-export function isCacheFresh(key) {
-  return readCache(key) !== null;
+export async function isCacheFresh(key) {
+  const row = await idbRead(key, STALE_MS[key] ?? STALE_MS.sales);
+  return row?.data != null;
 }

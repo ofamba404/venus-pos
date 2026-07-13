@@ -1,8 +1,7 @@
-import { loadClients } from './clients.js';
-import { loadInventory } from './inventory.js';
 import { resetDraftStock } from './state.js';
+import { dataStore } from './store/index.js';
 
 export async function prepareOrderContext() {
   resetDraftStock();
-  await Promise.all([loadInventory(), loadClients()]);
+  await dataStore.fetchAll(['inventory', 'clients'], { silent: false });
 }
