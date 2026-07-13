@@ -478,18 +478,34 @@ export function animateCartSheetContent(container) {
   animateModalContent(container);
 }
 
-export function animateDropdown(panel, open) {
+export function animateDropdown(panel, open, { contentUpdate = false } = {}) {
   if (!panel) return;
 
   if (!hasGsap() || prefersReducedMotion()) {
     panel.classList.toggle('open', open);
+    panel.style.overflowY = open ? 'auto' : '';
+    if (open) refreshDropdownAncestors(panel);
     return;
   }
 
   gsap().killTweensOf(panel);
 
   if (open) {
+    const alreadyOpen = panel.classList.contains('open');
     panel.classList.add('open');
+
+    if (contentUpdate && alreadyOpen) {
+      gsap().set(panel, {
+        display: 'flex',
+        height: 'auto',
+        opacity: 1,
+        overflowY: 'auto',
+        pointerEvents: 'auto',
+      });
+      refreshDropdownAncestors(panel);
+      return;
+    }
+
     gsap()
       .timeline()
       .set(panel, { overflow: 'hidden', pointerEvents: 'none', display: 'flex' })
@@ -502,7 +518,11 @@ export function animateDropdown(panel, open) {
         panel,
         { opacity: 1, duration: ACCORDION_FADE_DURATION, ease: ACCORDION_FADE_EASE, pointerEvents: 'auto' },
         ACCORDION_FADE_DELAY,
-      );
+      )
+      .call(() => {
+        gsap().set(panel, { overflowY: 'auto' });
+        refreshDropdownAncestors(panel);
+      });
     return;
   }
 
@@ -513,8 +533,14 @@ export function animateDropdown(panel, open) {
     .to(panel, { height: 0, duration: ACCORDION_HEIGHT_DURATION * 0.85, ease: ACCORDION_HEIGHT_EASE }, 0.04)
     .call(() => {
       panel.classList.remove('open');
-      gsap().set(panel, { clearProps: 'height,opacity,overflow,pointerEvents' });
+      gsap().set(panel, { clearProps: 'height,opacity,overflow,overflowY,pointerEvents' });
     });
+}
+
+function refreshDropdownAncestors(panel) {
+  if (!hasGsap()) return;
+  panel.closest('[data-accordion-panel]') &&
+    gsap().set(panel.closest('[data-accordion-panel]'), { height: 'auto' });
 }
 
 /** Wire header/body collapsible groups with the shared accordion animation. */

@@ -1,9 +1,12 @@
 import { GOOGLE_MAPS_API_KEY } from './config.js';
 import { animateDropdown } from './animations.js';
+import { highlightClientName } from './clients.js';
 import { logDebug } from './debug.js';
 import { escapeHtml, showToast } from './utils.js';
 
 const PLACE_PIN_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.2s7.2-6.8 7.2-12.4a7.2 7.2 0 1 0-14.4 0c0 5.6 7.2 12.4 7.2 12.4z"></path><circle cx="12" cy="8.8" r="2.4"></circle></svg>`;
+const MIN_QUERY_LEN = 2;
+const FETCH_DEBOUNCE_MS = 320;
 
 let gmapsLoaded = false;
 let gmapsLoading = false;
@@ -66,34 +69,75 @@ function resolveDeliveryInput(id) {
   return el;
 }
 
+function highlightFormattableText(formattable) {
+  const text = formattable?.text || '';
+  const matches = formattable?.matches || [];
+  if (!text) return '';
+  if (!matches.length) return escapeHtml(text);
+
+  const sorted = [...matches].sort((a, b) => a.startOffset - b.startOffset);
+  let html = '';
+  let last = 0;
+  for (const match of sorted) {
+    html += escapeHtml(text.slice(last, match.startOffset));
+    html += `<mark class="client-match">${escapeHtml(text.slice(match.startOffset, match.endOffset))}</mark>`;
+    last = match.endOffset;
+  }
+  html += escapeHtml(text.slice(last));
+  return html;
+}
+
+function renderPredictionLabel(prediction, query) {
+  if (prediction.mainText?.text) {
+    const main = highlightFormattableText(prediction.mainText);
+    const secondary = prediction.secondaryText?.text
+      ? `<span class="delivery-place-row-secondary">${highlightFormattableText(prediction.secondaryText)}</span>`
+      : '';
+    return `${main}${secondary}`;
+  }
+
+  const full = prediction.text?.toString?.() || '';
+  return highlightClientName(full, query);
+}
+
 function attachPlaceAutocomplete(
   input,
   dropdown,
-  { onSelect, onInput, onFocus, regionCodes = ['ug'] },
+  { onSelect, onInput, onFocus, onActivate, regionCodes = ['ug'] },
 ) {
   let sessionToken = null;
   let debounceTimer = null;
   let requestGen = 0;
   let selecting = false;
+  let activeQuery = '';
 
   const hide = () => animateDropdown(dropdown, false);
+
+  const showResults = (html, { contentUpdate = false } = {}) => {
+    dropdown.innerHTML = html;
+    animateDropdown(dropdown, true, { contentUpdate });
+  };
 
   const scheduleFetch = (query) => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       void fetchSuggestions(query);
-    }, 220);
+    }, FETCH_DEBOUNCE_MS);
   };
 
   const fetchSuggestions = async (query) => {
     const trimmed = query.trim();
-    if (!trimmed) {
+    activeQuery = trimmed;
+
+    if (trimmed.length < MIN_QUERY_LEN) {
       dropdown.innerHTML = '';
       hide();
       return;
     }
 
     const reqId = ++requestGen;
+    const wasOpen = dropdown.classList.contains('open');
+
     try {
       const { AutocompleteSessionToken, AutocompleteSuggestion } =
         await google.maps.importLibrary('places');
@@ -104,7 +148,7 @@ function attachPlaceAutocomplete(
         sessionToken,
         includedRegionCodes: regionCodes,
       });
-      if (reqId !== requestGen) return;
+      if (reqId !== requestGen || activeQuery !== trimmed) return;
 
       const predictions = suggestions
         .map((suggestion) => suggestion.placePrediction)
@@ -112,21 +156,21 @@ function attachPlaceAutocomplete(
         .slice(0, 6);
 
       if (!predictions.length) {
-        dropdown.innerHTML = '<div class="delivery-place-empty">No matches</div>';
-        animateDropdown(dropdown, true);
+        showResults('<div class="delivery-place-empty">No matches</div>', { contentUpdate: wasOpen });
         return;
       }
 
-      dropdown.innerHTML = predictions
+      const html = predictions
         .map(
           (prediction, index) => `
         <button class="delivery-place-row" type="button" data-prediction="${index}">
           <span class="delivery-place-row-icon" aria-hidden="true">${PLACE_PIN_ICON}</span>
-          <span class="delivery-place-row-text">${escapeHtml(prediction.text?.toString?.() || '')}</span>
+          <span class="delivery-place-row-text">${renderPredictionLabel(prediction, trimmed)}</span>
         </button>`,
         )
         .join('');
-      animateDropdown(dropdown, true);
+
+      showResults(html, { contentUpdate: wasOpen });
 
       dropdown.querySelectorAll('.delivery-place-row').forEach((row) => {
         row.addEventListener('mousedown', (e) => e.preventDefault());
@@ -174,7 +218,8 @@ function attachPlaceAutocomplete(
 
   const onFocusHandler = () => {
     onFocus?.();
-    if (input.value.trim()) scheduleFetch(input.value);
+    onActivate?.();
+    if (input.value.trim().length >= MIN_QUERY_LEN) scheduleFetch(input.value);
   };
 
   const onBlurHandler = () => {
@@ -228,10 +273,14 @@ export function wireDeliveryPlacesInputs(
     const destDropdown = document.getElementById(destDropdownId);
     if (!pickupInput || !pickupDropdown || !destInput || !destDropdown) return;
 
+    const closePickupSiblings = () => animateDropdown(destDropdown, false);
+    const closeDestSiblings = () => animateDropdown(pickupDropdown, false);
+
     const pickupWidget = attachPlaceAutocomplete(pickupInput, pickupDropdown, {
       onSelect: onPickupSelect,
       onInput: onPickupInput,
       onFocus: onPickupFocus,
+      onActivate: closePickupSiblings,
       regionCodes,
     });
     if (gen !== wireGeneration) {
@@ -244,6 +293,7 @@ export function wireDeliveryPlacesInputs(
       onSelect: onDestSelect,
       onInput: onDestInput,
       onFocus: onDestFocus,
+      onActivate: closeDestSiblings,
       regionCodes,
     });
     if (gen !== wireGeneration) {

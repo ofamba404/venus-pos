@@ -1952,10 +1952,10 @@
   }
 
   .client-match {
-    background: color-mix(in srgb, var(--jade) 28%, transparent);
+    background: none;
     color: var(--jade);
-    border-radius: 3px;
-    padding: 0 1px;
+    font-weight: 600;
+    padding: 0;
   }
 
   .client-input {
@@ -2139,6 +2139,10 @@
     pointer-events: none;
   }
 
+  body.has-gsap .client-autocomplete-dropdown.open {
+    overflow-y: auto;
+  }
+
   .client-ac-row {
     width: 100%;
     text-align: left;
@@ -2154,7 +2158,6 @@
   }
 
   .client-ac-row:last-child { border-bottom: none; }
-  .client-ac-row:active { background: var(--btn-bg); }
 
   .client-ac-create {
     display: flex;
@@ -3600,20 +3603,16 @@
   .delivery-input-wrap.fee .di-icon { color: var(--gold); }
 
   .delivery-place-field {
-    position: relative;
     width: 100%;
   }
 
   .delivery-place-dropdown {
     display: none;
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: calc(100% + 4px);
-    z-index: 20;
+    width: 100%;
     flex-direction: column;
     max-height: 180px;
     overflow-y: auto;
+    margin-top: 4px;
     border: 1px solid var(--panel-edge);
     border-radius: var(--radius-md);
     background: var(--surface);
@@ -3636,6 +3635,10 @@
     pointer-events: none;
   }
 
+  body.has-gsap .delivery-place-dropdown.open {
+    overflow-y: auto;
+  }
+
   .delivery-place-row {
     display: flex;
     align-items: flex-start;
@@ -3655,11 +3658,6 @@
 
   .delivery-place-row:last-child { border-bottom: none; }
 
-  .delivery-place-row:active,
-  .delivery-place-row:hover {
-    background: var(--btn-bg);
-  }
-
   .delivery-place-row-icon {
     display: flex;
     align-items: center;
@@ -3672,6 +3670,15 @@
   .delivery-place-row-text {
     min-width: 0;
     flex: 1;
+    line-height: var(--leading-snug);
+  }
+
+  .delivery-place-row-secondary {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: var(--leading-snug);
   }
 
   .delivery-place-empty {
@@ -4288,10 +4295,6 @@
 
   .sheet-accordion.delivery-mini.is-open .sheet-accordion__panel {
     overflow: visible;
-  }
-
-  .delivery-mini .delivery-place-dropdown {
-    z-index: 30;
   }
 
   .delivery-mini-hint {

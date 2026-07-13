@@ -47,12 +47,14 @@ export function wireClientAutocomplete({
   };
 
   const renderDropdownRows = (filtered, trimmed, showCreate) => {
+    const wasOpen = dropdown.classList.contains('open');
+
     if (filtered.length === 0 && !showCreate) {
       dropdown.innerHTML =
         trimmed || clients.length
           ? `<div class="client-ac-empty">${trimmed ? 'No matches' : 'No saved clients yet'}</div>`
           : '';
-      if (dropdown.innerHTML) animateDropdown(dropdown, true);
+      if (dropdown.innerHTML) animateDropdown(dropdown, true, { contentUpdate: wasOpen });
       else hide();
       return;
     }
@@ -76,7 +78,7 @@ export function wireClientAutocomplete({
       .join('');
 
     dropdown.innerHTML = html;
-    animateDropdown(dropdown, true);
+    animateDropdown(dropdown, true, { contentUpdate: wasOpen });
 
     dropdown.querySelectorAll('button').forEach((btn) => {
       btn.addEventListener('mousedown', (e) => e.preventDefault());
