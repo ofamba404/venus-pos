@@ -332,37 +332,66 @@ export function staggerChildren(container, selector = ':scope > *') {
 }
 
 export function animateCheckoutSuccess(container) {
-  if (!container || !hasGsap() || prefersReducedMotion()) return;
+  if (!container) return;
 
-  const hero = container.querySelector('.checkout-success-hero');
-  const items = container.querySelectorAll(
+  const mark = container.querySelector('.checkout-success-mark');
+  const glow = container.querySelector('.checkout-success-mark-glow');
+  const ring = container.querySelector('.checkout-success-mark-ring');
+  const check = container.querySelector('.checkout-success-mark-check');
+  const total = container.querySelector('.checkout-success-total');
+  const sub = container.querySelector('.checkout-success-sub');
+  const title = container.querySelector('.modal-title');
+  const rest = container.querySelectorAll(
     '.checkout-success-badges, .checkout-receipt-item, .checkout-delivery-summary, .checkout-success-footer',
   );
 
-  gsap().killTweensOf([hero, ...items].filter(Boolean));
-  gsap().set([hero, ...items].filter(Boolean), { clearProps: 'opacity,transform' });
-
-  if (hero) {
-    gsap().from(hero, {
-      y: 8,
-      opacity: 0,
-      duration: 0.32,
-      ease: EASE.out,
-      clearProps: 'opacity,transform',
-    });
+  if (!hasGsap() || prefersReducedMotion()) {
+    container.classList.add('checkout-success--static');
+    return;
   }
 
-  if (!items.length) return;
+  container.classList.remove('checkout-success--static');
 
-  gsap().from(items, {
-    y: 10,
-    opacity: 0,
-    duration: 0.26,
-    stagger: 0.035,
-    delay: 0.06,
-    ease: EASE.out,
-    clearProps: 'opacity,transform',
-  });
+  const targets = [mark, glow, total, sub, title, ...rest].filter(Boolean);
+  gsap().killTweensOf(targets);
+  if (ring) gsap().killTweensOf(ring);
+  if (check) gsap().killTweensOf(check);
+
+  const ringLen = ring?.getTotalLength?.() ?? 126;
+  const checkLen = check?.getTotalLength?.() ?? 28;
+
+  gsap().set(mark, { scale: 0.55, opacity: 0, transformOrigin: '50% 50%' });
+  gsap().set(glow, { scale: 0.4, opacity: 0, transformOrigin: '50% 50%' });
+  gsap().set(ring, { strokeDasharray: ringLen, strokeDashoffset: ringLen });
+  gsap().set(check, { strokeDasharray: checkLen, strokeDashoffset: checkLen });
+  gsap().set([title, sub].filter(Boolean), { opacity: 0, y: 12 });
+  gsap().set(total, { opacity: 0, y: 14, scale: 0.92, transformOrigin: 'left center' });
+  gsap().set(rest, { opacity: 0, y: 14 });
+
+  const tl = gsap().timeline({ defaults: { ease: EASE.out } });
+
+  tl.to(mark, { scale: 1, opacity: 1, duration: 0.38, ease: EASE.bounce }, 0)
+    .to(glow, { scale: 1, opacity: 1, duration: 0.42 }, 0.02)
+    .to(ring, { strokeDashoffset: 0, duration: 0.4, ease: 'power2.inOut' }, 0.04)
+    .to(check, { strokeDashoffset: 0, duration: 0.28, ease: 'power2.out' }, 0.22)
+    .to(glow, { opacity: 0.35, scale: 1.18, duration: 0.55, ease: 'power1.out' }, 0.28)
+    .to(title, { opacity: 1, y: 0, duration: 0.3 }, 0.18)
+    .to(total, { opacity: 1, y: 0, scale: 1, duration: 0.4, ease: EASE.bounce }, 0.24)
+    .to(sub, { opacity: 1, y: 0, duration: 0.28 }, 0.34)
+    .to(
+      rest,
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.3,
+        stagger: 0.045,
+        clearProps: 'opacity,transform',
+      },
+      0.4,
+    )
+    .set([mark, glow, title, total, sub].filter(Boolean), {
+      clearProps: 'opacity,transform',
+    });
 }
 
 export function animateModalContent(container) {

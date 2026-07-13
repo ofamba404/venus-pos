@@ -220,6 +220,13 @@ function renderSuccessView({ animate = true } = {}) {
     </div>
     <div class="checkout-success-receipt">
       <div class="checkout-success-hero">
+        <div class="checkout-success-mark" aria-hidden="true">
+          <span class="checkout-success-mark-glow"></span>
+          <svg class="checkout-success-mark-svg" viewBox="0 0 48 48" fill="none">
+            <circle class="checkout-success-mark-ring" cx="24" cy="24" r="20" />
+            <path class="checkout-success-mark-check" d="M15.5 24.5 L21.5 30.5 L33 17.5" />
+          </svg>
+        </div>
         <div class="checkout-success-total">${fmtUGX(total)}</div>
         <div class="checkout-success-sub">${itemLabel}</div>
       </div>
@@ -274,6 +281,7 @@ function renderSuccessView({ animate = true } = {}) {
   });
 
   if (animate) animateCheckoutSuccess(orderModalBody);
+  else orderModalBody.classList.add('checkout-success--static');
 }
 
 export function openOrderModal(productId) {
@@ -866,12 +874,27 @@ function markCheckoutDeliverySaved() {
   renderSuccessView({ animate: false });
 }
 
-async function finishCheckoutBackground({ clientId, orderClientName, deliverySnapshot }) {
+async function finishCheckoutBackground({
+  clientId,
+  orderClientName,
+  deliverySnapshot,
+  inventoryIds,
+}) {
   try {
     const { updateTodayStrip } = await import('./home.js');
     updateTodayStrip();
   } catch (e) {
     console.error('updateTodayStrip failed', e);
+  }
+
+  if (inventoryIds?.length) {
+    try {
+      await patchInventoryRemote(inventoryIds);
+      void dataStore.persistCurrent('inventory');
+    } catch (e) {
+      console.error('inventory sync failed', e);
+      showToast('Order saved — stock sync pending', true);
+    }
   }
 
   if (!deliverySnapshot) return;
@@ -951,7 +974,6 @@ async function checkout() {
   });
   const inventoryIds = Object.keys(mergedBreakdown);
   const inventorySnapshot = snapshotInventory(inventoryIds);
-  let remoteInventoryPatched = false;
 
   try {
     for (const [id, qty] of Object.entries(mergedBreakdown)) {
@@ -961,13 +983,9 @@ async function checkout() {
     }
     resetDraftStock();
     renderStockGlance();
-
-    const [, clientId] = await Promise.all([
-      patchInventoryRemote(inventoryIds),
-      resolveCheckoutClientId(orderClientName),
-    ]);
-    remoteInventoryPatched = true;
     void dataStore.persistCurrent('inventory');
+
+    const clientId = await resolveCheckoutClientId(orderClientName);
 
     const total = cartTotal(cart);
     const items = cart.map((i) => ({
@@ -1020,20 +1038,14 @@ async function checkout() {
       clientId,
       orderClientName,
       deliverySnapshot,
+      inventoryIds,
     });
   } catch (e) {
     console.error('checkout failed', e);
     applyInventorySnapshot(inventorySnapshot);
     resetDraftStock();
     renderStockGlance();
-    if (remoteInventoryPatched) {
-      try {
-        await patchInventoryRemote(inventoryIds);
-        void dataStore.persistCurrent('inventory');
-      } catch (revertErr) {
-        console.error('inventory revert failed', revertErr);
-      }
-    }
+    void dataStore.persistCurrent('inventory');
     showToast('Checkout failed — check connection', true);
     updateCartCheckoutState();
   } finally {
