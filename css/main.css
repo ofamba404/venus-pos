@@ -328,21 +328,14 @@
   .bottom-nav-item {
     flex: 1;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
     min-width: 0;
-    padding: 8px 4px;
+    padding: 10px 8px;
     border-radius: var(--radius-md);
     border: none;
     background: transparent;
     color: var(--text-dim);
-    font-family: var(--font-sans);
-    font-size: 0.625rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    line-height: var(--leading-tight);
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     text-decoration: none;
@@ -358,29 +351,6 @@
     stroke-width: 1.75;
     stroke-linecap: round;
     stroke-linejoin: round;
-  }
-
-  .bottom-nav-item span {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-height: 0;
-    opacity: 0;
-    transition: max-height 0.2s ease, opacity 0.18s ease;
-  }
-
-  .bottom-nav-item.active span {
-    max-height: 1.2em;
-    opacity: 1;
-  }
-
-  .bottom-dock.is-open .bottom-nav-item {
-    padding-inline: 6px;
-  }
-
-  .bottom-dock.is-open .bottom-nav-item.active {
-    padding-inline: 10px;
   }
 
   .bottom-nav-item.active {

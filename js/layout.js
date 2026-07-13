@@ -13,9 +13,8 @@ function navLink(page, currentPage, mobile = false) {
   const cls = mobile ? 'bottom-nav-item' : 'tab-btn';
   const icon = PAGE_ICONS[page.id] || '';
   if (mobile) {
-    return `<a class="${cls}${active}" href="${getPageHref(page.id)}" aria-current="${active ? 'page' : 'false'}">
+    return `<a class="${cls}${active}" href="${getPageHref(page.id)}" aria-label="${page.label}" aria-current="${active ? 'page' : 'false'}">
       <svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>
-      <span>${page.label}</span>
     </a>`;
   }
   return `<a class="${cls}${active}" href="${getPageHref(page.id)}" aria-current="${active ? 'page' : 'false'}">${page.label}</a>`;

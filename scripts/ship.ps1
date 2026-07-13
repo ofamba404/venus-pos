@@ -1,4 +1,4 @@
-# Fast push + deploy for Venus POS
+# Fast push + deploy for Netlify projects
 # Usage: .\scripts\ship.ps1 "Optional commit message"
 param(
     [string]$Message = ""
@@ -7,6 +7,12 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
+
+$configPath = Join-Path $Root "netlify.deploy.json"
+if (-not (Test-Path $configPath)) {
+    throw "Missing netlify.deploy.json. Bootstrap from push-deploy-netlify skill templates."
+}
+$config = Get-Content $configPath -Raw | ConvertFrom-Json
 
 function Get-NetlifyCli {
     $local = Join-Path $Root "node_modules\.bin\netlify.cmd"
@@ -26,7 +32,7 @@ function Set-CommitIdentity {
     $email = Get-GitHubNoreplyEmail
     if (-not $email) { return }
     $name = git log -1 --format="%an" 2>$null
-    if (-not $name) { $name = "Joshua Ofamba" }
+    if (-not $name) { $name = "Git User" }
     $env:GIT_AUTHOR_EMAIL = $email
     $env:GIT_COMMITTER_EMAIL = $email
     $env:GIT_AUTHOR_NAME = $name
@@ -34,15 +40,14 @@ function Set-CommitIdentity {
 }
 
 function Test-GitContinuousDeployment {
-    $configPath = Join-Path $Root "netlify.deploy.json"
-    if (Test-Path $configPath) {
-        $config = Get-Content $configPath -Raw | ConvertFrom-Json
-        if ($config.gitContinuousDeployment -eq $true) { return $true }
-    }
+    if ($config.gitContinuousDeployment -eq $true) { return $true }
+
+    if (-not $config.siteId) { return $false }
 
     $netlify = Get-NetlifyCli
     try {
-        $site = & $netlify api getSite --data "{`"site_id`":`"1f57b669-95c4-4477-af88-244c98dd983e`"}" 2>$null | ConvertFrom-Json
+        $payload = "{`"site_id`":`"$($config.siteId)`"}"
+        $site = & $netlify api getSite --data $payload 2>$null | ConvertFrom-Json
         return [bool]$site.build_settings.repo_url
     } catch {
         return $false
@@ -106,15 +111,18 @@ $commit = git rev-parse --short HEAD
 Invoke-GitPush -Branch $branch
 Write-Host "Pushed $branch @ $commit"
 
+$productionUrl = if ($config.productionUrl) { $config.productionUrl } else { "(see Netlify dashboard)" }
+
 if (Test-GitContinuousDeployment) {
     Write-Host "Git continuous deployment is enabled - Netlify will build from the push."
-    Write-Host "Production: https://posvenus.netlify.app"
+    Write-Host "Production: $productionUrl"
     exit 0
 }
 
+$publishDir = if ($config.publishDir) { $config.publishDir } else { "." }
 $netlify = Get-NetlifyCli
 Write-Host "Deploying to Netlify production..."
-& $netlify deploy --prod --dir . --message "ship $commit"
+& $netlify deploy --prod --dir $publishDir --message "ship $commit"
 if ($LASTEXITCODE -ne 0) { throw "Netlify deploy failed." }
 
-Write-Host "Done. Production: https://posvenus.netlify.app"
+Write-Host "Done. Production: $productionUrl"
