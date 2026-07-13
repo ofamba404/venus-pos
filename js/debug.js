@@ -62,6 +62,20 @@ export function wireDebugPanel() {
     if (e.target === debugOverlay) closeModal(debugOverlay);
   });
 
+  document.getElementById('debugSyncBtn')?.addEventListener('click', async () => {
+    const { dataStore } = await import('./store/index.js');
+    const { showToast } = await import('./utils.js');
+    logDebug('Reloading all data from server…');
+    try {
+      await dataStore.recoverFromServer();
+      showToast('Data reloaded');
+      location.reload();
+    } catch (e) {
+      logDebug(`Reload failed: ${e.message}`);
+      showToast('Could not reload data', true);
+    }
+  });
+
   document.getElementById('debugClearBtn')?.addEventListener('click', () => {
     debugLogEntries.length = 0;
     if (debugLogText) debugLogText.value = '';

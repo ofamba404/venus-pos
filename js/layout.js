@@ -106,6 +106,7 @@ export function renderModals(currentPage = 'home') {
         <p class="debug-note">Errors and warnings are captured here for on-device troubleshooting.</p>
         <textarea id="debugLogText" class="debug-log-text" readonly rows="12" placeholder="No errors logged yet."></textarea>
         <div class="modal-btns">
+          <button id="debugSyncBtn" class="modal-btn confirm" type="button">Reload from server</button>
           <button id="debugClearBtn" class="modal-btn cancel" type="button">Clear</button>
           <button id="debugCopyBtn" class="modal-btn confirm" type="button">Copy log</button>
         </div>

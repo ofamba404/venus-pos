@@ -54,6 +54,11 @@ export async function runPageBoot({
     const refreshEntities = entities ?? dataStore.ENTITIES;
     await Promise.all([finishAppInit(), dataStore.fetchAll(refreshEntities, { silent: false })]);
 
+    const missing = refreshEntities.filter((e) => !dataStore.hasData(e));
+    if (missing.length) {
+      await dataStore.fetchAll(missing, { force: true, silent: false });
+    }
+
     setPageDataSettled();
     clearPendingFlags();
     paint();

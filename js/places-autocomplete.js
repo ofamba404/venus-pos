@@ -112,6 +112,7 @@ function attachPlaceAutocomplete(
   let activeQuery = '';
 
   const hide = () => animateDropdown(dropdown, false);
+  const hideSoon = () => setTimeout(hide, 120);
 
   const showResults = (html, { contentUpdate = false } = {}) => {
     dropdown.innerHTML = html;
@@ -174,6 +175,7 @@ function attachPlaceAutocomplete(
 
       dropdown.querySelectorAll('.delivery-place-row').forEach((row) => {
         row.addEventListener('mousedown', (e) => e.preventDefault());
+        row.addEventListener('pointerdown', (e) => e.preventDefault());
         row.addEventListener('click', () => {
           const index = Number(row.dataset.prediction);
           const prediction = predictions[index];
@@ -223,7 +225,7 @@ function attachPlaceAutocomplete(
   };
 
   const onBlurHandler = () => {
-    if (!selecting) hide();
+    if (!selecting) hideSoon();
   };
 
   input.addEventListener('input', onInputHandler);

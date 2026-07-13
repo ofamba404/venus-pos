@@ -61,6 +61,7 @@ let checkoutFeeValue = '';
 let pickupAutoRequested = false;
 let cartAccordions = null;
 let lastCheckoutReceipt = null;
+let lastOrderModalMode = null;
 
 function getOrderClientName() {
   return getOrderMeta().clientName || '';
@@ -159,6 +160,10 @@ function closeOrderModal() {
 }
 
 function renderOrderModal() {
+  const prevMode = lastOrderModalMode;
+  lastOrderModalMode = modalMode;
+  const isCartRefresh = modalMode === 'cart' && prevMode === 'cart';
+
   const orderModalBody = document.getElementById('orderModalBody');
   if (orderModalBody) {
     orderModalBody.className = 'modal-sheet-body';
@@ -172,7 +177,7 @@ function renderOrderModal() {
   else if (modalMode === 'success') renderSuccessView();
 
   const orderModal = document.getElementById('orderModal');
-  if (orderModalBody && modalMode !== 'success' && isSheetModalOpen(orderModal)) {
+  if (orderModalBody && modalMode !== 'success' && !isCartRefresh && isSheetModalOpen(orderModal)) {
     animateCartSheetContent(orderModalBody);
   }
 }
@@ -386,10 +391,118 @@ function updateCartCheckoutState() {
   }
   const creditCheckbox = document.getElementById('creditCheckbox');
   if (creditCheckbox) creditCheckbox.checked = orderIsCredit;
-  const creditStatus = document.getElementById('creditSummaryStatus');
-  if (creditStatus) creditStatus.textContent = orderIsCredit ? ' · on' : '';
+  const creditChip = document.querySelector('.credit-chip');
+  if (creditChip) creditChip.classList.toggle('is-on', orderIsCredit);
   const creditWarning = document.getElementById('cartCreditWarning');
   if (creditWarning) creditWarning.hidden = !(orderIsCredit && !orderClientName);
+
+  const totalVal = document.querySelector('#orderModalBody .cart-total-row .ct-val');
+  if (totalVal) totalVal.textContent = fmtUGX(cartTotal(cart));
+}
+
+function cartItemHtml(item) {
+  return `
+    <div class="cart-item">
+      <div class="cart-item-main">
+        <div class="ci-name">${escapeHtml(item.name)}</div>
+        <div class="ci-detail">${escapeHtml(item.detail)}</div>
+      </div>
+      <div class="cart-item-actions">
+        <div class="ci-price">${fmtUGX(item.lineTotal)}</div>
+        <div class="cart-item-btns">
+          <button class="cart-edit" data-edit="${item.key}" type="button" title="Edit item" aria-label="Edit ${escapeHtml(item.name)}">✎</button>
+          <button class="cart-remove" data-remove="${item.key}" type="button" aria-label="Remove ${escapeHtml(item.name)}">✕</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function cartEmptyHtml() {
+  return `
+    <div class="cart-empty">
+      <div class="cart-empty-title">No items yet</div>
+      <div class="cart-empty-hint">Tap "Add item" to start building the order</div>
+    </div>`;
+}
+
+function wireCartItemButtons(root) {
+  root.querySelectorAll('[data-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.edit;
+      const currentCart = getCart();
+      const idx = currentCart.findIndex((i) => i.key === key);
+      if (idx === -1) return;
+      const item = currentCart[idx];
+      editingCartKey = key;
+      editingCartItem = { ...item, breakdown: { ...item.breakdown } };
+      configProduct = PRODUCTS.find((p) => p.id === item.productId);
+      configSelection = cartItemToConfigSelection(item);
+      Object.entries(item.breakdown).forEach(([id, qty]) => {
+        draftStock[id] += qty;
+      });
+      currentCart.splice(idx, 1);
+      setCart(currentCart);
+      updateFabBadge();
+      modalMode = 'config';
+      renderOrderModal();
+    });
+  });
+  root.querySelectorAll('[data-remove]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.remove;
+      const currentCart = getCart();
+      const idx = currentCart.findIndex((i) => i.key === key);
+      if (idx > -1) {
+        const item = currentCart[idx];
+        Object.entries(item.breakdown).forEach(([id, qty]) => {
+          draftStock[id] += qty;
+        });
+        currentCart.splice(idx, 1);
+        setCart(currentCart);
+      }
+      updateFabBadge();
+      syncCartViewAfterItemsChange();
+    });
+  });
+}
+
+function syncCartViewAfterItemsChange() {
+  const orderModalBody = document.getElementById('orderModalBody');
+  if (!orderModalBody || modalMode !== 'cart') {
+    renderOrderModal();
+    return;
+  }
+
+  const cart = getCart();
+  const itemLabel = cart.length === 1 ? '1 item' : `${cart.length} items`;
+  const subtitle = orderModalBody.querySelector('.modal-subtitle');
+  if (subtitle) subtitle.textContent = cart.length ? itemLabel : 'No items yet';
+
+  const itemsAnchor = orderModalBody.querySelector('.cart-items-section');
+  if (!itemsAnchor) {
+    renderOrderModal();
+    return;
+  }
+
+  itemsAnchor.innerHTML = cart.length
+    ? `<div class="cart-items-list">${cart.map(cartItemHtml).join('')}</div>`
+    : cartEmptyHtml();
+
+  const actionsSection = orderModalBody.querySelector('.cart-sheet-actions');
+  const totalRow = actionsSection?.querySelector('.cart-total-row');
+  if (cart.length) {
+    if (!totalRow && actionsSection) {
+      actionsSection.insertAdjacentHTML(
+        'afterbegin',
+        `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>`,
+      );
+    }
+  } else {
+    totalRow?.remove();
+  }
+
+  wireCartItemButtons(itemsAnchor);
+  updateCartCheckoutState();
 }
 
 function renderCartView() {
@@ -400,8 +513,13 @@ function renderCartView() {
   const orderClientName = getOrderClientName();
   const orderIsCredit = getOrderIsCredit();
   const itemLabel = cart.length === 1 ? '1 item' : `${cart.length} items`;
+  const creditBlocked = orderIsCredit && !orderClientName;
 
-  let scrollInner = `
+  const itemsSection = cart.length
+    ? `<div class="cart-items-list">${cart.map(cartItemHtml).join('')}</div>`
+    : cartEmptyHtml();
+
+  const scrollInner = `
     <div class="modal-header modal-header--cart">
       <div class="modal-header-copy">
         <div class="modal-title" id="orderModalTitle">Current order</div>
@@ -409,8 +527,15 @@ function renderCartView() {
       </div>
       <button class="modal-close" id="orderClose" type="button" data-order-close aria-label="Close order">✕</button>
     </div>
+    <div class="cart-items-section">${itemsSection}</div>
     <div class="client-picker">
-      <label for="cartClientInput">Client</label>
+      <div class="client-picker__head">
+        <label for="cartClientInput">Client</label>
+        <label class="credit-chip${orderIsCredit ? ' is-on' : ''}" title="Record as unpaid credit sale">
+          <input type="checkbox" id="creditCheckbox" class="credit-chip__input" ${orderIsCredit ? 'checked' : ''} />
+          <span class="credit-chip__label">Credit</span>
+        </label>
+      </div>
       ${clientAutocompleteMarkup({
         inputId: 'cartClientInput',
         dropdownId: 'cartClientDropdown',
@@ -418,25 +543,11 @@ function renderCartView() {
         value: orderClientName,
         placeholder: 'Search or type a new name…',
       })}
-    </div>
-    <div class="sheet-accordion credit-mini" data-accordion data-accordion-id="credit" data-accordion-open="${orderIsCredit ? 'true' : 'false'}">
-      <button type="button" class="sheet-accordion__trigger" data-accordion-trigger aria-expanded="${orderIsCredit ? 'true' : 'false'}">
-        <span class="sheet-accordion__label">Credit sale<span id="creditSummaryStatus">${orderIsCredit ? ' · on' : ''}</span> <span class="delivery-mini-hint">optional</span></span>
-        <span class="sheet-accordion__caret" aria-hidden="true"></span>
-      </button>
-      <div class="sheet-accordion__panel" data-accordion-panel>
-        <div class="credit-mini-fields">
-          <label class="credit-toggle-row credit-toggle-row--compact">
-            <input type="checkbox" id="creditCheckbox" ${orderIsCredit ? 'checked' : ''} />
-            <span>Record as credit (unpaid — front to client)</span>
-          </label>
-          <div class="credit-warning" id="cartCreditWarning" ${orderIsCredit && !orderClientName ? '' : 'hidden'}>Select a client above before recording credit</div>
-        </div>
-      </div>
+      <div class="credit-warning" id="cartCreditWarning" ${orderIsCredit && !orderClientName ? '' : 'hidden'}>Select a client before recording credit</div>
     </div>
     <div class="sheet-accordion delivery-mini" data-accordion data-accordion-id="delivery" data-accordion-open="${checkoutPickupText || checkoutDestText || checkoutFeeValue ? 'true' : 'false'}">
       <button type="button" class="sheet-accordion__trigger" data-accordion-trigger aria-expanded="${checkoutPickupText || checkoutDestText || checkoutFeeValue ? 'true' : 'false'}">
-        <span class="sheet-accordion__label">Delivery <span class="delivery-mini-hint">optional</span></span>
+        <span class="sheet-accordion__label">Delivery <span class="sheet-accordion-hint">optional</span></span>
         <span class="sheet-accordion__caret" aria-hidden="true"></span>
       </button>
       <div class="sheet-accordion__panel" data-accordion-panel>
@@ -466,51 +577,17 @@ function renderCartView() {
           ${checkoutDistanceKm != null ? `<div class="delivery-mini-readout">${ICON_ROUTE} ${checkoutDistanceKm.toFixed(1)} km · ~${Math.round(checkoutDurationMin)} min</div>` : ''}
         </div>
       </div>
+    </div>
+    <div class="cart-sheet-actions">
+      ${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}
+      <button class="add-item-btn" id="addItemBtn" type="button">+ Add item</button>
+      <div class="modal-btns">
+        <button class="modal-btn cancel" id="cancelOrderBtn" type="button">Cancel order</button>
+        <button class="modal-btn confirm" id="checkoutBtn" ${cart.length && !creditBlocked ? '' : 'disabled'} type="button">${orderIsCredit ? 'Record on credit' : 'Checkout'}</button>
+      </div>
     </div>`;
 
-  if (cart.length === 0) {
-    scrollInner += `
-      <div class="cart-empty">
-        <div class="cart-empty-icon" aria-hidden="true">🛒</div>
-        <div class="cart-empty-title">Your order is empty</div>
-        <div class="cart-empty-hint">Tap "Add item" below to start building the order</div>
-      </div>`;
-  } else {
-    scrollInner += `
-      <div class="cart-items-list">
-        ${cart
-          .map(
-            (item) => `
-          <div class="cart-item">
-            <div class="cart-item-main">
-              <div class="ci-name">${escapeHtml(item.name)}</div>
-              <div class="ci-detail">${escapeHtml(item.detail)}</div>
-            </div>
-            <div class="cart-item-actions">
-              <div class="ci-price">${fmtUGX(item.lineTotal)}</div>
-              <div class="cart-item-btns">
-                <button class="cart-edit" data-edit="${item.key}" type="button" title="Edit item" aria-label="Edit ${escapeHtml(item.name)}">✎</button>
-                <button class="cart-remove" data-remove="${item.key}" type="button" aria-label="Remove ${escapeHtml(item.name)}">✕</button>
-              </div>
-            </div>
-          </div>`,
-          )
-          .join('')}
-      </div>`;
-  }
-
-  const creditBlocked = orderIsCredit && !orderClientName;
-  const footerInner = `
-    ${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}
-    <button class="add-item-btn" id="addItemBtn" type="button">+ Add item</button>
-    <div class="modal-btns">
-      <button class="modal-btn cancel" id="cancelOrderBtn" type="button">Cancel order</button>
-      <button class="modal-btn confirm" id="checkoutBtn" ${cart.length && !creditBlocked ? '' : 'disabled'} type="button">${orderIsCredit ? 'Record on credit' : 'Checkout'}</button>
-    </div>`;
-
-  orderModalBody.innerHTML = `
-    <div class="cart-sheet-scroll">${scrollInner}</div>
-    <div class="cart-sheet-footer">${footerInner}</div>`;
+  orderModalBody.innerHTML = `<div class="cart-sheet-scroll">${scrollInner}</div>`;
   orderModalBody.classList.add('cart-sheet-layout');
 
   cartAccordions = wireGsapAccordions(orderModalBody);
@@ -538,9 +615,6 @@ function renderCartView() {
   });
   document.getElementById('creditCheckbox')?.addEventListener('change', (e) => {
     setOrderIsCredit(e.target.checked);
-    if (e.target.checked) cartAccordions?.open('credit');
-    const creditStatus = document.getElementById('creditSummaryStatus');
-    if (creditStatus) creditStatus.textContent = e.target.checked ? ' · on' : '';
     updateCartCheckoutState();
   });
   document.getElementById('addItemBtn')?.addEventListener('click', () => {
@@ -565,44 +639,7 @@ function renderCartView() {
     closeOrderModal();
   });
   document.getElementById('checkoutBtn')?.addEventListener('click', checkout);
-  orderModalBody.querySelectorAll('[data-edit]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const key = btn.dataset.edit;
-      const currentCart = getCart();
-      const idx = currentCart.findIndex((i) => i.key === key);
-      if (idx === -1) return;
-      const item = currentCart[idx];
-      editingCartKey = key;
-      editingCartItem = { ...item, breakdown: { ...item.breakdown } };
-      configProduct = PRODUCTS.find((p) => p.id === item.productId);
-      configSelection = cartItemToConfigSelection(item);
-      Object.entries(item.breakdown).forEach(([id, qty]) => {
-        draftStock[id] += qty;
-      });
-      currentCart.splice(idx, 1);
-      setCart(currentCart);
-      updateFabBadge();
-      modalMode = 'config';
-      renderOrderModal();
-    });
-  });
-  orderModalBody.querySelectorAll('[data-remove]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const key = btn.dataset.remove;
-      const currentCart = getCart();
-      const idx = currentCart.findIndex((i) => i.key === key);
-      if (idx > -1) {
-        const item = currentCart[idx];
-        Object.entries(item.breakdown).forEach(([id, qty]) => {
-          draftStock[id] += qty;
-        });
-        currentCart.splice(idx, 1);
-        setCart(currentCart);
-      }
-      updateFabBadge();
-      renderOrderModal();
-    });
-  });
+  wireCartItemButtons(orderModalBody);
 }
 
 function renderPickView() {

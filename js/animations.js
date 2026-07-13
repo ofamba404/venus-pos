@@ -452,7 +452,7 @@ export function animateModalContent(container) {
   if (!container || !hasGsap() || prefersReducedMotion()) return;
 
   const items = container.querySelectorAll(
-    '.modal-header, .client-picker, .sheet-accordion, .delivery-mini, .cart-item, .cart-empty, .cart-total-row, .pick-product-row, .pick-row, .fixed-item, .modal-btns, .modal-price, .modal-progress, .qty-input, .qty-mini-input, .mini-step, .client-search-wrap, .client-autocomplete-dropdown > *, .add-item-btn, .credit-warning, .debug-note, .debug-log-text, .cart-sheet-footer',
+    '.modal-header, .client-picker, .sheet-accordion, .delivery-mini, .cart-item, .cart-empty, .cart-total-row, .pick-product-row, .pick-row, .fixed-item, .modal-btns, .modal-price, .modal-progress, .qty-input, .qty-mini-input, .mini-step, .client-search-wrap, .client-autocomplete-dropdown > *, .add-item-btn, .credit-warning, .debug-note, .debug-log-text, .cart-sheet-actions',
   );
 
   gsap().from(items.length ? items : container.children, {
@@ -465,15 +465,15 @@ export function animateModalContent(container) {
   });
 }
 
-/** Slide-up content transition inside an already-open cart sheet (edit, pick, config, etc.). */
+/** Slide-up content transition inside an already-open cart sheet (mode switches only). */
 export function animateCartSheetContent(container) {
   if (!container || !hasGsap() || prefersReducedMotion()) return;
 
   gsap().killTweensOf(container);
   gsap().fromTo(
     container,
-    { y: 36, opacity: 0 },
-    { y: 0, opacity: 1, duration: 0.55, ease: 'power3.out', clearProps: 'opacity,transform' },
+    { y: 20, opacity: 0.6 },
+    { y: 0, opacity: 1, duration: 0.32, ease: 'power2.out', clearProps: 'opacity,transform' },
   );
   animateModalContent(container);
 }
@@ -539,8 +539,10 @@ export function animateDropdown(panel, open, { contentUpdate = false } = {}) {
 
 function refreshDropdownAncestors(panel) {
   if (!hasGsap()) return;
-  panel.closest('[data-accordion-panel]') &&
-    gsap().set(panel.closest('[data-accordion-panel]'), { height: 'auto' });
+  const accordionPanel = panel.closest('[data-accordion-panel]');
+  if (!accordionPanel) return;
+  gsap().killTweensOf(accordionPanel);
+  gsap().set(accordionPanel, { height: 'auto', overflow: 'visible' });
 }
 
 /** Wire header/body collapsible groups with the shared accordion animation. */
@@ -764,9 +766,9 @@ export function pressButton(el) {
   gsap().fromTo(el, { scale: 1 }, { scale: 0.94, duration: 0.08, yoyo: true, repeat: 1, ease: EASE.out });
 }
 
-const ACCORDION_HEIGHT_DURATION = 0.42;
-const ACCORDION_FADE_DURATION = 0.28;
-const ACCORDION_FADE_DELAY = 0.06;
+const ACCORDION_HEIGHT_DURATION = 0.3;
+const ACCORDION_FADE_DURATION = 0.2;
+const ACCORDION_FADE_DELAY = 0.04;
 const ACCORDION_HEIGHT_EASE = 'power1.inOut';
 const ACCORDION_FADE_EASE = 'sine.out';
 
@@ -791,7 +793,10 @@ export function animateAccordionPanel(panel, open) {
         panel,
         { opacity: 1, duration: ACCORDION_FADE_DURATION, ease: ACCORDION_FADE_EASE, pointerEvents: 'auto' },
         ACCORDION_FADE_DELAY,
-      );
+      )
+      .call(() => {
+        gsap().set(panel, { overflow: 'visible' });
+      });
     return;
   }
 
@@ -799,14 +804,17 @@ export function animateAccordionPanel(panel, open) {
     .timeline()
     .set(panel, { overflow: 'hidden', pointerEvents: 'none' })
     .to(panel, { opacity: 0, duration: ACCORDION_FADE_DURATION * 0.65, ease: 'sine.in' })
-    .to(panel, { height: 0, duration: ACCORDION_HEIGHT_DURATION * 0.85, ease: ACCORDION_HEIGHT_EASE }, 0.04);
+    .to(panel, { height: 0, duration: ACCORDION_HEIGHT_DURATION * 0.85, ease: ACCORDION_HEIGHT_EASE }, 0.04)
+    .call(() => {
+      gsap().set(panel, { overflow: 'hidden' });
+    });
 }
 
 export function setAccordionPanelInstant(panel, open) {
   if (hasGsap() && !prefersReducedMotion()) {
     gsap().killTweensOf(panel);
     if (open) {
-      gsap().set(panel, { height: 'auto', opacity: 1, overflow: 'hidden', pointerEvents: 'auto', display: 'block' });
+      gsap().set(panel, { height: 'auto', opacity: 1, overflow: 'visible', pointerEvents: 'auto', display: 'block' });
     } else {
       gsap().set(panel, { height: 0, opacity: 0, overflow: 'hidden', pointerEvents: 'none', display: 'block' });
     }

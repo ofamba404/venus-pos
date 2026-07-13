@@ -1,6 +1,14 @@
 import { dataStore } from './store/index.js';
-import { sbFetch } from './api.js';
+import { sbDelete, sbFetch } from './api.js';
 import { CATEGORIES, LOW_STOCK_THRESHOLD } from './config.js';
+import {
+  breakdownToConfigSelection,
+  buildLineFromConfig,
+  findProduct,
+  renderProductConfigView,
+  renderProductPickList,
+  wireProductConfigView,
+} from './product-config.js';
 import { applyActiveHighlight, getActiveStatusHighlight } from './inventory.js';
 import { animateCartSheetContent, animateAccordionPanel, applyBarFillWidths, isSheetModalOpen, setAccordionPanelInstant, wireHeaderBodyAccordions } from './animations.js';
 import {
@@ -40,6 +48,10 @@ let editSaleClientId = '';
 let editSaleClientName = '';
 let editSaleIsCredit = false;
 let editSaleCreditCleared = false;
+let editSaleMode = 'main';
+let editConfigProduct = null;
+let editConfigSelection = {};
+let editingSaleItemIdx = null;
 let creditPanelOpen = false;
 
 function renderCreditPanel(outstandingCredit, totalCreditOwed) {
@@ -504,6 +516,22 @@ function saleItemsTotal(items) {
   return items.reduce((sum, i) => sum + (i.line_total || 0), 0);
 }
 
+function resetEditSaleConfig() {
+  editSaleMode = 'main';
+  editConfigProduct = null;
+  editConfigSelection = {};
+  editingSaleItemIdx = null;
+}
+
+function getEditSaleDraftStock(excludeIdx = -1) {
+  const reserved = mergeItemBreakdown(editSaleItems.filter((_, i) => i !== excludeIdx));
+  const stock = {};
+  CATEGORIES.forEach((c) => {
+    stock[c.id] = inventory[c.id] + (reserved[c.id] || 0);
+  });
+  return stock;
+}
+
 function openEditSale(saleId) {
   const sale = salesCache.find((s) => s.id === saleId);
   if (!sale) return;
@@ -514,12 +542,19 @@ function openEditSale(saleId) {
   editSaleClientName = sale.client_id ? clients.find((c) => c.id === sale.client_id)?.name || '' : '';
   editSaleIsCredit = !!sale.is_credit;
   editSaleCreditCleared = !!sale.credit_cleared;
+  resetEditSaleConfig();
 
   renderEditSaleModal();
   openEditModal();
 }
 
 function renderEditSaleModal() {
+  if (editSaleMode === 'pick') renderEditSalePickView();
+  else if (editSaleMode === 'config') renderEditSaleConfigView();
+  else renderEditSaleMainView();
+}
+
+function renderEditSaleMainView() {
   const body = document.getElementById('editModalBody');
   if (!body) return;
 
@@ -529,18 +564,21 @@ function renderEditSaleModal() {
 
   const itemRows =
     editSaleItems.length === 0
-      ? `<div class="cart-empty">No items — remove this order or add items from Home</div>`
+      ? `<div class="cart-empty">No items — add items below or void this order</div>`
       : editSaleItems
           .map(
             (item, idx) => `
         <div class="cart-item">
-          <div>
+          <div class="cart-item-main">
             <div class="ci-name">${escapeHtml(item.product_name)}</div>
             <div class="ci-detail">${escapeHtml(item.detail || '')}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;">
+          <div class="cart-item-actions">
             <div class="ci-price">${fmtUGX(item.line_total)}</div>
-            <button class="cart-remove" data-remove-sale-item="${idx}" type="button">✕</button>
+            <div class="cart-item-btns">
+              <button class="cart-edit" data-edit-sale-item="${idx}" type="button" title="Edit item" aria-label="Edit ${escapeHtml(item.product_name)}">✎</button>
+              <button class="cart-remove" data-remove-sale-item="${idx}" type="button" aria-label="Remove ${escapeHtml(item.product_name)}">✕</button>
+            </div>
           </div>
         </div>`,
           )
@@ -568,6 +606,7 @@ function renderEditSaleModal() {
     </label>
     ${editSaleIsCredit ? `<label class="credit-toggle-row"><input type="checkbox" id="editSaleCreditCleared" ${editSaleCreditCleared ? 'checked' : ''} /><span>Credit cleared (paid)</span></label>` : ''}
     ${itemRows}
+    <button class="add-item-btn" id="editSaleAddItem" type="button">+ Add item</button>
     <div class="cart-total-row">
       <div class="ct-label">Total</div>
       <div class="ct-val">${fmtUGX(total)}</div>
@@ -578,11 +617,16 @@ function renderEditSaleModal() {
       <button class="modal-btn confirm" id="editSaleSave" type="button" ${editSaleItems.length ? '' : 'disabled'}>Save</button>
     </div>`;
 
-  const editOverlay = document.getElementById('editOverlay');
-  if (isSheetModalOpen(editOverlay)) animateCartSheetContent(body);
+  animateEditModalBody(body);
 
-  document.getElementById('editSaleClose')?.addEventListener('click', closeEditModal);
-  document.getElementById('editSaleCancel')?.addEventListener('click', closeEditModal);
+  document.getElementById('editSaleClose')?.addEventListener('click', () => {
+    resetEditSaleConfig();
+    closeEditModal();
+  });
+  document.getElementById('editSaleCancel')?.addEventListener('click', () => {
+    resetEditSaleConfig();
+    closeEditModal();
+  });
   wireClientAutocomplete({
     inputId: 'editSaleClient',
     dropdownId: 'editSaleClientDropdown',
@@ -600,6 +644,23 @@ function renderEditSaleModal() {
   document.getElementById('editSaleCreditCleared')?.addEventListener('change', (e) => {
     editSaleCreditCleared = e.target.checked;
   });
+  body.querySelectorAll('[data-edit-sale-item]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.editSaleItem, 10);
+      const item = editSaleItems[idx];
+      if (!item) return;
+      const product = findProduct(item.product_id);
+      if (!product) {
+        showToast('Unknown product — remove and re-add this item', true);
+        return;
+      }
+      editingSaleItemIdx = idx;
+      editConfigProduct = product;
+      editConfigSelection = breakdownToConfigSelection(product, item.breakdown);
+      editSaleMode = 'config';
+      renderEditSaleModal();
+    });
+  });
   body.querySelectorAll('[data-remove-sale-item]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const idx = parseInt(btn.dataset.removeSaleItem, 10);
@@ -609,11 +670,112 @@ function renderEditSaleModal() {
       }
     });
   });
+  document.getElementById('editSaleAddItem')?.addEventListener('click', () => {
+    editingSaleItemIdx = null;
+    editSaleMode = 'pick';
+    renderEditSaleModal();
+  });
   document.getElementById('editSaleSave')?.addEventListener('click', saveSaleEdit);
-  document.getElementById('editSaleVoid')?.addEventListener('click', voidSale);
+  document.getElementById('editSaleVoid')?.addEventListener('click', () => voidSale());
 }
 
-async function applyStockDelta(oldBreakdown, newBreakdown) {
+function renderEditSalePickView() {
+  const body = document.getElementById('editModalBody');
+  if (!body) return;
+
+  body.innerHTML =
+    renderProductPickList() +
+    `<div class="modal-btns"><button class="modal-btn cancel" id="editSalePickBack" type="button">‹ Back to order</button></div>`;
+
+  animateEditModalBody(body);
+
+  document.getElementById('productPickClose')?.addEventListener('click', () => {
+    editSaleMode = 'main';
+    renderEditSaleModal();
+  });
+  document.getElementById('editSalePickBack')?.addEventListener('click', () => {
+    editSaleMode = 'main';
+    renderEditSaleModal();
+  });
+  body.querySelectorAll('[data-product]').forEach((row) => {
+    row.addEventListener('click', () => {
+      editConfigProduct = findProduct(row.dataset.product);
+      editConfigSelection = {};
+      editingSaleItemIdx = null;
+      editSaleMode = 'config';
+      renderEditSaleModal();
+    });
+  });
+}
+
+function renderEditSaleConfigView() {
+  const body = document.getElementById('editModalBody');
+  if (!body || !editConfigProduct) return;
+
+  const draftStock = getEditSaleDraftStock(editingSaleItemIdx ?? -1);
+  body.innerHTML = renderProductConfigView(
+    editConfigProduct,
+    editConfigSelection,
+    draftStock,
+    editingSaleItemIdx !== null,
+  );
+
+  animateEditModalBody(body);
+
+  document.getElementById('productConfigClose')?.addEventListener('click', () => {
+    editSaleMode = 'main';
+    editConfigProduct = null;
+    editConfigSelection = {};
+    editingSaleItemIdx = null;
+    renderEditSaleModal();
+  });
+
+  wireProductConfigView(body, {
+    configSelection: editConfigSelection,
+    onBack: () => {
+      editSaleMode = editingSaleItemIdx !== null ? 'main' : 'pick';
+      editConfigProduct = null;
+      editConfigSelection = {};
+      editingSaleItemIdx = null;
+      renderEditSaleModal();
+    },
+    onConfirm: confirmEditSaleConfig,
+    onRerender: renderEditSaleConfigView,
+  });
+}
+
+function confirmEditSaleConfig() {
+  const product = editConfigProduct;
+  if (!product) return;
+
+  const { breakdown, lineTotal, detail } = buildLineFromConfig(product, editConfigSelection);
+  const saleItem = {
+    product_id: product.id,
+    product_name: product.name,
+    detail,
+    line_total: lineTotal,
+    breakdown,
+  };
+
+  if (editingSaleItemIdx !== null) {
+    editSaleItems[editingSaleItemIdx] = saleItem;
+  } else {
+    editSaleItems.push(saleItem);
+  }
+
+  editConfigProduct = null;
+  editConfigSelection = {};
+  editingSaleItemIdx = null;
+  editSaleMode = 'main';
+  renderEditSaleModal();
+}
+
+function animateEditModalBody(body) {
+  const editOverlay = document.getElementById('editOverlay');
+  if (isSheetModalOpen(editOverlay)) animateCartSheetContent(body);
+}
+
+async function applyStockDelta(oldBreakdown, newBreakdown, { persistLocal = true } = {}) {
   const allIds = new Set([...Object.keys(oldBreakdown), ...Object.keys(newBreakdown)]);
   for (const id of allIds) {
     const oldQty = oldBreakdown[id] || 0;
@@ -629,7 +791,7 @@ async function applyStockDelta(oldBreakdown, newBreakdown) {
     const el = document.getElementById(`inv-count-${id}`);
     if (el) el.textContent = inventory[id];
   }
-  await dataStore.persistCurrent('inventory');
+  if (persistLocal) await dataStore.persistCurrent('inventory');
 }
 
 async function saveSaleEdit() {
@@ -664,7 +826,7 @@ async function saveSaleEdit() {
   };
 
   try {
-    await applyStockDelta(oldBreakdown, newBreakdown);
+    await applyStockDelta(oldBreakdown, newBreakdown, { persistLocal: false });
 
     const res = await sbFetch(`sales?id=eq.${editingSaleId}`, {
       method: 'PATCH',
@@ -675,8 +837,9 @@ async function saveSaleEdit() {
 
     Object.assign(sale, payload);
     editingSaleId = null;
+    resetEditSaleConfig();
     closeEditModal();
-    await dataStore.invalidate('sales');
+    await Promise.all([dataStore.invalidate('sales'), dataStore.invalidate('inventory')]);
     showToast('Order updated');
     renderAnalytics();
     const { updateTodayStrip } = await import('./home.js');
@@ -688,36 +851,54 @@ async function saveSaleEdit() {
 }
 
 async function voidSale() {
-  if (!editingSaleId) return;
+  const saleId = editingSaleId;
+  if (!saleId) return;
+
+  const sale = salesCache.find((s) => s.id === saleId);
+  if (!sale) return;
+
+  const snapshot = {
+    id: saleId,
+    items: (sale.items || []).map((i) => ({ ...i, breakdown: { ...(i.breakdown || {}) } })),
+  };
+
+  resetEditSaleConfig();
+  editingSaleId = null;
+  closeEditModal();
+
   const ok = await showConfirm('Void this order and restore stock?');
   if (!ok) return;
 
-  const sale = salesCache.find((s) => s.id === editingSaleId);
-  if (!sale) return;
+  await performVoidSale(snapshot);
+}
 
-  const oldBreakdown = mergeItemBreakdown(sale.items || []);
+async function performVoidSale(snapshot) {
+  const oldBreakdown = mergeItemBreakdown(snapshot.items);
 
   try {
-    await applyStockDelta(oldBreakdown, {});
+    await sbDelete(`sales?id=eq.${snapshot.id}`);
+    await applyStockDelta(oldBreakdown, {}, { persistLocal: false });
 
-    const res = await sbFetch(`sales?id=eq.${editingSaleId}`, {
-      method: 'DELETE',
-      headers: { Prefer: 'return=minimal' },
-    });
-    if (!res.ok) throw new Error(`Supabase ${res.status}`);
+    const [salesRes, invRes] = await Promise.all([
+      dataStore.invalidate('sales'),
+      dataStore.invalidate('inventory'),
+    ]);
 
-    const idx = salesCache.findIndex((s) => s.id === editingSaleId);
-    if (idx > -1) salesCache.splice(idx, 1);
+    if (!salesRes.ok || !invRes.ok) {
+      await dataStore.recoverFromServer(['sales', 'inventory']);
+      if (!salesRes.ok || !invRes.ok) throw new Error('Sync failed after void');
+    }
 
-    editingSaleId = null;
-    closeEditModal();
-    await dataStore.invalidate('sales');
     showToast('Order voided');
     renderAnalytics();
     const { updateTodayStrip } = await import('./home.js');
     updateTodayStrip();
   } catch (e) {
     console.error('void sale failed', e);
+    await dataStore.recoverFromServer(['sales', 'inventory']).catch(() => {});
+    renderAnalytics();
+    const { updateTodayStrip } = await import('./home.js');
+    updateTodayStrip();
     showToast('Could not void order', true);
   }
 }

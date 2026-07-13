@@ -138,10 +138,10 @@ export async function persistCurrent(entity) {
 
 export async function invalidate(entity) {
   setMeta(entity, { ts: 0 });
-  return fetchEntity(entity, { force: true });
+  return fetchEntity(entity, { force: true, trustEmpty: true });
 }
 
-export async function fetchEntity(entity, { force = false, silent = false } = {}) {
+export async function fetchEntity(entity, { force = false, silent = false, trustEmpty = false } = {}) {
   if (!ENTITIES.includes(entity)) return { entity, ok: false };
 
   if (!force && isFresh(entity)) {
@@ -157,6 +157,12 @@ export async function fetchEntity(entity, { force = false, silent = false } = {}
   const work = (async () => {
     try {
       const rows = await fetchEntityFromNetwork(entity);
+      const hadRows = hasEntityData(entity, stateRef());
+      if (!rows.length && hadRows && entity !== 'inventory' && !trustEmpty) {
+        console.warn(`fetch ${entity} returned empty while cache had data — keeping cache`);
+        setMeta(entity, { ts: Date.now(), error: new Error('Empty response') });
+        return { entity, ok: false, error: new Error('Empty response') };
+      }
       await persist(entity, rows);
       return { entity, ok: true };
     } catch (e) {
@@ -223,6 +229,10 @@ export async function appendDelivery(record) {
   await persistCurrent('deliveries');
 }
 
+export async function recoverFromServer(entities = ENTITIES) {
+  return fetchAll(entities, { force: true, silent: false });
+}
+
 export const dataStore = {
   ENTITIES,
   STALE_MS,
@@ -239,6 +249,7 @@ export const dataStore = {
   fetchAll,
   clear: clearEntity,
   appendDelivery,
+  recoverFromServer,
 };
 
 export { ENTITIES, STALE_MS };

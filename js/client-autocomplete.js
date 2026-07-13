@@ -34,6 +34,7 @@ export function wireClientAutocomplete({
   if (!input || !dropdown) return;
 
   const hide = () => animateDropdown(dropdown, false);
+  const hideSoon = () => setTimeout(hide, 120);
 
   const notify = (name) => {
     const client = findClientByName(name);
@@ -82,6 +83,7 @@ export function wireClientAutocomplete({
 
     dropdown.querySelectorAll('button').forEach((btn) => {
       btn.addEventListener('mousedown', (e) => e.preventDefault());
+      btn.addEventListener('pointerdown', (e) => e.preventDefault());
     });
 
     dropdown.querySelector('[data-create-client]')?.addEventListener('click', async () => {
@@ -136,7 +138,7 @@ export function wireClientAutocomplete({
     updateDropdown(input.value);
   });
 
-  input.addEventListener('blur', hide);
+  input.addEventListener('blur', hideSoon);
 
   clearBtn?.addEventListener('click', () => {
     input.value = '';
