@@ -3,6 +3,7 @@ import { dataStore } from './store/index.js';
 import { animateCartSheetContent, isSheetModalOpen, wireHeaderBodyAccordions } from './animations.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
 import {
+  deliveryPlaceFieldMarkup,
   loadGoogleMaps,
   setDeliveryFieldValue,
   wireDeliveryPlacesInputs,
@@ -443,11 +444,21 @@ function renderEditDeliveryModal() {
       <div class="delivery-mini-label">Route</div>
       <div class="delivery-input-wrap pickup">
         <span class="di-icon">${ICON_LOCATE}</span>
-        <input type="text" class="client-input" id="editDeliveryPickup" placeholder="Pickup location" autocomplete="off" value="${escapeHtml(editPickupText)}" />
+        ${deliveryPlaceFieldMarkup({
+          inputId: 'editDeliveryPickup',
+          dropdownId: 'editDeliveryPickupDropdown',
+          placeholder: 'Pickup location',
+          value: editPickupText,
+        })}
       </div>
       <div class="delivery-input-wrap dropoff">
         <span class="di-icon">${ICON_PIN}</span>
-        <input type="text" class="client-input" id="editDeliveryDest" placeholder="Drop-off location" autocomplete="off" value="${escapeHtml(editDestText)}" />
+        ${deliveryPlaceFieldMarkup({
+          inputId: 'editDeliveryDest',
+          dropdownId: 'editDeliveryDestDropdown',
+          placeholder: 'Drop-off location',
+          value: editDestText,
+        })}
       </div>
       <div class="delivery-input-wrap fee">
         <span class="di-icon">${ICON_CASH}</span>
@@ -467,7 +478,12 @@ function renderEditDeliveryModal() {
   document.getElementById('editDeliveryClose')?.addEventListener('click', closeEditModal);
   document.getElementById('editDeliveryCancel')?.addEventListener('click', closeEditModal);
 
-  wireDeliveryPlacesInputs('editDeliveryPickup', 'editDeliveryDest', {
+  wireDeliveryPlacesInputs(
+    'editDeliveryPickup',
+    'editDeliveryPickupDropdown',
+    'editDeliveryDest',
+    'editDeliveryDestDropdown',
+    {
     onPickupSelect: ({ lat, lng, label }) => {
       editOrigin = { lat, lng };
       editPickupText = label;

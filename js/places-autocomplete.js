@@ -1,6 +1,9 @@
 import { GOOGLE_MAPS_API_KEY } from './config.js';
+import { animateDropdown } from './animations.js';
 import { logDebug } from './debug.js';
-import { showToast } from './utils.js';
+import { escapeHtml, showToast } from './utils.js';
+
+const PLACE_PIN_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.2s7.2-6.8 7.2-12.4a7.2 7.2 0 1 0-14.4 0c0 5.6 7.2 12.4 7.2 12.4z"></path><circle cx="12" cy="8.8" r="2.4"></circle></svg>`;
 
 let gmapsLoaded = false;
 let gmapsLoading = false;
@@ -39,118 +42,157 @@ export function loadGoogleMaps(cb) {
   document.head.appendChild(script);
 }
 
+export function deliveryPlaceFieldMarkup({
+  inputId,
+  dropdownId,
+  value = '',
+  placeholder = '',
+}) {
+  return `
+    <div class="delivery-place-field">
+      <input type="text" class="client-input" id="${inputId}" placeholder="${escapeHtml(placeholder)}" autocomplete="off" value="${escapeHtml(value)}" />
+      <div class="delivery-place-dropdown" id="${dropdownId}" role="listbox"></div>
+    </div>`;
+}
+
 export function clearPlaceAutocompleteWidgets() {
-  document.querySelectorAll('.pac-container').forEach((el) => el.remove());
   activeWidgets.forEach((widget) => widget.cleanup());
   activeWidgets.length = 0;
 }
 
-function resolveDeliveryField(id) {
+function resolveDeliveryInput(id) {
   const el = document.getElementById(id);
-  if (!el) return null;
-  if (el.tagName === 'INPUT' || el.tagName === 'GMP-PLACE-AUTOCOMPLETE') return el;
-  return null;
+  if (!el || el.tagName !== 'INPUT') return null;
+  return el;
 }
 
-function wireFieldEvents(el, { onInput, onFocus }) {
-  const cleanups = [];
-  if (onFocus) {
-    const focusFn = () => onFocus();
-    el.addEventListener('focusin', focusFn);
-    cleanups.push(() => el.removeEventListener('focusin', focusFn));
-  }
-  if (onInput) {
-    const inputFn = () => onInput(el.value || '');
-    el.addEventListener('input', inputFn);
-    cleanups.push(() => el.removeEventListener('input', inputFn));
-  }
-  return () => cleanups.forEach((fn) => fn());
-}
-
-async function attachPlaceAutocomplete(
+function attachPlaceAutocomplete(
   input,
+  dropdown,
   { onSelect, onInput, onFocus, regionCodes = ['ug'] },
 ) {
-  const placeholder = input.placeholder;
-  const value = input.value;
-  const id = input.id;
+  let sessionToken = null;
+  let debounceTimer = null;
+  let requestGen = 0;
+  let selecting = false;
 
-  try {
-    const { PlaceAutocompleteElement } = await google.maps.importLibrary('places');
-    if (!PlaceAutocompleteElement) throw new Error('PlaceAutocompleteElement unavailable');
+  const hide = () => animateDropdown(dropdown, false);
 
-    const pac = new PlaceAutocompleteElement({ includedRegionCodes: regionCodes });
-    pac.noInputIcon = true;
-    pac.noClearButton = true;
-    if (id) pac.id = id;
-    pac.placeholder = placeholder;
-    if (value) pac.value = value;
-    pac.classList.add('client-input', 'delivery-place-autocomplete');
+  const scheduleFetch = (query) => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      void fetchSuggestions(query);
+    }, 220);
+  };
 
-    const onSelectHandler = async (event) => {
-      const placePrediction = event.placePrediction;
-      if (!placePrediction) return;
-      try {
-        const place = placePrediction.toPlace();
-        await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
-        const loc = place.location;
-        if (!loc) return;
-        const label = place.formattedAddress || place.displayName || pac.value || '';
-        pac.value = label;
-        onSelect({
-          lat: typeof loc.lat === 'function' ? loc.lat() : loc.lat,
-          lng: typeof loc.lng === 'function' ? loc.lng() : loc.lng,
-          label,
-        });
-      } catch (err) {
-        logDebug(`Place select failed: ${err?.message || err}`);
+  const fetchSuggestions = async (query) => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      dropdown.innerHTML = '';
+      hide();
+      return;
+    }
+
+    const reqId = ++requestGen;
+    try {
+      const { AutocompleteSessionToken, AutocompleteSuggestion } =
+        await google.maps.importLibrary('places');
+      if (!sessionToken) sessionToken = new AutocompleteSessionToken();
+
+      const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+        input: trimmed,
+        sessionToken,
+        includedRegionCodes: regionCodes,
+      });
+      if (reqId !== requestGen) return;
+
+      const predictions = suggestions
+        .map((suggestion) => suggestion.placePrediction)
+        .filter(Boolean)
+        .slice(0, 6);
+
+      if (!predictions.length) {
+        dropdown.innerHTML = '<div class="delivery-place-empty">No matches</div>';
+        animateDropdown(dropdown, true);
+        return;
       }
-    };
 
-    pac.addEventListener('gmp-select', onSelectHandler);
-    input.replaceWith(pac);
+      dropdown.innerHTML = predictions
+        .map(
+          (prediction, index) => `
+        <button class="delivery-place-row" type="button" data-prediction="${index}">
+          <span class="delivery-place-row-icon" aria-hidden="true">${PLACE_PIN_ICON}</span>
+          <span class="delivery-place-row-text">${escapeHtml(prediction.text?.toString?.() || '')}</span>
+        </button>`,
+        )
+        .join('');
+      animateDropdown(dropdown, true);
 
-    const cleanupFieldEvents = wireFieldEvents(pac, { onInput, onFocus });
+      dropdown.querySelectorAll('.delivery-place-row').forEach((row) => {
+        row.addEventListener('mousedown', (e) => e.preventDefault());
+        row.addEventListener('click', () => {
+          const index = Number(row.dataset.prediction);
+          const prediction = predictions[index];
+          if (prediction) void selectPrediction(prediction);
+        });
+      });
+    } catch (err) {
+      if (reqId !== requestGen) return;
+      logDebug(`Place suggestions failed: ${err?.message || err}`);
+      hide();
+    }
+  };
 
-    return {
-      cleanup: () => {
-        pac.removeEventListener('gmp-select', onSelectHandler);
-        cleanupFieldEvents();
-      },
-    };
-  } catch (err) {
-    logDebug(`PlaceAutocompleteElement unavailable, using legacy Autocomplete: ${err?.message || err}`);
-  }
+  const selectPrediction = async (placePrediction) => {
+    selecting = true;
+    try {
+      const place = placePrediction.toPlace();
+      await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
+      const loc = place.location;
+      if (!loc) return;
+      const label =
+        place.formattedAddress || place.displayName || placePrediction.text?.toString?.() || '';
+      input.value = label;
+      sessionToken = null;
+      hide();
+      onSelect({
+        lat: typeof loc.lat === 'function' ? loc.lat() : loc.lat,
+        lng: typeof loc.lng === 'function' ? loc.lng() : loc.lng,
+        label,
+      });
+    } catch (err) {
+      logDebug(`Place select failed: ${err?.message || err}`);
+    } finally {
+      selecting = false;
+    }
+  };
 
-  const liveInput = id ? resolveDeliveryField(id) : input;
-  if (!liveInput || liveInput.tagName !== 'INPUT') return null;
+  const onInputHandler = () => {
+    onInput?.(input.value);
+    scheduleFetch(input.value);
+  };
 
-  if (!window.google?.maps?.places?.Autocomplete) {
-    logDebug('Places library not loaded — enable Places API (New) on your Google Cloud project.');
-    return null;
-  }
+  const onFocusHandler = () => {
+    onFocus?.();
+    if (input.value.trim()) scheduleFetch(input.value);
+  };
 
-  const autocomplete = new google.maps.places.Autocomplete(liveInput, {
-    fields: ['geometry', 'formatted_address', 'name'],
-    componentRestrictions: { country: regionCodes[0] || 'ug' },
-  });
-  const listener = autocomplete.addListener('place_changed', () => {
-    const place = autocomplete.getPlace();
-    if (!place?.geometry?.location) return;
-    const label = place.formatted_address || place.name || liveInput.value;
-    liveInput.value = label;
-    onSelect({
-      lat: place.geometry.location.lat(),
-      lng: place.geometry.location.lng(),
-      label,
-    });
-  });
-  const cleanupFieldEvents = wireFieldEvents(liveInput, { onInput, onFocus });
+  const onBlurHandler = () => {
+    if (!selecting) hide();
+  };
+
+  input.addEventListener('input', onInputHandler);
+  input.addEventListener('focus', onFocusHandler);
+  input.addEventListener('blur', onBlurHandler);
 
   return {
     cleanup: () => {
-      google.maps.event.removeListener(listener);
-      cleanupFieldEvents();
+      clearTimeout(debounceTimer);
+      input.removeEventListener('input', onInputHandler);
+      input.removeEventListener('focus', onFocusHandler);
+      input.removeEventListener('blur', onBlurHandler);
+      dropdown.innerHTML = '';
+      hide();
     },
   };
 }
@@ -161,7 +203,9 @@ async function attachPlaceAutocomplete(
  */
 export function wireDeliveryPlacesInputs(
   pickupId,
+  pickupDropdownId,
   destId,
+  destDropdownId,
   {
     onPickupSelect,
     onDestSelect,
@@ -172,40 +216,41 @@ export function wireDeliveryPlacesInputs(
     regionCodes = ['ug'],
   } = {},
 ) {
-  if (!pickupId || !destId) return;
+  if (!pickupId || !pickupDropdownId || !destId || !destDropdownId) return;
   const gen = ++wireGeneration;
-  loadGoogleMaps(async () => {
+  loadGoogleMaps(() => {
     if (gen !== wireGeneration) return;
     clearPlaceAutocompleteWidgets();
-    const pickupInput = resolveDeliveryField(pickupId);
-    const destInput = resolveDeliveryField(destId);
-    if (!pickupInput || !destInput) return;
 
-    const pickupWidget = await attachPlaceAutocomplete(pickupInput, {
+    const pickupInput = resolveDeliveryInput(pickupId);
+    const pickupDropdown = document.getElementById(pickupDropdownId);
+    const destInput = resolveDeliveryInput(destId);
+    const destDropdown = document.getElementById(destDropdownId);
+    if (!pickupInput || !pickupDropdown || !destInput || !destDropdown) return;
+
+    const pickupWidget = attachPlaceAutocomplete(pickupInput, pickupDropdown, {
       onSelect: onPickupSelect,
       onInput: onPickupInput,
       onFocus: onPickupFocus,
       regionCodes,
     });
     if (gen !== wireGeneration) {
-      pickupWidget?.cleanup();
+      pickupWidget.cleanup();
       return;
     }
-    if (pickupWidget) activeWidgets.push(pickupWidget);
+    activeWidgets.push(pickupWidget);
 
-    const destField = resolveDeliveryField(destId);
-    if (!destField) return;
-    const destWidget = await attachPlaceAutocomplete(destField, {
+    const destWidget = attachPlaceAutocomplete(destInput, destDropdown, {
       onSelect: onDestSelect,
       onInput: onDestInput,
       onFocus: onDestFocus,
       regionCodes,
     });
     if (gen !== wireGeneration) {
-      destWidget?.cleanup();
+      destWidget.cleanup();
       return;
     }
-    if (destWidget) activeWidgets.push(destWidget);
+    activeWidgets.push(destWidget);
   });
 }
 

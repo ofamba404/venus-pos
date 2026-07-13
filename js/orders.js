@@ -17,6 +17,7 @@ import {
   loadGoogleMaps,
 } from './delivery.js';
 import {
+  deliveryPlaceFieldMarkup,
   setDeliveryFieldValue,
   wireDeliveryPlacesInputs,
 } from './places-autocomplete.js';
@@ -313,7 +314,12 @@ function computeCheckoutDistance() {
 }
 
 function wireDeliveryAutocompletes() {
-  wireDeliveryPlacesInputs('deliveryPickupInput', 'deliveryDestInput', {
+  wireDeliveryPlacesInputs(
+    'deliveryPickupInput',
+    'deliveryPickupDropdown',
+    'deliveryDestInput',
+    'deliveryDestDropdown',
+    {
     onPickupSelect: ({ lat, lng, label }) => {
       checkoutOrigin = { lat, lng };
       checkoutPickupText = label;
@@ -437,11 +443,21 @@ function renderCartView() {
         <div class="delivery-mini-fields">
           <div class="delivery-input-wrap pickup">
             <span class="di-icon">${ICON_LOCATE}</span>
-            <input type="text" class="client-input" id="deliveryPickupInput" placeholder="Pickup location" autocomplete="off" value="${escapeHtml(checkoutPickupText)}" />
+            ${deliveryPlaceFieldMarkup({
+              inputId: 'deliveryPickupInput',
+              dropdownId: 'deliveryPickupDropdown',
+              placeholder: 'Pickup location',
+              value: checkoutPickupText,
+            })}
           </div>
           <div class="delivery-input-wrap dropoff">
             <span class="di-icon">${ICON_PIN}</span>
-            <input type="text" class="client-input" id="deliveryDestInput" placeholder="Drop-off location" autocomplete="off" value="${escapeHtml(checkoutDestText)}" />
+            ${deliveryPlaceFieldMarkup({
+              inputId: 'deliveryDestInput',
+              dropdownId: 'deliveryDestDropdown',
+              placeholder: 'Drop-off location',
+              value: checkoutDestText,
+            })}
           </div>
           <div class="delivery-input-wrap fee">
             <span class="di-icon">${ICON_CASH}</span>
