@@ -4,6 +4,7 @@ import { CATEGORIES, LOW_STOCK_THRESHOLD } from './config.js';
 import {
   breakdownToConfigSelection,
   buildLineFromConfig,
+  clearManualQtyEdit,
   findProduct,
   renderProductConfigView,
   renderProductPickList,
@@ -11,7 +12,7 @@ import {
   wireProductPickButtons,
 } from './product-config.js';
 import { applyActiveHighlight, getActiveStatusHighlight } from './inventory.js';
-import { animateAccordionPanel, animateModalContent, applyBarFillWidths, isModalOpen, setAccordionPanelInstant, wireHeaderBodyAccordions } from './animations.js';
+import { animateAccordionPanel, animateFlavorMeter, animateModalContent, applyBarFillWidths, isModalOpen, readFlavorMeterScale, setAccordionPanelInstant, wireHeaderBodyAccordions } from './animations.js';
 import {
   filterSalesByRange,
   getChartRange,
@@ -592,7 +593,20 @@ function renderEditSaleMainView() {
     </div>
     <div class="modal-progress">${escapeHtml(time)}</div>
     <div class="client-picker">
-      <label>Client</label>
+      <div class="client-picker__head">
+        <label for="editSaleClient">Client</label>
+        <button
+          type="button"
+          id="editSaleCredit"
+          class="credit-chip${editSaleIsCredit ? ' is-on' : ''}"
+          role="switch"
+          aria-checked="${editSaleIsCredit ? 'true' : 'false'}"
+          title="Record as unpaid credit sale"
+        >
+          <span class="credit-chip__dot" aria-hidden="true"></span>
+          <span class="credit-chip__text">Credit</span>
+        </button>
+      </div>
       ${clientAutocompleteMarkup({
         inputId: 'editSaleClient',
         dropdownId: 'editSaleClientDropdown',
@@ -600,12 +614,23 @@ function renderEditSaleMainView() {
         value: editSaleClientName,
         placeholder: 'Client name (optional)',
       })}
+      <div class="credit-warning" id="editSaleCreditWarning" ${editSaleIsCredit && !editSaleClientName.trim() ? '' : 'hidden'}>Select a client before recording credit</div>
+      ${
+        editSaleIsCredit
+          ? `<button
+              type="button"
+              id="editSaleCreditCleared"
+              class="credit-chip credit-chip--cleared${editSaleCreditCleared ? ' is-on' : ''}"
+              role="switch"
+              aria-checked="${editSaleCreditCleared ? 'true' : 'false'}"
+              title="Mark credit as paid / cleared"
+            >
+              <span class="credit-chip__dot" aria-hidden="true"></span>
+              <span class="credit-chip__text">${editSaleCreditCleared ? 'Cleared' : 'Unpaid'}</span>
+            </button>`
+          : ''
+      }
     </div>
-    <label class="credit-toggle-row">
-      <input type="checkbox" id="editSaleCredit" ${editSaleIsCredit ? 'checked' : ''} />
-      <span>Recorded as credit</span>
-    </label>
-    ${editSaleIsCredit ? `<label class="credit-toggle-row"><input type="checkbox" id="editSaleCreditCleared" ${editSaleCreditCleared ? 'checked' : ''} /><span>Credit cleared (paid)</span></label>` : ''}
     ${itemRows}
     <button class="add-item-btn" id="editSaleAddItem" type="button">+ Add item</button>
     <div class="cart-total-row">
@@ -635,15 +660,18 @@ function renderEditSaleMainView() {
     onChange: (name, client) => {
       editSaleClientName = name;
       editSaleClientId = client?.id || '';
+      const warning = document.getElementById('editSaleCreditWarning');
+      if (warning) warning.hidden = !(editSaleIsCredit && !editSaleClientName.trim());
     },
   });
-  document.getElementById('editSaleCredit')?.addEventListener('change', (e) => {
-    editSaleIsCredit = e.target.checked;
+  document.getElementById('editSaleCredit')?.addEventListener('click', () => {
+    editSaleIsCredit = !editSaleIsCredit;
     if (!editSaleIsCredit) editSaleCreditCleared = true;
     renderEditSaleModal();
   });
-  document.getElementById('editSaleCreditCleared')?.addEventListener('change', (e) => {
-    editSaleCreditCleared = e.target.checked;
+  document.getElementById('editSaleCreditCleared')?.addEventListener('click', () => {
+    editSaleCreditCleared = !editSaleCreditCleared;
+    renderEditSaleModal();
   });
   body.querySelectorAll('[data-edit-sale-item]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -658,6 +686,7 @@ function renderEditSaleMainView() {
       editingSaleItemIdx = idx;
       editConfigProduct = product;
       editConfigSelection = breakdownToConfigSelection(product, item.breakdown);
+      clearManualQtyEdit();
       editSaleMode = 'config';
       renderEditSaleModal();
     });
@@ -703,6 +732,7 @@ function renderEditSalePickView() {
     editConfigProduct = findProduct(productId);
     editConfigSelection = {};
     editingSaleItemIdx = null;
+    clearManualQtyEdit();
     editSaleMode = 'config';
     renderEditSaleModal();
   });
@@ -712,6 +742,16 @@ function renderEditSaleConfigView() {
   const body = document.getElementById('editModalBody');
   if (!body || !editConfigProduct) return;
 
+  const flavorList = body.querySelector('.flavor-list');
+  const scrollTop = flavorList?.scrollTop ?? 0;
+  const activeFlavor = document.activeElement?.closest?.('[data-flavor]')?.dataset?.flavor;
+  const activeStep = document.activeElement?.matches?.('button.flavor-step')
+    ? document.activeElement.dataset.pdir
+    : null;
+  const prevMeter = body.querySelector('.flavor-meter__fill');
+  const fromMeter = prevMeter ? readFlavorMeterScale(prevMeter) : 0;
+  const hadMeter = Boolean(prevMeter);
+
   const draftStock = getEditSaleDraftStock(editingSaleItemIdx ?? -1);
   body.innerHTML = renderProductConfigView(
     editConfigProduct,
@@ -720,7 +760,28 @@ function renderEditSaleConfigView() {
     editingSaleItemIdx !== null,
   );
 
-  animateEditModalBody(body);
+  if (!hadMeter) animateEditModalBody(body);
+
+  const nextList = body.querySelector('.flavor-list');
+  if (nextList) nextList.scrollTop = scrollTop;
+
+  const qtyEdit = body.querySelector('[data-qty-edit]');
+  if (qtyEdit) {
+    qtyEdit.focus({ preventScroll: true });
+    const len = qtyEdit.value.length;
+    qtyEdit.setSelectionRange(len, len);
+  } else if (activeFlavor != null) {
+    const sel = activeStep != null
+      ? `button.flavor-step[data-pick="${activeFlavor}"][data-pdir="${activeStep}"]`
+      : `[data-flavor="${activeFlavor}"]`;
+    body.querySelector(sel)?.focus?.({ preventScroll: true });
+  }
+
+  const fill = body.querySelector('.flavor-meter__fill');
+  if (fill) {
+    const toMeter = Math.max(0, Math.min(1, parseFloat(fill.dataset.meter) || 0));
+    animateFlavorMeter(fill, { from: hadMeter ? fromMeter : 0, to: toMeter });
+  }
 
   document.getElementById('productConfigClose')?.addEventListener('click', () => {
     editSaleMode = 'main';

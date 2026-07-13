@@ -74,6 +74,27 @@ export function configTotalSelected(configSelection) {
   return Object.values(configSelection).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
 }
 
+/** Near-white flavors (coconut, pale bangis) need a husk-warm accent so selection chrome isn't invisible. */
+function flavorAccent(color) {
+  const hex = String(color || '').replace('#', '');
+  const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
+  if (full.length !== 6) return color;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  if (luma < 0.86) return color;
+  const mix = (channel, toward) => Math.round(channel * 0.28 + toward * 0.72);
+  const ar = mix(r, 194);
+  const ag = mix(g, 152);
+  const ab = mix(b, 108);
+  return `#${[ar, ag, ab].map((n) => n.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function flavorStyle(color) {
+  return `--flavor:${color};--flavor-accent:${flavorAccent(color)}`;
+}
+
 export function buildLineFromConfig(product, configSelection) {
   let breakdown = {};
   let lineTotal = 0;
@@ -131,16 +152,43 @@ function jointSlotsHtml(selected, target) {
         <span class="flavor-meter__of">of ${target}</span>
       </div>
       <div class="flavor-meter__track">
-        <div class="flavor-meter__fill" style="--meter:${(pct / 100).toFixed(3)}"></div>
+        <div class="flavor-meter__fill" data-meter="${(pct / 100).toFixed(3)}"></div>
       </div>
     </div>`;
 }
 
-function flavorSwatchHtml({ id, label, color, chosen, stock, canAdd, canRemove }) {
+/** Which qty control is in manual type-in mode (`'qty'` or a category id). */
+let manualQtyEditKey = null;
+
+export function clearManualQtyEdit() {
+  manualQtyEditKey = null;
+}
+
+function qtyCountControlHtml({ id, chosen, editable, label }) {
+  if (editable && manualQtyEditKey === id) {
+    const inputId = id === 'qty' ? ' id="qtyField"' : '';
+    return `<input type="text" inputmode="numeric" pattern="[0-9]*"${inputId} class="flavor-qty-input" data-qty-edit="${id}" value="${chosen || ''}" placeholder="0" aria-label="${escapeHtml(label)} quantity" autocomplete="off" />`;
+  }
+  if (editable) {
+    return `<button type="button" class="flavor-count flavor-count--tap" data-qty-tap="${id}" aria-label="Edit ${escapeHtml(label)} quantity, currently ${chosen}">${chosen}</button>`;
+  }
+  return `<span class="flavor-count" aria-live="polite">${chosen}</span>`;
+}
+
+function qtyStepperHtml({ id, label, chosen, canAdd, canRemove, editable = false }) {
+  return `
+    <div class="flavor-stepper" role="group" aria-label="${escapeHtml(label)} quantity">
+      <button class="flavor-step" data-pick="${id}" data-pdir="-1" ${canRemove ? '' : 'disabled'} type="button" aria-label="Remove ${escapeHtml(label)}">−</button>
+      ${qtyCountControlHtml({ id, chosen, editable, label })}
+      <button class="flavor-step flavor-step--add" data-pick="${id}" data-pdir="1" ${canAdd ? '' : 'disabled'} type="button" aria-label="Add ${escapeHtml(label)}">+</button>
+    </div>`;
+}
+
+function flavorSwatchHtml({ id, label, color, chosen, stock, canAdd, canRemove, editable = false }) {
   const active = chosen > 0;
   const out = stock <= 0;
   return `
-    <div class="flavor-row${active ? ' is-active' : ''}${out ? ' is-out' : ''}" style="--flavor:${color}" data-flavor="${id}">
+    <div class="flavor-row${active ? ' is-active' : ''}${out ? ' is-out' : ''}" style="${flavorStyle(color)}" data-flavor="${id}">
       <div class="flavor-orb" aria-hidden="true">
         <span class="flavor-orb__glow"></span>
         <span class="flavor-orb__core"></span>
@@ -149,11 +197,7 @@ function flavorSwatchHtml({ id, label, color, chosen, stock, canAdd, canRemove }
         <div class="flavor-row__name">${escapeHtml(label)}</div>
         <div class="flavor-row__stock">${out ? 'Out of stock' : `${stock} available`}</div>
       </div>
-      <div class="flavor-stepper" role="group" aria-label="${escapeHtml(label)} quantity">
-        <button class="flavor-step" data-pick="${id}" data-pdir="-1" ${canRemove ? '' : 'disabled'} type="button" aria-label="Remove ${escapeHtml(label)}">−</button>
-        <span class="flavor-count" aria-live="polite">${chosen}</span>
-        <button class="flavor-step flavor-step--add" data-pick="${id}" data-pdir="1" ${canAdd ? '' : 'disabled'} type="button" aria-label="Add ${escapeHtml(label)}">+</button>
-      </div>
+      ${qtyStepperHtml({ id, label, chosen, canAdd, canRemove, editable })}
     </div>`;
 }
 
@@ -227,7 +271,7 @@ export function renderProductConfigView(
     inner += jointSlotsHtml(flavorSelected, flavorTarget);
     inner += flavorPaletteHtml(configSelection, draftStock, flavorTarget);
     inner += `
-      <div class="flavor-fixed${plainOk ? '' : ' is-out'}" style="--flavor:${plain.color}">
+      <div class="flavor-fixed${plainOk ? '' : ' is-out'}" style="${flavorStyle(plain.color)}">
         <div class="flavor-orb" aria-hidden="true">
           <span class="flavor-orb__glow"></span>
           <span class="flavor-orb__core"></span>
@@ -248,11 +292,25 @@ export function renderProductConfigView(
   } else if (product.rule === 'single_qty') {
     const qty = configSelection.qty || 0;
     const catId = product.categoryId;
-    inner += `<div class="modal-progress">In stock: ${draftStock[catId]}</div>`;
-    inner += `<input type="text" inputmode="numeric" pattern="[0-9]*" id="qtyField" class="qty-input" placeholder="0" value="${qty || ''}" autocomplete="off" />`;
-    inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX((qty || 0) * product.unitPrice)}</div>`;
+    const cat = CAT_MAP[catId];
+    const stock = draftStock[catId] || 0;
+    inner += `<div class="modal-progress">In stock: ${stock}</div>`;
+    inner += `<div class="flavor-list">`;
+    // Stepper uses selection key `qty` (not category id) — matches buildLineFromConfig.
+    inner += flavorSwatchHtml({
+      id: 'qty',
+      label: cat?.name || product.name,
+      color: cat?.color || '#a6752e',
+      chosen: qty,
+      stock,
+      canAdd: qty < stock,
+      canRemove: qty > 0,
+      editable: true,
+    });
+    inner += `</div>`;
+    inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX(qty * product.unitPrice)}</div>`;
     inner += configFooterHtml({
-      ready: qty > 0 && qty <= draftStock[catId],
+      ready: qty > 0 && qty <= stock,
       isEditing,
       closeId,
       backId,
@@ -265,18 +323,16 @@ export function renderProductConfigView(
       const cat = CAT_MAP[id];
       const qty = configSelection[id] || 0;
       const stock = draftStock[id] || 0;
-      inner += `
-        <div class="flavor-row flavor-row--input${qty > 0 ? ' is-active' : ''}${stock <= 0 ? ' is-out' : ''}" style="--flavor:${cat.color}">
-          <div class="flavor-orb" aria-hidden="true">
-            <span class="flavor-orb__glow"></span>
-            <span class="flavor-orb__core"></span>
-          </div>
-          <div class="flavor-row__meta">
-            <div class="flavor-row__name">Bangis ${escapeHtml(cat.sub)}</div>
-            <div class="flavor-row__stock">${stock <= 0 ? 'Out of stock' : `${stock} available`}</div>
-          </div>
-          <input type="text" inputmode="numeric" pattern="[0-9]*" class="qty-mini-input flavor-qty-input" data-spliff-qty="${id}" value="${qty || ''}" placeholder="0" aria-label="Bangis ${escapeHtml(cat.sub)} quantity" />
-        </div>`;
+      inner += flavorSwatchHtml({
+        id,
+        label: `Bangis ${cat.sub}`,
+        color: cat.color,
+        chosen: qty,
+        stock,
+        canAdd: qty < stock,
+        canRemove: qty > 0,
+        editable: true,
+      });
     });
     inner += `</div>`;
     const totalQty = SPLIFF_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);
@@ -307,13 +363,19 @@ export function wireProductConfigView(
     onClose,
   },
 ) {
+  const endManualAnd = (fn) => () => {
+    clearManualQtyEdit();
+    fn();
+  };
+
   if (onClose) {
-    container.querySelector(`#${closeId}`)?.addEventListener('click', onClose);
+    container.querySelector(`#${closeId}`)?.addEventListener('click', endManualAnd(onClose));
   }
-  container.querySelector(`#${backId}`)?.addEventListener('click', onBack);
+  container.querySelector(`#${backId}`)?.addEventListener('click', endManualAnd(onBack));
 
   container.querySelectorAll('button.mini-step, button.flavor-step').forEach((btn) => {
     btn.addEventListener('click', () => {
+      clearManualQtyEdit();
       const id = btn.dataset.pick;
       const dir = parseInt(btn.dataset.pdir, 10);
       configSelection[id] = Math.max(0, (configSelection[id] || 0) + dir);
@@ -322,34 +384,45 @@ export function wireProductConfigView(
     });
   });
 
-  const qtyField = container.querySelector('#qtyField');
-  if (qtyField) {
-    qtyField.focus();
-    qtyField.addEventListener('input', () => {
-      qtyField.value = qtyField.value.replace(/[^0-9]/g, '');
-      configSelection.qty = parseInt(qtyField.value, 10) || 0;
+  container.querySelectorAll('[data-qty-tap]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      manualQtyEditKey = btn.dataset.qtyTap;
       onRerender();
-      const el = container.querySelector('#qtyField');
-      if (el) {
-        el.focus();
-        el.setSelectionRange(el.value.length, el.value.length);
-      }
-    });
-  }
-
-  container.querySelectorAll('[data-spliff-qty]').forEach((inputEl) => {
-    inputEl.addEventListener('input', () => {
-      inputEl.value = inputEl.value.replace(/[^0-9]/g, '');
-      const id = inputEl.dataset.spliffQty;
-      configSelection[id] = parseInt(inputEl.value, 10) || 0;
-      onRerender();
-      const el = container.querySelector(`[data-spliff-qty="${id}"]`);
-      if (el) {
-        el.focus();
-        el.setSelectionRange(el.value.length, el.value.length);
-      }
     });
   });
 
-  container.querySelector(`#${confirmId}`)?.addEventListener('click', onConfirm);
+  container.querySelectorAll('[data-qty-edit]').forEach((inputEl) => {
+    const id = inputEl.dataset.qtyEdit;
+    inputEl.addEventListener('input', () => {
+      inputEl.value = inputEl.value.replace(/[^0-9]/g, '');
+      const next = parseInt(inputEl.value, 10) || 0;
+      if (next > 0) configSelection[id] = next;
+      else delete configSelection[id];
+      onRerender();
+    });
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        inputEl.blur();
+      }
+    });
+    // Defer: DOM detach during re-render fires blur; ignore if a qty input is still focused.
+    inputEl.addEventListener('blur', () => {
+      setTimeout(() => {
+        if (document.activeElement?.matches?.('[data-qty-edit]')) return;
+        if (manualQtyEditKey == null) return;
+        clearManualQtyEdit();
+        onRerender();
+      }, 0);
+    });
+  });
+
+  const editEl = container.querySelector('[data-qty-edit]');
+  if (editEl) {
+    editEl.focus();
+    const len = editEl.value.length;
+    editEl.setSelectionRange(len, len);
+  }
+
+  container.querySelector(`#${confirmId}`)?.addEventListener('click', endManualAnd(onConfirm));
 }

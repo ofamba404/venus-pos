@@ -14,12 +14,14 @@ import {
 } from './delivery.js';
 import {
   deliveryPlaceFieldMarkup,
+  reverseGeocodeLabel,
   setDeliveryFieldValue,
   wireDeliveryPlacesInputs,
 } from './places-autocomplete.js';
 import { adjustStock, renderStockGlance } from './inventory.js';
 import {
   buildLineFromConfig,
+  clearManualQtyEdit,
   productDetailLabel,
   productPickButtonHtml,
   renderProductConfigView,
@@ -29,12 +31,14 @@ import {
 } from './product-config.js';
 import {
   animateCheckoutSuccess,
+  animateFlavorMeter,
   animateModalContent,
   closeModal,
   isModalOpen,
   openModal,
   pressButton,
   pulseFabBadge,
+  readFlavorMeterScale,
   wireGsapAccordions,
 } from './animations.js';
 import {
@@ -161,6 +165,7 @@ function renderOrderModal() {
   const prevMode = lastOrderModalMode;
   lastOrderModalMode = modalMode;
   const isCartRefresh = modalMode === 'cart' && prevMode === 'cart';
+  const isConfigRefresh = modalMode === 'config' && prevMode === 'config';
 
   if (modalMode === 'cart') renderCartView();
   else if (modalMode === 'pick') renderPickView();
@@ -170,7 +175,7 @@ function renderOrderModal() {
   const orderModal = document.getElementById('orderModal');
   const orderModalBody = document.getElementById('orderModalBody');
   if (orderModalBody) orderModalBody.dataset.mode = modalMode;
-  if (orderModalBody && modalMode !== 'success' && !isCartRefresh && isModalOpen(orderModal)) {
+  if (orderModalBody && modalMode !== 'success' && !isCartRefresh && !isConfigRefresh && isModalOpen(orderModal)) {
     animateModalContent(orderModalBody);
   }
 }
@@ -274,6 +279,7 @@ function renderSuccessView({ animate = true } = {}) {
 export function openOrderModal(productId) {
   configProduct = PRODUCTS.find((p) => p.id === productId);
   configSelection = {};
+  clearManualQtyEdit();
   modalMode = 'config';
   renderOrderModal();
   const orderModal = document.getElementById('orderModal');
@@ -328,6 +334,13 @@ function computeCheckoutDistance() {
   });
 }
 
+function updateCartDeliveryHint() {
+  const hint = document.querySelector('#orderModalBody [data-cart-delivery-hint]');
+  if (!hint) return;
+  hint.textContent =
+    checkoutDestText || checkoutPickupText || (checkoutFeeValue ? `${checkoutFeeValue} fee` : 'Optional');
+}
+
 function wireDeliveryAutocompletes() {
   wireDeliveryPlacesInputs(
     'deliveryPickupInput',
@@ -339,18 +352,21 @@ function wireDeliveryAutocompletes() {
       checkoutOrigin = { lat, lng };
       checkoutPickupText = label;
       setDeliveryFieldValue('deliveryPickupInput', label);
+      updateCartDeliveryHint();
       computeCheckoutDistance();
     },
     onDestSelect: ({ lat, lng, label }) => {
       checkoutDest = { lat, lng };
       checkoutDestText = label;
       setDeliveryFieldValue('deliveryDestInput', label);
+      updateCartDeliveryHint();
       computeCheckoutDistance();
     },
     onPickupFocus: () => {},
     onDestFocus: () => {},
     onPickupInput: (value) => {
       checkoutPickupText = value;
+      updateCartDeliveryHint();
       if (!value) {
         checkoutOrigin = null;
         checkoutDistanceKm = null;
@@ -359,6 +375,7 @@ function wireDeliveryAutocompletes() {
     },
     onDestInput: (value) => {
       checkoutDestText = value;
+      updateCartDeliveryHint();
       if (!value) {
         checkoutDest = null;
         checkoutDistanceKm = null;
@@ -373,15 +390,11 @@ function autoFillPickupLocation() {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       checkoutOrigin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      loadGoogleMaps(() => {
-        new google.maps.Geocoder().geocode({ location: checkoutOrigin }, (results, status) => {
-          checkoutPickupText =
-            status === 'OK' && results[0]
-              ? results[0].formatted_address
-              : `${checkoutOrigin.lat.toFixed(5)}, ${checkoutOrigin.lng.toFixed(5)}`;
-          setDeliveryFieldValue('deliveryPickupInput', checkoutPickupText);
-          computeCheckoutDistance();
-        });
+      reverseGeocodeLabel(checkoutOrigin, (label) => {
+        checkoutPickupText = label;
+        setDeliveryFieldValue('deliveryPickupInput', checkoutPickupText);
+        updateCartDeliveryHint();
+        computeCheckoutDistance();
       });
     },
     () => {},
@@ -393,10 +406,10 @@ function updateCartCheckoutState() {
   const cart = getCart();
   const orderClientName = getOrderClientName();
   const orderIsCredit = getOrderIsCredit();
-  const creditBlocked = orderIsCredit && !orderClientName;
+  const clientMissing = !orderClientName;
   const checkoutBtn = document.getElementById('checkoutBtn');
   if (checkoutBtn) {
-    checkoutBtn.disabled = !cart.length || creditBlocked;
+    checkoutBtn.disabled = !cart.length || clientMissing;
     checkoutBtn.textContent = orderIsCredit ? 'Record on credit' : 'Checkout';
   }
   const creditChip = document.getElementById('creditToggle');
@@ -404,8 +417,6 @@ function updateCartCheckoutState() {
     creditChip.classList.toggle('is-on', orderIsCredit);
     creditChip.setAttribute('aria-checked', orderIsCredit ? 'true' : 'false');
   }
-  const creditWarning = document.getElementById('cartCreditWarning');
-  if (creditWarning) creditWarning.hidden = !(orderIsCredit && !orderClientName);
 
   const totalVal = document.querySelector('#orderModalBody .cart-total-row .ct-val');
   if (totalVal) totalVal.textContent = fmtUGX(cartTotal(cart));
@@ -456,6 +467,7 @@ function wireCartItemButtons(root) {
       editingCartItem = { ...item, breakdown: { ...item.breakdown } };
       configProduct = PRODUCTS.find((p) => p.id === item.productId);
       configSelection = cartItemToConfigSelection(item);
+      clearManualQtyEdit();
       Object.entries(item.breakdown).forEach(([id, qty]) => {
         draftStock[id] += qty;
       });
@@ -523,10 +535,9 @@ function renderCartView() {
   const cart = getCart();
   const orderClientName = getOrderClientName();
   const orderIsCredit = getOrderIsCredit();
-  const creditBlocked = orderIsCredit && !orderClientName;
-  const hasDetails = Boolean(
-    orderClientName || orderIsCredit || checkoutPickupText || checkoutDestText || checkoutFeeValue,
-  );
+  const clientMissing = !orderClientName;
+  const hasDelivery = Boolean(checkoutPickupText || checkoutDestText || checkoutFeeValue);
+  const deliveryHint = checkoutDestText || checkoutPickupText || (checkoutFeeValue ? `${checkoutFeeValue} fee` : 'Optional');
 
   orderModalBody.innerHTML = `
     <div class="modal-header">
@@ -547,38 +558,39 @@ function renderCartView() {
         <div id="cartTotalSlot">${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}</div>
       </section>
 
-      <div class="cart-details" data-accordion data-accordion-id="cart-client-delivery"${hasDetails ? ' data-accordion-open="true"' : ''}>
+      <section class="cart-section cart-section--client">
+        <div class="client-picker">
+          <div class="client-picker__head">
+            <label for="cartClientInput">Client</label>
+            <button
+              type="button"
+              id="creditToggle"
+              class="credit-chip${orderIsCredit ? ' is-on' : ''}"
+              role="switch"
+              aria-checked="${orderIsCredit ? 'true' : 'false'}"
+              title="Record as unpaid credit sale (optional)"
+            >
+              <span class="credit-chip__dot" aria-hidden="true"></span>
+              <span class="credit-chip__text">Credit</span>
+            </button>
+          </div>
+          ${clientAutocompleteMarkup({
+            inputId: 'cartClientInput',
+            dropdownId: 'cartClientDropdown',
+            clearId: 'cartClientClear',
+            value: orderClientName,
+            placeholder: 'Search or type client name…',
+          })}
+        </div>
+      </section>
+
+      <div class="cart-details" data-accordion data-accordion-id="cart-delivery"${hasDelivery ? ' data-accordion-open="true"' : ''}>
         <button type="button" class="cart-details__summary" data-accordion-trigger>
-          <span class="cart-details__title">Client &amp; delivery</span>
-          <span class="cart-details__hint">${orderClientName ? escapeHtml(orderClientName) : 'Optional'}</span>
+          <span class="cart-details__title">Delivery</span>
+          <span class="cart-details__hint" data-cart-delivery-hint>${escapeHtml(deliveryHint)}</span>
         </button>
         <div class="cart-details__body" data-accordion-panel>
-          <div class="client-picker">
-            <div class="client-picker__head">
-              <label for="cartClientInput">Client</label>
-              <button
-                type="button"
-                id="creditToggle"
-                class="credit-chip${orderIsCredit ? ' is-on' : ''}"
-                role="switch"
-                aria-checked="${orderIsCredit ? 'true' : 'false'}"
-                title="Record as unpaid credit sale"
-              >
-                <span class="credit-chip__dot" aria-hidden="true"></span>
-                <span class="credit-chip__text">Credit</span>
-              </button>
-            </div>
-            ${clientAutocompleteMarkup({
-              inputId: 'cartClientInput',
-              dropdownId: 'cartClientDropdown',
-              clearId: 'cartClientClear',
-              value: orderClientName,
-              placeholder: 'Search or type a new name…',
-            })}
-            <div class="credit-warning" id="cartCreditWarning" ${orderIsCredit && !orderClientName ? '' : 'hidden'}>Select a client before recording credit</div>
-          </div>
           <div class="delivery-mini">
-            <div class="delivery-mini-label">Delivery</div>
             <div class="delivery-input-wrap pickup">
               ${deliveryPlaceFieldMarkup({
                 inputId: 'deliveryPickupInput',
@@ -608,7 +620,7 @@ function renderCartView() {
     </div>
     <div class="modal-btns cart-footer">
       <button class="modal-btn cancel" id="cancelOrderBtn" type="button">Cancel</button>
-      <button class="modal-btn confirm" id="checkoutBtn" ${cart.length && !creditBlocked ? '' : 'disabled'} type="button">${orderIsCredit ? 'Record on credit' : 'Checkout'}</button>
+      <button class="modal-btn confirm" id="checkoutBtn" ${cart.length && !clientMissing ? '' : 'disabled'} type="button">${orderIsCredit ? 'Record on credit' : 'Checkout'}</button>
     </div>`;
 
   wireGsapAccordions(orderModalBody);
@@ -618,7 +630,6 @@ function renderCartView() {
     dropdownId: 'cartClientDropdown',
     clearId: 'cartClientClear',
     showAllOnFocus: true,
-    maxResults: 8,
     onChange: (name, client) => {
       if (client) {
         setOrderClient(client);
@@ -632,8 +643,6 @@ function renderCartView() {
         setOrderMeta(meta);
       }
       updateCartCheckoutState();
-      const hint = orderModalBody.querySelector('.cart-details__hint');
-      if (hint) hint.textContent = name || 'Optional';
     },
   });
   document.getElementById('creditToggle')?.addEventListener('click', () => {
@@ -652,6 +661,7 @@ function renderCartView() {
   }
   document.getElementById('deliveryFeeInputCart')?.addEventListener('input', (e) => {
     checkoutFeeValue = e.target.value;
+    updateCartDeliveryHint();
   });
   document.getElementById('cancelOrderBtn')?.addEventListener('click', () => {
     setCart([]);
@@ -688,6 +698,7 @@ function renderPickView() {
     pressButton(row);
     configProduct = PRODUCTS.find((p) => p.id === productId);
     configSelection = {};
+    clearManualQtyEdit();
     modalMode = 'config';
     renderOrderModal();
   });
@@ -698,12 +709,43 @@ function renderConfigView() {
   const p = configProduct;
   if (!orderModalBody || !p) return;
 
+  const flavorList = orderModalBody.querySelector('.flavor-list');
+  const scrollTop = flavorList?.scrollTop ?? 0;
+  const activeFlavor = document.activeElement?.closest?.('[data-flavor]')?.dataset?.flavor;
+  const activeStep = document.activeElement?.matches?.('button.flavor-step')
+    ? document.activeElement.dataset.pdir
+    : null;
+  const prevMeter = orderModalBody.querySelector('.flavor-meter__fill');
+  const fromMeter = prevMeter ? readFlavorMeterScale(prevMeter) : 0;
+  const hadMeter = Boolean(prevMeter);
+
   orderModalBody.innerHTML = renderProductConfigView(p, configSelection, draftStock, Boolean(editingCartKey), {
     closeId: 'orderClose',
     backId: 'backBtn',
     confirmId: 'addToOrderBtn',
   });
   wireConfigEvents();
+
+  const nextList = orderModalBody.querySelector('.flavor-list');
+  if (nextList) nextList.scrollTop = scrollTop;
+
+  const qtyEdit = orderModalBody.querySelector('[data-qty-edit]');
+  if (qtyEdit) {
+    qtyEdit.focus({ preventScroll: true });
+    const len = qtyEdit.value.length;
+    qtyEdit.setSelectionRange(len, len);
+  } else if (activeFlavor != null) {
+    const sel = activeStep != null
+      ? `button.flavor-step[data-pick="${activeFlavor}"][data-pdir="${activeStep}"]`
+      : `[data-flavor="${activeFlavor}"]`;
+    orderModalBody.querySelector(sel)?.focus?.({ preventScroll: true });
+  }
+
+  const fill = orderModalBody.querySelector('.flavor-meter__fill');
+  if (fill) {
+    const toMeter = Math.max(0, Math.min(1, parseFloat(fill.dataset.meter) || 0));
+    animateFlavorMeter(fill, { from: hadMeter ? fromMeter : 0, to: toMeter });
+  }
 }
 
 function wireConfigEvents() {
@@ -844,6 +886,48 @@ async function finishCheckoutBackground({ clientId, orderClientName, deliverySna
   }
 }
 
+function showCheckoutSuccess({
+  cart,
+  total,
+  orderClientName,
+  orderIsCredit,
+  deliverySnapshot,
+}) {
+  lastCheckoutReceipt = {
+    items: cart.map((item) => ({
+      name: item.name,
+      detail: item.detail,
+      lineTotal: item.lineTotal,
+    })),
+    total,
+    clientName: orderClientName,
+    isCredit: orderIsCredit,
+    delivery: deliverySnapshot
+      ? {
+          pickup: deliverySnapshot.pickupText,
+          dest: deliverySnapshot.destText,
+          distanceKm: deliverySnapshot.distanceKm,
+          durationMin: deliverySnapshot.durationMin,
+          fee: deliverySnapshot.fee,
+          pending: true,
+        }
+      : null,
+    deliveryFailed: false,
+  };
+
+  setCart([]);
+  setOrderMeta({ clientName: '', clientId: '', isCredit: false });
+  resetCheckoutDelivery();
+  updateFabBadge();
+  renderStockGlance();
+
+  modalMode = 'success';
+
+  const orderModal = document.getElementById('orderModal');
+  if (orderModal && !isModalOpen(orderModal)) openModal(orderModal);
+  renderOrderModal();
+}
+
 async function checkout() {
   if (checkoutInFlight) return;
 
@@ -852,16 +936,11 @@ async function checkout() {
   const orderIsCredit = getOrderIsCredit();
 
   if (cart.length === 0) return;
-  if (orderIsCredit && !orderClientName) {
-    showToast('Select a client to record credit', true);
+  if (!orderClientName) {
+    showToast('Client name is required', true);
     return;
   }
 
-  const checkoutBtn = document.getElementById('checkoutBtn');
-  if (checkoutBtn) {
-    checkoutBtn.disabled = true;
-    checkoutBtn.textContent = 'Recording…';
-  }
   checkoutInFlight = true;
 
   const mergedBreakdown = {};
@@ -881,6 +960,7 @@ async function checkout() {
       if (el) el.textContent = inventory[id];
     }
     resetDraftStock();
+    renderStockGlance();
 
     const [, clientId] = await Promise.all([
       patchInventoryRemote(inventoryIds),
@@ -928,36 +1008,13 @@ async function checkout() {
         }
       : null;
 
-    lastCheckoutReceipt = {
-      items: cart.map((item) => ({
-        name: item.name,
-        detail: item.detail,
-        lineTotal: item.lineTotal,
-      })),
+    showCheckoutSuccess({
+      cart,
       total,
-      clientName: orderClientName,
-      isCredit: orderIsCredit,
-      delivery: deliverySnapshot
-        ? {
-            pickup: deliverySnapshot.pickupText,
-            dest: deliverySnapshot.destText,
-            distanceKm: deliverySnapshot.distanceKm,
-            durationMin: deliverySnapshot.durationMin,
-            fee: deliverySnapshot.fee,
-            pending: true,
-          }
-        : null,
-      deliveryFailed: false,
-    };
-
-    setCart([]);
-    setOrderMeta({ clientName: '', clientId: '', isCredit: false });
-    resetCheckoutDelivery();
-    updateFabBadge();
-    renderStockGlance();
-
-    modalMode = 'success';
-    renderOrderModal();
+      orderClientName,
+      orderIsCredit,
+      deliverySnapshot,
+    });
 
     void finishCheckoutBackground({
       clientId,

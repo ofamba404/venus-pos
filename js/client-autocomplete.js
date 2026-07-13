@@ -26,7 +26,6 @@ export function wireClientAutocomplete({
   clearId,
   onChange,
   showAllOnFocus = false,
-  maxResults = 6,
 }) {
   const input = document.getElementById(inputId);
   const dropdown = document.getElementById(dropdownId);
@@ -108,11 +107,11 @@ export function wireClientAutocomplete({
         hide();
         return;
       }
-      renderDropdownRows(filterClients('').slice(0, maxResults), '', false);
+      renderDropdownRows(filterClients(''), '', false);
       return;
     }
 
-    const filtered = filterClients(trimmed).slice(0, maxResults);
+    const filtered = filterClients(trimmed);
     const exact = findClientByName(trimmed);
     const showCreate = !exact;
 

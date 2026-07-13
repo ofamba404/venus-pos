@@ -339,6 +339,9 @@ export function animateCheckoutSuccess(container) {
     '.checkout-success-badges, .checkout-receipt-item, .checkout-delivery-summary, .checkout-success-footer',
   );
 
+  gsap().killTweensOf([hero, ...items].filter(Boolean));
+  gsap().set([hero, ...items].filter(Boolean), { clearProps: 'opacity,transform' });
+
   if (hero) {
     gsap().from(hero, {
       y: 8,
@@ -379,6 +382,45 @@ export function animateModalContent(container) {
   });
 }
 
+/** Animate the pack flavor meter fill between selection ratios (0–1). */
+export function animateFlavorMeter(fill, { from = 0, to = 0 } = {}) {
+  if (!fill) return;
+  const start = Math.max(0, Math.min(1, Number(from) || 0));
+  const end = Math.max(0, Math.min(1, Number(to) || 0));
+
+  if (!hasGsap() || prefersReducedMotion()) {
+    fill.style.transform = `scaleX(${end})`;
+    fill.style.transformOrigin = 'left center';
+    return;
+  }
+
+  gsap().killTweensOf(fill);
+  gsap().fromTo(
+    fill,
+    { scaleX: start, transformOrigin: 'left center' },
+    { scaleX: end, duration: 0.38, ease: 'power2.out', overwrite: 'auto' },
+  );
+}
+
+function readTransformScaleX(el) {
+  if (!el) return 0;
+  if (hasGsap()) {
+    const v = gsap().getProperty(el, 'scaleX');
+    if (typeof v === 'number' && !Number.isNaN(v)) return v;
+  }
+  const t = getComputedStyle(el).transform;
+  if (!t || t === 'none') return 0;
+  const m = t.match(/^matrix\(([^)]+)\)$/);
+  if (m) return parseFloat(m[1].split(',')[0]) || 0;
+  const m3 = t.match(/^matrix3d\(([^)]+)\)$/);
+  if (m3) return parseFloat(m3[1].split(',')[0]) || 0;
+  return 0;
+}
+
+export function readFlavorMeterScale(fill) {
+  return readTransformScaleX(fill);
+}
+
 /** Content transition inside an already-open dialog (mode switches only). */
 export function animateCartSheetContent(container) {
   if (!container || !hasGsap() || prefersReducedMotion()) return;
@@ -395,10 +437,30 @@ export function animateCartSheetContent(container) {
 export function animateDropdown(panel, open, { contentUpdate = false } = {}) {
   if (!panel) return;
 
+  const enableDropdownScroll = () => {
+    gsap().set(panel, {
+      height: 'auto',
+      opacity: 1,
+      display: 'flex',
+      pointerEvents: 'auto',
+      clearProps: 'overflow',
+    });
+    panel.style.overflowX = 'hidden';
+    panel.style.overflowY = 'auto';
+  };
+
   if (!hasGsap() || prefersReducedMotion()) {
     panel.classList.toggle('open', open);
-    panel.style.overflowY = open ? 'auto' : '';
-    if (open) refreshDropdownAncestors(panel);
+    if (open) {
+      panel.style.height = 'auto';
+      panel.style.overflowX = 'hidden';
+      panel.style.overflowY = 'auto';
+      refreshDropdownAncestors(panel);
+    } else {
+      panel.style.height = '';
+      panel.style.overflowX = '';
+      panel.style.overflowY = '';
+    }
     return;
   }
 
@@ -409,32 +471,43 @@ export function animateDropdown(panel, open, { contentUpdate = false } = {}) {
     panel.classList.add('open');
 
     if (contentUpdate && alreadyOpen) {
-      gsap().set(panel, {
-        display: 'flex',
-        height: 'auto',
-        opacity: 1,
-        overflowY: 'auto',
-        pointerEvents: 'auto',
-      });
+      enableDropdownScroll();
       refreshDropdownAncestors(panel);
       return;
     }
 
+    const maxHeight = parseFloat(getComputedStyle(panel).maxHeight);
+    gsap().set(panel, {
+      display: 'flex',
+      overflow: 'hidden',
+      pointerEvents: 'none',
+      height: 'auto',
+      opacity: 0,
+    });
+    const contentHeight = panel.scrollHeight;
+    const targetHeight =
+      Number.isFinite(maxHeight) && maxHeight > 0 ? Math.min(contentHeight, maxHeight) : contentHeight;
+
     gsap()
       .timeline()
-      .set(panel, { overflow: 'hidden', pointerEvents: 'none', display: 'flex' })
-      .fromTo(
-        panel,
-        { height: 0, opacity: 0 },
-        { height: 'auto', duration: ACCORDION_HEIGHT_DURATION, ease: ACCORDION_HEIGHT_EASE },
-      )
+      .set(panel, { height: 0 })
+      .to(panel, {
+        height: targetHeight,
+        duration: ACCORDION_HEIGHT_DURATION,
+        ease: ACCORDION_HEIGHT_EASE,
+      })
       .to(
         panel,
-        { opacity: 1, duration: ACCORDION_FADE_DURATION, ease: ACCORDION_FADE_EASE, pointerEvents: 'auto' },
+        {
+          opacity: 1,
+          duration: ACCORDION_FADE_DURATION,
+          ease: ACCORDION_FADE_EASE,
+          pointerEvents: 'auto',
+        },
         ACCORDION_FADE_DELAY,
       )
       .call(() => {
-        gsap().set(panel, { overflowY: 'auto' });
+        enableDropdownScroll();
         refreshDropdownAncestors(panel);
       });
     return;
@@ -447,7 +520,7 @@ export function animateDropdown(panel, open, { contentUpdate = false } = {}) {
     .to(panel, { height: 0, duration: ACCORDION_HEIGHT_DURATION * 0.85, ease: ACCORDION_HEIGHT_EASE }, 0.04)
     .call(() => {
       panel.classList.remove('open');
-      gsap().set(panel, { clearProps: 'height,opacity,overflow,overflowY,pointerEvents' });
+      gsap().set(panel, { clearProps: 'height,opacity,overflow,overflowX,overflowY,pointerEvents' });
     });
 }
 

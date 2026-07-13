@@ -67,6 +67,94 @@ export function clearPlaceAutocompleteWidgets() {
   activeWidgets.length = 0;
 }
 
+const GEOCODE_LOCATION_RANK = {
+  ROOFTOP: 0,
+  RANGE_INTERPOLATED: 1,
+  GEOMETRIC_CENTER: 2,
+  APPROXIMATE: 3,
+};
+
+const GEOCODE_TYPE_RANK = [
+  'street_address',
+  'premise',
+  'subpremise',
+  'point_of_interest',
+  'establishment',
+  'intersection',
+  'route',
+  'plus_code',
+  'neighborhood',
+  'sublocality_level_1',
+  'sublocality',
+  'locality',
+];
+
+function geocodeTypeRank(result) {
+  const types = result?.types || [];
+  let best = GEOCODE_TYPE_RANK.length;
+  for (const type of types) {
+    const idx = GEOCODE_TYPE_RANK.indexOf(type);
+    if (idx !== -1 && idx < best) best = idx;
+  }
+  return best;
+}
+
+function pickBestGeocodeResult(results) {
+  if (!results?.length) return null;
+  return [...results].sort((a, b) => {
+    const locDiff =
+      (GEOCODE_LOCATION_RANK[a.geometry?.location_type] ?? 9) -
+      (GEOCODE_LOCATION_RANK[b.geometry?.location_type] ?? 9);
+    if (locDiff !== 0) return locDiff;
+    return geocodeTypeRank(a) - geocodeTypeRank(b);
+  })[0];
+}
+
+function isCoarseGeocodeResult(result) {
+  if (!result) return true;
+  if (result.geometry?.location_type === 'APPROXIMATE') {
+    const types = result.types || [];
+    return !types.some((t) =>
+      ['street_address', 'premise', 'subpremise', 'route', 'intersection', 'plus_code'].includes(t),
+    );
+  }
+  return false;
+}
+
+function plusCodeLabel(results) {
+  const plus = results?.find((r) => (r.types || []).includes('plus_code'));
+  return plus?.formatted_address || '';
+}
+
+/**
+ * Reverse-geocode coords → human label, preferring rooftop/street-level
+ * results (and Plus Codes when Google only has a coarse area name).
+ */
+export function reverseGeocodeLabel(latLng, cb) {
+  loadGoogleMaps(() => {
+    const fallback = `${Number(latLng.lat).toFixed(5)}, ${Number(latLng.lng).toFixed(5)}`;
+    try {
+      new google.maps.Geocoder().geocode({ location: latLng }, (results, status) => {
+        if (status !== 'OK' || !results?.length) {
+          cb(fallback);
+          return;
+        }
+
+        const best = pickBestGeocodeResult(results);
+        const plus = plusCodeLabel(results);
+        if (isCoarseGeocodeResult(best) && plus) {
+          cb(plus);
+          return;
+        }
+        cb(best?.formatted_address || plus || fallback);
+      });
+    } catch (err) {
+      logDebug(`Reverse geocode failed: ${err?.message || err}`);
+      cb(fallback);
+    }
+  });
+}
+
 function resolveDeliveryInput(id) {
   const el = document.getElementById(id);
   if (!el || el.tagName !== 'INPUT') return null;

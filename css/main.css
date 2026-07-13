@@ -2133,21 +2133,23 @@
 
   body.has-gsap .client-autocomplete-dropdown {
     display: flex;
-    overflow: hidden;
     will-change: height, opacity;
   }
 
   body.has-gsap .client-autocomplete-dropdown:not(.open) {
     height: 0;
     opacity: 0;
+    overflow: hidden;
     pointer-events: none;
   }
 
   body.has-gsap .client-autocomplete-dropdown.open {
+    overflow-x: hidden;
     overflow-y: auto;
   }
 
   .client-ac-row {
+    flex-shrink: 0;
     width: 100%;
     text-align: left;
     background: none;
@@ -2328,6 +2330,27 @@
     box-shadow:
       inset 0 0 0 1px color-mix(in srgb, #fb7185 45%, transparent),
       0 0 0 3px color-mix(in srgb, #fb7185 14%, transparent);
+  }
+
+  button.credit-chip.credit-chip--cleared {
+    margin-top: 8px;
+  }
+
+  button.credit-chip.credit-chip--cleared.is-on {
+    color: color-mix(in srgb, var(--jade) 85%, #0f172a);
+    background: color-mix(in srgb, var(--jade) 12%, var(--surface));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jade) 32%, transparent);
+  }
+
+  button.credit-chip.credit-chip--cleared.is-on .credit-chip__dot {
+    background: var(--jade);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jade) 16%, transparent);
+  }
+
+  button.credit-chip.credit-chip--cleared.is-on:focus-visible {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--jade) 45%, transparent),
+      0 0 0 3px var(--jade-dim);
   }
 
   .client-picker input {
@@ -2874,9 +2897,8 @@
     width: 100%;
     border-radius: inherit;
     background: linear-gradient(90deg, color-mix(in srgb, var(--jade) 70%, #34d399), var(--jade));
-    transform: scaleX(var(--meter, 0));
+    transform: scaleX(0);
     transform-origin: left center;
-    transition: transform 0.22s ease;
   }
 
   .flavor-list {
@@ -2889,7 +2911,7 @@
   .flavor-row,
   .flavor-fixed {
     display: grid;
-    grid-template-columns: 36px 1fr auto;
+    grid-template-columns: 26px 1fr auto;
     align-items: center;
     gap: 12px;
     padding: 10px 8px;
@@ -2898,7 +2920,7 @@
   }
 
   .flavor-row.is-active {
-    background: color-mix(in srgb, var(--flavor) 9%, transparent);
+    background: color-mix(in srgb, var(--flavor-accent, var(--flavor)) 14%, transparent);
   }
 
   .flavor-row.is-out {
@@ -2907,35 +2929,28 @@
 
   .flavor-orb {
     position: relative;
-    width: 36px;
-    height: 36px;
+    width: 26px;
+    height: 26px;
     flex-shrink: 0;
   }
 
   .flavor-orb__glow {
-    position: absolute;
-    inset: -3px;
-    border-radius: 50%;
-    background: radial-gradient(circle, color-mix(in srgb, var(--flavor) 38%, transparent), transparent 68%);
-    opacity: 0;
-    transition: opacity 0.18s ease;
-  }
-
-  .flavor-row.is-active .flavor-orb__glow,
-  .flavor-fixed:not(.is-out) .flavor-orb__glow {
-    opacity: 1;
+    display: none;
   }
 
   .flavor-orb__core {
     position: absolute;
-    inset: 4px;
+    inset: 0;
     border-radius: 50%;
-    background:
-      radial-gradient(circle at 32% 28%, color-mix(in srgb, #fff 55%, transparent), transparent 42%),
-      var(--flavor);
+    background: var(--flavor);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--flavor-accent, var(--flavor)) 42%, rgba(15, 23, 42, 0.22));
+  }
+
+  .flavor-row.is-active .flavor-orb__core,
+  .flavor-fixed:not(.is-out) .flavor-orb__core {
     box-shadow:
-      inset 0 0 0 1px rgba(15, 23, 42, 0.08),
-      0 1px 2px rgba(15, 23, 42, 0.08);
+      0 0 0 2px color-mix(in srgb, var(--flavor-accent, var(--flavor)) 50%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--flavor-accent, var(--flavor)) 35%, rgba(15, 23, 42, 0.18));
   }
 
   .flavor-row__meta {
@@ -2967,7 +2982,7 @@
   }
 
   .flavor-row.is-active .flavor-stepper {
-    background: color-mix(in srgb, var(--flavor) 14%, var(--surface));
+    background: color-mix(in srgb, var(--flavor-accent, var(--flavor)) 18%, var(--surface));
   }
 
   .flavor-count {
@@ -2983,6 +2998,59 @@
 
   .flavor-row.is-active .flavor-count {
     color: var(--text);
+  }
+
+  button.flavor-count--tap {
+    min-width: 1.5rem;
+    margin: 0;
+    padding: 4px 2px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--text-dim);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .flavor-row.is-active button.flavor-count--tap {
+    color: var(--text);
+  }
+
+  button.flavor-count--tap:focus-visible {
+    outline: 2px solid var(--jade);
+    outline-offset: 1px;
+  }
+
+  .flavor-stepper .flavor-qty-input {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 32px;
+    margin: 0 1px;
+    padding: 0 2px;
+    border: none;
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 700;
+    text-align: center;
+    box-sizing: border-box;
+  }
+
+  .flavor-row.is-active .flavor-stepper .flavor-qty-input {
+    background: color-mix(in srgb, var(--flavor-accent, var(--flavor)) 22%, var(--surface));
+  }
+
+  .flavor-stepper .flavor-qty-input:focus {
+    outline: 2px solid var(--jade);
+    outline-offset: 0;
   }
 
   button.flavor-step {
@@ -3023,19 +3091,6 @@
     opacity: 0.28;
     cursor: default;
     box-shadow: none;
-  }
-
-  .flavor-row--input .flavor-qty-input {
-    width: 56px;
-    height: 36px;
-    border-radius: 999px;
-    border: none;
-    background: var(--surface-overlay);
-    font-size: 16px;
-  }
-
-  .flavor-row--input.is-active .flavor-qty-input {
-    background: color-mix(in srgb, var(--flavor) 14%, var(--surface));
   }
 
   .flavor-fixed {
@@ -4006,17 +4061,18 @@
 
   body.has-gsap .delivery-place-dropdown {
     display: flex;
-    overflow: hidden;
     will-change: height, opacity;
   }
 
   body.has-gsap .delivery-place-dropdown:not(.open) {
     height: 0;
     opacity: 0;
+    overflow: hidden;
     pointer-events: none;
   }
 
   body.has-gsap .delivery-place-dropdown.open {
+    overflow-x: hidden;
     overflow-y: auto;
   }
 
@@ -4406,8 +4462,6 @@
   .modal[data-mode="config"] > .modal-price,
   .modal[data-mode="config"] > .flavor-meter,
   .modal[data-mode="config"] > .modal-progress,
-  .modal[data-mode="config"] > .qty-input,
-  .modal[data-mode="config"] > .qty-mini-input,
   .modal[data-mode="config"] > .flavor-fixed,
   .modal[data-mode="config"] > #qtyLinePrice {
     margin-left: 20px;
@@ -4525,8 +4579,8 @@
     padding: 0 16px 16px;
   }
 
-  .modal[data-mode="cart"] .client-picker {
-    margin-bottom: 14px;
+  .modal[data-mode="cart"] .cart-section--client .client-picker {
+    margin-bottom: 0;
   }
 
   .modal[data-mode="cart"] .client-picker label[for] {
@@ -4553,16 +4607,6 @@
 
   .modal[data-mode="cart"] .delivery-mini {
     margin: 0;
-    padding-top: 12px;
-    border-top: 1px solid color-mix(in srgb, var(--panel-edge) 70%, transparent);
-  }
-
-  .modal[data-mode="cart"] .delivery-mini-label {
-    font-family: var(--font-sans);
-    font-size: 11px;
-    letter-spacing: 0.02em;
-    text-transform: none;
-    margin-bottom: 8px;
   }
 
   .add-item-btn {

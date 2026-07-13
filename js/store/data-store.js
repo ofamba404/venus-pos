@@ -49,7 +49,9 @@ function serializeEntity(entity) {
     case 'inventory':
       return inventoryRowsFromState(inventory);
     default:
-      return get(entity);
+      // Copy so persist → applyEntity cannot wipe the live cache
+      // when rows and the target array are the same reference.
+      return [...get(entity)];
   }
 }
 

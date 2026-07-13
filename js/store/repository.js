@@ -36,19 +36,23 @@ export function applyInventoryRows(inventory, draftStock, rows) {
   });
 }
 
+function replaceArrayContents(target, rows) {
+  // persistCurrent passes the live array — copy first so wipe isn't self-destructive
+  const next = rows === target ? rows.slice() : rows;
+  target.length = 0;
+  target.push(...next);
+}
+
 export function applySales(salesCache, rows) {
-  salesCache.length = 0;
-  salesCache.push(...rows);
+  replaceArrayContents(salesCache, rows);
 }
 
 export function applyClients(clients, rows) {
-  clients.length = 0;
-  clients.push(...rows);
+  replaceArrayContents(clients, rows);
 }
 
 export function applyDeliveries(deliveries, rows) {
-  deliveries.length = 0;
-  deliveries.push(...rows);
+  replaceArrayContents(deliveries, rows);
 }
 
 export function hasEntityData(entity, { salesCache, inventory, clients, deliveries }) {
