@@ -58,7 +58,7 @@ export function barRowPlaceholders(count = 4, wideLabel = false) {
     () => `
     <div class="bar-row bar-row--placeholder" aria-hidden="true">
       <div class="bar-label${wideLabel ? ' wide' : ''} is-pending">${pt(wideLabel)}</div>
-      <div class="bar-track"><div class="bar-fill is-pending" style="width:35%"></div></div>
+      <div class="bar-track"><div class="bar-fill is-pending" style="width:100%;transform:scaleX(0.35);transform-origin:left center"></div></div>
       <div class="bar-value is-pending">${pt()}</div>
     </div>`,
   ).join('');
@@ -170,7 +170,7 @@ export function analyticsOverviewPlaceholder() {
           <span class="ao-tile-pill is-pending">${pt()}</span>
         </div>
         <div class="ao-tile-value is-pending">${pt()}</div>
-        <div class="ao-tile-track"><div class="ao-tile-fill is-pending" style="width:40%"></div></div>
+        <div class="ao-tile-track"><div class="ao-tile-fill is-pending" style="width:100%;transform:scaleX(0.4);transform-origin:left center"></div></div>
       </div>
       <div class="ao-tile">
         <div class="ao-tile-top">

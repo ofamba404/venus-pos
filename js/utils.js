@@ -26,16 +26,28 @@ export function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-import { animateToastIn, animateToastOut, closeModal, closeSheetModal, openModal, openSheetModal, registerSheetModal } from './animations.js';
+import { animateToastIn, animateToastOut, closeModal, isModalOpen, openModal } from './animations.js';
+
+const TOAST_ICON_OK = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>`;
+const TOAST_ICON_ERR = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>`;
 
 export function showToast(msg, isError = false) {
   const t = document.getElementById('toast');
   if (!t) return;
-  t.textContent = msg;
+  const icon = t.querySelector('.toast-icon');
+  const text = t.querySelector('.toast-msg') || t;
+  const tone = isError ? 'error' : 'success';
+
+  t.hidden = false;
+  t.dataset.tone = tone;
   t.classList.toggle('error', isError);
+  t.setAttribute('aria-live', isError ? 'assertive' : 'polite');
+  if (icon) icon.innerHTML = isError ? TOAST_ICON_ERR : TOAST_ICON_OK;
+  text.textContent = msg;
+
   animateToastIn(t);
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => animateToastOut(t), 2200);
+  showToast._t = setTimeout(() => animateToastOut(t), isError ? 3200 : 2600);
 }
 
 let confirmResolve = null;
@@ -75,18 +87,17 @@ export function wireConfirmDialog() {
 
 export function openEditModal() {
   const overlay = document.getElementById('editOverlay');
-  if (overlay) openSheetModal(overlay);
+  if (overlay) openModal(overlay);
 }
 
 export function closeEditModal() {
   const overlay = document.getElementById('editOverlay');
-  if (overlay) closeSheetModal(overlay);
+  if (overlay) closeModal(overlay);
 }
 
 export function wireEditOverlay() {
   const overlay = document.getElementById('editOverlay');
   if (!overlay) return;
-  registerSheetModal(overlay, { onDismiss: closeEditModal });
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closeEditModal();
   });

@@ -16,6 +16,46 @@ export function productDetailLabel(p) {
   return `${p.joints} joint${p.joints > 1 ? 's' : ''}`;
 }
 
+const PACK_PRODUCTS = PRODUCTS.filter((p) => p.rule === 'choose_any' || p.rule === 'choose_variety');
+const SINGLE_PRODUCTS = PRODUCTS.filter((p) => p.rule === 'single_qty' || p.rule === 'spliff_qty');
+
+export function productPickButtonHtml(p) {
+  return `
+    <button class="product-row pick-product-card" type="button" data-product="${p.id}">
+      <div class="pick-product-card__main">
+        <div class="pname">${escapeHtml(p.name)}</div>
+        <div class="pcount">${productDetailLabel(p)}</div>
+      </div>
+      <div class="p-right">
+        <div class="pprice">${fmtUGX(p.price || p.unitPrice)}</div>
+      </div>
+    </button>`;
+}
+
+export function renderProductPickPanel() {
+  return `
+    <div class="pick-product-panel">
+      <section class="pick-product-section" aria-label="Packs">
+        <div class="pick-product-section-label">Packs</div>
+        <div class="pick-product-list">
+          ${PACK_PRODUCTS.map(productPickButtonHtml).join('')}
+        </div>
+      </section>
+      <section class="pick-product-section" aria-label="Singles">
+        <div class="pick-product-section-label">Singles</div>
+        <div class="pick-product-grid">
+          ${SINGLE_PRODUCTS.map(productPickButtonHtml).join('')}
+        </div>
+      </section>
+    </div>`;
+}
+
+export function wireProductPickButtons(root, onPick) {
+  root.querySelectorAll('[data-product]').forEach((row) => {
+    row.addEventListener('click', () => onPick(row.dataset.product, row));
+  });
+}
+
 export function breakdownToConfigSelection(product, breakdown) {
   if (!product) return {};
   if (product.rule === 'choose_any' || product.rule === 'spliff_qty') return { ...(breakdown || {}) };
@@ -70,137 +110,209 @@ export function buildLineFromConfig(product, configSelection) {
   return { breakdown, lineTotal, detail };
 }
 
-export function renderProductPickList() {
-  let inner = `
+export function renderProductPickList({ backId = 'productPickBack', backLabel = 'Back' } = {}) {
+  return `
     <div class="modal-header">
       <div class="modal-title">Add item</div>
       <button class="modal-close" id="productPickClose" type="button">✕</button>
+    </div>
+    ${renderProductPickPanel()}
+    <div class="modal-btns pick-footer">
+      <button class="modal-btn cancel" id="${backId}" type="button">${backLabel}</button>
     </div>`;
-  inner += PRODUCTS.map(
-    (p) => `
-    <div class="pick-product-row" data-product="${p.id}">
-      <div>
-        <div class="ppr-name">${escapeHtml(p.name)}</div>
-        <div class="pick-stock">${productDetailLabel(p)}</div>
-      </div>
-      <div class="ppr-price">${fmtUGX(p.price || p.unitPrice)}</div>
-    </div>`,
-  ).join('');
-  return inner;
 }
 
-export function renderProductConfigView(product, configSelection, draftStock, isEditing = false) {
+function jointSlotsHtml(selected, target) {
+  const pct = target > 0 ? Math.min(100, (selected / target) * 100) : 0;
+  return `
+    <div class="flavor-meter" role="status" aria-live="polite" aria-label="${selected} of ${target} joints selected">
+      <div class="flavor-meter__copy">
+        <span class="flavor-meter__count">${selected}</span>
+        <span class="flavor-meter__of">of ${target}</span>
+      </div>
+      <div class="flavor-meter__track">
+        <div class="flavor-meter__fill" style="--meter:${(pct / 100).toFixed(3)}"></div>
+      </div>
+    </div>`;
+}
+
+function flavorSwatchHtml({ id, label, color, chosen, stock, canAdd, canRemove }) {
+  const active = chosen > 0;
+  const out = stock <= 0;
+  return `
+    <div class="flavor-row${active ? ' is-active' : ''}${out ? ' is-out' : ''}" style="--flavor:${color}" data-flavor="${id}">
+      <div class="flavor-orb" aria-hidden="true">
+        <span class="flavor-orb__glow"></span>
+        <span class="flavor-orb__core"></span>
+      </div>
+      <div class="flavor-row__meta">
+        <div class="flavor-row__name">${escapeHtml(label)}</div>
+        <div class="flavor-row__stock">${out ? 'Out of stock' : `${stock} available`}</div>
+      </div>
+      <div class="flavor-stepper" role="group" aria-label="${escapeHtml(label)} quantity">
+        <button class="flavor-step" data-pick="${id}" data-pdir="-1" ${canRemove ? '' : 'disabled'} type="button" aria-label="Remove ${escapeHtml(label)}">−</button>
+        <span class="flavor-count" aria-live="polite">${chosen}</span>
+        <button class="flavor-step flavor-step--add" data-pick="${id}" data-pdir="1" ${canAdd ? '' : 'disabled'} type="button" aria-label="Add ${escapeHtml(label)}">+</button>
+      </div>
+    </div>`;
+}
+
+function flavorPaletteHtml(configSelection, draftStock, target) {
+  const selected = configTotalSelected(configSelection);
+  const remaining = target - selected;
+  return `
+    <div class="flavor-list">
+      ${FLAVOR_POOL.map((id) => {
+        const cat = CAT_MAP[id];
+        const chosen = configSelection[id] || 0;
+        const stock = draftStock[id] || 0;
+        return flavorSwatchHtml({
+          id,
+          label: cat.name,
+          color: cat.color,
+          chosen,
+          stock,
+          canAdd: remaining > 0 && chosen < stock,
+          canRemove: chosen > 0,
+        });
+      }).join('')}
+    </div>`;
+}
+
+function configFooterHtml({ ready, isEditing, closeId, backId, confirmId, confirmLabel }) {
+  return `
+    <div class="modal-btns config-footer">
+      <button class="modal-btn cancel" id="${backId}" type="button">Back</button>
+      <button class="modal-btn confirm" id="${confirmId}" ${ready ? '' : 'disabled'} type="button">${confirmLabel || (isEditing ? 'Save changes' : 'Add to order')}</button>
+    </div>`;
+}
+
+export function renderProductConfigView(
+  product,
+  configSelection,
+  draftStock,
+  isEditing = false,
+  {
+    closeId = 'productConfigClose',
+    backId = 'productConfigBack',
+    confirmId = 'productConfigConfirm',
+  } = {},
+) {
   if (!product) return '';
 
   let inner = `
     <div class="modal-header">
       <div class="modal-title">${isEditing ? `Edit — ${escapeHtml(product.name)}` : escapeHtml(product.name)}</div>
-      <button class="modal-close" id="productConfigClose" type="button">✕</button>
+      <button class="modal-close" id="${closeId}" type="button">✕</button>
     </div>`;
 
   if (product.rule === 'choose_any') {
+    const selected = configTotalSelected(configSelection);
     inner += `<div class="modal-price">${fmtUGX(product.price)}</div>`;
-    inner += `<div class="modal-progress">Selected ${configTotalSelected(configSelection)} / ${product.joints}</div>`;
-    FLAVOR_POOL.forEach((id) => {
-      const cat = CAT_MAP[id];
-      const chosen = configSelection[id] || 0;
-      const remaining = product.joints - configTotalSelected(configSelection);
-      const canAdd = remaining > 0 && chosen < draftStock[id];
-      const canRemove = chosen > 0;
-      inner += `
-        <div class="pick-row">
-          <div class="pick-info">
-            <span class="dot" style="background:${cat.color}"></span>
-            <span class="pick-name">${cat.name}</span>
-            <span class="pick-stock">(${draftStock[id]} in stock)</span>
-          </div>
-          <div class="pick-controls">
-            <button class="mini-step" data-pick="${id}" data-pdir="-1" ${canRemove ? '' : 'disabled'} type="button">–</button>
-            <span class="mini-count">${chosen}</span>
-            <button class="mini-step" data-pick="${id}" data-pdir="1" ${canAdd ? '' : 'disabled'} type="button">+</button>
-          </div>
-        </div>`;
+    inner += jointSlotsHtml(selected, product.joints);
+    inner += flavorPaletteHtml(configSelection, draftStock, product.joints);
+    inner += configFooterHtml({
+      ready: selected === product.joints,
+      isEditing,
+      closeId,
+      backId,
+      confirmId,
     });
-    const ready = configTotalSelected(configSelection) === product.joints;
-    inner += `<div class="modal-btns">
-      <button class="modal-btn cancel" id="productConfigBack" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="productConfigConfirm" ${ready ? '' : 'disabled'} type="button">${isEditing ? 'Save changes' : 'Add to order'}</button>
-    </div>`;
   } else if (product.rule === 'choose_variety') {
-    inner += `<div class="modal-price">${fmtUGX(product.price)}</div>`;
     const flavorTarget = product.joints - 1;
     const flavorSelected = configTotalSelected(configSelection);
-    inner += `<div class="modal-progress">Selected ${flavorSelected} / ${flavorTarget} flavors</div>`;
-    FLAVOR_POOL.forEach((id) => {
-      const cat = CAT_MAP[id];
-      const chosen = configSelection[id] || 0;
-      const remaining = flavorTarget - flavorSelected;
-      const canAdd = remaining > 0 && chosen < draftStock[id];
-      const canRemove = chosen > 0;
-      inner += `
-        <div class="pick-row">
-          <div class="pick-info">
-            <span class="dot" style="background:${cat.color}"></span>
-            <span class="pick-name">${cat.name}</span>
-            <span class="pick-stock">(${draftStock[id]} in stock)</span>
-          </div>
-          <div class="pick-controls">
-            <button class="mini-step" data-pick="${id}" data-pdir="-1" ${canRemove ? '' : 'disabled'} type="button">–</button>
-            <span class="mini-count">${chosen}</span>
-            <button class="mini-step" data-pick="${id}" data-pdir="1" ${canAdd ? '' : 'disabled'} type="button">+</button>
-          </div>
-        </div>`;
+    const plainOk = (draftStock.classic || 0) >= 1;
+    const plain = CAT_MAP.classic;
+    inner += `<div class="modal-price">${fmtUGX(product.price)}</div>`;
+    inner += jointSlotsHtml(flavorSelected, flavorTarget);
+    inner += flavorPaletteHtml(configSelection, draftStock, flavorTarget);
+    inner += `
+      <div class="flavor-fixed${plainOk ? '' : ' is-out'}" style="--flavor:${plain.color}">
+        <div class="flavor-orb" aria-hidden="true">
+          <span class="flavor-orb__glow"></span>
+          <span class="flavor-orb__core"></span>
+        </div>
+        <div class="flavor-row__meta">
+          <div class="flavor-row__name">Plain</div>
+          <div class="flavor-row__stock">Always included</div>
+        </div>
+        <span class="flavor-fixed__badge ${plainOk ? 'ok' : 'no'}">${plainOk ? '×1' : 'Out'}</span>
+      </div>`;
+    inner += configFooterHtml({
+      ready: flavorSelected === flavorTarget && plainOk,
+      isEditing,
+      closeId,
+      backId,
+      confirmId,
     });
-    const plainOk = draftStock.classic >= 1;
-    inner += `<div class="fixed-item"><span>Plain <span class="pick-stock">(fixed)</span></span><span class="${plainOk ? 'ok' : 'no'}">${plainOk ? '1 included' : 'out of stock'}</span></div>`;
-    const ready = flavorSelected === flavorTarget && plainOk;
-    inner += `<div class="modal-btns">
-      <button class="modal-btn cancel" id="productConfigBack" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="productConfigConfirm" ${ready ? '' : 'disabled'} type="button">${isEditing ? 'Save changes' : 'Add to order'}</button>
-    </div>`;
   } else if (product.rule === 'single_qty') {
     const qty = configSelection.qty || 0;
     const catId = product.categoryId;
     inner += `<div class="modal-progress">In stock: ${draftStock[catId]}</div>`;
     inner += `<input type="text" inputmode="numeric" pattern="[0-9]*" id="qtyField" class="qty-input" placeholder="0" value="${qty || ''}" autocomplete="off" />`;
     inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX((qty || 0) * product.unitPrice)}</div>`;
-    const ready = qty > 0 && qty <= draftStock[catId];
-    inner += `<div class="modal-btns">
-      <button class="modal-btn cancel" id="productConfigBack" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="productConfigConfirm" ${ready ? '' : 'disabled'} type="button">${isEditing ? 'Save changes' : 'Add to order'}</button>
-    </div>`;
+    inner += configFooterHtml({
+      ready: qty > 0 && qty <= draftStock[catId],
+      isEditing,
+      closeId,
+      backId,
+      confirmId,
+    });
   } else if (product.rule === 'spliff_qty') {
     inner += `<div class="modal-progress">Enter quantity for each</div>`;
+    inner += `<div class="flavor-list">`;
     SPLIFF_POOL.forEach((id) => {
       const cat = CAT_MAP[id];
       const qty = configSelection[id] || 0;
+      const stock = draftStock[id] || 0;
       inner += `
-        <div class="pick-row">
-          <div class="pick-info">
-            <span class="dot" style="background:${cat.color}"></span>
-            <span class="pick-name">Bangis ${cat.sub}</span>
-            <span class="pick-stock">(${draftStock[id]} in stock)</span>
+        <div class="flavor-row flavor-row--input${qty > 0 ? ' is-active' : ''}${stock <= 0 ? ' is-out' : ''}" style="--flavor:${cat.color}">
+          <div class="flavor-orb" aria-hidden="true">
+            <span class="flavor-orb__glow"></span>
+            <span class="flavor-orb__core"></span>
           </div>
-          <input type="text" inputmode="numeric" pattern="[0-9]*" class="qty-mini-input" data-spliff-qty="${id}" value="${qty || ''}" placeholder="0" />
+          <div class="flavor-row__meta">
+            <div class="flavor-row__name">Bangis ${escapeHtml(cat.sub)}</div>
+            <div class="flavor-row__stock">${stock <= 0 ? 'Out of stock' : `${stock} available`}</div>
+          </div>
+          <input type="text" inputmode="numeric" pattern="[0-9]*" class="qty-mini-input flavor-qty-input" data-spliff-qty="${id}" value="${qty || ''}" placeholder="0" aria-label="Bangis ${escapeHtml(cat.sub)} quantity" />
         </div>`;
     });
+    inner += `</div>`;
     const totalQty = SPLIFF_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);
     inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX(totalQty * product.unitPrice)}</div>`;
     const overStock = SPLIFF_POOL.some((id) => (configSelection[id] || 0) > draftStock[id]);
-    const ready = totalQty > 0 && !overStock;
-    inner += `<div class="modal-btns">
-      <button class="modal-btn cancel" id="productConfigBack" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="productConfigConfirm" ${ready ? '' : 'disabled'} type="button">${isEditing ? 'Save changes' : 'Add to order'}</button>
-    </div>`;
+    inner += configFooterHtml({
+      ready: totalQty > 0 && !overStock,
+      isEditing,
+      closeId,
+      backId,
+      confirmId,
+    });
   }
 
   return inner;
 }
 
-export function wireProductConfigView(container, { configSelection, onBack, onConfirm, onRerender }) {
-  container.querySelector('#productConfigBack')?.addEventListener('click', onBack);
+export function wireProductConfigView(
+  container,
+  {
+    configSelection,
+    onBack,
+    onConfirm,
+    onRerender,
+    closeId = 'productConfigClose',
+    backId = 'productConfigBack',
+    confirmId = 'productConfigConfirm',
+    onClose,
+  },
+) {
+  if (onClose) {
+    container.querySelector(`#${closeId}`)?.addEventListener('click', onClose);
+  }
+  container.querySelector(`#${backId}`)?.addEventListener('click', onBack);
 
-  container.querySelectorAll('button.mini-step').forEach((btn) => {
+  container.querySelectorAll('button.mini-step, button.flavor-step').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.pick;
       const dir = parseInt(btn.dataset.pdir, 10);
@@ -239,5 +351,5 @@ export function wireProductConfigView(container, { configSelection, onBack, onCo
     });
   });
 
-  container.querySelector('#productConfigConfirm')?.addEventListener('click', onConfirm);
+  container.querySelector(`#${confirmId}`)?.addEventListener('click', onConfirm);
 }

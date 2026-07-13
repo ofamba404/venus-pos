@@ -63,10 +63,10 @@ export function renderModals(currentPage = 'home') {
       </nav>
       <div class="fab-stack" id="fabStack">
         <button class="fab" id="fabNewOrder" aria-label="New order" type="button">
-          <svg class="fab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="8" cy="21" r="1"/>
-            <circle cx="19" cy="21" r="1"/>
-            <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.58L23 6H6"/>
+          <svg class="fab-cart-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path class="fab-cart-body" d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.58L23 6H6"/>
+            <circle class="fab-cart-wheel" cx="8" cy="21" r="1.5"/>
+            <circle class="fab-cart-wheel" cx="19" cy="21" r="1.5"/>
           </svg>
           <span class="fab-badge" id="fabBadge" style="display:none;">0</span>
         </button>
@@ -81,13 +81,8 @@ export function renderModals(currentPage = 'home') {
       </div>
     </div>
 
-    <div class="modal-overlay modal-overlay--sheet" id="orderModal" hidden>
-      <div class="modal modal--sheet" id="orderModalPanel" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle">
-        <div class="sheet-handle-wrap" data-sheet-drag-handle aria-hidden="true">
-          <div class="sheet-handle"></div>
-        </div>
-        <div class="modal-sheet-body" id="orderModalBody"></div>
-      </div>
+    <div class="modal-overlay" id="orderModal" hidden>
+      <div class="modal" id="orderModalBody" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle"></div>
     </div>
 
     <div class="modal-overlay" id="confirmOverlay" hidden>
@@ -125,16 +120,14 @@ export function renderModals(currentPage = 'home') {
       </div>
     </div>
 
-    <div class="modal-overlay modal-overlay--sheet" id="editOverlay" hidden>
-      <div class="modal modal--sheet" id="editModalPanel" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
-        <div class="sheet-handle-wrap" data-sheet-drag-handle aria-hidden="true">
-          <div class="sheet-handle"></div>
-        </div>
-        <div class="modal-sheet-body" id="editModalBody"></div>
-      </div>
+    <div class="modal-overlay" id="editOverlay" hidden>
+      <div class="modal" id="editModalBody" role="dialog" aria-modal="true" aria-labelledby="editModalTitle"></div>
     </div>
 
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite" data-tone="success" hidden>
+      <span class="toast-icon" aria-hidden="true"></span>
+      <span class="toast-msg" id="toastMsg"></span>
+    </div>
   `;
 }
 

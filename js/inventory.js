@@ -252,8 +252,12 @@ export function renderStockGlance() {
   }
   if (cookieStockFill) {
     const meter = cookieStockLevel(cookiesTotal);
-    cookieStockFill.style.width = stockPending ? '0%' : `${meter.pct}%`;
+    const pct = stockPending ? 0 : meter.pct;
+    cookieStockFill.dataset.fillWidth = `${pct}%`;
     cookieStockFill.dataset.state = stockPending ? 'ok' : meter.state;
+    cookieStockFill.style.width = '100%';
+    cookieStockFill.style.transformOrigin = 'left center';
+    cookieStockFill.style.transform = `scaleX(${pct / 100})`;
   }
 
   if (donutStatus) {

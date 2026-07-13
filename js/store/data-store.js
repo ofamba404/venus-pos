@@ -223,6 +223,13 @@ export async function clearEntity(entity) {
   notify(entity);
 }
 
+/** Append a single sale after checkout POST (avoids full sales refetch). */
+export async function appendSale(record) {
+  if (!record) return;
+  salesCache.unshift(record);
+  await persistCurrent('sales');
+}
+
 /** Append or upsert a single delivery after checkout POST. */
 export async function appendDelivery(record) {
   deliveries.unshift(record);
@@ -248,6 +255,7 @@ export const dataStore = {
   fetch: fetchEntity,
   fetchAll,
   clear: clearEntity,
+  appendSale,
   appendDelivery,
   recoverFromServer,
 };

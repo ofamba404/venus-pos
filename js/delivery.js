@@ -1,6 +1,6 @@
 import { sbFetch } from './api.js';
 import { dataStore } from './store/index.js';
-import { animateCartSheetContent, isSheetModalOpen, wireHeaderBodyAccordions } from './animations.js';
+import { animateModalContent, isModalOpen, wireHeaderBodyAccordions } from './animations.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
 import {
   deliveryPlaceFieldMarkup,
@@ -443,21 +443,21 @@ function renderEditDeliveryModal() {
     <div class="delivery-mini">
       <div class="delivery-mini-label">Route</div>
       <div class="delivery-input-wrap pickup">
-        <span class="di-icon">${ICON_LOCATE}</span>
         ${deliveryPlaceFieldMarkup({
           inputId: 'editDeliveryPickup',
           dropdownId: 'editDeliveryPickupDropdown',
           placeholder: 'Pickup location',
           value: editPickupText,
+          icon: ICON_LOCATE,
         })}
       </div>
       <div class="delivery-input-wrap dropoff">
-        <span class="di-icon">${ICON_PIN}</span>
         ${deliveryPlaceFieldMarkup({
           inputId: 'editDeliveryDest',
           dropdownId: 'editDeliveryDestDropdown',
           placeholder: 'Drop-off location',
           value: editDestText,
+          icon: ICON_PIN,
         })}
       </div>
       <div class="delivery-input-wrap fee">
@@ -472,8 +472,7 @@ function renderEditDeliveryModal() {
       <button class="modal-btn confirm" id="editDeliverySave" type="button">Save</button>
     </div>`;
 
-  const editOverlay = document.getElementById('editOverlay');
-  if (isSheetModalOpen(editOverlay)) animateCartSheetContent(body);
+  if (isModalOpen(document.getElementById('editOverlay'))) animateModalContent(body);
 
   document.getElementById('editDeliveryClose')?.addEventListener('click', closeEditModal);
   document.getElementById('editDeliveryCancel')?.addEventListener('click', closeEditModal);

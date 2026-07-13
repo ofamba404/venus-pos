@@ -55,7 +55,7 @@ export function registerSheetModal(overlay, options = {}) {
 }
 
 export function initSheetModals() {
-  document.querySelectorAll('.modal-overlay--sheet').forEach((overlay) => {
+  document.querySelectorAll('.modal-overlay--dialog').forEach((overlay) => {
     setupSheetModal(overlay);
   });
 }
@@ -64,132 +64,15 @@ function resetSheetClosed(overlay, panel, state) {
   if (hasGsap()) {
     gsap().killTweensOf([overlay, panel]);
     gsap().set(overlay, { opacity: 0, pointerEvents: 'none' });
-    gsap().set(panel, { yPercent: 100, y: 0, clearProps: 'transform' });
+    gsap().set(panel, { y: 16, scale: 0.96, opacity: 0, clearProps: 'transform' });
   } else {
     panel.style.transform = '';
+    panel.style.opacity = '';
     overlay.style.opacity = '';
     overlay.style.pointerEvents = '';
   }
   overlay.hidden = true;
   state.isOpen = false;
-  state.dragging = false;
-}
-
-function attachSheetSwipe(overlay, panel, state) {
-  const handleWrap = panel.querySelector('[data-sheet-drag-handle]');
-  const DISMISS_PX = 96;
-  const VELOCITY_THRESHOLD = 0.55;
-
-  let startY = 0;
-  let dragY = 0;
-  let activePointer = null;
-  let lastY = 0;
-  let lastTime = 0;
-
-  function isMobileSheet() {
-    return window.matchMedia('(max-width: 479px)').matches;
-  }
-
-  function canStartDrag(e) {
-    if (!state.isOpen || state.dragging || !isMobileSheet()) return false;
-    if (e.pointerType === 'mouse' && e.button !== 0) return false;
-    if (e.target.closest('button, input, select, textarea, a, label, summary')) return false;
-    return Boolean(handleWrap?.contains(e.target));
-  }
-
-  function applyDrag(y) {
-    dragY = Math.max(0, y);
-    if (hasGsap()) {
-      gsap().set(panel, { y: dragY, yPercent: 0 });
-      const progress = Math.min(dragY / 360, 1);
-      gsap().set(overlay, { opacity: 1 - progress * 0.55 });
-    } else {
-      panel.style.transform = `translateY(${dragY}px)`;
-      overlay.style.opacity = String(1 - Math.min(dragY / 360, 1) * 0.55);
-    }
-  }
-
-  function snapBack() {
-    state.dragging = false;
-    if (hasGsap()) {
-      gsap().to(panel, {
-        y: 0,
-        duration: 0.32,
-        ease: 'power2.out',
-        onComplete: () => gsap().set(panel, { clearProps: 'y' }),
-      });
-      gsap().to(overlay, { opacity: 1, duration: 0.22 });
-    } else {
-      panel.style.transform = '';
-      overlay.style.opacity = '';
-    }
-  }
-
-  function dismissFromSwipe() {
-    state.dragging = false;
-    handleWrap?.classList.remove('is-grabbing');
-    const opts = sheetOptions.get(overlay);
-
-    const finish = () => {
-      resetSheetClosed(overlay, panel, state);
-      opts?.onDismiss?.();
-    };
-
-    if (hasGsap() && !prefersReducedMotion()) {
-      gsap().killTweensOf([overlay, panel]);
-      gsap().to(panel, { y: panel.offsetHeight, duration: 0.26, ease: 'power2.in' });
-      gsap().to(overlay, { opacity: 0, pointerEvents: 'none', duration: 0.22, onComplete: finish });
-    } else {
-      finish();
-    }
-  }
-
-  function endDrag(e) {
-    if (!state.dragging || e.pointerId !== activePointer) return;
-
-    try {
-      panel.releasePointerCapture(e.pointerId);
-    } catch {
-      /* pointer already released */
-    }
-
-    handleWrap?.classList.remove('is-grabbing');
-    activePointer = null;
-
-    const elapsed = Math.max(performance.now() - lastTime, 1);
-    const velocity = (e.clientY - lastY) / elapsed;
-
-    if (dragY > DISMISS_PX || velocity > VELOCITY_THRESHOLD) {
-      dismissFromSwipe();
-    } else {
-      snapBack();
-    }
-  }
-
-  panel.addEventListener('pointerdown', (e) => {
-    if (!canStartDrag(e)) return;
-
-    state.dragging = true;
-    activePointer = e.pointerId;
-    startY = e.clientY;
-    lastY = e.clientY;
-    lastTime = performance.now();
-    dragY = 0;
-    panel.setPointerCapture(e.pointerId);
-    state.timeline?.pause();
-    if (hasGsap()) gsap().killTweensOf([overlay, panel]);
-    handleWrap?.classList.add('is-grabbing');
-  });
-
-  panel.addEventListener('pointermove', (e) => {
-    if (!state.dragging || e.pointerId !== activePointer) return;
-    applyDrag(e.clientY - startY);
-    lastY = e.clientY;
-    lastTime = performance.now();
-  });
-
-  panel.addEventListener('pointerup', endDrag);
-  panel.addEventListener('pointercancel', endDrag);
 }
 
 export function setupSheetModal(overlay) {
@@ -198,11 +81,11 @@ export function setupSheetModal(overlay) {
   const panel = overlay.querySelector('.modal');
   if (!panel) return;
 
-  const state = { timeline: null, isOpen: false, dragging: false };
+  const state = { timeline: null, isOpen: false };
 
   if (hasGsap() && !prefersReducedMotion()) {
     gsap().set(overlay, { opacity: 0, pointerEvents: 'none' });
-    gsap().set(panel, { yPercent: 100 });
+    gsap().set(panel, { y: 16, scale: 0.96, opacity: 0 });
 
     state.timeline = gsap().timeline({
       paused: true,
@@ -214,11 +97,9 @@ export function setupSheetModal(overlay) {
       },
     });
 
-    state.timeline.to(overlay, { opacity: 1, pointerEvents: 'auto', duration: 0.4, ease: 'sine.out' }, 0);
-    state.timeline.to(panel, { yPercent: 0, duration: 0.8, ease: 'power3.out' }, 0);
+    state.timeline.to(overlay, { opacity: 1, pointerEvents: 'auto', duration: 0.2, ease: EASE.out }, 0);
+    state.timeline.to(panel, { y: 0, scale: 1, opacity: 1, duration: 0.28, ease: EASE.out }, 0);
   }
-
-  attachSheetSwipe(overlay, panel, state);
 
   panel.addEventListener('click', (e) => {
     if (!e.target.closest('[data-order-close]')) return;
@@ -232,10 +113,12 @@ export function setupSheetModal(overlay) {
   sheetState.set(overlay, state);
 }
 
+export function isModalOpen(overlay) {
+  return !!overlay && !overlay.hidden && !overlay._closing;
+}
+
 export function isSheetModalOpen(overlay) {
-  if (!overlay) return false;
-  const state = sheetState.get(overlay);
-  return state?.isOpen ?? !overlay.hidden;
+  return isModalOpen(overlay);
 }
 
 export function openSheetModal(overlay) {
@@ -250,7 +133,7 @@ export function openSheetModal(overlay) {
     return;
   }
 
-  if (state.isOpen) return;
+  if (state?.isOpen) return;
 
   state.isOpen = true;
   state.timeline.play(0);
@@ -267,8 +150,6 @@ export function closeSheetModal(overlay) {
     return;
   }
 
-  if (state.dragging) return;
-
   if (!hasGsap() || prefersReducedMotion() || !state.timeline) {
     resetSheetClosed(overlay, panel, state);
     return;
@@ -280,29 +161,45 @@ export function closeSheetModal(overlay) {
 }
 
 export function openModal(overlay, { instant = false } = {}) {
-  if (!overlay || overlay._closing) return;
+  if (!overlay) return;
+
+  const modal = overlay.querySelector('.modal');
+
+  if (overlay._closing) {
+    overlay._closing = false;
+    overlay._closeTween?.kill?.();
+    overlay._closeTween = null;
+    if (hasGsap()) gsap().killTweensOf([overlay, modal].filter(Boolean));
+  }
 
   if (instant || !hasGsap() || prefersReducedMotion()) {
     overlay.hidden = false;
+    if (hasGsap()) gsap().set([overlay, modal].filter(Boolean), { clearProps: 'opacity,transform' });
     return;
   }
 
-  const modal = overlay.querySelector('.modal');
   overlay.hidden = false;
-  gsap().killTweensOf([overlay, modal]);
+  gsap().killTweensOf([overlay, modal].filter(Boolean));
   gsap().set(overlay, { opacity: 0 });
-  if (modal) gsap().set(modal, { y: 16, opacity: 0 });
+  // Opacity + translate only — scale causes subpixel shifts on nested text/prices
+  if (modal) gsap().set(modal, { y: 20, opacity: 0, force3D: true });
 
   gsap()
     .timeline()
-    .to(overlay, { opacity: 1, duration: 0.16, ease: EASE.out })
-    .to(modal, { y: 0, opacity: 1, duration: 0.16, ease: EASE.out }, '-=0.12');
+    .to(overlay, { opacity: 1, duration: 0.22, ease: EASE.out })
+    .to(
+      modal,
+      { y: 0, opacity: 1, duration: 0.32, ease: 'power3.out', force3D: true },
+      '-=0.16',
+    );
 }
 
 export function closeModal(overlay, { instant = false } = {}) {
   if (!overlay || overlay.hidden) return;
 
   if (instant || !hasGsap() || prefersReducedMotion()) {
+    overlay._closeTween?.kill?.();
+    overlay._closeTween = null;
     overlay.hidden = true;
     overlay._closing = false;
     return;
@@ -310,17 +207,19 @@ export function closeModal(overlay, { instant = false } = {}) {
 
   const modal = overlay.querySelector('.modal');
   overlay._closing = true;
+  overlay._closeTween?.kill?.();
 
-  gsap()
+  overlay._closeTween = gsap()
     .timeline({
       onComplete: () => {
         overlay.hidden = true;
         overlay._closing = false;
-        gsap().set([overlay, modal], { clearProps: 'opacity,transform,scale' });
+        overlay._closeTween = null;
+        gsap().set([overlay, modal].filter(Boolean), { clearProps: 'opacity,transform' });
       },
     })
-    .to(modal, { y: 16, opacity: 0, scale: 0.98, duration: DURATION.fast, ease: EASE.in })
-    .to(overlay, { opacity: 0, duration: DURATION.fast, ease: EASE.in }, '-=0.08');
+    .to(modal, { y: 12, opacity: 0, duration: 0.18, ease: EASE.in, force3D: true })
+    .to(overlay, { opacity: 0, duration: 0.16, ease: EASE.in }, '-=0.08');
 }
 
 let toastHideTimer = null;
@@ -330,6 +229,7 @@ export function animateToastIn(el) {
   if (!el) return;
   clearTimeout(toastHideTimer);
   toastTween?.kill();
+  el.hidden = false;
 
   if (!hasGsap() || prefersReducedMotion()) {
     el.classList.add('show');
@@ -337,8 +237,14 @@ export function animateToastIn(el) {
   }
 
   el.classList.remove('show');
-  gsap().set(el, { xPercent: -50, y: 20, opacity: 0 });
-  toastTween = gsap().to(el, { y: 0, opacity: 1, duration: DURATION.normal, ease: EASE.out });
+  gsap().set(el, { xPercent: -50, y: 14, scale: 0.96, opacity: 0 });
+  toastTween = gsap().to(el, {
+    y: 0,
+    scale: 1,
+    opacity: 1,
+    duration: DURATION.normal,
+    ease: EASE.out,
+  });
 }
 
 export function animateToastOut(el) {
@@ -347,15 +253,21 @@ export function animateToastOut(el) {
 
   if (!hasGsap() || prefersReducedMotion()) {
     el.classList.remove('show');
+    el.hidden = true;
     return;
   }
 
   toastTween = gsap().to(el, {
-    y: 12,
+    y: 10,
+    scale: 0.97,
     opacity: 0,
     duration: DURATION.fast,
     ease: EASE.in,
-    onComplete: () => gsap().set(el, { clearProps: 'opacity,transform' }),
+    onComplete: () => {
+      el.classList.remove('show');
+      el.hidden = true;
+      gsap().set(el, { clearProps: 'opacity,transform' });
+    },
   });
 }
 
@@ -422,17 +334,19 @@ export function staggerChildren(container, selector = ':scope > *') {
 export function animateCheckoutSuccess(container) {
   if (!container || !hasGsap() || prefersReducedMotion()) return;
 
-  const icon = container.querySelector('#checkoutSuccessIcon');
+  const hero = container.querySelector('.checkout-success-hero');
   const items = container.querySelectorAll(
-    '.checkout-success-hero > :not(#checkoutSuccessIcon), .checkout-success-badges, .checkout-receipt-item, .checkout-delivery-summary, .checkout-success-footer',
+    '.checkout-success-badges, .checkout-receipt-item, .checkout-delivery-summary, .checkout-success-footer',
   );
 
-  if (icon) {
-    gsap().fromTo(
-      icon,
-      { scale: 0.45, opacity: 0 },
-      { scale: 1, opacity: 1, duration: 0.5, ease: EASE.bounce },
-    );
+  if (hero) {
+    gsap().from(hero, {
+      y: 8,
+      opacity: 0,
+      duration: 0.32,
+      ease: EASE.out,
+      clearProps: 'opacity,transform',
+    });
   }
 
   if (!items.length) return;
@@ -442,7 +356,7 @@ export function animateCheckoutSuccess(container) {
     opacity: 0,
     duration: 0.26,
     stagger: 0.035,
-    delay: 0.08,
+    delay: 0.06,
     ease: EASE.out,
     clearProps: 'opacity,transform',
   });
@@ -452,7 +366,7 @@ export function animateModalContent(container) {
   if (!container || !hasGsap() || prefersReducedMotion()) return;
 
   const items = container.querySelectorAll(
-    '.modal-header, .client-picker, .sheet-accordion, .delivery-mini, .cart-item, .cart-empty, .cart-total-row, .pick-product-row, .pick-row, .fixed-item, .modal-btns, .modal-price, .modal-progress, .qty-input, .qty-mini-input, .mini-step, .client-search-wrap, .client-autocomplete-dropdown > *, .add-item-btn, .credit-warning, .debug-note, .debug-log-text, .cart-sheet-actions',
+    '.modal-header, .cart-section, .cart-details, .cart-item, .cart-empty, .cart-total-row, .pick-product-card, .pick-product-section, .flavor-meter, .flavor-row, .flavor-fixed, .pick-row, .fixed-item, .modal-btns, .modal-price, .modal-progress, .qty-input, .qty-mini-input, .mini-step, .flavor-step, .cart-tool, .add-item-btn, .client-search-wrap, .client-autocomplete-dropdown > *, .credit-warning, .debug-note, .debug-log-text, .checkout-success-badges, .checkout-delivery-summary',
   );
 
   gsap().from(items.length ? items : container.children, {
@@ -465,15 +379,15 @@ export function animateModalContent(container) {
   });
 }
 
-/** Slide-up content transition inside an already-open cart sheet (mode switches only). */
+/** Content transition inside an already-open dialog (mode switches only). */
 export function animateCartSheetContent(container) {
   if (!container || !hasGsap() || prefersReducedMotion()) return;
 
   gsap().killTweensOf(container);
   gsap().fromTo(
     container,
-    { y: 20, opacity: 0.6 },
-    { y: 0, opacity: 1, duration: 0.32, ease: 'power2.out', clearProps: 'opacity,transform' },
+    { y: 12, opacity: 0.5 },
+    { y: 0, opacity: 1, duration: 0.28, ease: 'power2.out', clearProps: 'opacity,transform' },
   );
   animateModalContent(container);
 }
@@ -632,8 +546,25 @@ export function pulseFabBadge(count) {
 
   if (count > lastFabCount && count > 0) {
     if (hasGsap() && !prefersReducedMotion()) {
-      if (fab) gsap().fromTo(fab, { scale: 1 }, { scale: 1.05, duration: 0.1, yoyo: true, repeat: 1, ease: EASE.out });
-      if (badge) gsap().fromTo(badge, { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: EASE.bounce });
+      if (fab) {
+        gsap().fromTo(fab, { scale: 1 }, {
+          scale: 1.05,
+          duration: 0.1,
+          yoyo: true,
+          repeat: 1,
+          ease: EASE.out,
+          clearProps: 'transform',
+        });
+      }
+      if (badge) {
+        gsap().fromTo(badge, { scale: 0.4, opacity: 0 }, {
+          scale: 1,
+          opacity: 1,
+          duration: 0.35,
+          ease: EASE.bounce,
+          clearProps: 'transform,opacity',
+        });
+      }
     }
   }
   lastFabCount = count;
@@ -649,15 +580,32 @@ export function bumpElement(el) {
     return;
   }
 
-  gsap().fromTo(el, { scale: 1 }, { scale: 1.12, duration: 0.1, yoyo: true, repeat: 1, ease: EASE.out });
+  gsap().fromTo(
+    el,
+    { scale: 1 },
+    { scale: 1.12, duration: 0.1, yoyo: true, repeat: 1, ease: EASE.out, clearProps: 'transform' },
+  );
 }
 
 export function applyBarFillWidths(root = document) {
   root.querySelectorAll('.bar-fill, .ao-tile-fill, .stock-stat-meter-fill').forEach((fill) => {
-    const targetW = fill.dataset.fillWidth;
-    const targetH = fill.dataset.fillHeight;
-    if (targetW) fill.style.width = targetW;
-    if (targetH) fill.style.height = targetH;
+    const targetW = fill.dataset.fillWidth || fill.style.width;
+    const targetH = fill.dataset.fillHeight || fill.style.height;
+    if (targetW) {
+      const pct = parseFillPct(targetW);
+      if (pct == null) return;
+      fill.style.width = '100%';
+      fill.style.height = '';
+      fill.style.transformOrigin = 'left center';
+      fill.style.transform = `scaleX(${pct})`;
+    } else if (targetH) {
+      const pct = parseFillPct(targetH);
+      if (pct == null) return;
+      fill.style.height = '100%';
+      fill.style.width = '';
+      fill.style.transformOrigin = 'center bottom';
+      fill.style.transform = `scaleY(${pct})`;
+    }
   });
 }
 
@@ -671,19 +619,30 @@ export function animateBarFills(root = document) {
     gsap().killTweensOf(fill);
 
     if (targetW) {
+      const pct = parseFillPct(targetW) ?? 0;
+      fill.style.width = '100%';
       gsap().fromTo(
         fill,
-        { width: '0%', immediateRender: true },
-        { width: targetW, duration: 0.5, ease: EASE.out, overwrite: 'auto' },
+        { scaleX: 0, transformOrigin: 'left center', immediateRender: true },
+        { scaleX: pct, duration: 0.5, ease: EASE.out, overwrite: 'auto' },
       );
     } else if (targetH) {
+      const pct = parseFillPct(targetH) ?? 0;
+      fill.style.height = '100%';
       gsap().fromTo(
         fill,
-        { height: '0%', immediateRender: true },
-        { height: targetH, duration: 0.5, ease: EASE.out, overwrite: 'auto' },
+        { scaleY: 0, transformOrigin: 'center bottom', immediateRender: true },
+        { scaleY: pct, duration: 0.5, ease: EASE.out, overwrite: 'auto' },
       );
     }
   });
+}
+
+function parseFillPct(value) {
+  if (value == null || value === '') return null;
+  const n = parseFloat(String(value));
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(100, n)) / 100;
 }
 
 export function animateSparkline(container) {
@@ -763,7 +722,11 @@ export function animateScatterPoints(svg) {
 
 export function pressButton(el) {
   if (!el || !hasGsap() || prefersReducedMotion()) return;
-  gsap().fromTo(el, { scale: 1 }, { scale: 0.94, duration: 0.08, yoyo: true, repeat: 1, ease: EASE.out });
+  gsap().fromTo(
+    el,
+    { scale: 1 },
+    { scale: 0.94, duration: 0.08, yoyo: true, repeat: 1, ease: EASE.out, clearProps: 'transform' },
+  );
 }
 
 const ACCORDION_HEIGHT_DURATION = 0.3;
@@ -823,7 +786,7 @@ export function setAccordionPanelInstant(panel, open) {
   panel.hidden = !open;
 }
 
-/** Allbirds-style height + opacity accordions for cart sheet optional sections. */
+/** Allbirds-style height + opacity accordions for dialog optional sections. */
 export function wireGsapAccordions(root) {
   const controllers = new Map();
   if (!root) return { open: () => {}, close: () => {}, toggle: () => {} };

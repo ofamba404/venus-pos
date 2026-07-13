@@ -50,10 +50,14 @@ export function deliveryPlaceFieldMarkup({
   dropdownId,
   value = '',
   placeholder = '',
+  icon = '',
 }) {
   return `
     <div class="delivery-place-field">
-      <input type="text" class="client-input" id="${inputId}" placeholder="${escapeHtml(placeholder)}" autocomplete="off" value="${escapeHtml(value)}" />
+      <div class="delivery-place-input-row">
+        ${icon ? `<span class="di-icon">${icon}</span>` : ''}
+        <input type="text" class="client-input" id="${inputId}" placeholder="${escapeHtml(placeholder)}" autocomplete="off" value="${escapeHtml(value)}" />
+      </div>
       <div class="delivery-place-dropdown" id="${dropdownId}" role="listbox"></div>
     </div>`;
 }

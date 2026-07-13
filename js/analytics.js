@@ -8,9 +8,10 @@ import {
   renderProductConfigView,
   renderProductPickList,
   wireProductConfigView,
+  wireProductPickButtons,
 } from './product-config.js';
 import { applyActiveHighlight, getActiveStatusHighlight } from './inventory.js';
-import { animateCartSheetContent, animateAccordionPanel, applyBarFillWidths, isSheetModalOpen, setAccordionPanelInstant, wireHeaderBodyAccordions } from './animations.js';
+import { animateAccordionPanel, animateModalContent, applyBarFillWidths, isModalOpen, setAccordionPanelInstant, wireHeaderBodyAccordions } from './animations.js';
 import {
   filterSalesByRange,
   getChartRange,
@@ -683,9 +684,10 @@ function renderEditSalePickView() {
   const body = document.getElementById('editModalBody');
   if (!body) return;
 
-  body.innerHTML =
-    renderProductPickList() +
-    `<div class="modal-btns"><button class="modal-btn cancel" id="editSalePickBack" type="button">‹ Back to order</button></div>`;
+  body.innerHTML = renderProductPickList({
+    backId: 'editSalePickBack',
+    backLabel: 'Back to order',
+  });
 
   animateEditModalBody(body);
 
@@ -697,14 +699,12 @@ function renderEditSalePickView() {
     editSaleMode = 'main';
     renderEditSaleModal();
   });
-  body.querySelectorAll('[data-product]').forEach((row) => {
-    row.addEventListener('click', () => {
-      editConfigProduct = findProduct(row.dataset.product);
-      editConfigSelection = {};
-      editingSaleItemIdx = null;
-      editSaleMode = 'config';
-      renderEditSaleModal();
-    });
+  wireProductPickButtons(body, (productId) => {
+    editConfigProduct = findProduct(productId);
+    editConfigSelection = {};
+    editingSaleItemIdx = null;
+    editSaleMode = 'config';
+    renderEditSaleModal();
   });
 }
 
@@ -772,7 +772,7 @@ function confirmEditSaleConfig() {
 
 function animateEditModalBody(body) {
   const editOverlay = document.getElementById('editOverlay');
-  if (isSheetModalOpen(editOverlay)) animateCartSheetContent(body);
+  if (isModalOpen(editOverlay)) animateModalContent(body);
 }
 
 async function applyStockDelta(oldBreakdown, newBreakdown, { persistLocal = true } = {}) {

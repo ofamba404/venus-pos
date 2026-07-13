@@ -1,11 +1,7 @@
 import { dataStore } from './store/index.js';
 import { sbFetch } from './api.js';
 import {
-  CAT_MAP,
-  CATEGORIES,
-  FLAVOR_POOL,
   PRODUCTS,
-  SPLIFF_POOL,
 } from './config.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
 import { resolveClientId } from './clients.js';
@@ -23,18 +19,27 @@ import {
 } from './places-autocomplete.js';
 import { adjustStock, renderStockGlance } from './inventory.js';
 import {
-  animateCartSheetContent,
+  buildLineFromConfig,
+  productDetailLabel,
+  productPickButtonHtml,
+  renderProductConfigView,
+  renderProductPickPanel,
+  wireProductConfigView,
+  wireProductPickButtons,
+} from './product-config.js';
+import {
   animateCheckoutSuccess,
-  closeSheetModal,
-  isSheetModalOpen,
-  openSheetModal,
+  animateModalContent,
+  closeModal,
+  isModalOpen,
+  openModal,
   pressButton,
   pulseFabBadge,
-  registerSheetModal,
   wireGsapAccordions,
 } from './animations.js';
 import {
   cartTotal,
+  clients,
   draftStock,
   getCart,
   getOrderMeta,
@@ -43,7 +48,6 @@ import {
   setCart,
   setOrderMeta,
 } from './state.js';
-import { clients } from './state.js';
 import { escapeHtml, fmtUGX, showToast } from './utils.js';
 
 let modalMode = 'cart';
@@ -59,9 +63,9 @@ let checkoutDistanceKm = null;
 let checkoutDurationMin = null;
 let checkoutFeeValue = '';
 let pickupAutoRequested = false;
-let cartAccordions = null;
 let lastCheckoutReceipt = null;
 let lastOrderModalMode = null;
+let checkoutInFlight = false;
 
 function getOrderClientName() {
   return getOrderMeta().clientName || '';
@@ -132,12 +136,6 @@ export function updateFabBadge() {
   pulseFabBadge(cart.length);
 }
 
-function productDetailLabel(p) {
-  if (p.rule === 'single_qty') return p.unitLabel;
-  if (p.rule === 'spliff_qty') return 'per joint';
-  return `${p.joints} joint${p.joints > 1 ? 's' : ''}`;
-}
-
 function closeOrderModal() {
   if (modalMode === 'success') {
     dismissSuccessView();
@@ -156,7 +154,7 @@ function closeOrderModal() {
     updateFabBadge();
   }
   const orderModal = document.getElementById('orderModal');
-  if (orderModal) closeSheetModal(orderModal);
+  if (orderModal) closeModal(orderModal);
 }
 
 function renderOrderModal() {
@@ -164,93 +162,105 @@ function renderOrderModal() {
   lastOrderModalMode = modalMode;
   const isCartRefresh = modalMode === 'cart' && prevMode === 'cart';
 
-  const orderModalBody = document.getElementById('orderModalBody');
-  if (orderModalBody) {
-    orderModalBody.className = 'modal-sheet-body';
-    if (modalMode === 'cart') orderModalBody.classList.add('cart-sheet-layout');
-    if (modalMode === 'success') orderModalBody.classList.add('success-sheet-layout');
-  }
-
   if (modalMode === 'cart') renderCartView();
   else if (modalMode === 'pick') renderPickView();
   else if (modalMode === 'config') renderConfigView();
   else if (modalMode === 'success') renderSuccessView();
 
   const orderModal = document.getElementById('orderModal');
-  if (orderModalBody && modalMode !== 'success' && !isCartRefresh && isSheetModalOpen(orderModal)) {
-    animateCartSheetContent(orderModalBody);
+  const orderModalBody = document.getElementById('orderModalBody');
+  if (orderModalBody) orderModalBody.dataset.mode = modalMode;
+  if (orderModalBody && modalMode !== 'success' && !isCartRefresh && isModalOpen(orderModal)) {
+    animateModalContent(orderModalBody);
   }
+}
+
+function snapshotInventory(ids) {
+  const snap = {};
+  ids.forEach((id) => {
+    snap[id] = inventory[id];
+  });
+  return snap;
+}
+
+function applyInventorySnapshot(snap) {
+  Object.entries(snap).forEach(([id, stock]) => {
+    inventory[id] = stock;
+    const el = document.getElementById(`inv-count-${id}`);
+    if (el && !el.querySelector('input')) el.textContent = stock;
+  });
 }
 
 function dismissSuccessView() {
   lastCheckoutReceipt = null;
   modalMode = 'cart';
   const orderModal = document.getElementById('orderModal');
-  if (orderModal) closeSheetModal(orderModal);
+  if (orderModal) closeModal(orderModal);
 }
 
-function renderSuccessView() {
+function renderSuccessView({ animate = true } = {}) {
   const orderModalBody = document.getElementById('orderModalBody');
   if (!orderModalBody || !lastCheckoutReceipt) return;
 
   const { items, total, clientName, isCredit, delivery, deliveryFailed } = lastCheckoutReceipt;
   const itemLabel = items.length === 1 ? '1 item' : `${items.length} items`;
+  const deliveryPending = Boolean(delivery?.pending);
+  const deliverySaved = Boolean(delivery && !delivery.pending);
+  const showBadges = Boolean(clientName || isCredit || delivery || deliveryFailed);
 
   orderModalBody.innerHTML = `
-    <div class="checkout-success">
+    <div class="modal-header">
+      <div class="modal-title" id="orderModalTitle">${isCredit ? 'Recorded on credit' : 'Order recorded'}</div>
+      <button class="modal-close" id="orderClose" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="checkout-success-receipt">
       <div class="checkout-success-hero">
-        <div class="checkout-success-icon" id="checkoutSuccessIcon" aria-hidden="true">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 6L9 17l-5-5"/>
-          </svg>
-        </div>
-        <div class="modal-title checkout-success-title" id="orderModalTitle">${isCredit ? 'Recorded on credit' : 'Order recorded'}</div>
         <div class="checkout-success-total">${fmtUGX(total)}</div>
         <div class="checkout-success-sub">${itemLabel}</div>
       </div>
-      ${clientName || isCredit || delivery || deliveryFailed ? `
+      ${showBadges ? `
       <div class="checkout-success-badges">
         ${clientName ? `<span class="checkout-badge checkout-badge--client">${escapeHtml(clientName)}</span>` : ''}
         ${isCredit ? `<span class="checkout-badge checkout-badge--credit">Credit — unpaid</span>` : ''}
-        ${delivery ? `<span class="checkout-badge checkout-badge--delivery">Delivery logged</span>` : ''}
+        ${deliveryPending ? `<span class="checkout-badge checkout-badge--delivery">Saving delivery…</span>` : ''}
+        ${deliverySaved ? `<span class="checkout-badge checkout-badge--delivery">Delivery logged</span>` : ''}
         ${deliveryFailed ? `<span class="checkout-badge checkout-badge--warn">Delivery not saved</span>` : ''}
       </div>` : ''}
-      <div class="checkout-success-receipt">
-        <div class="checkout-receipt-items">
-          ${items
-            .map(
-              (item) => `
-            <div class="checkout-receipt-item">
-              <div class="checkout-receipt-item-main">
-                <div class="ci-name">${escapeHtml(item.name)}</div>
-                <div class="ci-detail">${escapeHtml(item.detail)}</div>
-              </div>
-              <div class="checkout-receipt-item-price">${fmtUGX(item.lineTotal)}</div>
-            </div>`,
-            )
-            .join('')}
-        </div>
-        ${delivery ? `
-        <div class="checkout-delivery-summary">
-          <div class="checkout-delivery-summary-label">Delivery</div>
-          <div class="checkout-delivery-route">
-            <div class="checkout-delivery-stop">${ICON_LOCATE}<span>${escapeHtml(delivery.pickup || 'Pickup')}</span></div>
-            <div class="checkout-delivery-stop">${ICON_PIN}<span>${escapeHtml(delivery.dest || 'Drop-off')}</span></div>
-          </div>
-          <div class="checkout-delivery-stats">
-            ${delivery.distanceKm != null ? `<span>${ICON_ROUTE} ${delivery.distanceKm.toFixed(1)} km · ~${Math.round(delivery.durationMin || 0)} min</span>` : ''}
-            ${delivery.fee ? `<span>${ICON_CASH} ${fmtUGX(delivery.fee)}</span>` : ''}
-          </div>
-        </div>` : ''}
+      <div class="checkout-receipt-items">
+        ${items
+          .map(
+            (item) => `
+          <div class="cart-item checkout-receipt-item">
+            <div class="checkout-receipt-item-main">
+              <div class="ci-name">${escapeHtml(item.name)}</div>
+              <div class="ci-detail">${escapeHtml(item.detail)}</div>
+            </div>
+            <div class="ci-price checkout-receipt-item-price">${fmtUGX(item.lineTotal)}</div>
+          </div>`,
+          )
+          .join('')}
       </div>
-      <div class="checkout-success-footer">
-        <div class="modal-btns">
-          <button class="modal-btn cancel" id="checkoutSuccessNewBtn" type="button">New order</button>
-          <button class="modal-btn confirm" id="checkoutSuccessDoneBtn" type="button">Done</button>
+      ${delivery ? `
+      <div class="checkout-delivery-summary">
+        <div class="checkout-delivery-summary-label">Delivery</div>
+        <div class="checkout-delivery-route">
+          <div class="checkout-delivery-stop">${ICON_LOCATE}<span>${escapeHtml(delivery.pickup || 'Pickup')}</span></div>
+          <div class="checkout-delivery-stop">${ICON_PIN}<span>${escapeHtml(delivery.dest || 'Drop-off')}</span></div>
         </div>
+        <div class="checkout-delivery-stats">
+          ${delivery.distanceKm != null ? `<span>${ICON_ROUTE} ${delivery.distanceKm.toFixed(1)} km · ~${Math.round(delivery.durationMin || 0)} min</span>` : ''}
+          ${delivery.fee ? `<span>${ICON_CASH} ${fmtUGX(delivery.fee)}</span>` : ''}
+        </div>
+      </div>` : ''}
+    </div>
+    <div class="checkout-success-footer">
+      <div class="modal-btns">
+        <button class="modal-btn cancel" id="checkoutSuccessNewBtn" type="button">New order</button>
+        <button class="modal-btn confirm" id="checkoutSuccessDoneBtn" type="button">Done</button>
       </div>
     </div>`;
 
+  document.getElementById('orderClose')?.addEventListener('click', dismissSuccessView);
   document.getElementById('checkoutSuccessDoneBtn')?.addEventListener('click', dismissSuccessView);
   document.getElementById('checkoutSuccessNewBtn')?.addEventListener('click', () => {
     lastCheckoutReceipt = null;
@@ -258,7 +268,7 @@ function renderSuccessView() {
     renderOrderModal();
   });
 
-  animateCheckoutSuccess(orderModalBody);
+  if (animate) animateCheckoutSuccess(orderModalBody);
 }
 
 export function openOrderModal(productId) {
@@ -267,11 +277,11 @@ export function openOrderModal(productId) {
   modalMode = 'config';
   renderOrderModal();
   const orderModal = document.getElementById('orderModal');
-  if (orderModal) openSheetModal(orderModal);
+  if (orderModal) openModal(orderModal);
 }
 
 function updateCheckoutDistanceReadout() {
-  const fields = document.querySelector('#orderModalBody .delivery-mini-fields');
+  const fields = document.querySelector('#orderModalBody .delivery-mini');
   if (!fields) return;
   let readout = fields.querySelector('.delivery-mini-readout');
   if (checkoutDistanceKm != null) {
@@ -337,8 +347,8 @@ function wireDeliveryAutocompletes() {
       setDeliveryFieldValue('deliveryDestInput', label);
       computeCheckoutDistance();
     },
-    onPickupFocus: () => cartAccordions?.open('delivery'),
-    onDestFocus: () => cartAccordions?.open('delivery'),
+    onPickupFocus: () => {},
+    onDestFocus: () => {},
     onPickupInput: (value) => {
       checkoutPickupText = value;
       if (!value) {
@@ -389,10 +399,11 @@ function updateCartCheckoutState() {
     checkoutBtn.disabled = !cart.length || creditBlocked;
     checkoutBtn.textContent = orderIsCredit ? 'Record on credit' : 'Checkout';
   }
-  const creditCheckbox = document.getElementById('creditCheckbox');
-  if (creditCheckbox) creditCheckbox.checked = orderIsCredit;
-  const creditChip = document.querySelector('.credit-chip');
-  if (creditChip) creditChip.classList.toggle('is-on', orderIsCredit);
+  const creditChip = document.getElementById('creditToggle');
+  if (creditChip) {
+    creditChip.classList.toggle('is-on', orderIsCredit);
+    creditChip.setAttribute('aria-checked', orderIsCredit ? 'true' : 'false');
+  }
   const creditWarning = document.getElementById('cartCreditWarning');
   if (creditWarning) creditWarning.hidden = !(orderIsCredit && !orderClientName);
 
@@ -403,15 +414,23 @@ function updateCartCheckoutState() {
 function cartItemHtml(item) {
   return `
     <div class="cart-item">
-      <div class="cart-item-main">
+      <div class="ci-main">
         <div class="ci-name">${escapeHtml(item.name)}</div>
         <div class="ci-detail">${escapeHtml(item.detail)}</div>
       </div>
       <div class="cart-item-actions">
         <div class="ci-price">${fmtUGX(item.lineTotal)}</div>
-        <div class="cart-item-btns">
-          <button class="cart-edit" data-edit="${item.key}" type="button" title="Edit item" aria-label="Edit ${escapeHtml(item.name)}">✎</button>
-          <button class="cart-remove" data-remove="${item.key}" type="button" aria-label="Remove ${escapeHtml(item.name)}">✕</button>
+        <div class="cart-item-tools">
+          <button class="cart-tool cart-edit" data-edit="${item.key}" type="button" title="Edit item" aria-label="Edit ${escapeHtml(item.name)}">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+            </svg>
+          </button>
+          <button class="cart-tool cart-remove" data-remove="${item.key}" type="button" aria-label="Remove ${escapeHtml(item.name)}">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>`;
@@ -420,8 +439,8 @@ function cartItemHtml(item) {
 function cartEmptyHtml() {
   return `
     <div class="cart-empty">
-      <div class="cart-empty-title">No items yet</div>
-      <div class="cart-empty-hint">Tap "Add item" to start building the order</div>
+      <div class="cart-empty__title">No items yet</div>
+      <div class="cart-empty__hint">Tap Add item to start the order</div>
     </div>`;
 }
 
@@ -474,34 +493,26 @@ function syncCartViewAfterItemsChange() {
   }
 
   const cart = getCart();
-  const itemLabel = cart.length === 1 ? '1 item' : `${cart.length} items`;
-  const subtitle = orderModalBody.querySelector('.modal-subtitle');
-  if (subtitle) subtitle.textContent = cart.length ? itemLabel : 'No items yet';
-
-  const itemsAnchor = orderModalBody.querySelector('.cart-items-section');
+  const itemsAnchor = orderModalBody.querySelector('#cartItemsList');
   if (!itemsAnchor) {
     renderOrderModal();
     return;
   }
 
-  itemsAnchor.innerHTML = cart.length
-    ? `<div class="cart-items-list">${cart.map(cartItemHtml).join('')}</div>`
-    : cartEmptyHtml();
+  itemsAnchor.innerHTML = cart.length ? cart.map(cartItemHtml).join('') : cartEmptyHtml();
+  itemsAnchor.classList.toggle('is-empty', !cart.length);
 
-  const actionsSection = orderModalBody.querySelector('.cart-sheet-actions');
-  const totalRow = actionsSection?.querySelector('.cart-total-row');
-  if (cart.length) {
-    if (!totalRow && actionsSection) {
-      actionsSection.insertAdjacentHTML(
-        'afterbegin',
-        `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>`,
-      );
-    }
-  } else {
-    totalRow?.remove();
+  const countEl = orderModalBody.querySelector('.cart-section__count');
+  if (countEl) countEl.textContent = cart.length ? String(cart.length) : '';
+
+  const totalSlot = orderModalBody.querySelector('#cartTotalSlot');
+  if (totalSlot) {
+    totalSlot.innerHTML = cart.length
+      ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>`
+      : '';
   }
 
-  wireCartItemButtons(itemsAnchor);
+  wireCartItemButtons(orderModalBody);
   updateCartCheckoutState();
 }
 
@@ -512,86 +523,96 @@ function renderCartView() {
   const cart = getCart();
   const orderClientName = getOrderClientName();
   const orderIsCredit = getOrderIsCredit();
-  const itemLabel = cart.length === 1 ? '1 item' : `${cart.length} items`;
   const creditBlocked = orderIsCredit && !orderClientName;
+  const hasDetails = Boolean(
+    orderClientName || orderIsCredit || checkoutPickupText || checkoutDestText || checkoutFeeValue,
+  );
 
-  const itemsSection = cart.length
-    ? `<div class="cart-items-list">${cart.map(cartItemHtml).join('')}</div>`
-    : cartEmptyHtml();
+  orderModalBody.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title" id="orderModalTitle">Current order</div>
+      <button class="modal-close" id="orderClose" type="button" aria-label="Close order">✕</button>
+    </div>
+    <div class="cart-sheet">
+      <section class="cart-section cart-section--items">
+        <div class="cart-section__head">
+          <div class="cart-section__label">Items</div>
+          <div class="cart-section__count">${cart.length ? cart.length : ''}</div>
+        </div>
+        <div id="cartItemsList" class="cart-items${cart.length ? '' : ' is-empty'}">${cart.length ? cart.map(cartItemHtml).join('') : cartEmptyHtml()}</div>
+        <button class="add-item-btn" id="addItemBtn" type="button">
+          <span class="add-item-btn__icon" aria-hidden="true">+</span>
+          <span>Add item</span>
+        </button>
+        <div id="cartTotalSlot">${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}</div>
+      </section>
 
-  const scrollInner = `
-    <div class="modal-header modal-header--cart">
-      <div class="modal-header-copy">
-        <div class="modal-title" id="orderModalTitle">Current order</div>
-        <div class="modal-subtitle">${cart.length ? itemLabel : 'No items yet'}</div>
-      </div>
-      <button class="modal-close" id="orderClose" type="button" data-order-close aria-label="Close order">✕</button>
-    </div>
-    <div class="cart-items-section">${itemsSection}</div>
-    <div class="client-picker">
-      <div class="client-picker__head">
-        <label for="cartClientInput">Client</label>
-        <label class="credit-chip${orderIsCredit ? ' is-on' : ''}" title="Record as unpaid credit sale">
-          <input type="checkbox" id="creditCheckbox" class="credit-chip__input" ${orderIsCredit ? 'checked' : ''} />
-          <span class="credit-chip__label">Credit</span>
-        </label>
-      </div>
-      ${clientAutocompleteMarkup({
-        inputId: 'cartClientInput',
-        dropdownId: 'cartClientDropdown',
-        clearId: 'cartClientClear',
-        value: orderClientName,
-        placeholder: 'Search or type a new name…',
-      })}
-      <div class="credit-warning" id="cartCreditWarning" ${orderIsCredit && !orderClientName ? '' : 'hidden'}>Select a client before recording credit</div>
-    </div>
-    <div class="sheet-accordion delivery-mini" data-accordion data-accordion-id="delivery" data-accordion-open="${checkoutPickupText || checkoutDestText || checkoutFeeValue ? 'true' : 'false'}">
-      <button type="button" class="sheet-accordion__trigger" data-accordion-trigger aria-expanded="${checkoutPickupText || checkoutDestText || checkoutFeeValue ? 'true' : 'false'}">
-        <span class="sheet-accordion__label">Delivery <span class="sheet-accordion-hint">optional</span></span>
-        <span class="sheet-accordion__caret" aria-hidden="true"></span>
-      </button>
-      <div class="sheet-accordion__panel" data-accordion-panel>
-        <div class="delivery-mini-fields">
-          <div class="delivery-input-wrap pickup">
-            <span class="di-icon">${ICON_LOCATE}</span>
-            ${deliveryPlaceFieldMarkup({
-              inputId: 'deliveryPickupInput',
-              dropdownId: 'deliveryPickupDropdown',
-              placeholder: 'Pickup location',
-              value: checkoutPickupText,
+      <div class="cart-details" data-accordion data-accordion-id="cart-client-delivery"${hasDetails ? ' data-accordion-open="true"' : ''}>
+        <button type="button" class="cart-details__summary" data-accordion-trigger>
+          <span class="cart-details__title">Client &amp; delivery</span>
+          <span class="cart-details__hint">${orderClientName ? escapeHtml(orderClientName) : 'Optional'}</span>
+        </button>
+        <div class="cart-details__body" data-accordion-panel>
+          <div class="client-picker">
+            <div class="client-picker__head">
+              <label for="cartClientInput">Client</label>
+              <button
+                type="button"
+                id="creditToggle"
+                class="credit-chip${orderIsCredit ? ' is-on' : ''}"
+                role="switch"
+                aria-checked="${orderIsCredit ? 'true' : 'false'}"
+                title="Record as unpaid credit sale"
+              >
+                <span class="credit-chip__dot" aria-hidden="true"></span>
+                <span class="credit-chip__text">Credit</span>
+              </button>
+            </div>
+            ${clientAutocompleteMarkup({
+              inputId: 'cartClientInput',
+              dropdownId: 'cartClientDropdown',
+              clearId: 'cartClientClear',
+              value: orderClientName,
+              placeholder: 'Search or type a new name…',
             })}
+            <div class="credit-warning" id="cartCreditWarning" ${orderIsCredit && !orderClientName ? '' : 'hidden'}>Select a client before recording credit</div>
           </div>
-          <div class="delivery-input-wrap dropoff">
-            <span class="di-icon">${ICON_PIN}</span>
-            ${deliveryPlaceFieldMarkup({
-              inputId: 'deliveryDestInput',
-              dropdownId: 'deliveryDestDropdown',
-              placeholder: 'Drop-off location',
-              value: checkoutDestText,
-            })}
+          <div class="delivery-mini">
+            <div class="delivery-mini-label">Delivery</div>
+            <div class="delivery-input-wrap pickup">
+              ${deliveryPlaceFieldMarkup({
+                inputId: 'deliveryPickupInput',
+                dropdownId: 'deliveryPickupDropdown',
+                placeholder: 'Pickup location',
+                value: checkoutPickupText,
+                icon: ICON_LOCATE,
+              })}
+            </div>
+            <div class="delivery-input-wrap dropoff">
+              ${deliveryPlaceFieldMarkup({
+                inputId: 'deliveryDestInput',
+                dropdownId: 'deliveryDestDropdown',
+                placeholder: 'Drop-off location',
+                value: checkoutDestText,
+                icon: ICON_PIN,
+              })}
+            </div>
+            <div class="delivery-input-wrap fee">
+              <span class="di-icon">${ICON_CASH}</span>
+              <input type="text" inputmode="numeric" pattern="[0-9]*" class="client-input" id="deliveryFeeInputCart" placeholder="SafeBoda fee (UGX)" autocomplete="off" value="${escapeHtml(checkoutFeeValue)}" />
+            </div>
+            ${checkoutDistanceKm != null ? `<div class="delivery-mini-readout">${ICON_ROUTE} ${checkoutDistanceKm.toFixed(1)} km · ~${Math.round(checkoutDurationMin)} min</div>` : ''}
           </div>
-          <div class="delivery-input-wrap fee">
-            <span class="di-icon">${ICON_CASH}</span>
-            <input type="text" inputmode="numeric" pattern="[0-9]*" class="client-input" id="deliveryFeeInputCart" placeholder="SafeBoda fee charged (UGX)" autocomplete="off" value="${escapeHtml(checkoutFeeValue)}" />
-          </div>
-          ${checkoutDistanceKm != null ? `<div class="delivery-mini-readout">${ICON_ROUTE} ${checkoutDistanceKm.toFixed(1)} km · ~${Math.round(checkoutDurationMin)} min</div>` : ''}
         </div>
       </div>
     </div>
-    <div class="cart-sheet-actions">
-      ${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}
-      <button class="add-item-btn" id="addItemBtn" type="button">+ Add item</button>
-      <div class="modal-btns">
-        <button class="modal-btn cancel" id="cancelOrderBtn" type="button">Cancel order</button>
-        <button class="modal-btn confirm" id="checkoutBtn" ${cart.length && !creditBlocked ? '' : 'disabled'} type="button">${orderIsCredit ? 'Record on credit' : 'Checkout'}</button>
-      </div>
+    <div class="modal-btns cart-footer">
+      <button class="modal-btn cancel" id="cancelOrderBtn" type="button">Cancel</button>
+      <button class="modal-btn confirm" id="checkoutBtn" ${cart.length && !creditBlocked ? '' : 'disabled'} type="button">${orderIsCredit ? 'Record on credit' : 'Checkout'}</button>
     </div>`;
 
-  orderModalBody.innerHTML = `<div class="cart-sheet-scroll">${scrollInner}</div>`;
-  orderModalBody.classList.add('cart-sheet-layout');
-
-  cartAccordions = wireGsapAccordions(orderModalBody);
-
+  wireGsapAccordions(orderModalBody);
+  document.getElementById('orderClose')?.addEventListener('click', closeOrderModal);
   wireClientAutocomplete({
     inputId: 'cartClientInput',
     dropdownId: 'cartClientDropdown',
@@ -611,10 +632,12 @@ function renderCartView() {
         setOrderMeta(meta);
       }
       updateCartCheckoutState();
+      const hint = orderModalBody.querySelector('.cart-details__hint');
+      if (hint) hint.textContent = name || 'Optional';
     },
   });
-  document.getElementById('creditCheckbox')?.addEventListener('change', (e) => {
-    setOrderIsCredit(e.target.checked);
+  document.getElementById('creditToggle')?.addEventListener('click', () => {
+    setOrderIsCredit(!getOrderIsCredit());
     updateCartCheckoutState();
   });
   document.getElementById('addItemBtn')?.addEventListener('click', () => {
@@ -645,42 +668,29 @@ function renderCartView() {
 function renderPickView() {
   const orderModalBody = document.getElementById('orderModalBody');
   if (!orderModalBody) return;
-  const cart = getCart();
 
-  let inner = `
+  orderModalBody.innerHTML = `
     <div class="modal-header">
       <div class="modal-title">Add item</div>
       <button class="modal-close" id="orderClose" type="button" data-order-close>✕</button>
+    </div>
+    ${renderProductPickPanel()}
+    <div class="modal-btns pick-footer">
+      <button class="modal-btn cancel" id="backToCart" type="button">Back to order</button>
     </div>`;
-  inner += PRODUCTS.map(
-    (p) => `
-    <div class="pick-product-row" data-product="${p.id}">
-      <div>
-        <div class="ppr-name">${escapeHtml(p.name)}</div>
-        <div class="pick-stock">${productDetailLabel(p)}</div>
-      </div>
-      <div class="ppr-price">${fmtUGX(p.price || p.unitPrice)}</div>
-    </div>`,
-  ).join('');
-  inner += `<div class="modal-btns"><button class="modal-btn cancel" id="backToCart" type="button">‹ Back to order</button></div>`;
 
-  orderModalBody.innerHTML = inner;
+  document.getElementById('orderClose')?.addEventListener('click', closeOrderModal);
   document.getElementById('backToCart')?.addEventListener('click', () => {
     modalMode = 'cart';
     renderOrderModal();
   });
-  orderModalBody.querySelectorAll('[data-product]').forEach((row) => {
-    row.addEventListener('click', () => {
-      configProduct = PRODUCTS.find((p) => p.id === row.dataset.product);
-      configSelection = {};
-      modalMode = 'config';
-      renderOrderModal();
-    });
+  wireProductPickButtons(orderModalBody, (productId, row) => {
+    pressButton(row);
+    configProduct = PRODUCTS.find((p) => p.id === productId);
+    configSelection = {};
+    modalMode = 'config';
+    renderOrderModal();
   });
-}
-
-function configTotalSelected() {
-  return Object.values(configSelection).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
 }
 
 function renderConfigView() {
@@ -688,170 +698,42 @@ function renderConfigView() {
   const p = configProduct;
   if (!orderModalBody || !p) return;
 
-  let inner = `
-    <div class="modal-header">
-      <div class="modal-title">${editingCartKey ? `Edit — ${escapeHtml(p.name)}` : escapeHtml(p.name)}</div>
-      <button class="modal-close" id="orderClose" type="button" data-order-close>✕</button>
-    </div>`;
-
-  if (p.rule === 'choose_any') {
-    inner += `<div class="modal-price">${fmtUGX(p.price)}</div>`;
-    inner += `<div class="modal-progress">Selected ${configTotalSelected()} / ${p.joints}</div>`;
-    FLAVOR_POOL.forEach((id) => {
-      const cat = CAT_MAP[id];
-      const chosen = configSelection[id] || 0;
-      const remaining = p.joints - configTotalSelected();
-      const canAdd = remaining > 0 && chosen < draftStock[id];
-      const canRemove = chosen > 0;
-      inner += `
-        <div class="pick-row">
-          <div class="pick-info">
-            <span class="dot" style="background:${cat.color}"></span>
-            <span class="pick-name">${cat.name}</span>
-            <span class="pick-stock">(${draftStock[id]} in stock)</span>
-          </div>
-          <div class="pick-controls">
-            <button class="mini-step" data-pick="${id}" data-pdir="-1" ${canRemove ? '' : 'disabled'} type="button">–</button>
-            <span class="mini-count">${chosen}</span>
-            <button class="mini-step" data-pick="${id}" data-pdir="1" ${canAdd ? '' : 'disabled'} type="button">+</button>
-          </div>
-        </div>`;
-    });
-    const ready = configTotalSelected() === p.joints;
-    inner += `<div class="modal-btns">
-      <button class="modal-btn cancel" id="backBtn" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">${editingCartKey ? 'Save changes' : 'Add to order'}</button>
-    </div>`;
-  } else if (p.rule === 'choose_variety') {
-    inner += `<div class="modal-price">${fmtUGX(p.price)}</div>`;
-    const flavorTarget = p.joints - 1;
-    const flavorSelected = configTotalSelected();
-    inner += `<div class="modal-progress">Selected ${flavorSelected} / ${flavorTarget} flavors</div>`;
-    FLAVOR_POOL.forEach((id) => {
-      const cat = CAT_MAP[id];
-      const chosen = configSelection[id] || 0;
-      const remaining = flavorTarget - flavorSelected;
-      const canAdd = remaining > 0 && chosen < draftStock[id];
-      const canRemove = chosen > 0;
-      inner += `
-        <div class="pick-row">
-          <div class="pick-info">
-            <span class="dot" style="background:${cat.color}"></span>
-            <span class="pick-name">${cat.name}</span>
-            <span class="pick-stock">(${draftStock[id]} in stock)</span>
-          </div>
-          <div class="pick-controls">
-            <button class="mini-step" data-pick="${id}" data-pdir="-1" ${canRemove ? '' : 'disabled'} type="button">–</button>
-            <span class="mini-count">${chosen}</span>
-            <button class="mini-step" data-pick="${id}" data-pdir="1" ${canAdd ? '' : 'disabled'} type="button">+</button>
-          </div>
-        </div>`;
-    });
-    const plainOk = draftStock.classic >= 1;
-    inner += `<div class="fixed-item"><span>Plain <span class="pick-stock">(fixed)</span></span><span class="${plainOk ? 'ok' : 'no'}">${plainOk ? '1 included' : 'out of stock'}</span></div>`;
-    const ready = flavorSelected === flavorTarget && plainOk;
-    inner += `<div class="modal-btns">
-      <button class="modal-btn cancel" id="backBtn" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">${editingCartKey ? 'Save changes' : 'Add to order'}</button>
-    </div>`;
-  } else if (p.rule === 'single_qty') {
-    const qty = configSelection.qty || 0;
-    const catId = p.categoryId;
-    inner += `<div class="modal-progress">In stock: ${draftStock[catId]}</div>`;
-    inner += `<input type="text" inputmode="numeric" pattern="[0-9]*" id="qtyField" class="qty-input" placeholder="0" value="${qty || ''}" autocomplete="off" />`;
-    inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX((qty || 0) * p.unitPrice)}</div>`;
-    const ready = qty > 0 && qty <= draftStock[catId];
-    inner += `<div class="modal-btns">
-      <button class="modal-btn cancel" id="backBtn" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">${editingCartKey ? 'Save changes' : 'Add to order'}</button>
-    </div>`;
-  } else if (p.rule === 'spliff_qty') {
-    inner += `<div class="modal-progress">Enter quantity for each</div>`;
-    SPLIFF_POOL.forEach((id) => {
-      const cat = CAT_MAP[id];
-      const qty = configSelection[id] || 0;
-      inner += `
-        <div class="pick-row">
-          <div class="pick-info">
-            <span class="dot" style="background:${cat.color}"></span>
-            <span class="pick-name">Bangis ${cat.sub}</span>
-            <span class="pick-stock">(${draftStock[id]} in stock)</span>
-          </div>
-          <input type="text" inputmode="numeric" pattern="[0-9]*" class="qty-mini-input" data-spliff-qty="${id}" value="${qty || ''}" placeholder="0" />
-        </div>`;
-    });
-    const totalQty = SPLIFF_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);
-    inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX(totalQty * p.unitPrice)}</div>`;
-    const overStock = SPLIFF_POOL.some((id) => (configSelection[id] || 0) > draftStock[id]);
-    const ready = totalQty > 0 && !overStock;
-    inner += `<div class="modal-btns">
-      <button class="modal-btn cancel" id="backBtn" type="button">‹ Back</button>
-      <button class="modal-btn confirm" id="addToOrderBtn" ${ready ? '' : 'disabled'} type="button">${editingCartKey ? 'Save changes' : 'Add to order'}</button>
-    </div>`;
-  }
-
-  orderModalBody.innerHTML = inner;
+  orderModalBody.innerHTML = renderProductConfigView(p, configSelection, draftStock, Boolean(editingCartKey), {
+    closeId: 'orderClose',
+    backId: 'backBtn',
+    confirmId: 'addToOrderBtn',
+  });
   wireConfigEvents();
 }
 
 function wireConfigEvents() {
-  const cart = getCart();
-  document.getElementById('backBtn')?.addEventListener('click', () => {
-    if (editingCartItem) {
-      Object.entries(editingCartItem.breakdown).forEach(([id, qty]) => {
-        draftStock[id] -= qty;
-      });
-      const currentCart = getCart();
-      currentCart.push(editingCartItem);
-      setCart(currentCart);
-      editingCartKey = null;
-      editingCartItem = null;
-      updateFabBadge();
-    }
-    modalMode = getCart().length ? 'cart' : 'pick';
-    renderOrderModal();
-  });
+  const orderModalBody = document.getElementById('orderModalBody');
+  if (!orderModalBody) return;
 
-  document.querySelectorAll('button.mini-step').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.pick;
-      const dir = parseInt(btn.dataset.pdir, 10);
-      configSelection[id] = Math.max(0, (configSelection[id] || 0) + dir);
-      if (configSelection[id] === 0) delete configSelection[id];
-      renderConfigView();
-    });
-  });
-
-  const qtyField = document.getElementById('qtyField');
-  if (qtyField) {
-    qtyField.focus();
-    qtyField.addEventListener('input', () => {
-      qtyField.value = qtyField.value.replace(/[^0-9]/g, '');
-      configSelection.qty = parseInt(qtyField.value, 10) || 0;
-      renderConfigView();
-      const el = document.getElementById('qtyField');
-      if (el) {
-        el.focus();
-        el.setSelectionRange(el.value.length, el.value.length);
+  wireProductConfigView(orderModalBody, {
+    configSelection,
+    closeId: 'orderClose',
+    backId: 'backBtn',
+    confirmId: 'addToOrderBtn',
+    onClose: closeOrderModal,
+    onBack: () => {
+      if (editingCartItem) {
+        Object.entries(editingCartItem.breakdown).forEach(([id, qty]) => {
+          draftStock[id] -= qty;
+        });
+        const currentCart = getCart();
+        currentCart.push(editingCartItem);
+        setCart(currentCart);
+        editingCartKey = null;
+        editingCartItem = null;
+        updateFabBadge();
       }
-    });
-  }
-
-  document.querySelectorAll('[data-spliff-qty]').forEach((inputEl) => {
-    inputEl.addEventListener('input', () => {
-      inputEl.value = inputEl.value.replace(/[^0-9]/g, '');
-      const id = inputEl.dataset.spliffQty;
-      configSelection[id] = parseInt(inputEl.value, 10) || 0;
-      renderConfigView();
-      const el = document.querySelector(`[data-spliff-qty="${id}"]`);
-      if (el) {
-        el.focus();
-        el.setSelectionRange(el.value.length, el.value.length);
-      }
-    });
+      modalMode = getCart().length ? 'cart' : 'pick';
+      renderOrderModal();
+    },
+    onConfirm: addConfiguredItemToCart,
+    onRerender: renderConfigView,
   });
-
-  document.getElementById('addToOrderBtn')?.addEventListener('click', addConfiguredItemToCart);
 }
 
 function addConfiguredItemToCart() {
@@ -863,37 +745,7 @@ function addConfiguredItemToCart() {
     editingCartItem = null;
   }
 
-  let breakdown = {};
-  let lineTotal = 0;
-  let detail = '';
-
-  if (p.rule === 'choose_any') {
-    breakdown = { ...configSelection };
-    lineTotal = p.price;
-    detail = Object.entries(breakdown)
-      .map(([id, qty]) => `${CAT_MAP[id].name} x${qty}`)
-      .join(', ');
-  } else if (p.rule === 'choose_variety') {
-    breakdown = { ...configSelection, classic: 1 };
-    lineTotal = p.price;
-    detail =
-      FLAVOR_POOL.filter((id) => configSelection[id] > 0)
-        .map((id) => `${CAT_MAP[id].name} x${configSelection[id]}`)
-        .join(', ') + ' + Plain';
-  } else if (p.rule === 'single_qty') {
-    breakdown = { [p.categoryId]: configSelection.qty };
-    lineTotal = configSelection.qty * p.unitPrice;
-    detail = `x${configSelection.qty}`;
-  } else if (p.rule === 'spliff_qty') {
-    SPLIFF_POOL.forEach((id) => {
-      if (configSelection[id] > 0) breakdown[id] = configSelection[id];
-    });
-    const totalQty = Object.values(breakdown).reduce((a, b) => a + b, 0);
-    lineTotal = totalQty * p.unitPrice;
-    detail = Object.entries(breakdown)
-      .map(([id, qty]) => `${CAT_MAP[id].sub} x${qty}`)
-      .join(', ');
-  }
+  const { breakdown, lineTotal, detail } = buildLineFromConfig(p, configSelection);
 
   Object.entries(breakdown).forEach(([id, qty]) => {
     draftStock[id] -= qty;
@@ -914,7 +766,87 @@ function addConfiguredItemToCart() {
   renderOrderModal();
 }
 
+async function patchInventoryRemote(ids) {
+  await Promise.all(
+    ids.map(async (id) => {
+      const res = await sbFetch(`inventory?category_id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ stock: inventory[id], updated_at: new Date().toISOString() }),
+      });
+      if (!res.ok) throw new Error(`Supabase ${res.status}`);
+    }),
+  );
+}
+
+async function resolveCheckoutClientId(orderClientName) {
+  let clientId = getOrderClientId();
+  if (clientId) {
+    const byId = clients.find((c) => c.id === clientId);
+    if (byId?.id) return byId.id;
+  }
+  return resolveClientId(orderClientName);
+}
+
+async function saveCheckoutDelivery({ clientId, orderClientName, snapshot }) {
+  const delRes = await sbFetch('deliveries', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_name: orderClientName || null,
+      origin_lat: snapshot.origin.lat,
+      origin_lng: snapshot.origin.lng,
+      origin_label: snapshot.pickupText || null,
+      dest_lat: snapshot.dest.lat,
+      dest_lng: snapshot.dest.lng,
+      dest_label: snapshot.destText || null,
+      distance_km: Number(snapshot.distanceKm.toFixed(3)),
+      duration_min: snapshot.durationMin != null ? Number(snapshot.durationMin.toFixed(1)) : null,
+      fee_ugx: snapshot.fee,
+    }),
+  });
+  if (!delRes.ok) throw new Error(`Supabase ${delRes.status}`);
+  const delRows = await delRes.json();
+  if (delRows[0]) await dataStore.appendDelivery(delRows[0]);
+}
+
+function markCheckoutDeliveryFailed() {
+  if (modalMode !== 'success' || !lastCheckoutReceipt?.delivery) return;
+  lastCheckoutReceipt.delivery = null;
+  lastCheckoutReceipt.deliveryFailed = true;
+  renderSuccessView({ animate: false });
+}
+
+function markCheckoutDeliverySaved() {
+  if (modalMode !== 'success' || !lastCheckoutReceipt?.delivery?.pending) return;
+  lastCheckoutReceipt.delivery.pending = false;
+  renderSuccessView({ animate: false });
+}
+
+async function finishCheckoutBackground({ clientId, orderClientName, deliverySnapshot }) {
+  try {
+    const { updateTodayStrip } = await import('./home.js');
+    updateTodayStrip();
+  } catch (e) {
+    console.error('updateTodayStrip failed', e);
+  }
+
+  if (!deliverySnapshot) return;
+
+  try {
+    await saveCheckoutDelivery({ clientId, orderClientName, snapshot: deliverySnapshot });
+    markCheckoutDeliverySaved();
+  } catch (e) {
+    console.error('save delivery failed', e);
+    markCheckoutDeliveryFailed();
+    showToast('Order saved — delivery not logged', true);
+  }
+}
+
 async function checkout() {
+  if (checkoutInFlight) return;
+
   const cart = getCart();
   const orderClientName = getOrderClientName();
   const orderIsCredit = getOrderIsCredit();
@@ -925,26 +857,37 @@ async function checkout() {
     return;
   }
 
+  const checkoutBtn = document.getElementById('checkoutBtn');
+  if (checkoutBtn) {
+    checkoutBtn.disabled = true;
+    checkoutBtn.textContent = 'Recording…';
+  }
+  checkoutInFlight = true;
+
   const mergedBreakdown = {};
   cart.forEach((item) => {
     Object.entries(item.breakdown).forEach(([id, qty]) => {
       mergedBreakdown[id] = (mergedBreakdown[id] || 0) + qty;
     });
   });
+  const inventoryIds = Object.keys(mergedBreakdown);
+  const inventorySnapshot = snapshotInventory(inventoryIds);
+  let remoteInventoryPatched = false;
 
   try {
     for (const [id, qty] of Object.entries(mergedBreakdown)) {
       inventory[id] = Math.max(0, inventory[id] - qty);
-      await sbFetch(`inventory?category_id=eq.${id}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({ stock: inventory[id], updated_at: new Date().toISOString() }),
-      });
       const el = document.getElementById(`inv-count-${id}`);
       if (el) el.textContent = inventory[id];
     }
     resetDraftStock();
-    await dataStore.persistCurrent('inventory');
+
+    const [, clientId] = await Promise.all([
+      patchInventoryRemote(inventoryIds),
+      resolveCheckoutClientId(orderClientName),
+    ]);
+    remoteInventoryPatched = true;
+    void dataStore.persistCurrent('inventory');
 
     const total = cartTotal(cart);
     const items = cart.map((i) => ({
@@ -954,17 +897,10 @@ async function checkout() {
       line_total: i.lineTotal,
       breakdown: i.breakdown,
     }));
-    let clientId = getOrderClientId();
-    if (clientId) {
-      const byId = clients.find((c) => c.id === clientId);
-      clientId = byId?.id ?? (await resolveClientId(orderClientName));
-    } else {
-      clientId = await resolveClientId(orderClientName);
-    }
 
     const res = await sbFetch('sales', {
       method: 'POST',
-      headers: { Prefer: 'return=minimal' },
+      headers: { Prefer: 'return=representation' },
       body: JSON.stringify({
         items,
         total_ugx: total,
@@ -974,41 +910,23 @@ async function checkout() {
       }),
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
+    const saleRows = await res.json();
+    if (saleRows?.[0]) void dataStore.appendSale(saleRows[0]);
 
     const feeVal = parseInt(checkoutFeeValue, 10);
     const deliveryAttempted =
       checkoutOrigin && checkoutDest && checkoutDistanceKm != null && feeVal > 0;
-    let deliverySaved = false;
-    let deliveryFailed = false;
-
-    if (deliveryAttempted) {
-      try {
-        const delRes = await sbFetch('deliveries', {
-          method: 'POST',
-          headers: { Prefer: 'return=representation' },
-          body: JSON.stringify({
-            client_id: clientId,
-            client_name: orderClientName || null,
-            origin_lat: checkoutOrigin.lat,
-            origin_lng: checkoutOrigin.lng,
-            origin_label: checkoutPickupText || null,
-            dest_lat: checkoutDest.lat,
-            dest_lng: checkoutDest.lng,
-            dest_label: checkoutDestText || null,
-            distance_km: Number(checkoutDistanceKm.toFixed(3)),
-            duration_min: checkoutDurationMin != null ? Number(checkoutDurationMin.toFixed(1)) : null,
-            fee_ugx: feeVal,
-          }),
-        });
-        if (!delRes.ok) throw new Error(`Supabase ${delRes.status}`);
-        const delRows = await delRes.json();
-        if (delRows[0]) await dataStore.appendDelivery(delRows[0]);
-        deliverySaved = true;
-      } catch (e) {
-        console.error('save delivery failed', e);
-        deliveryFailed = true;
-      }
-    }
+    const deliverySnapshot = deliveryAttempted
+      ? {
+          origin: { ...checkoutOrigin },
+          dest: { ...checkoutDest },
+          pickupText: checkoutPickupText,
+          destText: checkoutDestText,
+          distanceKm: checkoutDistanceKm,
+          durationMin: checkoutDurationMin,
+          fee: feeVal,
+        }
+      : null;
 
     lastCheckoutReceipt = {
       items: cart.map((item) => ({
@@ -1019,16 +937,17 @@ async function checkout() {
       total,
       clientName: orderClientName,
       isCredit: orderIsCredit,
-      delivery: deliverySaved
+      delivery: deliverySnapshot
         ? {
-            pickup: checkoutPickupText,
-            dest: checkoutDestText,
-            distanceKm: checkoutDistanceKm,
-            durationMin: checkoutDurationMin,
-            fee: feeVal,
+            pickup: deliverySnapshot.pickupText,
+            dest: deliverySnapshot.destText,
+            distanceKm: deliverySnapshot.distanceKm,
+            durationMin: deliverySnapshot.durationMin,
+            fee: deliverySnapshot.fee,
+            pending: true,
           }
         : null,
-      deliveryFailed,
+      deliveryFailed: false,
     };
 
     setCart([]);
@@ -1037,22 +956,36 @@ async function checkout() {
     updateFabBadge();
     renderStockGlance();
 
-    const { updateTodayStrip } = await import('./home.js');
-    await dataStore.invalidate('sales');
-    updateTodayStrip();
-
     modalMode = 'success';
     renderOrderModal();
+
+    void finishCheckoutBackground({
+      clientId,
+      orderClientName,
+      deliverySnapshot,
+    });
   } catch (e) {
     console.error('checkout failed', e);
+    applyInventorySnapshot(inventorySnapshot);
+    resetDraftStock();
+    renderStockGlance();
+    if (remoteInventoryPatched) {
+      try {
+        await patchInventoryRemote(inventoryIds);
+        void dataStore.persistCurrent('inventory');
+      } catch (revertErr) {
+        console.error('inventory revert failed', revertErr);
+      }
+    }
     showToast('Checkout failed — check connection', true);
     updateCartCheckoutState();
+  } finally {
+    checkoutInFlight = false;
   }
 }
 
 export function wireOrders() {
   const orderModal = document.getElementById('orderModal');
-  registerSheetModal(orderModal, { onDismiss: closeOrderModal });
 
   orderModal?.addEventListener('click', (e) => {
     if (e.target === orderModal) closeOrderModal();
@@ -1063,7 +996,7 @@ export function wireOrders() {
     const cart = getCart();
     modalMode = cart.length ? 'cart' : 'pick';
     renderOrderModal();
-    if (orderModal) openSheetModal(orderModal);
+    if (orderModal) openModal(orderModal);
   });
 
   updateFabBadge();
@@ -1073,23 +1006,10 @@ export function renderProductList() {
   const productList = document.getElementById('productList');
   if (!productList) return;
 
-  productList.innerHTML = PRODUCTS.map(
-    (p) => `
-    <button class="product-row" type="button" data-product="${p.id}">
-      <div>
-        <div class="pname">${escapeHtml(p.name)}</div>
-        <div class="pcount">${productDetailLabel(p)}</div>
-      </div>
-      <div class="p-right">
-        <div class="pprice">${fmtUGX(p.price || p.unitPrice)}</div>
-      </div>
-    </button>`,
-  ).join('');
+  productList.innerHTML = PRODUCTS.map((p) => productPickButtonHtml(p)).join('');
 
-  productList.querySelectorAll('[data-product]').forEach((row) => {
-    row.addEventListener('click', () => {
-      pressButton(row);
-      openOrderModal(row.dataset.product);
-    });
+  wireProductPickButtons(productList, (productId, row) => {
+    pressButton(row);
+    openOrderModal(productId);
   });
 }

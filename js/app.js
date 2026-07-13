@@ -1,4 +1,4 @@
-import { ensureGsap, initSheetModals, wireFloatingNav } from './animations.js';
+import { ensureGsap, wireFloatingNav } from './animations.js';
 import { wireDebugPanel } from './debug.js';
 import { mountShell } from './layout.js';
 import { wireOrders } from './orders.js';
@@ -17,7 +17,6 @@ export async function finishAppInit() {
   registerServiceWorker();
   await ensureGsap();
   wireFloatingNav();
-  initSheetModals();
 }
 
 export async function initApp(page) {
