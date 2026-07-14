@@ -106,9 +106,9 @@ export function deliveryPlaceFieldMarkup({
     <div class="delivery-place-field">
       <div class="delivery-place-input-row">
         ${icon ? `<span class="di-icon">${icon}</span>` : ''}
-        <input type="text" class="client-input" id="${inputId}" placeholder="${escapeHtml(placeholder)}" autocomplete="off" value="${escapeHtml(value)}" />
+        <input type="text" class="client-input" id="${inputId}" placeholder="${escapeHtml(placeholder)}" autocomplete="off" value="${escapeHtml(value)}" aria-autocomplete="list" aria-controls="${dropdownId}" aria-expanded="false" />
       </div>
-      <div class="delivery-place-dropdown" id="${dropdownId}" role="listbox"></div>
+      <div class="suggest-menu delivery-place-dropdown" id="${dropdownId}" role="listbox"></div>
     </div>`;
 }
 
@@ -260,6 +260,8 @@ function renderPredictionLabel(prediction, query) {
   return highlightClientName(full, query);
 }
 
+const BLUR_HIDE_MS = 140;
+
 function attachPlaceAutocomplete(
   input,
   dropdown,
@@ -267,31 +269,53 @@ function attachPlaceAutocomplete(
 ) {
   let sessionToken = null;
   let debounceTimer = null;
+  let hideTimer = null;
   let requestGen = 0;
   let selecting = false;
   let activeQuery = '';
   /** @type {unknown[]} */
   let visiblePredictions = [];
 
-  const hide = () => animateDropdown(dropdown, false);
-  const hideSoon = () => setTimeout(hide, 120);
+  const setExpanded = (open) => {
+    input.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+
+  const hide = () => {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+    animateDropdown(dropdown, false);
+    setExpanded(false);
+  };
+
+  const hideSoon = () => {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      if (!selecting) hide();
+    }, BLUR_HIDE_MS);
+  };
+
+  const cancelHide = () => {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+  };
 
   const showResults = (html, { contentUpdate = false } = {}) => {
     dropdown.innerHTML = html;
     animateDropdown(dropdown, true, { contentUpdate });
+    setExpanded(true);
   };
 
   const renderPredictions = (predictions, trimmed, { contentUpdate = false } = {}) => {
     visiblePredictions = predictions;
     if (!predictions.length) {
-      showResults('<div class="delivery-place-empty">No matches</div>', { contentUpdate });
+      showResults('<div class="suggest-empty delivery-place-empty">No matches</div>', { contentUpdate });
       return;
     }
 
     const html = predictions
       .map(
         (prediction, index) => `
-        <button class="delivery-place-row" type="button" data-prediction="${index}">
+        <button class="suggest-row delivery-place-row" type="button" role="option" data-prediction="${index}">
           <span class="delivery-place-row-icon" aria-hidden="true">${PLACE_PIN_ICON}</span>
           <span class="delivery-place-row-text">${renderPredictionLabel(prediction, trimmed)}</span>
         </button>`,
@@ -313,6 +337,11 @@ function attachPlaceAutocomplete(
     if (getCachedSuggestions(cacheKey)) {
       void fetchSuggestions(query);
       return;
+    }
+
+    const wasOpen = dropdown.classList.contains('open');
+    if (!wasOpen) {
+      showResults('<div class="suggest-empty delivery-place-empty">Searching…</div>');
     }
 
     debounceTimer = setTimeout(() => {
@@ -371,6 +400,7 @@ function attachPlaceAutocomplete(
 
   const selectPrediction = async (placePrediction) => {
     selecting = true;
+    cancelHide();
     try {
       const place = placePrediction.toPlace();
       await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
@@ -399,6 +429,7 @@ function attachPlaceAutocomplete(
   };
 
   const onFocusHandler = () => {
+    cancelHide();
     prefetchPlacesLibrary();
     onFocus?.();
     onActivate?.();
@@ -409,8 +440,15 @@ function attachPlaceAutocomplete(
     if (!selecting) hideSoon();
   };
 
+  const onKeyDown = (e) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    hide();
+    input.blur();
+  };
+
   const preventRowBlur = (e) => {
-    if (e.target.closest?.('.delivery-place-row')) e.preventDefault();
+    if (e.target.closest?.('.suggest-row, .delivery-place-row')) e.preventDefault();
   };
 
   const onDropdownClick = (e) => {
@@ -423,6 +461,7 @@ function attachPlaceAutocomplete(
   input.addEventListener('input', onInputHandler);
   input.addEventListener('focus', onFocusHandler);
   input.addEventListener('blur', onBlurHandler);
+  input.addEventListener('keydown', onKeyDown);
   dropdown.addEventListener('mousedown', preventRowBlur);
   dropdown.addEventListener('pointerdown', preventRowBlur);
   dropdown.addEventListener('click', onDropdownClick);
@@ -430,9 +469,11 @@ function attachPlaceAutocomplete(
   return {
     cleanup: () => {
       clearTimeout(debounceTimer);
+      clearTimeout(hideTimer);
       input.removeEventListener('input', onInputHandler);
       input.removeEventListener('focus', onFocusHandler);
       input.removeEventListener('blur', onBlurHandler);
+      input.removeEventListener('keydown', onKeyDown);
       dropdown.removeEventListener('mousedown', preventRowBlur);
       dropdown.removeEventListener('pointerdown', preventRowBlur);
       dropdown.removeEventListener('click', onDropdownClick);

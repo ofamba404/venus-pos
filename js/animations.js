@@ -499,20 +499,38 @@ export function animateCartSheetContent(container) {
   animateModalContent(container);
 }
 
+const DROPDOWN_OPEN_DURATION = 0.22;
+const DROPDOWN_CLOSE_DURATION = 0.15;
+const DROPDOWN_MORPH_DURATION = 0.18;
+const DROPDOWN_EASE = 'power2.out';
+const DROPDOWN_CLOSE_EASE = 'power2.in';
+
+function dropdownMaxHeight(panel) {
+  const maxHeight = parseFloat(getComputedStyle(panel).maxHeight);
+  return Number.isFinite(maxHeight) && maxHeight > 0 ? maxHeight : Infinity;
+}
+
+function dropdownTargetHeight(panel) {
+  return Math.min(panel.scrollHeight, dropdownMaxHeight(panel));
+}
+
+function settleDropdownOpen(panel) {
+  gsap().set(panel, {
+    height: 'auto',
+    opacity: 1,
+    y: 0,
+    display: 'flex',
+    pointerEvents: 'auto',
+    clearProps: 'overflow',
+  });
+  panel.style.overflowX = 'hidden';
+  panel.style.overflowY = 'auto';
+  refreshDropdownAncestors(panel);
+}
+
+/** Height + fade suggestion menus (client / places autocomplete). */
 export function animateDropdown(panel, open, { contentUpdate = false } = {}) {
   if (!panel) return;
-
-  const enableDropdownScroll = () => {
-    gsap().set(panel, {
-      height: 'auto',
-      opacity: 1,
-      display: 'flex',
-      pointerEvents: 'auto',
-      clearProps: 'overflow',
-    });
-    panel.style.overflowX = 'hidden';
-    panel.style.overflowY = 'auto';
-  };
 
   if (!hasGsap() || prefersReducedMotion()) {
     panel.classList.toggle('open', open);
@@ -525,6 +543,8 @@ export function animateDropdown(panel, open, { contentUpdate = false } = {}) {
       panel.style.height = '';
       panel.style.overflowX = '';
       panel.style.overflowY = '';
+      panel.style.opacity = '';
+      panel.style.transform = '';
     }
     return;
   }
@@ -532,60 +552,80 @@ export function animateDropdown(panel, open, { contentUpdate = false } = {}) {
   gsap().killTweensOf(panel);
 
   if (open) {
-    const alreadyOpen = panel.classList.contains('open');
+    const rect = panel.getBoundingClientRect();
+    const alreadyOpen = panel.classList.contains('open') && rect.height > 2 && getComputedStyle(panel).opacity !== '0';
     panel.classList.add('open');
 
     if (contentUpdate && alreadyOpen) {
-      enableDropdownScroll();
-      refreshDropdownAncestors(panel);
+      const fromHeight = panel.getBoundingClientRect().height;
+      gsap().set(panel, {
+        display: 'flex',
+        overflow: 'hidden',
+        pointerEvents: 'auto',
+        opacity: 1,
+        y: 0,
+        height: 'auto',
+      });
+      const toHeight = dropdownTargetHeight(panel);
+      if (Math.abs(fromHeight - toHeight) < 1) {
+        settleDropdownOpen(panel);
+        return;
+      }
+      gsap()
+        .fromTo(
+          panel,
+          { height: fromHeight },
+          {
+            height: toHeight,
+            duration: DROPDOWN_MORPH_DURATION,
+            ease: DROPDOWN_EASE,
+            onComplete: () => settleDropdownOpen(panel),
+          },
+        );
       return;
     }
 
-    const maxHeight = parseFloat(getComputedStyle(panel).maxHeight);
     gsap().set(panel, {
       display: 'flex',
       overflow: 'hidden',
       pointerEvents: 'none',
       height: 'auto',
       opacity: 0,
+      y: -6,
     });
-    const contentHeight = panel.scrollHeight;
-    const targetHeight =
-      Number.isFinite(maxHeight) && maxHeight > 0 ? Math.min(contentHeight, maxHeight) : contentHeight;
+    const targetHeight = dropdownTargetHeight(panel);
 
     gsap()
-      .timeline()
+      .timeline({ defaults: { ease: DROPDOWN_EASE } })
       .set(panel, { height: 0 })
       .to(panel, {
         height: targetHeight,
-        duration: ACCORDION_HEIGHT_DURATION,
-        ease: ACCORDION_HEIGHT_EASE,
-      })
-      .to(
-        panel,
-        {
-          opacity: 1,
-          duration: ACCORDION_FADE_DURATION,
-          ease: ACCORDION_FADE_EASE,
-          pointerEvents: 'auto',
-        },
-        ACCORDION_FADE_DELAY,
-      )
-      .call(() => {
-        enableDropdownScroll();
-        refreshDropdownAncestors(panel);
+        opacity: 1,
+        y: 0,
+        duration: DROPDOWN_OPEN_DURATION,
+        pointerEvents: 'auto',
+        onComplete: () => settleDropdownOpen(panel),
       });
     return;
   }
 
+  if (!panel.classList.contains('open') && !panel.style.height) {
+    gsap().set(panel, { clearProps: 'height,opacity,y,overflow,overflowX,overflowY,pointerEvents' });
+    return;
+  }
+
   gsap()
-    .timeline()
+    .timeline({ defaults: { ease: DROPDOWN_CLOSE_EASE } })
     .set(panel, { overflow: 'hidden', pointerEvents: 'none' })
-    .to(panel, { opacity: 0, duration: ACCORDION_FADE_DURATION * 0.65, ease: 'sine.in' })
-    .to(panel, { height: 0, duration: ACCORDION_HEIGHT_DURATION * 0.85, ease: ACCORDION_HEIGHT_EASE }, 0.04)
+    .to(panel, {
+      opacity: 0,
+      y: -4,
+      height: 0,
+      duration: DROPDOWN_CLOSE_DURATION,
+    })
     .call(() => {
       panel.classList.remove('open');
-      gsap().set(panel, { clearProps: 'height,opacity,overflow,overflowX,overflowY,pointerEvents' });
+      gsap().set(panel, { clearProps: 'height,opacity,y,overflow,overflowX,overflowY,pointerEvents,transform' });
     });
 }
 
@@ -593,7 +633,9 @@ function refreshDropdownAncestors(panel) {
   if (!hasGsap()) return;
   const accordionPanel = panel.closest('[data-accordion-panel]');
   if (!accordionPanel) return;
-  gsap().killTweensOf(accordionPanel);
+  const accordion = accordionPanel.closest('[data-accordion]');
+  if (accordion && !accordion.classList.contains('is-open')) return;
+  if (gsap().isTweening(accordionPanel)) return;
   gsap().set(accordionPanel, { height: 'auto', overflow: 'visible' });
 }
 
