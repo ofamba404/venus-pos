@@ -1,12 +1,13 @@
 import { getPageHref } from './config.js';
 import { isDataPending, revealLoaded } from './pending.js';
+import { sumOwnerRevenue } from './revenue.js';
 import { salesCache } from './state.js';
 import { fmtUGX, isToday } from './utils.js';
 
 export function updateTodayStrip() {
   const pending = isDataPending('sales');
   const todaySales = salesCache.filter((s) => isToday(s.created_at));
-  const revenue = todaySales.reduce((sum, s) => sum + s.total_ugx, 0);
+  const revenue = sumOwnerRevenue(todaySales);
   let joints = 0;
   let cookies = 0;
   todaySales.forEach((s) =>
@@ -55,6 +56,6 @@ export function wireHomePage() {
     window.location.href = getPageHref('analytics');
   });
   document.getElementById('todayUnitsStat')?.addEventListener('click', () => {
-    window.location.href = getPageHref('analytics', '#orders');
+    window.location.href = getPageHref('history');
   });
 }

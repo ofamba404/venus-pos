@@ -272,7 +272,7 @@ export function animateToastOut(el) {
 }
 
 const PAGE_CONTENT_SELECTOR =
-  '.kpi-grid > *, .stock-card, .section-head, .page-hint, .client-add-row, .client-search-wrap, .ao-hero, .ao-tiles > *, .ao-feature, .credit-panel, .analytics-block, .rev-chart-card, .pattern-card, .dl-model-card, .delivery-day-group, .delivery-stats, .delivery-log, .card, .section-title, .product-row, .client-row, .credit-row, .bar-row';
+  '.kpi-grid > *, .stock-card, .section-head, .page-hint, .client-add-row, .client-search-wrap, .ao-hero, .ao-tiles > *, .ao-feature, .credit-panel, .analytics-block, .rev-chart-card, .pattern-card, .dl-model-card, .delivery-day-group, .delivery-stats, .delivery-log, .history-hero, .history-section, .card, .section-title, .product-row, .client-row, .credit-row, .bar-row';
 
 function markAppReady() {
   document.body.classList.add('is-ready');
@@ -329,6 +329,42 @@ export function staggerChildren(container, selector = ':scope > *') {
     ease: EASE.out,
     clearProps: 'opacity,transform',
   });
+}
+
+export function animateCheckoutProcessing(container) {
+  if (!container) return;
+
+  const mark = container.querySelector('.checkout-processing-mark');
+  const glow = container.querySelector('.checkout-processing-mark-glow');
+  const total = container.querySelector('.checkout-processing-total');
+  const sub = container.querySelector('.checkout-processing-sub');
+  const status = container.querySelector('.checkout-processing-status');
+  const title = container.querySelector('.modal-title');
+
+  if (!hasGsap() || prefersReducedMotion()) {
+    container.classList.add('checkout-processing--static');
+    return;
+  }
+
+  container.classList.remove('checkout-processing--static');
+
+  const targets = [mark, glow, total, sub, status, title].filter(Boolean);
+  gsap().killTweensOf(targets);
+
+  gsap().set(mark, { scale: 0.6, opacity: 0, transformOrigin: '50% 50%' });
+  gsap().set(glow, { scale: 0.45, opacity: 0, transformOrigin: '50% 50%' });
+  gsap().set([title, sub, status].filter(Boolean), { opacity: 0, y: 10 });
+  gsap().set(total, { opacity: 0, y: 12, scale: 0.94, transformOrigin: 'left center' });
+
+  const tl = gsap().timeline({ defaults: { ease: EASE.out } });
+
+  tl.to(mark, { scale: 1, opacity: 1, duration: 0.34, ease: EASE.bounce }, 0)
+    .to(glow, { scale: 1, opacity: 1, duration: 0.4 }, 0.02)
+    .to(title, { opacity: 1, y: 0, duration: 0.28 }, 0.1)
+    .to(total, { opacity: 1, y: 0, scale: 1, duration: 0.36, ease: EASE.bounce }, 0.14)
+    .to(sub, { opacity: 1, y: 0, duration: 0.26 }, 0.22)
+    .to(status, { opacity: 1, y: 0, duration: 0.26 }, 0.28)
+    .set(targets, { clearProps: 'opacity,transform' });
 }
 
 export function animateCheckoutSuccess(container) {
@@ -772,29 +808,51 @@ export function animateSparkline(container) {
 export function animateRevenueChart(block) {
   if (!block || !hasGsap() || prefersReducedMotion()) return;
 
+  const card = block.querySelector('.rev-chart-card');
+  const wrap = block.querySelector('.rev-chart-wrap');
+  const stats = block.querySelectorAll('.rev-stat-val');
   const area = block.querySelector('.rev-area');
   const line = block.querySelector('.rev-line');
   const dots = block.querySelectorAll('.rev-dot');
 
+  if (card) {
+    gsap().from(card, { opacity: 0.35, duration: 0.35, ease: EASE.out, clearProps: 'opacity' });
+  }
+
+  if (wrap) {
+    gsap().from(wrap, { opacity: 0, y: 10, duration: 0.45, ease: EASE.out, clearProps: 'opacity,transform' });
+  }
+
+  if (stats.length) {
+    gsap().from(stats, {
+      opacity: 0,
+      y: 6,
+      duration: 0.35,
+      stagger: 0.04,
+      ease: EASE.out,
+      clearProps: 'opacity,transform',
+    });
+  }
+
   if (area) {
-    gsap().from(area, { opacity: 0, duration: 0.5, ease: EASE.out });
+    gsap().from(area, { opacity: 0, duration: 0.55, ease: EASE.out, delay: 0.08 });
   }
 
   if (line?.getTotalLength) {
     const len = line.getTotalLength();
     gsap().set(line, { strokeDasharray: len, strokeDashoffset: len });
-    gsap().to(line, { strokeDashoffset: 0, duration: 0.75, ease: EASE.out });
+    gsap().to(line, { strokeDashoffset: 0, duration: 0.85, ease: EASE.out, delay: 0.1 });
   }
 
   if (dots.length) {
     gsap().from(dots, {
       scale: 0,
       opacity: 0,
-      duration: 0.3,
-      stagger: 0.025,
+      duration: 0.32,
+      stagger: 0.02,
       ease: EASE.bounce,
       transformOrigin: 'center center',
-      delay: 0.2,
+      delay: 0.28,
     });
   }
 }

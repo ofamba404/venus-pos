@@ -11,16 +11,21 @@ import {
   wireProductConfigView,
   wireProductPickButtons,
 } from './product-config.js';
-import { applyActiveHighlight, getActiveStatusHighlight } from './inventory.js';
-import { animateAccordionPanel, animateFlavorMeter, animateModalContent, applyBarFillWidths, isModalOpen, readFlavorMeterScale, setAccordionPanelInstant, wireHeaderBodyAccordions } from './animations.js';
+import { applyActiveHighlight, cookieStockLevel, getActiveStatusHighlight } from './inventory.js';
+import { animateAccordionPanel, animateFlavorMeter, animateModalContent, applyBarFillWidths, isModalOpen, readFlavorMeterScale, setAccordionPanelInstant } from './animations.js';
 import {
-  filterSalesByRange,
+  filterSalesByInsightPeriod,
   getChartRange,
+  getInsightPeriod,
+  INSIGHT_PERIODS,
+  mondayOfWeek,
   renderRevenueChart,
   renderSalesPatterns,
+  setInsightPeriod,
 } from './analytics-chart.js';
 import { resolveClientId } from './clients.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
+import { itemOwnerRevenue, saleOwnerRevenue, sumOwnerRevenue } from './revenue.js';
 import { clients, inventory, salesCache } from './state.js';
 import {
   closeEditModal,
@@ -37,7 +42,6 @@ import {
   analyticsOverviewPlaceholder,
   barRowPlaceholders,
   fixedItemPlaceholders,
-  receiptListPlaceholder,
   showPlaceholder,
 } from './pending.js';
 import { createMemo, salesFingerprint } from './store/memo.js';
@@ -163,47 +167,81 @@ function revenueDelta(today, yesterday) {
   return { text: `${pct}% vs yesterday`, cls: 'down' };
 }
 
+function insightPeriodPillsHtml(activeId) {
+  return INSIGHT_PERIODS.map(
+    (p) =>
+      `<button type="button" class="rev-range-btn${p.id === activeId ? ' active' : ''}" data-insight-period="${p.id}">${p.short}</button>`,
+  ).join('');
+}
+
+function paintInsightPeriodPills(container, period) {
+  if (!container) return;
+  container.innerHTML = insightPeriodPillsHtml(period.id);
+}
+
+function wireInsightPeriodPills(root = document) {
+  root.querySelectorAll('[data-insight-period]').forEach((btn) => {
+    if (!(btn instanceof HTMLButtonElement) || btn.disabled) return;
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.insightPeriod;
+      if (!id || id === getInsightPeriod().id) return;
+      setInsightPeriod(id);
+      renderInsightDependent();
+    });
+  });
+}
+
+function renderInsightDependent() {
+  renderOverviewSections();
+  renderInsightLists();
+}
+
+function topProductForSales(sales) {
+  const productTotals = {};
+  sales.forEach((s) =>
+    (s.items || []).forEach((i) => {
+      productTotals[i.product_name] = (productTotals[i.product_name] || 0) + 1;
+    }),
+  );
+  let topProduct = '—';
+  let topCount = 0;
+  Object.entries(productTotals).forEach(([name, count]) => {
+    if (count > topCount) {
+      topCount = count;
+      topProduct = name;
+    }
+  });
+  return { topProduct, topCount };
+}
+
 function renderOverviewSections() {
   if (showPlaceholder('sales', salesCache.length)) {
     document.getElementById('statCards').innerHTML = analyticsOverviewPlaceholder();
     return;
   }
 
-  const metrics = memoOverview(`${salesFingerprint(salesCache)}:${clients.length}`, () => {
+  const period = getInsightPeriod();
+  const metrics = memoOverview(`${salesFingerprint(salesCache)}:${clients.length}:${period.id}`, () => {
     const todaySales = salesCache.filter((s) => isToday(s.created_at));
-    const revenueToday = todaySales.reduce((sum, s) => sum + s.total_ugx, 0);
-    const revenueAll = salesCache.reduce((sum, s) => sum + s.total_ugx, 0);
+    const revenueToday = sumOwnerRevenue(todaySales);
+    const revenueAll = sumOwnerRevenue(salesCache);
     const ordersCount = salesCache.length;
     const avgOrder = ordersCount > 0 ? revenueAll / ordersCount : 0;
 
     const now = new Date();
-    const weekAgo = new Date(now);
-    weekAgo.setDate(weekAgo.getDate() - 6);
-    weekAgo.setHours(0, 0, 0, 0);
+    const weekStart = mondayOfWeek(now);
     const revenueWeek = salesCache
-      .filter((s) => new Date(s.created_at) >= weekAgo)
-      .reduce((sum, s) => sum + s.total_ugx, 0);
+      .filter((s) => new Date(s.created_at) >= weekStart)
+      .reduce((sum, s) => sum + saleOwnerRevenue(s), 0);
     const revenueMonth = salesCache
       .filter((s) => {
         const d = new Date(s.created_at);
         return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
       })
-      .reduce((sum, s) => sum + s.total_ugx, 0);
+      .reduce((sum, s) => sum + saleOwnerRevenue(s), 0);
 
-    const productTotals = {};
-    salesCache.forEach((s) =>
-      (s.items || []).forEach((i) => {
-        productTotals[i.product_name] = (productTotals[i.product_name] || 0) + 1;
-      }),
-    );
-    let topProduct = '—';
-    let topCount = 0;
-    Object.entries(productTotals).forEach(([name, count]) => {
-      if (count > topCount) {
-        topCount = count;
-        topProduct = name;
-      }
-    });
+    const periodSales = filterSalesByInsightPeriod(salesCache, period);
+    const { topProduct, topCount } = topProductForSales(periodSales);
 
     const outstandingCredit = salesCache.filter((s) => s.is_credit && !s.credit_cleared);
     const totalCreditOwed = outstandingCredit.reduce((sum, s) => sum + s.total_ugx, 0);
@@ -212,7 +250,7 @@ function renderOverviewSections() {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayRev = salesCache
       .filter((s) => isSameDay(new Date(s.created_at), yesterday))
-      .reduce((sum, s) => sum + s.total_ugx, 0);
+      .reduce((sum, s) => sum + saleOwnerRevenue(s), 0);
     const delta = revenueDelta(revenueToday, yesterdayRev);
     const monthShare = revenueAll > 0 ? Math.round((revenueMonth / revenueAll) * 100) : 0;
     const ordersToday = todaySales.length;
@@ -231,6 +269,7 @@ function renderOverviewSections() {
       delta,
       monthShare,
       ordersToday,
+      period,
     };
   });
 
@@ -251,6 +290,11 @@ function renderOverviewSections() {
     monthShare,
     ordersToday,
   } = metrics;
+
+  const favoriteSub =
+    topCount > 0
+      ? `${topCount} unit${topCount === 1 ? '' : 's'} ordered · ${period.id === 'all' ? 'all time' : period.label.toLowerCase()}`
+      : 'No orders yet';
 
   document.getElementById('statCards').innerHTML = `
     <div class="ao-hero">
@@ -284,9 +328,14 @@ function renderOverviewSections() {
     <div class="ao-feature">
       <div class="ao-feature-badge" aria-hidden="true">★</div>
       <div class="ao-feature-body">
-        <div class="ao-feature-kicker">Customer favorite</div>
+        <div class="ao-feature-head">
+          <div class="ao-feature-kicker">Customer favorite</div>
+          <div class="insight-period-pills" role="group" aria-label="Customer favorite period">
+            ${insightPeriodPillsHtml(period.id)}
+          </div>
+        </div>
         <div class="ao-feature-title">${escapeHtml(topProduct)}</div>
-        <div class="ao-feature-sub">${topCount > 0 ? `${topCount} unit${topCount === 1 ? '' : 's'} ordered` : 'No orders yet'}</div>
+        <div class="ao-feature-sub">${favoriteSub}</div>
       </div>
     </div>
 
@@ -295,24 +344,25 @@ function renderOverviewSections() {
 
   applyBarFillWidths(document.getElementById('statCards'));
   wireCreditPanel();
+  wireInsightPeriodPills(document.getElementById('statCards'));
 }
 
-function renderRangeSections() {
-  const range = getChartRange();
-  const rangeSales = filterSalesByRange(salesCache, range);
+function renderInsightLists() {
+  const period = getInsightPeriod();
+  const periodSales = filterSalesByInsightPeriod(salesCache, period);
+  const periodSuffix = period.id === 'all' ? 'all time' : period.label.toLowerCase();
 
-  renderRevenueChart(document.getElementById('revenueChart'), salesCache, range, () => renderAnalyticsCharts());
-  renderSalesPatterns(document.getElementById('salesPatterns'), salesCache, range);
-
-  const rangeLabel = document.getElementById('productRevenueLabel');
-  if (rangeLabel) {
-    rangeLabel.textContent = range.id === 'all' ? 'Revenue by product — all time' : `Revenue by product — ${range.label}`;
-  }
+  const productPeriodEl = document.getElementById('productRevenuePeriod');
+  const clientsPeriodEl = document.getElementById('topClientsPeriod');
+  paintInsightPeriodPills(productPeriodEl, period);
+  paintInsightPeriodPills(clientsPeriodEl, period);
+  wireInsightPeriodPills(productPeriodEl);
+  wireInsightPeriodPills(clientsPeriodEl);
 
   const productRevenueMap = {};
-  rangeSales.forEach((s) =>
+  periodSales.forEach((s) =>
     (s.items || []).forEach((i) => {
-      productRevenueMap[i.product_name] = (productRevenueMap[i.product_name] || 0) + i.line_total;
+      productRevenueMap[i.product_name] = (productRevenueMap[i.product_name] || 0) + itemOwnerRevenue(i);
     }),
   );
   const sortedProducts = Object.entries(productRevenueMap).sort((a, b) => b[1] - a[1]);
@@ -321,9 +371,9 @@ function renderRangeSections() {
   if (productRevenueEl) {
     productRevenueEl.innerHTML =
       sortedProducts.length === 0
-        ? showPlaceholder('sales', rangeSales.length)
+        ? showPlaceholder('sales', periodSales.length)
           ? barRowPlaceholders(4, true)
-          : `<div class="receipt-empty">No sales in this period</div>`
+          : `<div class="receipt-empty">No sales ${period.id === 'all' ? 'yet' : `this ${periodSuffix}`}</div>`
         : sortedProducts
           .map(
             ([name, rev]) => `
@@ -339,10 +389,10 @@ function renderRangeSections() {
   applyBarFillWidths(productRevenueEl);
 
   const clientTotals = {};
-  rangeSales.forEach((s) => {
+  periodSales.forEach((s) => {
     if (!s.client_id) return;
     if (!clientTotals[s.client_id]) clientTotals[s.client_id] = { revenue: 0, orders: 0 };
-    clientTotals[s.client_id].revenue += s.total_ugx;
+    clientTotals[s.client_id].revenue += saleOwnerRevenue(s);
     clientTotals[s.client_id].orders += 1;
   });
   const rankedClients = Object.entries(clientTotals)
@@ -353,9 +403,9 @@ function renderRangeSections() {
   if (topClientsEl) {
     topClientsEl.innerHTML =
       rankedClients.length === 0
-        ? showPlaceholder('sales', rangeSales.length)
+        ? showPlaceholder('sales', periodSales.length)
           ? fixedItemPlaceholders(3)
-          : `<div class="receipt-empty">No client-attributed sales in this period</div>`
+          : `<div class="receipt-empty">No client-attributed sales ${period.id === 'all' ? 'yet' : `this ${periodSuffix}`}</div>`
         : rankedClients
           .map(
             (c, i) => `
@@ -368,6 +418,14 @@ function renderRangeSections() {
   }
 }
 
+function renderRangeSections() {
+  const range = getChartRange();
+
+  renderRevenueChart(document.getElementById('revenueChart'), salesCache, range, () => renderAnalyticsCharts());
+  renderSalesPatterns(document.getElementById('salesPatterns'), salesCache);
+  renderInsightLists();
+}
+
 export function renderAnalyticsOverview() {
   renderOverviewSections();
 }
@@ -377,15 +435,24 @@ export function renderAnalyticsCharts() {
 }
 
 export function renderAnalyticsStock() {
-  const maxStock = Math.max(1, ...CATEGORIES.map((c) => inventory[c.id]));
+  const jointCats = CATEGORIES.filter((c) => c.id !== 'cookie');
+  const maxJointStock = Math.max(1, ...jointCats.map((c) => inventory[c.id]));
   const stockPending = showPlaceholder('inventory');
   const stockBars = document.getElementById('stockBars');
   if (!stockBars) return;
 
   stockBars.innerHTML = CATEGORIES.map((c) => {
     const stock = inventory[c.id];
-    const status = stock === 0 ? 'out' : stock < LOW_STOCK_THRESHOLD ? 'low' : 'ok';
-    const pct = Math.round((stock / maxStock) * 100);
+    let status;
+    let pct;
+    if (c.id === 'cookie') {
+      const meter = cookieStockLevel(stock);
+      status = meter.state;
+      pct = meter.pct;
+    } else {
+      status = stock === 0 ? 'out' : stock < LOW_STOCK_THRESHOLD ? 'low' : 'ok';
+      pct = Math.round((stock / maxJointStock) * 100);
+    }
     const label = c.sub ? `${c.name} ${c.sub}` : c.name;
     return `<div class="bar-row" data-status="${status}">
       <div class="bar-label">${escapeHtml(label)}</div>
@@ -397,90 +464,48 @@ export function renderAnalyticsStock() {
   applyBarFillWidths(stockBars);
 }
 
-export function renderAnalyticsOrders() {
-  const list = document.getElementById('receiptList');
-  if (!list) return;
-
-  if (salesCache.length === 0) {
-    list.innerHTML = showPlaceholder('sales')
-      ? receiptListPlaceholder()
-      : `<div class="receipt-empty">No orders yet — ring one up on the Home tab</div>`;
-    return;
-  }
-
-  const dayMap = new Map();
-  salesCache.forEach((s) => {
-    const key = new Date(s.created_at).toDateString();
-    if (!dayMap.has(key)) dayMap.set(key, { dateObj: new Date(s.created_at), sales: [] });
-    dayMap.get(key).sales.push(s);
-  });
-  const dayGroups = Array.from(dayMap.values()).sort((a, b) => b.dateObj - a.dateObj);
-
-  list.innerHTML = dayGroups
-    .map((group, idx) => {
-      const isTodayGroup = isToday(group.dateObj);
-      const dayLabel = isTodayGroup
-        ? 'Today'
-        : group.dateObj.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-      const dayTotal = group.sales.reduce((sum, s) => sum + s.total_ugx, 0);
-
-      const rows = group.sales
-        .map((s) => {
-          const t = new Date(s.created_at);
-          const time = t.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-          const itemLines = (s.items || [])
-            .map((i) => `${escapeHtml(i.product_name)}${i.detail ? ` — ${escapeHtml(i.detail)}` : ''}`)
-            .join('<br>');
-          const client = s.client_id ? clients.find((c) => c.id === s.client_id) : null;
-          const clientLine = client ? `<div class="r-client">${escapeHtml(client.name)}</div>` : '';
-          return `<button class="receipt-order" type="button" data-edit-sale="${s.id}">
-            <div class="r-head"><span class="r-time">${time}</span><span class="r-amt">${fmtUGX(s.total_ugx)}${s.is_credit && !s.credit_cleared ? '<span class="credit-tag">credit</span>' : ''}</span></div>
-            ${clientLine}
-            <div class="r-items">${itemLines}</div>
-          </button>`;
-        })
-        .join('');
-
-      return `
-          <div class="order-day-group">
-            <button class="order-day-header ${isTodayGroup ? 'expanded' : ''}" data-day-toggle="${idx}" type="button">
-              <span class="day-label">${dayLabel} <span class="day-meta">(${group.sales.length})</span></span>
-              <span style="display:flex; align-items:center; gap:8px;">
-                <span class="day-meta">${fmtCompact(dayTotal)}</span>
-                <span class="day-caret">▸</span>
-              </span>
-            </button>
-            <div class="order-day-body" data-day-body="${idx}">
-              ${rows}
-            </div>
-          </div>`;
-    })
-    .join('');
-
-  wireHeaderBodyAccordions(list, { headerSelector: '.order-day-header' });
-
-  list.querySelectorAll('[data-edit-sale]').forEach((btn) => {
-    btn.addEventListener('click', () => openEditSale(btn.dataset.editSale));
-  });
-}
-
 export function renderAnalytics() {
   renderAnalyticsOverview();
   renderAnalyticsCharts();
   renderAnalyticsStock();
-  renderAnalyticsOrders();
+}
+
+async function refreshAfterSaleEdit() {
+  renderAnalytics();
+  try {
+    const { renderOrderHistory } = await import('./order-history.js');
+    renderOrderHistory();
+  } catch {
+    /* history page module unused on analytics */
+  }
+  try {
+    const { updateTodayStrip } = await import('./home.js');
+    updateTodayStrip();
+  } catch {
+    /* home strip unused off home */
+  }
 }
 
 async function clearCredit(saleId) {
   const ok = await showConfirm('Mark this credit as cleared?');
   if (!ok) return;
   try {
+    const clearedAt = new Date().toISOString();
     const res = await sbFetch(`sales?id=eq.${saleId}`, {
       method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ credit_cleared: true, cleared_at: new Date().toISOString() }),
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ credit_cleared: true, cleared_at: clearedAt }),
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new Error('Clear blocked — no rows updated');
+    }
+    const local = salesCache.find((s) => s.id === saleId);
+    if (local) {
+      local.credit_cleared = true;
+      local.cleared_at = clearedAt;
+    }
     await dataStore.invalidate('sales');
     showToast('Credit cleared');
     renderAnalytics();
@@ -495,11 +520,6 @@ export function wireAnalyticsPage() {
     setTimeout(() => {
       document.getElementById('stockLevelsLabel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       applyActiveHighlight();
-    }, 100);
-  }
-  if (location.hash === '#orders') {
-    setTimeout(() => {
-      document.getElementById('analyticsBottom')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
   }
 }
@@ -534,7 +554,7 @@ function getEditSaleDraftStock(excludeIdx = -1) {
   return stock;
 }
 
-function openEditSale(saleId) {
+export function openEditSale(saleId) {
   const sale = salesCache.find((s) => s.id === saleId);
   if (!sale) return;
 
@@ -666,7 +686,8 @@ function renderEditSaleMainView() {
   });
   document.getElementById('editSaleCredit')?.addEventListener('click', () => {
     editSaleIsCredit = !editSaleIsCredit;
-    if (!editSaleIsCredit) editSaleCreditCleared = true;
+    // Paid → credit should start unpaid; leaving credit restores paid (cleared).
+    editSaleCreditCleared = !editSaleIsCredit;
     renderEditSaleModal();
   });
   document.getElementById('editSaleCreditCleared')?.addEventListener('click', () => {
@@ -902,9 +923,7 @@ async function saveSaleEdit() {
     closeEditModal();
     await Promise.all([dataStore.invalidate('sales'), dataStore.invalidate('inventory')]);
     showToast('Order updated');
-    renderAnalytics();
-    const { updateTodayStrip } = await import('./home.js');
-    updateTodayStrip();
+    await refreshAfterSaleEdit();
   } catch (e) {
     console.error('save sale failed', e);
     showToast('Could not save order', true);
@@ -937,29 +956,27 @@ async function performVoidSale(snapshot) {
   const oldBreakdown = mergeItemBreakdown(snapshot.items);
 
   try {
+    // CASCADE on deliveries.sale_id removes the linked delivery quote.
     await sbDelete(`sales?id=eq.${snapshot.id}`);
     await applyStockDelta(oldBreakdown, {}, { persistLocal: false });
 
-    const [salesRes, invRes] = await Promise.all([
+    const [salesRes, invRes, delRes] = await Promise.all([
       dataStore.invalidate('sales'),
       dataStore.invalidate('inventory'),
+      dataStore.invalidate('deliveries'),
     ]);
 
-    if (!salesRes.ok || !invRes.ok) {
-      await dataStore.recoverFromServer(['sales', 'inventory']);
-      if (!salesRes.ok || !invRes.ok) throw new Error('Sync failed after void');
+    if (!salesRes.ok || !invRes.ok || !delRes.ok) {
+      await dataStore.recoverFromServer(['sales', 'inventory', 'deliveries']);
+      if (!salesRes.ok || !invRes.ok || !delRes.ok) throw new Error('Sync failed after void');
     }
 
     showToast('Order voided');
-    renderAnalytics();
-    const { updateTodayStrip } = await import('./home.js');
-    updateTodayStrip();
+    await refreshAfterSaleEdit();
   } catch (e) {
     console.error('void sale failed', e);
-    await dataStore.recoverFromServer(['sales', 'inventory']).catch(() => {});
-    renderAnalytics();
-    const { updateTodayStrip } = await import('./home.js');
-    updateTodayStrip();
+    await dataStore.recoverFromServer(['sales', 'inventory', 'deliveries']).catch(() => {});
+    await refreshAfterSaleEdit();
     showToast('Could not void order', true);
   }
 }

@@ -209,7 +209,8 @@ function formatStatusParts({ ok, low, out }, showZeros = true) {
   return parts.length ? parts.join('<span class="ds-sep">·</span>') : '<span class="ds-out">out of stock</span>';
 }
 
-function cookieStockLevel(stock) {
+/** Cookie fill = stock / 100 capacity; joints use their own relative bar scale. */
+export function cookieStockLevel(stock) {
   const pct = stock <= 0 ? 0 : Math.min(100, Math.round((stock / COOKIE_STOCK_CAPACITY) * 100));
   if (stock === 0) return { pct, state: 'out' };
   const lowCutoff = Math.max(LOW_STOCK_THRESHOLD, Math.round(COOKIE_STOCK_CAPACITY * COOKIE_LOW_PCT));

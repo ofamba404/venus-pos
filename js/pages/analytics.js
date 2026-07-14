@@ -2,7 +2,6 @@ import { runPageBoot } from '../bootstrap.js';
 import {
   renderAnalytics,
   renderAnalyticsCharts,
-  renderAnalyticsOrders,
   renderAnalyticsOverview,
   renderAnalyticsStock,
   wireAnalyticsPage,
@@ -13,7 +12,7 @@ runPageBoot({
   wire: wireAnalyticsPage,
   paint: renderAnalytics,
   slices: {
-    sales: [renderAnalyticsOverview, renderAnalyticsCharts, renderAnalyticsOrders],
+    sales: [renderAnalyticsOverview, renderAnalyticsCharts],
     inventory: renderAnalyticsStock,
     clients: renderAnalyticsCharts,
   },

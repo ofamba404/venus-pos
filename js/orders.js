@@ -11,6 +11,7 @@ import {
   ICON_PIN,
   ICON_ROUTE,
   loadGoogleMaps,
+  predictSafeBodaFee,
 } from './delivery.js';
 import {
   deliveryPlaceFieldMarkup,
@@ -30,6 +31,7 @@ import {
   wireProductPickButtons,
 } from './product-config.js';
 import {
+  animateCheckoutProcessing,
   animateCheckoutSuccess,
   animateFlavorMeter,
   animateModalContent,
@@ -66,8 +68,10 @@ let checkoutDestText = '';
 let checkoutDistanceKm = null;
 let checkoutDurationMin = null;
 let checkoutFeeValue = '';
+let checkoutFeeManuallyEdited = false;
 let pickupAutoRequested = false;
 let lastCheckoutReceipt = null;
+let lastCheckoutProcessing = null;
 let lastOrderModalMode = null;
 let checkoutInFlight = false;
 
@@ -124,6 +128,7 @@ function resetCheckoutDelivery() {
   checkoutDistanceKm = null;
   checkoutDurationMin = null;
   checkoutFeeValue = '';
+  checkoutFeeManuallyEdited = false;
   pickupAutoRequested = false;
 }
 
@@ -141,6 +146,8 @@ export function updateFabBadge() {
 }
 
 function closeOrderModal() {
+  if (modalMode === 'processing') return;
+
   if (modalMode === 'success') {
     dismissSuccessView();
     return;
@@ -170,12 +177,20 @@ function renderOrderModal() {
   if (modalMode === 'cart') renderCartView();
   else if (modalMode === 'pick') renderPickView();
   else if (modalMode === 'config') renderConfigView();
+  else if (modalMode === 'processing') renderProcessingView();
   else if (modalMode === 'success') renderSuccessView();
 
   const orderModal = document.getElementById('orderModal');
   const orderModalBody = document.getElementById('orderModalBody');
   if (orderModalBody) orderModalBody.dataset.mode = modalMode;
-  if (orderModalBody && modalMode !== 'success' && !isCartRefresh && !isConfigRefresh && isModalOpen(orderModal)) {
+  if (
+    orderModalBody &&
+    modalMode !== 'success' &&
+    modalMode !== 'processing' &&
+    !isCartRefresh &&
+    !isConfigRefresh &&
+    isModalOpen(orderModal)
+  ) {
     animateModalContent(orderModalBody);
   }
 }
@@ -198,9 +213,58 @@ function applyInventorySnapshot(snap) {
 
 function dismissSuccessView() {
   lastCheckoutReceipt = null;
+  lastCheckoutProcessing = null;
   modalMode = 'cart';
   const orderModal = document.getElementById('orderModal');
   if (orderModal) closeModal(orderModal);
+}
+
+function renderProcessingView() {
+  const orderModalBody = document.getElementById('orderModalBody');
+  if (!orderModalBody || !lastCheckoutProcessing) return;
+
+  const { total, itemCount, clientName, isCredit } = lastCheckoutProcessing;
+  const itemLabel = itemCount === 1 ? '1 item' : `${itemCount} items`;
+  const statusLabel = isCredit ? 'Recording on credit…' : 'Recording order…';
+
+  orderModalBody.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-title" id="orderModalTitle">${statusLabel}</div>
+    </div>
+    <div class="checkout-processing">
+      <div class="checkout-processing-hero">
+        <div class="checkout-processing-mark" aria-hidden="true">
+          <span class="checkout-processing-mark-glow"></span>
+          <svg class="checkout-processing-mark-svg" viewBox="0 0 48 48" fill="none">
+            <circle class="checkout-processing-mark-track" cx="24" cy="24" r="20" />
+            <circle class="checkout-processing-mark-arc" cx="24" cy="24" r="20" />
+          </svg>
+        </div>
+        <div class="checkout-processing-total">${fmtUGX(total)}</div>
+        <div class="checkout-processing-sub">${itemLabel}${clientName ? ` · ${escapeHtml(clientName)}` : ''}</div>
+        <div class="checkout-processing-status" aria-live="polite">
+          <span class="checkout-processing-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          Saving to ledger
+        </div>
+      </div>
+    </div>`;
+
+  animateCheckoutProcessing(orderModalBody);
+}
+
+function showCheckoutProcessing({ total, itemCount, clientName, isCredit }) {
+  lastCheckoutProcessing = { total, itemCount, clientName, isCredit };
+  modalMode = 'processing';
+
+  const orderModal = document.getElementById('orderModal');
+  if (orderModal && !isModalOpen(orderModal)) openModal(orderModal);
+  renderOrderModal();
+}
+
+function restoreCheckoutCartView() {
+  lastCheckoutProcessing = null;
+  modalMode = 'cart';
+  renderOrderModal();
 }
 
 function renderSuccessView({ animate = true } = {}) {
@@ -276,6 +340,7 @@ function renderSuccessView({ animate = true } = {}) {
   document.getElementById('checkoutSuccessDoneBtn')?.addEventListener('click', dismissSuccessView);
   document.getElementById('checkoutSuccessNewBtn')?.addEventListener('click', () => {
     lastCheckoutReceipt = null;
+    lastCheckoutProcessing = null;
     modalMode = 'pick';
     renderOrderModal();
   });
@@ -314,9 +379,20 @@ function updateCheckoutDistanceReadout() {
   }
 }
 
+function applyPredictedFee() {
+  if (checkoutFeeManuallyEdited || checkoutDistanceKm == null) return;
+  const predicted = predictSafeBodaFee(checkoutDistanceKm);
+  if (predicted == null) return;
+  checkoutFeeValue = String(predicted);
+  const feeInput = document.getElementById('deliveryFeeInputCart');
+  if (feeInput) feeInput.value = checkoutFeeValue;
+  updateCartDeliveryHint();
+}
+
 function computeCheckoutDistance() {
   if (!checkoutOrigin || !checkoutDest) {
     checkoutDistanceKm = null;
+    updateCheckoutDistanceReadout();
     return;
   }
   loadGoogleMaps(() => {
@@ -332,6 +408,7 @@ function computeCheckoutDistance() {
           const el = res.rows[0].elements[0];
           checkoutDistanceKm = el.distance.value / 1000;
           checkoutDurationMin = el.duration.value / 60;
+          applyPredictedFee();
         } else {
           checkoutDistanceKm = null;
           checkoutDurationMin = null;
@@ -366,6 +443,7 @@ function wireDeliveryAutocompletes() {
     onDestSelect: ({ lat, lng, label }) => {
       checkoutDest = { lat, lng };
       checkoutDestText = label;
+      checkoutFeeManuallyEdited = false;
       setDeliveryFieldValue('deliveryDestInput', label);
       updateCartDeliveryHint();
       computeCheckoutDistance();
@@ -669,6 +747,7 @@ function renderCartView() {
   }
   document.getElementById('deliveryFeeInputCart')?.addEventListener('input', (e) => {
     checkoutFeeValue = e.target.value;
+    checkoutFeeManuallyEdited = true;
     updateCartDeliveryHint();
   });
   document.getElementById('cancelOrderBtn')?.addEventListener('click', () => {
@@ -838,13 +917,14 @@ async function resolveCheckoutClientId(orderClientName) {
   return resolveClientId(orderClientName);
 }
 
-async function saveCheckoutDelivery({ clientId, orderClientName, snapshot }) {
+async function saveCheckoutDelivery({ clientId, orderClientName, saleId, snapshot }) {
   const delRes = await sbFetch('deliveries', {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
     body: JSON.stringify({
       client_id: clientId,
       client_name: orderClientName || null,
+      sale_id: saleId || null,
       origin_lat: snapshot.origin.lat,
       origin_lng: snapshot.origin.lng,
       origin_label: snapshot.pickupText || null,
@@ -877,6 +957,7 @@ function markCheckoutDeliverySaved() {
 async function finishCheckoutBackground({
   clientId,
   orderClientName,
+  saleId,
   deliverySnapshot,
   inventoryIds,
 }) {
@@ -900,7 +981,12 @@ async function finishCheckoutBackground({
   if (!deliverySnapshot) return;
 
   try {
-    await saveCheckoutDelivery({ clientId, orderClientName, snapshot: deliverySnapshot });
+    await saveCheckoutDelivery({
+      clientId,
+      orderClientName,
+      saleId,
+      snapshot: deliverySnapshot,
+    });
     markCheckoutDeliverySaved();
   } catch (e) {
     console.error('save delivery failed', e);
@@ -966,6 +1052,14 @@ async function checkout() {
 
   checkoutInFlight = true;
 
+  const total = cartTotal(cart);
+  showCheckoutProcessing({
+    total,
+    itemCount: cart.length,
+    clientName: orderClientName,
+    isCredit: orderIsCredit,
+  });
+
   const mergedBreakdown = {};
   cart.forEach((item) => {
     Object.entries(item.breakdown).forEach(([id, qty]) => {
@@ -987,7 +1081,6 @@ async function checkout() {
 
     const clientId = await resolveCheckoutClientId(orderClientName);
 
-    const total = cartTotal(cart);
     const items = cart.map((i) => ({
       product_id: i.productId,
       product_name: i.name,
@@ -1026,6 +1119,7 @@ async function checkout() {
         }
       : null;
 
+    lastCheckoutProcessing = null;
     showCheckoutSuccess({
       cart,
       total,
@@ -1037,6 +1131,7 @@ async function checkout() {
     void finishCheckoutBackground({
       clientId,
       orderClientName,
+      saleId: saleRows?.[0]?.id || null,
       deliverySnapshot,
       inventoryIds,
     });
@@ -1046,6 +1141,7 @@ async function checkout() {
     resetDraftStock();
     renderStockGlance();
     void dataStore.persistCurrent('inventory');
+    restoreCheckoutCartView();
     showToast('Checkout failed — check connection', true);
     updateCartCheckoutState();
   } finally {
@@ -1062,6 +1158,7 @@ export function wireOrders() {
 
   document.getElementById('fabNewOrder')?.addEventListener('click', () => {
     lastCheckoutReceipt = null;
+    lastCheckoutProcessing = null;
     const cart = getCart();
     modalMode = cart.length ? 'cart' : 'pick';
     renderOrderModal();

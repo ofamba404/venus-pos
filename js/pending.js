@@ -4,7 +4,7 @@ const PENDING_KEYS = ['sales', 'inventory', 'clients', 'deliveries'];
 
 const ICON_ROUTE = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"></circle><circle cx="18" cy="18" r="2.4"></circle><path d="M6 8.4v4.2a3.4 3.4 0 0 0 3.4 3.4h5.2"></path></svg>`;
 
-const CHART_RANGE_SHORT = ['7D', '14D', '30D', '90D', 'All'];
+const CHART_RANGE_SHORT = ['1W', '2W', '1M', '3M', 'All'];
 
 export function applyPendingFlags(hydrated = {}) {
   PENDING_KEYS.forEach((key) => {
@@ -185,7 +185,14 @@ export function analyticsOverviewPlaceholder() {
     <div class="ao-feature">
       <div class="ao-feature-badge" aria-hidden="true">★</div>
       <div class="ao-feature-body">
-        <div class="ao-feature-kicker">Customer favorite</div>
+        <div class="ao-feature-head">
+          <div class="ao-feature-kicker">Customer favorite</div>
+          <div class="insight-period-pills" role="group" aria-label="Customer favorite period">
+            <button type="button" class="rev-range-btn" tabindex="-1" disabled>Week</button>
+            <button type="button" class="rev-range-btn active" tabindex="-1" disabled>Month</button>
+            <button type="button" class="rev-range-btn" tabindex="-1" disabled>All</button>
+          </div>
+        </div>
         <div class="ao-feature-title is-pending">${pt(true)}</div>
         <div class="ao-feature-sub is-pending">${pt(true)}</div>
       </div>

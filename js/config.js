@@ -23,6 +23,8 @@ export const LOW_STOCK_THRESHOLD = 5;
 export const COOKIE_STOCK_CAPACITY = 100;
 /** Cookie bar + label below this share of capacity (30 → running low under 30 cookies). */
 export const COOKIE_LOW_PCT = 0.3;
+/** Amount you keep per cookie sold (rest of unit price is not owner revenue). */
+export const COOKIE_COMMISSION_UGX = 1000;
 
 export const PRODUCTS = [
   { id: 'scout', name: 'Scout Pack', price: 8000, joints: 1, rule: 'choose_any' },
@@ -39,6 +41,7 @@ export const PAGES = [
   { id: 'inventory', label: 'Inventory' },
   { id: 'clients', label: 'Clients' },
   { id: 'delivery', label: 'Delivery' },
+  { id: 'history', label: 'History' },
   { id: 'analytics', label: 'Analytics' },
 ];
 
@@ -60,6 +63,7 @@ export function getPageHref(pageId, hash = '') {
     inventory: root ? 'inventory.html' : 'pages/inventory.html',
     clients: root ? 'clients.html' : 'pages/clients.html',
     delivery: root ? 'delivery.html' : 'pages/delivery.html',
+    history: root ? 'history.html' : 'pages/history.html',
     analytics: root ? 'analytics.html' : 'pages/analytics.html',
   };
   return (paths[pageId] || paths.home) + hash;

@@ -42,6 +42,7 @@ export function wireNavPrefetch(root = document) {
     inventory: 'inventory',
     clients: 'clients',
     delivery: 'deliveries',
+    history: 'sales',
     analytics: 'sales',
     home: null,
   };
@@ -53,6 +54,9 @@ export function wireNavPrefetch(root = document) {
     if (entity) prefetchEntity(entity);
     if (page === 'analytics') {
       prefetchEntity('inventory');
+      prefetchEntity('clients');
+    }
+    if (page === 'history') {
       prefetchEntity('clients');
     }
     if (page === 'delivery') {

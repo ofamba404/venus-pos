@@ -3,22 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Delivery · Venus POS</title>
-  <meta name="description" content="Reverse-engineer SafeBoda delivery pricing from real quotes.">
+  <title>Order history · Venus POS</title>
+  <meta name="description" content="Venus POS order history — browse sales by day, week, and month.">
   <meta name="theme-color" content="#000000">
-  <link rel="canonical" href="https://posvenus.netlify.app/pages/delivery.html">
+  <link rel="canonical" href="https://posvenus.netlify.app/pages/history.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Venus POS">
-  <meta property="og:title" content="Delivery · Venus POS">
-  <meta property="og:description" content="Reverse-engineer SafeBoda delivery pricing from real quotes.">
-  <meta property="og:url" content="https://posvenus.netlify.app/pages/delivery.html">
+  <meta property="og:title" content="Order history · Venus POS">
+  <meta property="og:description" content="Venus POS order history — browse sales by day, week, and month.">
+  <meta property="og:url" content="https://posvenus.netlify.app/pages/history.html">
   <meta property="og:image" content="https://posvenus.netlify.app/assets/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Venus POS">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Delivery · Venus POS">
-  <meta name="twitter:description" content="Reverse-engineer SafeBoda delivery pricing from real quotes.">
+  <meta name="twitter:title" content="Order history · Venus POS">
+  <meta name="twitter:description" content="Venus POS order history — browse sales by day, week, and month.">
   <meta name="twitter:image" content="https://posvenus.netlify.app/assets/og-image.png">
   <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="../assets/logo.svg">
@@ -28,15 +28,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/main.css">
 </head>
-<body data-page="delivery">
+<body data-page="history">
   <div id="app-root">
-    <div class="delivery-dashboard">
-      <div id="deliveryModel"></div>
-
-      <div class="section-title">Logged quotes</div>
-      <div id="deliveryLogList"></div>
+    <div class="history-page">
+      <header class="history-hero" id="orderHistoryHero"></header>
+      <div id="orderHistoryList" class="history-timeline"></div>
     </div>
   </div>
-  <script type="module" src="../js/pages/delivery.js"></script>
+  <script type="module" src="../js/pages/history.js"></script>
 </body>
 </html>

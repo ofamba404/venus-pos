@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'venus-pos-v2';
+const CACHE_VERSION = 'venus-pos-v3';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -8,6 +8,7 @@ const SHELL_URLS = [
   '/pages/inventory.html',
   '/pages/clients.html',
   '/pages/delivery.html',
+  '/pages/history.html',
   '/pages/analytics.html',
   '/css/main.css',
   '/assets/logo.svg',

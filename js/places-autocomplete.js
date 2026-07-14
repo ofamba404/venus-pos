@@ -6,17 +6,66 @@ import { escapeHtml, showToast } from './utils.js';
 
 const PLACE_PIN_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.2s7.2-6.8 7.2-12.4a7.2 7.2 0 1 0-14.4 0c0 5.6 7.2 12.4 7.2 12.4z"></path><circle cx="12" cy="8.8" r="2.4"></circle></svg>`;
 const MIN_QUERY_LEN = 2;
-const FETCH_DEBOUNCE_MS = 320;
+const FETCH_DEBOUNCE_MS = 140;
+const SUGGESTION_CACHE_TTL_MS = 5 * 60 * 1000;
+const SUGGESTION_CACHE_MAX = 48;
 
 let gmapsLoaded = false;
 let gmapsLoading = false;
+
+/** @type {Promise<{ AutocompleteSessionToken: unknown, AutocompleteSuggestion: unknown }> | null} */
+let placesLibPromise = null;
+
+/** @type {Map<string, { at: number, predictions: unknown[] }>} */
+const suggestionCache = new Map();
 
 /** @type {Array<{ cleanup: () => void }>} */
 const activeWidgets = [];
 let wireGeneration = 0;
 
+function getPlacesLibrary() {
+  if (!placesLibPromise) {
+    placesLibPromise = google.maps.importLibrary('places').catch((err) => {
+      placesLibPromise = null;
+      throw err;
+    });
+  }
+  return placesLibPromise;
+}
+
+function prefetchPlacesLibrary() {
+  if (window.google?.maps) void getPlacesLibrary();
+}
+
+function suggestionCacheKey(query, regionCodes) {
+  return `${(regionCodes || []).join(',')}\0${query}`;
+}
+
+function getCachedSuggestions(key) {
+  const hit = suggestionCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > SUGGESTION_CACHE_TTL_MS) {
+    suggestionCache.delete(key);
+    return null;
+  }
+  // LRU touch
+  suggestionCache.delete(key);
+  suggestionCache.set(key, hit);
+  return hit.predictions;
+}
+
+function setCachedSuggestions(key, predictions) {
+  if (suggestionCache.has(key)) suggestionCache.delete(key);
+  suggestionCache.set(key, { at: Date.now(), predictions });
+  while (suggestionCache.size > SUGGESTION_CACHE_MAX) {
+    const oldest = suggestionCache.keys().next().value;
+    suggestionCache.delete(oldest);
+  }
+}
+
 export function loadGoogleMaps(cb) {
   if (gmapsLoaded && window.google?.maps) {
+    prefetchPlacesLibrary();
     Promise.resolve().then(() => cb());
     return;
   }
@@ -27,6 +76,7 @@ export function loadGoogleMaps(cb) {
   window.__venusGmapsReady = () => {
     gmapsLoaded = true;
     gmapsLoading = false;
+    prefetchPlacesLibrary();
     const queue = window.__venusGmapsQueue || [];
     window.__venusGmapsQueue = [];
     queue.reduce(
@@ -101,13 +151,21 @@ function geocodeTypeRank(result) {
 
 function pickBestGeocodeResult(results) {
   if (!results?.length) return null;
-  return [...results].sort((a, b) => {
-    const locDiff =
-      (GEOCODE_LOCATION_RANK[a.geometry?.location_type] ?? 9) -
-      (GEOCODE_LOCATION_RANK[b.geometry?.location_type] ?? 9);
-    if (locDiff !== 0) return locDiff;
-    return geocodeTypeRank(a) - geocodeTypeRank(b);
-  })[0];
+  let best = results[0];
+  let bestLoc = GEOCODE_LOCATION_RANK[best.geometry?.location_type] ?? 9;
+  let bestType = geocodeTypeRank(best);
+  for (let i = 1; i < results.length; i++) {
+    const result = results[i];
+    const loc = GEOCODE_LOCATION_RANK[result.geometry?.location_type] ?? 9;
+    if (loc > bestLoc) continue;
+    const type = geocodeTypeRank(result);
+    if (loc < bestLoc || type < bestType) {
+      best = result;
+      bestLoc = loc;
+      bestType = type;
+    }
+  }
+  return best;
 }
 
 function isCoarseGeocodeResult(result) {
@@ -167,10 +225,20 @@ function highlightFormattableText(formattable) {
   if (!text) return '';
   if (!matches.length) return escapeHtml(text);
 
-  const sorted = [...matches].sort((a, b) => a.startOffset - b.startOffset);
+  let needsSort = false;
+  for (let i = 1; i < matches.length; i++) {
+    if (matches[i].startOffset < matches[i - 1].startOffset) {
+      needsSort = true;
+      break;
+    }
+  }
+  const ordered = needsSort
+    ? [...matches].sort((a, b) => a.startOffset - b.startOffset)
+    : matches;
+
   let html = '';
   let last = 0;
-  for (const match of sorted) {
+  for (const match of ordered) {
     html += escapeHtml(text.slice(last, match.startOffset));
     html += `<mark class="client-match">${escapeHtml(text.slice(match.startOffset, match.endOffset))}</mark>`;
     last = match.endOffset;
@@ -202,6 +270,8 @@ function attachPlaceAutocomplete(
   let requestGen = 0;
   let selecting = false;
   let activeQuery = '';
+  /** @type {unknown[]} */
+  let visiblePredictions = [];
 
   const hide = () => animateDropdown(dropdown, false);
   const hideSoon = () => setTimeout(hide, 120);
@@ -211,8 +281,40 @@ function attachPlaceAutocomplete(
     animateDropdown(dropdown, true, { contentUpdate });
   };
 
+  const renderPredictions = (predictions, trimmed, { contentUpdate = false } = {}) => {
+    visiblePredictions = predictions;
+    if (!predictions.length) {
+      showResults('<div class="delivery-place-empty">No matches</div>', { contentUpdate });
+      return;
+    }
+
+    const html = predictions
+      .map(
+        (prediction, index) => `
+        <button class="delivery-place-row" type="button" data-prediction="${index}">
+          <span class="delivery-place-row-icon" aria-hidden="true">${PLACE_PIN_ICON}</span>
+          <span class="delivery-place-row-text">${renderPredictionLabel(prediction, trimmed)}</span>
+        </button>`,
+      )
+      .join('');
+
+    showResults(html, { contentUpdate });
+  };
+
   const scheduleFetch = (query) => {
     clearTimeout(debounceTimer);
+    const trimmed = query.trim();
+    if (trimmed.length < MIN_QUERY_LEN) {
+      void fetchSuggestions(query);
+      return;
+    }
+
+    const cacheKey = suggestionCacheKey(trimmed.toLowerCase(), regionCodes);
+    if (getCachedSuggestions(cacheKey)) {
+      void fetchSuggestions(query);
+      return;
+    }
+
     debounceTimer = setTimeout(() => {
       void fetchSuggestions(query);
     }, FETCH_DEBOUNCE_MS);
@@ -223,8 +325,19 @@ function attachPlaceAutocomplete(
     activeQuery = trimmed;
 
     if (trimmed.length < MIN_QUERY_LEN) {
+      visiblePredictions = [];
       dropdown.innerHTML = '';
       hide();
+      return;
+    }
+
+    const normalized = trimmed.toLowerCase();
+    const cacheKey = suggestionCacheKey(normalized, regionCodes);
+    const cached = getCachedSuggestions(cacheKey);
+    if (cached) {
+      renderPredictions(cached, trimmed, {
+        contentUpdate: dropdown.classList.contains('open'),
+      });
       return;
     }
 
@@ -232,8 +345,7 @@ function attachPlaceAutocomplete(
     const wasOpen = dropdown.classList.contains('open');
 
     try {
-      const { AutocompleteSessionToken, AutocompleteSuggestion } =
-        await google.maps.importLibrary('places');
+      const { AutocompleteSessionToken, AutocompleteSuggestion } = await getPlacesLibrary();
       if (!sessionToken) sessionToken = new AutocompleteSessionToken();
 
       const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
@@ -248,32 +360,8 @@ function attachPlaceAutocomplete(
         .filter(Boolean)
         .slice(0, 6);
 
-      if (!predictions.length) {
-        showResults('<div class="delivery-place-empty">No matches</div>', { contentUpdate: wasOpen });
-        return;
-      }
-
-      const html = predictions
-        .map(
-          (prediction, index) => `
-        <button class="delivery-place-row" type="button" data-prediction="${index}">
-          <span class="delivery-place-row-icon" aria-hidden="true">${PLACE_PIN_ICON}</span>
-          <span class="delivery-place-row-text">${renderPredictionLabel(prediction, trimmed)}</span>
-        </button>`,
-        )
-        .join('');
-
-      showResults(html, { contentUpdate: wasOpen });
-
-      dropdown.querySelectorAll('.delivery-place-row').forEach((row) => {
-        row.addEventListener('mousedown', (e) => e.preventDefault());
-        row.addEventListener('pointerdown', (e) => e.preventDefault());
-        row.addEventListener('click', () => {
-          const index = Number(row.dataset.prediction);
-          const prediction = predictions[index];
-          if (prediction) void selectPrediction(prediction);
-        });
-      });
+      setCachedSuggestions(cacheKey, predictions);
+      renderPredictions(predictions, trimmed, { contentUpdate: wasOpen });
     } catch (err) {
       if (reqId !== requestGen) return;
       logDebug(`Place suggestions failed: ${err?.message || err}`);
@@ -311,6 +399,7 @@ function attachPlaceAutocomplete(
   };
 
   const onFocusHandler = () => {
+    prefetchPlacesLibrary();
     onFocus?.();
     onActivate?.();
     if (input.value.trim().length >= MIN_QUERY_LEN) scheduleFetch(input.value);
@@ -320,9 +409,23 @@ function attachPlaceAutocomplete(
     if (!selecting) hideSoon();
   };
 
+  const preventRowBlur = (e) => {
+    if (e.target.closest?.('.delivery-place-row')) e.preventDefault();
+  };
+
+  const onDropdownClick = (e) => {
+    const row = e.target.closest?.('.delivery-place-row');
+    if (!row) return;
+    const prediction = visiblePredictions[Number(row.dataset.prediction)];
+    if (prediction) void selectPrediction(prediction);
+  };
+
   input.addEventListener('input', onInputHandler);
   input.addEventListener('focus', onFocusHandler);
   input.addEventListener('blur', onBlurHandler);
+  dropdown.addEventListener('mousedown', preventRowBlur);
+  dropdown.addEventListener('pointerdown', preventRowBlur);
+  dropdown.addEventListener('click', onDropdownClick);
 
   return {
     cleanup: () => {
@@ -330,6 +433,10 @@ function attachPlaceAutocomplete(
       input.removeEventListener('input', onInputHandler);
       input.removeEventListener('focus', onFocusHandler);
       input.removeEventListener('blur', onBlurHandler);
+      dropdown.removeEventListener('mousedown', preventRowBlur);
+      dropdown.removeEventListener('pointerdown', preventRowBlur);
+      dropdown.removeEventListener('click', onDropdownClick);
+      visiblePredictions = [];
       dropdown.innerHTML = '';
       hide();
     },
@@ -359,6 +466,7 @@ export function wireDeliveryPlacesInputs(
   const gen = ++wireGeneration;
   loadGoogleMaps(() => {
     if (gen !== wireGeneration) return;
+    prefetchPlacesLibrary();
     clearPlaceAutocompleteWidgets();
 
     const pickupInput = resolveDeliveryInput(pickupId);

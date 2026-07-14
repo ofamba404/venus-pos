@@ -69,9 +69,28 @@ function linearRegression(points) {
   return { slope, intercept, r2, n };
 }
 
+/** SafeBoda quotes land on 500 UGX steps — round model output to match. */
+function roundFeeToNearest500(fee) {
+  return Math.max(0, Math.round(fee / 500) * 500);
+}
+
 function quoteFee(km, reg) {
   if (!reg || km == null || isNaN(km)) return 0;
-  return Math.max(0, Math.round(reg.intercept + reg.slope * km));
+  return roundFeeToNearest500(reg.intercept + reg.slope * km);
+}
+
+export function getDeliveryFeeModel() {
+  const points = deliveries
+    .map((d) => ({ x: Number(d.distance_km), y: Number(d.fee_ugx) }))
+    .filter((p) => !isNaN(p.x) && !isNaN(p.y));
+  return linearRegression(points);
+}
+
+/** Predicted SafeBoda fee for a route, or null if the model isn't ready yet. */
+export function predictSafeBodaFee(km, reg = getDeliveryFeeModel()) {
+  if (!reg || km == null || isNaN(km)) return null;
+  const fee = quoteFee(km, reg);
+  return fee > 0 ? fee : null;
 }
 
 function buildDeliveryScatterSVG(points, reg) {
@@ -576,23 +595,25 @@ async function saveDeliveryEdit() {
 
 async function deleteDelivery() {
   if (!editingDeliveryId) return;
+  const deliveryId = editingDeliveryId;
+  editingDeliveryId = null;
+  closeEditModal();
+
   const ok = await showConfirm('Delete this delivery record?');
   if (!ok) return;
 
   try {
-    const res = await sbFetch(`deliveries?id=eq.${editingDeliveryId}`, {
+    const res = await sbFetch(`deliveries?id=eq.${deliveryId}`, {
       method: 'DELETE',
       headers: { Prefer: 'return=minimal' },
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
 
-    const idx = deliveries.findIndex((d) => d.id === editingDeliveryId);
+    const idx = deliveries.findIndex((d) => d.id === deliveryId);
     if (idx > -1) deliveries.splice(idx, 1);
 
     await dataStore.persistCurrent('deliveries');
 
-    editingDeliveryId = null;
-    closeEditModal();
     showToast('Delivery deleted');
     renderDeliveryAnalysis();
   } catch (e) {

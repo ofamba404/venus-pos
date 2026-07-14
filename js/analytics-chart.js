@@ -1,15 +1,27 @@
-import { fmtCompact, fmtUGX, isSameDay } from './utils.js';
+import { animateRevenueChart } from './animations.js';
 import { revenueChartPlaceholder, salesPatternsPlaceholder, showPlaceholder } from './pending.js';
+import { sumOwnerRevenue, saleOwnerRevenue } from './revenue.js';
+import { fmtCompact, fmtUGX, isSameDay } from './utils.js';
 
+/** Calendar ranges: weeks = Mon–Sun, months = calendar months. `offset` = complete weeks ago (1 = last week). */
 export const CHART_RANGES = [
-  { id: '7', label: '7 days', short: '7D', days: 7 },
-  { id: '14', label: '14 days', short: '14D', days: 14 },
-  { id: '30', label: '30 days', short: '30D', days: 30 },
-  { id: '90', label: '90 days', short: '90D', days: 90 },
-  { id: 'all', label: 'All time', short: 'All', days: null },
+  { id: '1w', label: 'This week', short: '1W', unit: 'week', count: 1 },
+  { id: 'lw', label: 'Last week', short: 'LW', unit: 'week', count: 1, offset: 1 },
+  { id: '2w', label: 'Last 2 weeks', short: '2W', unit: 'week', count: 2 },
+  { id: '1m', label: 'This month', short: '1M', unit: 'month', count: 1 },
+  { id: '3m', label: 'Last 3 months', short: '3M', unit: 'month', count: 3 },
+  { id: 'all', label: 'All time', short: 'All', unit: null, count: null },
+];
+
+/** Shared period for Customer favorite, Revenue by product, and Top clients. */
+export const INSIGHT_PERIODS = [
+  { id: 'week', label: 'Week', short: 'Week', unit: 'week', count: 1 },
+  { id: 'month', label: 'Month', short: 'Month', unit: 'month', count: 1 },
+  { id: 'all', label: 'All time', short: 'All', unit: null, count: null },
 ];
 
 const RANGE_KEY = 'venus_chart_range';
+const INSIGHT_PERIOD_KEY = 'venus_insight_period';
 
 export function getChartRange() {
   const saved = sessionStorage.getItem(RANGE_KEY);
@@ -18,6 +30,15 @@ export function getChartRange() {
 
 export function setChartRange(id) {
   sessionStorage.setItem(RANGE_KEY, id);
+}
+
+export function getInsightPeriod() {
+  const saved = sessionStorage.getItem(INSIGHT_PERIOD_KEY);
+  return INSIGHT_PERIODS.find((p) => p.id === saved) || INSIGHT_PERIODS.find((p) => p.id === 'month');
+}
+
+export function setInsightPeriod(id) {
+  sessionStorage.setItem(INSIGHT_PERIOD_KEY, id);
 }
 
 function startOfDay(d) {
@@ -32,15 +53,51 @@ function endOfDay(d) {
   return x;
 }
 
+/** Monday 00:00 of the calendar week containing `d`. */
+export function mondayOfWeek(d) {
+  const x = startOfDay(d);
+  const day = x.getDay();
+  const offset = day === 0 ? 6 : day - 1;
+  x.setDate(x.getDate() - offset);
+  return x;
+}
+
+/** Inclusive start/end for a chart range (calendar weeks / months). */
+export function rangeBounds(range, now = new Date()) {
+  if (!range.unit) return null;
+  if (range.unit === 'week') {
+    const thisMon = mondayOfWeek(now);
+    const offset = range.offset || 0;
+    if (offset > 0) {
+      const start = new Date(thisMon);
+      start.setDate(start.getDate() - offset * 7);
+      const end = new Date(start);
+      end.setDate(end.getDate() + range.count * 7 - 1);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
+    }
+    const start = new Date(thisMon);
+    start.setDate(start.getDate() - (range.count - 1) * 7);
+    return { start, end: endOfDay(now) };
+  }
+  if (range.unit === 'month') {
+    const start = startOfDay(new Date(now.getFullYear(), now.getMonth() - (range.count - 1), 1));
+    return { start, end: endOfDay(now) };
+  }
+  return null;
+}
+
 export function filterSalesByRange(sales, range) {
-  if (!range.days) return sales;
-  const end = endOfDay(new Date());
-  const start = startOfDay(new Date());
-  start.setDate(start.getDate() - (range.days - 1));
+  const bounds = rangeBounds(range);
+  if (!bounds) return sales;
   return sales.filter((s) => {
     const d = new Date(s.created_at);
-    return d >= start && d <= end;
+    return d >= bounds.start && d <= bounds.end;
   });
+}
+
+export function filterSalesByInsightPeriod(sales, period) {
+  return filterSalesByRange(sales, period || getInsightPeriod());
 }
 
 function bucketLabel(date, mode) {
@@ -53,6 +110,9 @@ function bucketLabel(date, mode) {
   if (mode === 'tiny') {
     return String(date.getDate());
   }
+  if (mode === 'month') {
+    return date.toLocaleDateString(undefined, { month: 'short' });
+  }
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
@@ -61,7 +121,13 @@ function salesForDay(sales, day) {
 }
 
 function sumRevenue(list) {
-  return list.reduce((sum, s) => sum + s.total_ugx, 0);
+  return sumOwnerRevenue(list);
+}
+
+function daysBetweenInclusive(start, end) {
+  const a = startOfDay(start);
+  const b = startOfDay(end);
+  return Math.round((b - a) / 86400000) + 1;
 }
 
 function buildDailyBuckets(sales, start, count, labelMode) {
@@ -80,11 +146,28 @@ function buildDailyBuckets(sales, start, count, labelMode) {
   return buckets;
 }
 
-function weekStart(d) {
-  const x = startOfDay(d);
-  const day = x.getDay();
-  x.setDate(x.getDate() - day);
-  return x;
+function buildWeeklyBuckets(sales, start, end) {
+  const buckets = [];
+  let cursor = mondayOfWeek(start);
+  const endDay = startOfDay(end);
+  while (cursor <= endDay) {
+    const weekEnd = new Date(cursor);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    const weekSales = sales.filter((s) => {
+      const d = new Date(s.created_at);
+      return d >= cursor && d <= weekEnd && d <= end;
+    });
+    buckets.push({
+      date: new Date(cursor),
+      label: bucketLabel(cursor, 'short'),
+      revenue: sumRevenue(weekSales),
+      orders: weekSales.length,
+    });
+    cursor = new Date(cursor);
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return buckets;
 }
 
 function monthKey(d) {
@@ -92,52 +175,40 @@ function monthKey(d) {
 }
 
 export function buildTimeSeries(sales, range) {
-  if (!sales.length) {
-    if (range.days) {
-      const start = startOfDay(new Date());
-      start.setDate(start.getDate() - (range.days - 1));
-      return buildDailyBuckets([], start, range.days, range.days <= 7 ? 'weekday' : 'short');
+  const now = new Date();
+  const bounds = rangeBounds(range, now);
+
+  if (bounds) {
+    const { start, end } = bounds;
+    const count = daysBetweenInclusive(start, end);
+
+    if (range.unit === 'week') {
+      const labelMode = range.count === 1 ? 'weekday' : 'short';
+      return buildDailyBuckets(sales, start, count, labelMode);
     }
-    return [];
+
+    if (range.unit === 'month' && range.count === 1) {
+      return buildDailyBuckets(sales, start, count, count <= 10 ? 'weekday' : 'tiny');
+    }
+
+    if (range.unit === 'month') {
+      return buildWeeklyBuckets(sales, start, end);
+    }
   }
 
-  if (range.days) {
-    const start = startOfDay(new Date());
-    start.setDate(start.getDate() - (range.days - 1));
-    const labelMode = range.days <= 7 ? 'weekday' : range.days <= 30 ? 'short' : 'tiny';
-    return buildDailyBuckets(sales, start, range.days, labelMode);
-  }
+  if (!sales.length) return [];
 
   const dates = sales.map((s) => new Date(s.created_at));
   const minDate = startOfDay(new Date(Math.min(...dates)));
-  const maxDate = startOfDay(new Date());
-  const spanDays = Math.ceil((maxDate - minDate) / 86400000) + 1;
+  const maxDate = startOfDay(now);
+  const spanDays = daysBetweenInclusive(minDate, maxDate);
 
   if (spanDays <= 45) {
     return buildDailyBuckets(sales, minDate, spanDays, 'short');
   }
 
   if (spanDays <= 200) {
-    const buckets = [];
-    let cursor = weekStart(minDate);
-    while (cursor <= maxDate) {
-      const weekEnd = new Date(cursor);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-      weekEnd.setHours(23, 59, 59, 999);
-      const weekSales = sales.filter((s) => {
-        const d = new Date(s.created_at);
-        return d >= cursor && d <= weekEnd;
-      });
-      buckets.push({
-        date: new Date(cursor),
-        label: bucketLabel(cursor, 'short'),
-        revenue: sumRevenue(weekSales),
-        orders: weekSales.length,
-      });
-      cursor = new Date(cursor);
-      cursor.setDate(cursor.getDate() + 7);
-    }
-    return buckets;
+    return buildWeeklyBuckets(sales, minDate, maxDate);
   }
 
   const monthMap = new Map();
@@ -145,10 +216,14 @@ export function buildTimeSeries(sales, range) {
     const d = new Date(s.created_at);
     const key = monthKey(d);
     if (!monthMap.has(key)) {
-      monthMap.set(key, { date: startOfDay(new Date(d.getFullYear(), d.getMonth(), 1)), revenue: 0, orders: 0 });
+      monthMap.set(key, {
+        date: startOfDay(new Date(d.getFullYear(), d.getMonth(), 1)),
+        revenue: 0,
+        orders: 0,
+      });
     }
     const b = monthMap.get(key);
-    b.revenue += s.total_ugx;
+    b.revenue += saleOwnerRevenue(s);
     b.orders += 1;
   });
   return Array.from(monthMap.values())
@@ -159,22 +234,47 @@ export function buildTimeSeries(sales, range) {
     }));
 }
 
+function priorBounds(range, now = new Date()) {
+  if (!range.unit) return null;
+
+  if (range.unit === 'week') {
+    const current = rangeBounds(range, now);
+    if (!current) return null;
+    const priorEnd = new Date(current.start);
+    priorEnd.setDate(priorEnd.getDate() - 1);
+    priorEnd.setHours(23, 59, 59, 999);
+    const priorStart = mondayOfWeek(priorEnd);
+    priorStart.setDate(priorStart.getDate() - (range.count - 1) * 7);
+    return { start: priorStart, end: priorEnd };
+  }
+
+  if (range.unit === 'month') {
+    const curStart = startOfDay(new Date(now.getFullYear(), now.getMonth() - (range.count - 1), 1));
+    const priorEnd = endOfDay(new Date(curStart.getFullYear(), curStart.getMonth(), 0));
+    const priorStart = startOfDay(
+      new Date(priorEnd.getFullYear(), priorEnd.getMonth() - (range.count - 1), 1),
+    );
+    return { start: priorStart, end: priorEnd };
+  }
+
+  return null;
+}
+
 export function priorPeriodComparison(sales, range) {
-  if (!range.days) return null;
+  const currentBounds = rangeBounds(range);
+  if (!currentBounds) return null;
+
   const current = filterSalesByRange(sales, range);
   const currentTotal = sumRevenue(current);
 
-  const priorEnd = startOfDay(new Date());
-  priorEnd.setDate(priorEnd.getDate() - range.days);
-  priorEnd.setHours(23, 59, 59, 999);
-  const priorStart = startOfDay(new Date(priorEnd));
-  priorStart.setDate(priorStart.getDate() - (range.days - 1));
+  const prior = priorBounds(range);
+  if (!prior) return null;
 
-  const prior = sales.filter((s) => {
+  const priorSales = sales.filter((s) => {
     const d = new Date(s.created_at);
-    return d >= priorStart && d <= priorEnd;
+    return d >= prior.start && d <= prior.end;
   });
-  const priorTotal = sumRevenue(prior);
+  const priorTotal = sumRevenue(priorSales);
 
   if (priorTotal === 0 && currentTotal === 0) {
     return { text: 'No change vs prior period', cls: 'neutral', pct: 0 };
@@ -299,7 +399,11 @@ function wireChartInteraction(block, points) {
     if (!p) return;
     active = idx;
     block.querySelectorAll('.rev-point').forEach((el, i) => el.classList.toggle('active', i === idx));
-    tooltipDate.textContent = p.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    tooltipDate.textContent = p.date.toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
     tooltipAmt.textContent = fmtUGX(p.revenue);
     tooltipVal.textContent = `${p.orders} order${p.orders === 1 ? '' : 's'}`;
     tooltip.hidden = false;
@@ -334,7 +438,7 @@ export function renderRevenueChart(block, sales, range, onRangeChange) {
     return;
   }
   const buckets = buildTimeSeries(sales, range);
-  const rangeSales = range.days ? filterSalesByRange(sales, range) : sales;
+  const rangeSales = range.unit ? filterSalesByRange(sales, range) : sales;
   const total = sumRevenue(rangeSales);
   const orders = rangeSales.length;
   const avgDay = buckets.length ? total / buckets.length : 0;
@@ -382,6 +486,7 @@ export function renderRevenueChart(block, sales, range, onRangeChange) {
   });
 
   wireChartInteraction(block, points);
+  animateRevenueChart(block);
 }
 
 const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -400,12 +505,13 @@ export function computeSalesPatterns(sales) {
     const d = new Date(s.created_at);
     const h = d.getHours();
     const wd = d.getDay();
-    hours[h] += s.total_ugx;
+    const rev = saleOwnerRevenue(s);
+    hours[h] += rev;
     hourOrders[h] += 1;
-    weekdays[wd] += s.total_ugx;
+    weekdays[wd] += rev;
     weekdayOrders[wd] += 1;
-    if (s.is_credit) creditRevenue += s.total_ugx;
-    else paidRevenue += s.total_ugx;
+    if (s.is_credit) creditRevenue += rev;
+    else paidRevenue += rev;
     (s.items || []).forEach((item) => {
       Object.entries(item.breakdown || {}).forEach(([id, qty]) => {
         if (id === 'cookie') cookies += qty;
@@ -431,7 +537,11 @@ export function computeSalesPatterns(sales) {
   }
 
   return {
-    hours: hourSlice.length ? hourSlice : hours.map((rev, h) => ({ h, rev, orders: hourOrders[h] })).slice(8, 23),
+    hours: hourSlice.length
+      ? hourSlice
+      : hours
+          .map((rev, h) => ({ h, rev, orders: hourOrders[h] }))
+          .slice(8, 23),
     weekdays: weekdays.map((rev, i) => ({ day: WEEKDAY_NAMES[i], rev, orders: weekdayOrders[i] })),
     peakHour,
     peakWeekday,
@@ -451,15 +561,14 @@ function formatHour(h) {
   return `${h - 12}pm`;
 }
 
-export function renderSalesPatterns(container, sales, range) {
+export function renderSalesPatterns(container, sales) {
   if (!container) return;
-  const rangeSales = range.days ? filterSalesByRange(sales, range) : sales;
-  const p = computeSalesPatterns(rangeSales);
+  const p = computeSalesPatterns(sales);
 
-  if (!rangeSales.length) {
+  if (!sales.length) {
     container.innerHTML = showPlaceholder('sales', sales.length)
       ? salesPatternsPlaceholder()
-      : `<div class="receipt-empty">No sales in this period yet</div>`;
+      : `<div class="receipt-empty">No sales yet</div>`;
     return;
   }
 
