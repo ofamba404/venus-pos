@@ -4941,6 +4941,30 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* Keep Log quote / Saving… the same width — no fee-row shift on mobile. */
+  .ql-save-btn {
+    display: inline-grid;
+    justify-items: center;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .ql-save-btn > span {
+    grid-area: 1 / 1;
+  }
+
+  .ql-save-btn .ql-save-busy {
+    visibility: hidden;
+  }
+
+  .ql-save-btn.is-saving .ql-save-idle {
+    visibility: hidden;
+  }
+
+  .ql-save-btn.is-saving .ql-save-busy {
+    visibility: visible;
+  }
+
   .ql-btn.primary {
     background: var(--jade);
     border-color: var(--jade);

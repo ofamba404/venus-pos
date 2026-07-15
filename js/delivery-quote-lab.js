@@ -47,6 +47,16 @@ let routeMetrics = null;
 let feeDraft = '';
 let saving = false;
 let labWired = false;
+/** Only auto-scroll to #quote-lab once per visit — not after every save refresh. */
+let didScrollToLab = false;
+
+function setSaveButtonSaving(isSaving) {
+  const saveBtn = document.getElementById('quoteLabSave');
+  if (!saveBtn) return;
+  saveBtn.disabled = !!isSaving;
+  saveBtn.classList.toggle('is-saving', !!isSaving);
+  saveBtn.setAttribute('aria-busy', isSaving ? 'true' : 'false');
+}
 
 function preferNextDrop(coverage) {
   if (selectedDropId && getDropoffById(selectedDropId)) return selectedDropId;
@@ -251,7 +261,10 @@ export function renderQuoteLab() {
       <div class="ql-fee-row">
         <span class="ql-fee-icon">${ICON_CASH}</span>
         <input type="text" inputmode="numeric" pattern="[0-9]*" id="quoteLabFee" class="ql-fee-input" placeholder="e.g. 8000" autocomplete="off" value="${escapeHtml(feeDraft)}" />
-        <button type="button" class="ql-btn primary" id="quoteLabSave" ${saving ? 'disabled' : ''}>${saving ? 'Saving…' : 'Log quote'}</button>
+        <button type="button" class="ql-btn primary ql-save-btn${saving ? ' is-saving' : ''}" id="quoteLabSave" ${saving ? 'disabled' : ''} aria-busy="${saving ? 'true' : 'false'}">
+          <span class="ql-save-idle">Log quote</span>
+          <span class="ql-save-busy">Saving…</span>
+        </button>
       </div>
       <p class="ql-help">Tip: in SafeBoda, set pickup to Prisca Honey / Aryan Hostel Nkinzi Rd, then the selected drop-off. Log within this time band for the period to count correctly.</p>
 
@@ -261,7 +274,9 @@ export function renderQuoteLab() {
   wireQuoteLabDom();
   if (drop) computeRouteMetrics(drop);
 
-  if (location.hash === '#quote-lab') {
+  // Hash deep-link only — skip after save/re-render so mobile doesn't jump.
+  if (location.hash === '#quote-lab' && !didScrollToLab) {
+    didScrollToLab = true;
     root.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
@@ -336,11 +351,7 @@ async function saveTestQuote() {
   if (saving) return;
 
   saving = true;
-  const saveBtn = document.getElementById('quoteLabSave');
-  if (saveBtn) {
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving…';
-  }
+  setSaveButtonSaving(true);
 
   const model = liveModel();
   const predicted = predictSafeBodaFee(routeMetrics.km, model, {
@@ -387,11 +398,7 @@ async function saveTestQuote() {
     console.error('quote lab save failed', e);
     showToast('Could not log quote', true);
     saving = false;
-    const btn = document.getElementById('quoteLabSave');
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Log quote';
-    }
+    setSaveButtonSaving(false);
   } finally {
     saving = false;
   }
