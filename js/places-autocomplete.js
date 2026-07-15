@@ -341,7 +341,21 @@ function attachPlaceAutocomplete(
 
     const wasOpen = dropdown.classList.contains('open');
     if (!wasOpen) {
-      showResults('<div class="suggest-empty delivery-place-empty">Searching…</div>');
+      showResults(`
+        <div class="delivery-place-loading" role="status" aria-live="polite" aria-label="Searching locations">
+          ${[0, 1, 2]
+            .map(
+              (i) => `
+            <div class="delivery-place-loading-row" style="animation-delay:${i * 80}ms">
+              <span class="delivery-place-loading-pin" aria-hidden="true"></span>
+              <span class="delivery-place-loading-lines" aria-hidden="true">
+                <span class="sk-line wide"></span>
+                <span class="sk-line short"></span>
+              </span>
+            </div>`,
+            )
+            .join('')}
+        </div>`);
     }
 
     debounceTimer = setTimeout(() => {

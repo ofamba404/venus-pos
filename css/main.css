@@ -4358,6 +4358,53 @@
     line-height: var(--leading-snug);
   }
 
+  .delivery-place-loading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    pointer-events: none;
+  }
+
+  .delivery-place-loading-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    opacity: 0;
+    animation: deliveryPlaceSkIn 0.28s ease forwards;
+  }
+
+  .delivery-place-loading-pin {
+    flex-shrink: 0;
+    width: 15px;
+    height: 15px;
+    margin-top: 1px;
+    border-radius: 50%;
+    background: var(--btn-bg);
+    animation: skPulse 1.8s ease-in-out infinite;
+  }
+
+  .delivery-place-loading-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .delivery-place-loading-lines .sk-line {
+    height: 10px;
+  }
+
+  .delivery-place-loading-lines .sk-line.short {
+    width: 42%;
+  }
+
+  @keyframes deliveryPlaceSkIn {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: none; }
+  }
+
   /* Legacy Places Autocomplete fallback */
   .pac-container {
     font-family: var(--font-sans) !important;
