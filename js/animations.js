@@ -768,6 +768,7 @@ export function bumpElement(el) {
 }
 
 export function applyBarFillWidths(root = document) {
+  if (!root) return;
   root.querySelectorAll('.bar-fill, .ao-tile-fill, .stock-stat-meter-fill').forEach((fill) => {
     const targetW = fill.dataset.fillWidth || fill.style.width;
     const targetH = fill.dataset.fillHeight || fill.style.height;

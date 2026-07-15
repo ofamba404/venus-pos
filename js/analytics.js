@@ -180,6 +180,7 @@ function paintInsightPeriodPills(container, period) {
 }
 
 function wireInsightPeriodPills(root = document) {
+  if (!root) return;
   root.querySelectorAll('[data-insight-period]').forEach((btn) => {
     if (!(btn instanceof HTMLButtonElement) || btn.disabled) return;
     btn.addEventListener('click', () => {
@@ -215,8 +216,11 @@ function topProductForSales(sales) {
 }
 
 function renderOverviewSections() {
+  const statCards = document.getElementById('statCards');
+  if (!statCards) return;
+
   if (showPlaceholder('sales', salesCache.length)) {
-    document.getElementById('statCards').innerHTML = analyticsOverviewPlaceholder();
+    statCards.innerHTML = analyticsOverviewPlaceholder();
     return;
   }
 
@@ -296,7 +300,7 @@ function renderOverviewSections() {
       ? `${topCount} unit${topCount === 1 ? '' : 's'} ordered · ${period.id === 'all' ? 'all time' : period.label.toLowerCase()}`
       : 'No orders yet';
 
-  document.getElementById('statCards').innerHTML = `
+  statCards.innerHTML = `
     <div class="ao-hero">
       <div class="ao-hero-head">
         <span class="ao-eyebrow">Today</span>
@@ -342,9 +346,9 @@ function renderOverviewSections() {
     ${renderCreditPanel(outstandingCredit, totalCreditOwed)}
   `;
 
-  applyBarFillWidths(document.getElementById('statCards'));
+  applyBarFillWidths(statCards);
   wireCreditPanel();
-  wireInsightPeriodPills(document.getElementById('statCards'));
+  wireInsightPeriodPills(statCards);
 }
 
 function renderInsightLists() {
@@ -976,7 +980,11 @@ async function performVoidSale(snapshot) {
   } catch (e) {
     console.error('void sale failed', e);
     await dataStore.recoverFromServer(['sales', 'inventory', 'deliveries']).catch(() => {});
-    await refreshAfterSaleEdit();
+    try {
+      await refreshAfterSaleEdit();
+    } catch (refreshErr) {
+      console.error('refresh after void failed', refreshErr);
+    }
     showToast('Could not void order', true);
   }
 }
