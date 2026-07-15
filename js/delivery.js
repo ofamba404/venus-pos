@@ -35,6 +35,7 @@ import {
   predictSafeBodaFee as predictFromModel,
   quoteFee,
 } from './delivery-fee-model.js';
+import { isTestQuote, renderQuoteLab } from './delivery-quote-lab.js';
 
 let editingDeliveryId = null;
 let editOrigin = null;
@@ -227,7 +228,7 @@ function renderDeliveryModel(model) {
       <div class="dl-model-card empty">
         <div class="dl-model-icon" aria-hidden="true">${ICON_ROUTE}</div>
         <div class="dl-model-title">Decode SafeBoda pricing</div>
-        <div class="dl-model-copy">Log real SafeBoda quotes at checkout — pickup, drop-off, distance, and the fee they charged. Venus fits distance, travel time, and time of day so estimates stay accurate day and night.</div>
+        <div class="dl-model-copy">Log SafeBoda quotes at checkout or use the Quote lab below with preset routes from Prisca Honey. Venus fits distance, travel time, and time of day so estimates stay accurate day and night.</div>
         ${
           sampleCount > 0
             ? `<div class="dl-progress">
@@ -377,7 +378,7 @@ function renderDeliveryLog(model) {
   }
 
   if (deliveries.length === 0) {
-    listEl.innerHTML = `<div class="receipt-empty">No quotes logged yet — at checkout, add pickup, drop-off, and the SafeBoda fee you were charged</div>`;
+    listEl.innerHTML = `<div class="receipt-empty">No quotes logged yet — use the Quote lab above or add delivery at checkout</div>`;
     return;
   }
 
@@ -398,7 +399,8 @@ function renderDeliveryLog(model) {
 
       const rows = group.trips
         .map((d) => {
-          const who = d.client_name || 'No client';
+          const testRow = isTestQuote(d);
+          const who = testRow ? 'Lab test' : d.client_name || 'No client';
           const pickup = d.origin_label || 'Pickup';
           const dropoff = d.dest_label || 'Drop-off';
           const km = Number(d.distance_km);
@@ -421,7 +423,7 @@ function renderDeliveryLog(model) {
           modelNote = tripEstimateOutcomeNote(d, modelNote);
           const meta = `${!isNaN(km) ? `${km.toFixed(1)} km` : '—'}${effectiveKm != null ? ` · ${fmtUGX(effectiveKm)}/km` : ''}${dur != null ? ` · ~${dur} min` : ''} · ${periodLabel}`;
 
-          return `<button class="delivery-trip" type="button" data-edit-delivery="${d.id}">
+          return `<button class="delivery-trip${testRow ? ' is-test' : ''}" type="button" data-edit-delivery="${d.id}">
             <div class="delivery-trip-route" aria-hidden="true">
               <span class="delivery-trip-dot pickup"></span>
               <span class="delivery-trip-line"></span>
@@ -429,7 +431,7 @@ function renderDeliveryLog(model) {
             </div>
             <div class="delivery-trip-body">
               <div class="delivery-trip-top">
-                <span class="delivery-trip-who">${escapeHtml(who)}</span>
+                <span class="delivery-trip-who">${escapeHtml(who)}${testRow ? ' <span class="dl-test-badge">test</span>' : ''}</span>
                 <span class="delivery-trip-fee">${fmtUGX(d.fee_ugx)}</span>
               </div>
               <div class="delivery-trip-meta">${meta} ${modelNote}</div>
@@ -470,6 +472,7 @@ function renderDeliveryLog(model) {
 export function renderDeliveryAnalysis() {
   const model = getDeliveryFeeModel();
   renderDeliveryModel(model);
+  renderQuoteLab();
   renderDeliveryLog(model);
 }
 

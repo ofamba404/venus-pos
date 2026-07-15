@@ -201,7 +201,7 @@ function flavorSwatchHtml({ id, label, color, chosen, stock, canAdd, canRemove, 
     </div>`;
 }
 
-function flavorPaletteHtml(configSelection, draftStock, target) {
+function flavorPaletteHtml(configSelection, draftStock, target, suffixHtml = '') {
   const selected = configTotalSelected(configSelection);
   const remaining = target - selected;
   return `
@@ -220,6 +220,7 @@ function flavorPaletteHtml(configSelection, draftStock, target) {
           canRemove: chosen > 0,
         });
       }).join('')}
+      ${suffixHtml}
     </div>`;
 }
 
@@ -267,11 +268,9 @@ export function renderProductConfigView(
     const flavorSelected = configTotalSelected(configSelection);
     const plainOk = (draftStock.classic || 0) >= 1;
     const plain = CAT_MAP.classic;
-    inner += `<div class="modal-price">${fmtUGX(product.price)}</div>`;
-    inner += jointSlotsHtml(flavorSelected, flavorTarget);
-    inner += flavorPaletteHtml(configSelection, draftStock, flavorTarget);
-    inner += `
-      <div class="flavor-fixed${plainOk ? '' : ' is-out'}" style="${flavorStyle(plain.color)}">
+    const meterSelected = flavorSelected + (plainOk ? 1 : 0);
+    const plainFixedHtml = `
+      <div class="flavor-fixed${plainOk ? ' is-active' : ' is-out'}" style="${flavorStyle(plain.color)}">
         <div class="flavor-orb" aria-hidden="true">
           <span class="flavor-orb__glow"></span>
           <span class="flavor-orb__core"></span>
@@ -282,6 +281,9 @@ export function renderProductConfigView(
         </div>
         <span class="flavor-fixed__badge ${plainOk ? 'ok' : 'no'}">${plainOk ? '×1' : 'Out'}</span>
       </div>`;
+    inner += `<div class="modal-price">${fmtUGX(product.price)}</div>`;
+    inner += jointSlotsHtml(meterSelected, product.joints);
+    inner += flavorPaletteHtml(configSelection, draftStock, flavorTarget, plainFixedHtml);
     inner += configFooterHtml({
       ready: flavorSelected === flavorTarget && plainOk,
       isEditing,

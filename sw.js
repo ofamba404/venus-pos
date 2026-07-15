@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'venus-pos-v3';
+const CACHE_VERSION = 'venus-pos-v4';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -12,6 +12,7 @@ const SHELL_URLS = [
   '/pages/analytics.html',
   '/css/main.css',
   '/assets/logo.svg',
+  '/assets/logo.png',
   '/js/app.js',
   '/js/bootstrap.js',
   '/js/store/data-store.js',
@@ -86,6 +87,33 @@ self.addEventListener('fetch', (event) => {
         return (await caches.match('/index.html')) || Response.error();
       }
       return Response.error();
+    }),
+  );
+});
+
+/** Focus an open client or open the URL from notification data. */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl =
+    event.notification.data?.url || new URL('pages/delivery.html', self.registration.scope).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
+      for (const client of clientList) {
+        if (!('focus' in client)) continue;
+        await client.focus();
+        if ('navigate' in client) {
+          try {
+            await client.navigate(targetUrl);
+          } catch {
+            client.postMessage({ type: 'venus-notif-click', url: targetUrl });
+          }
+        } else {
+          client.postMessage({ type: 'venus-notif-click', url: targetUrl });
+        }
+        return;
+      }
+      if (self.clients.openWindow) await self.clients.openWindow(targetUrl);
     }),
   );
 });

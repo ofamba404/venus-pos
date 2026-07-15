@@ -133,6 +133,8 @@ export function renderModals(currentPage = 'home') {
       <span class="toast-icon" aria-hidden="true"></span>
       <span class="toast-msg" id="toastMsg"></span>
     </div>
+
+    <div id="inAppBanner" class="in-app-banner" role="status" aria-live="polite" hidden></div>
   `;
 }
 

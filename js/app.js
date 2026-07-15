@@ -1,5 +1,6 @@
 import { ensureGsap, wireFloatingNav } from './animations.js';
 import { wireDebugPanel } from './debug.js';
+import { initQuoteLabReminders } from './delivery-quote-lab.js';
 import { mountShell } from './layout.js';
 import { wireOrders } from './orders.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -17,6 +18,7 @@ export function mountApp(page) {
 
 export async function finishAppInit() {
   registerServiceWorker();
+  initQuoteLabReminders();
   await ensureGsap();
   wireFloatingNav();
 }
