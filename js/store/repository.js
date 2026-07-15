@@ -44,9 +44,11 @@ async function fetchSalesMerged() {
 }
 
 export async function fetchEntityFromNetwork(entity) {
-  const res = await FETCHERS[entity]();
-  if (!res.ok) throw new Error(`Supabase ${res.status}`);
-  return res.json();
+  const result = await FETCHERS[entity]();
+  // sales merges multiple requests and already returns parsed rows
+  if (Array.isArray(result)) return result;
+  if (!result.ok) throw new Error(`Supabase ${result.status}`);
+  return result.json();
 }
 
 export function inventoryRowsFromState(inventory) {
