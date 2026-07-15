@@ -333,6 +333,7 @@ async function saveTestQuote() {
     showToast('Enter the SafeBoda fee from the app', true);
     return;
   }
+  if (saving) return;
 
   saving = true;
   const saveBtn = document.getElementById('quoteLabSave');
@@ -372,15 +373,25 @@ async function saveTestQuote() {
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
     const rows = await res.json();
-    if (rows[0]) await dataStore.appendDelivery(rows[0]);
 
     feeDraft = '';
     selectedDropId = null; // pick next coverage gap on re-render
+    // Clear before appendDelivery → notify → renderQuoteLab, or the button
+    // paints stuck on "Saving…" with saving still true.
+    saving = false;
+    if (rows[0]) await dataStore.appendDelivery(rows[0]);
+    else renderQuoteLab();
+
     showToast(`Logged ${fmtUGX(feeVal)} · ${drop.shortLabel}`);
-    // Parent paint will refresh model + lab via slice update.
   } catch (e) {
     console.error('quote lab save failed', e);
     showToast('Could not log quote', true);
+    saving = false;
+    const btn = document.getElementById('quoteLabSave');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Log quote';
+    }
   } finally {
     saving = false;
   }
