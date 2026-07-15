@@ -41,6 +41,7 @@ import {
 import { clients, inventory, salesCache } from './state.js';
 import {
   closeEditModal,
+  clientInitials,
   escapeHtml,
   fmtCompact,
   fmtUGX,
@@ -73,15 +74,6 @@ let editingSaleItemIdx = null;
 let creditPanelOpen = false;
 /** Client keys with order details expanded inside the credit panel. */
 const creditGroupOpen = new Set();
-
-function creditInitials(name) {
-  return (name || '?')
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
 
 function creditOrderDate(sale) {
   return new Date(sale.created_at).toLocaleDateString(undefined, {
@@ -121,7 +113,7 @@ function renderCreditClientGroup(group) {
           (s) => `
         <div class="credit-panel-order">
           <div class="cr-meta">${creditOrderBalanceLabel(s, { multi: true })}</div>
-          <button class="credit-clear-btn" data-pay-credit="${s.id}" type="button">Pay</button>
+          <button class="credit-clear-btn" data-pay-credit="${s.id}" type="button">Clear</button>
         </div>`,
         )
         .join('')
@@ -130,15 +122,15 @@ function renderCreditClientGroup(group) {
   return `
     <div class="credit-client-group${multi ? ' is-multi' : ''}${open ? ' is-open' : ''}" data-credit-group="${escapeHtml(groupKey)}">
       <div class="credit-panel-item credit-client-head"${multi ? ` role="button" tabindex="0" aria-expanded="${open}"` : ''}>
-        <div class="credit-panel-avatar" aria-hidden="true">${escapeHtml(creditInitials(group.name))}</div>
+        <div class="credit-panel-avatar" aria-hidden="true">${escapeHtml(clientInitials(group.name))}</div>
         <div class="credit-panel-item-main">
           <div class="cr-name">${escapeHtml(group.name)}</div>
           <div class="cr-meta">${headMeta}</div>
         </div>
         ${multi ? `<span class="credit-group-caret" aria-hidden="true">▸</span>` : ''}
-        <button class="credit-clear-btn" ${payTarget} type="button">Pay</button>
+        <button class="credit-clear-btn" ${payTarget} type="button">Clear</button>
       </div>
-      ${multi ? `<div class="credit-client-orders"${open ? '' : ' hidden'}>${orderRows}</div>` : ''}
+      ${multi ? `<div class="credit-client-orders${open ? '' : ' is-collapsed'}"${open ? '' : ' hidden'}>${orderRows}</div>` : ''}
     </div>`;
 }
 
@@ -213,7 +205,10 @@ function wireCreditPanel() {
     const head = groupEl.querySelector('.credit-client-head');
     head?.setAttribute('aria-expanded', String(open));
     const orders = groupEl.querySelector('.credit-client-orders');
-    if (orders) orders.hidden = !open;
+    if (orders) {
+      orders.hidden = !open;
+      orders.classList.toggle('is-collapsed', !open);
+    }
   };
 
   panel.querySelectorAll('.credit-client-group.is-multi .credit-client-head').forEach((head) => {

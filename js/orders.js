@@ -17,6 +17,7 @@ import {
   deliveryPlaceFieldMarkup,
   reverseGeocodeLabel,
   setDeliveryFieldValue,
+  setPlacesSearchOrigin,
   wireDeliveryPlacesInputs,
 } from './places-autocomplete.js';
 import { adjustStock, renderStockGlance } from './inventory.js';
@@ -512,6 +513,7 @@ function autoFillPickupLocation() {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       checkoutOrigin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setPlacesSearchOrigin(checkoutOrigin);
       reverseGeocodeLabel(checkoutOrigin, (label) => {
         checkoutPickupText = label;
         setDeliveryFieldValue('deliveryPickupInput', checkoutPickupText);

@@ -1466,8 +1466,9 @@
     padding: 2px 0 4px;
   }
 
+  .credit-client-orders.is-collapsed,
   .credit-client-orders[hidden] {
-    display: none;
+    display: none !important;
   }
 
   .credit-panel-order {

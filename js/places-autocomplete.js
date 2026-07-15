@@ -9,12 +9,23 @@ const MIN_QUERY_LEN = 2;
 const FETCH_DEBOUNCE_MS = 140;
 const SUGGESTION_CACHE_TTL_MS = 5 * 60 * 1000;
 const SUGGESTION_CACHE_MAX = 48;
+const MAX_SUGGESTIONS = 8;
+/** Greater Kampala — bias autocomplete/text search toward local POIs (SafeBoda-style). */
+const KAMPALA_CENTER = { lat: 0.3476, lng: 32.5825 };
+const KAMPALA_BIAS_RADIUS_M = 40000;
+const GPS_BIAS_RADIUS_M = 15000;
+/** Prefer named places within this distance of the GPS fix. */
+const NEARBY_POI_RADIUS_M = 90;
+const NEARBY_POI_MAX_M = 140;
 
 let gmapsLoaded = false;
 let gmapsLoading = false;
 
-/** @type {Promise<{ AutocompleteSessionToken: unknown, AutocompleteSuggestion: unknown }> | null} */
+/** @type {Promise<Record<string, unknown>> | null} */
 let placesLibPromise = null;
+
+/** @type {{ lat: number, lng: number } | null} */
+let placesSearchOrigin = null;
 
 /** @type {Map<string, { at: number, predictions: unknown[] }>} */
 const suggestionCache = new Map();
@@ -37,8 +48,58 @@ function prefetchPlacesLibrary() {
   if (window.google?.maps) void getPlacesLibrary();
 }
 
+/** Remember GPS / last pin so autocomplete ranks nearby Kampala POIs first. */
+export function setPlacesSearchOrigin(latLng) {
+  const lat = Number(latLng?.lat);
+  const lng = Number(latLng?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  placesSearchOrigin = { lat, lng };
+}
+
+function biasCenter() {
+  return placesSearchOrigin || KAMPALA_CENTER;
+}
+
+function biasRadiusM() {
+  return placesSearchOrigin ? GPS_BIAS_RADIUS_M : KAMPALA_BIAS_RADIUS_M;
+}
+
 function suggestionCacheKey(query, regionCodes) {
-  return `${(regionCodes || []).join(',')}\0${query}`;
+  const c = biasCenter();
+  const cell = `${c.lat.toFixed(2)},${c.lng.toFixed(2)}`;
+  return `${(regionCodes || []).join(',')}\0${cell}\0${query}`;
+}
+
+function toLatLngLiteral(loc) {
+  if (!loc) return null;
+  const lat = typeof loc.lat === 'function' ? loc.lat() : loc.lat;
+  const lng = typeof loc.lng === 'function' ? loc.lng() : loc.lng;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
+function haversineMeters(a, b) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Ride-app style: "Business Name, Plot …, Road, Kampala". */
+function formatPlaceLabel(place) {
+  const name = (place?.displayName || '').trim();
+  const addr = (place?.formattedAddress || '').trim();
+  if (name && addr) {
+    if (addr.toLowerCase().includes(name.toLowerCase())) return addr;
+    return `${name}, ${addr}`;
+  }
+  return addr || name || '';
 }
 
 function getCachedSuggestions(key) {
@@ -125,11 +186,11 @@ const GEOCODE_LOCATION_RANK = {
 };
 
 const GEOCODE_TYPE_RANK = [
-  'street_address',
   'premise',
   'subpremise',
   'point_of_interest',
   'establishment',
+  'street_address',
   'intersection',
   'route',
   'plus_code',
@@ -173,7 +234,16 @@ function isCoarseGeocodeResult(result) {
   if (result.geometry?.location_type === 'APPROXIMATE') {
     const types = result.types || [];
     return !types.some((t) =>
-      ['street_address', 'premise', 'subpremise', 'route', 'intersection', 'plus_code'].includes(t),
+      [
+        'street_address',
+        'premise',
+        'subpremise',
+        'point_of_interest',
+        'establishment',
+        'route',
+        'intersection',
+        'plus_code',
+      ].includes(t),
     );
   }
   return false;
@@ -184,32 +254,94 @@ function plusCodeLabel(results) {
   return plus?.formatted_address || '';
 }
 
-/**
- * Reverse-geocode coords → human label, preferring rooftop/street-level
- * results (and Plus Codes when Google only has a coarse area name).
- */
-export function reverseGeocodeLabel(latLng, cb) {
-  loadGoogleMaps(() => {
-    const fallback = `${Number(latLng.lat).toFixed(5)}, ${Number(latLng.lng).toFixed(5)}`;
+function geocodeAddress(latLng) {
+  return new Promise((resolve) => {
     try {
       new google.maps.Geocoder().geocode({ location: latLng }, (results, status) => {
         if (status !== 'OK' || !results?.length) {
-          cb(fallback);
+          resolve({ label: '', results: [] });
           return;
         }
-
         const best = pickBestGeocodeResult(results);
         const plus = plusCodeLabel(results);
         if (isCoarseGeocodeResult(best) && plus) {
-          cb(plus);
+          resolve({ label: plus, results });
           return;
         }
-        cb(best?.formatted_address || plus || fallback);
+        resolve({ label: best?.formatted_address || plus || '', results });
       });
-    } catch (err) {
-      logDebug(`Reverse geocode failed: ${err?.message || err}`);
-      cb(fallback);
+    } catch {
+      resolve({ label: '', results: [] });
     }
+  });
+}
+
+/**
+ * Closest named place near the pin — ride apps surface these over bare street numbers.
+ */
+async function findNearbyPoiLabel(latLng) {
+  try {
+    const { Place, SearchNearbyRankPreference } = await getPlacesLibrary();
+    const center = { lat: Number(latLng.lat), lng: Number(latLng.lng) };
+    const { places } = await Place.searchNearby({
+      fields: ['displayName', 'formattedAddress', 'location', 'types'],
+      locationRestriction: { center, radius: NEARBY_POI_RADIUS_M },
+      maxResultCount: 5,
+      rankPreference: SearchNearbyRankPreference.DISTANCE,
+    });
+    if (!places?.length) return '';
+
+    let best = null;
+    let bestDist = Infinity;
+    for (const place of places) {
+      const loc = toLatLngLiteral(place.location);
+      if (!loc) continue;
+      const dist = haversineMeters(center, loc);
+      if (dist > NEARBY_POI_MAX_M) continue;
+      const types = place.types || [];
+      // Skip generic political/admin areas — we want hostels, shops, landmarks.
+      if (
+        types.includes('locality') ||
+        types.includes('political') ||
+        types.includes('administrative_area_level_1') ||
+        types.includes('administrative_area_level_2') ||
+        types.includes('country') ||
+        types.includes('route')
+      ) {
+        continue;
+      }
+      if (dist < bestDist) {
+        best = place;
+        bestDist = dist;
+      }
+    }
+    return best ? formatPlaceLabel(best) : '';
+  } catch (err) {
+    logDebug(`Nearby POI lookup failed: ${err?.message || err}`);
+    return '';
+  }
+}
+
+/**
+ * Reverse-geocode coords → human label. Prefers nearby POI names (SafeBoda-like)
+ * over bare street numbers when Google has a place within ~90m.
+ */
+export function reverseGeocodeLabel(latLng, cb) {
+  setPlacesSearchOrigin(latLng);
+  loadGoogleMaps(() => {
+    const fallback = `${Number(latLng.lat).toFixed(5)}, ${Number(latLng.lng).toFixed(5)}`;
+    void (async () => {
+      try {
+        const [{ label: streetLabel }, poiLabel] = await Promise.all([
+          geocodeAddress(latLng),
+          findNearbyPoiLabel(latLng),
+        ]);
+        cb(poiLabel || streetLabel || fallback);
+      } catch (err) {
+        logDebug(`Reverse geocode failed: ${err?.message || err}`);
+        cb(fallback);
+      }
+    })();
   });
 }
 
@@ -247,6 +379,28 @@ function highlightFormattableText(formattable) {
   return html;
 }
 
+function wrapAutocompletePrediction(placePrediction) {
+  return {
+    kind: 'autocomplete',
+    placePrediction,
+    mainText: placePrediction.mainText,
+    secondaryText: placePrediction.secondaryText,
+    text: placePrediction.text,
+  };
+}
+
+function wrapTextSearchPlace(place) {
+  const name = (place.displayName || '').trim();
+  const addr = (place.formattedAddress || '').trim();
+  return {
+    kind: 'place',
+    place,
+    mainText: { text: name || addr, matches: [] },
+    secondaryText: name && addr ? { text: addr, matches: [] } : null,
+    text: { toString: () => formatPlaceLabel(place) },
+  };
+}
+
 function renderPredictionLabel(prediction, query) {
   if (prediction.mainText?.text) {
     const main = highlightFormattableText(prediction.mainText);
@@ -258,6 +412,19 @@ function renderPredictionLabel(prediction, query) {
 
   const full = prediction.text?.toString?.() || '';
   return highlightClientName(full, query);
+}
+
+async function searchPlacesByText(query, regionCodes) {
+  const { Place } = await getPlacesLibrary();
+  const center = biasCenter();
+  const { places } = await Place.searchByText({
+    textQuery: query,
+    fields: ['displayName', 'formattedAddress', 'location'],
+    locationBias: { center, radius: biasRadiusM() },
+    region: regionCodes?.[0] || 'ug',
+    maxResultCount: MAX_SUGGESTIONS,
+  });
+  return (places || []).map(wrapTextSearchPlace);
 }
 
 const BLUR_HIDE_MS = 140;
@@ -391,43 +558,93 @@ function attachPlaceAutocomplete(
       const { AutocompleteSessionToken, AutocompleteSuggestion } = await getPlacesLibrary();
       if (!sessionToken) sessionToken = new AutocompleteSessionToken();
 
+      const center = biasCenter();
       const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
         input: trimmed,
         sessionToken,
         includedRegionCodes: regionCodes,
+        region: regionCodes?.[0] || 'ug',
+        language: 'en',
+        locationBias: { center, radius: biasRadiusM() },
+        origin: center,
       });
       if (reqId !== requestGen || activeQuery !== trimmed) return;
 
-      const predictions = suggestions
+      let predictions = suggestions
         .map((suggestion) => suggestion.placePrediction)
         .filter(Boolean)
-        .slice(0, 6);
+        .map(wrapAutocompletePrediction)
+        .slice(0, MAX_SUGGESTIONS);
+
+      // Autocomplete alone often misses Kampala POIs/hostel names SafeBoda shows.
+      const wantsTextFallback =
+        trimmed.length >= 3 &&
+        (predictions.length < 3 || /\s/.test(trimmed));
+      if (wantsTextFallback) {
+        try {
+          const textHits = await searchPlacesByText(trimmed, regionCodes);
+          if (reqId !== requestGen || activeQuery !== trimmed) return;
+          const seen = new Set(
+            predictions.map((p) => (p.text?.toString?.() || '').toLowerCase()).filter(Boolean),
+          );
+          for (const hit of textHits) {
+            const key = (hit.text?.toString?.() || '').toLowerCase();
+            if (key && seen.has(key)) continue;
+            if (key) seen.add(key);
+            predictions.push(hit);
+            if (predictions.length >= MAX_SUGGESTIONS) break;
+          }
+        } catch (textErr) {
+          logDebug(`Place text search failed: ${textErr?.message || textErr}`);
+        }
+      }
 
       setCachedSuggestions(cacheKey, predictions);
       renderPredictions(predictions, trimmed, { contentUpdate: wasOpen });
     } catch (err) {
       if (reqId !== requestGen) return;
       logDebug(`Place suggestions failed: ${err?.message || err}`);
-      hide();
+      // Last resort: text search only (still Kampala-biased).
+      try {
+        const textHits = await searchPlacesByText(trimmed, regionCodes);
+        if (reqId !== requestGen || activeQuery !== trimmed) return;
+        setCachedSuggestions(cacheKey, textHits);
+        renderPredictions(textHits, trimmed, { contentUpdate: wasOpen });
+      } catch {
+        hide();
+      }
     }
   };
 
-  const selectPrediction = async (placePrediction) => {
+  const selectPrediction = async (prediction) => {
     selecting = true;
     cancelHide();
     try {
-      const place = placePrediction.toPlace();
-      await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
-      const loc = place.location;
-      if (!loc) return;
+      let place;
+      if (prediction?.kind === 'place' && prediction.place) {
+        place = prediction.place;
+        if (!place.location || !place.formattedAddress) {
+          await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
+        }
+      } else {
+        const placePrediction = prediction?.placePrediction || prediction;
+        place = placePrediction.toPlace();
+        await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
+      }
+
+      const coords = toLatLngLiteral(place.location);
+      if (!coords) return;
       const label =
-        place.formattedAddress || place.displayName || placePrediction.text?.toString?.() || '';
+        formatPlaceLabel(place) ||
+        prediction?.text?.toString?.() ||
+        '';
       input.value = label;
       sessionToken = null;
+      setPlacesSearchOrigin(coords);
       hide();
       onSelect({
-        lat: typeof loc.lat === 'function' ? loc.lat() : loc.lat,
-        lng: typeof loc.lng === 'function' ? loc.lng() : loc.lng,
+        lat: coords.lat,
+        lng: coords.lng,
         label,
       });
     } catch (err) {

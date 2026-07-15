@@ -61,20 +61,21 @@ export function allocatePaymentFifo(openSales, amountUgx) {
  * Group outstanding credit sales by client.
  * Sort: highest total owed first, then name.
  * Within a group, oldest orders first (pay FIFO visibility).
+ * Merges duplicate client rows that share the same display name
+ * (case-insensitive) so multi-order AR collapses under one person.
  */
 export function groupOutstandingByClient(outstandingSales, clientsList = []) {
   const byKey = new Map();
 
   for (const sale of outstandingSales) {
-    const key = sale.client_id || `unknown-${sale.id}`;
+    const clientId = sale.client_id || '';
+    const key = clientId || `unknown-${sale.id}`;
     let group = byKey.get(key);
     if (!group) {
-      const client = sale.client_id
-        ? clientsList.find((c) => c.id === sale.client_id)
-        : null;
+      const client = clientId ? clientsList.find((c) => c.id === clientId) : null;
       group = {
         key,
-        clientId: sale.client_id || '',
+        clientId,
         name: client?.name || 'Unknown client',
         sales: [],
         totalUgx: 0,
@@ -85,13 +86,35 @@ export function groupOutstandingByClient(outstandingSales, clientsList = []) {
     group.totalUgx += creditBalance(sale);
   }
 
+  // Collapse duplicate client records that share a name into one row.
+  const byName = new Map();
   for (const group of byKey.values()) {
+    const nameKey = group.name.trim().toLowerCase();
+    const mergeKey =
+      nameKey && nameKey !== 'unknown client' ? `name:${nameKey}` : `id:${group.key}`;
+    const existing = byName.get(mergeKey);
+    if (!existing) {
+      byName.set(mergeKey, {
+        ...group,
+        sales: [...group.sales],
+      });
+      continue;
+    }
+    existing.sales.push(...group.sales);
+    existing.totalUgx += group.totalUgx;
+    if (!existing.clientId && group.clientId) {
+      existing.clientId = group.clientId;
+      existing.key = group.key;
+    }
+  }
+
+  for (const group of byName.values()) {
     group.sales.sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     );
   }
 
-  return [...byKey.values()].sort((a, b) => {
+  return [...byName.values()].sort((a, b) => {
     if (b.totalUgx !== a.totalUgx) return b.totalUgx - a.totalUgx;
     return a.name.localeCompare(b.name);
   });

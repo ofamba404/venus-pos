@@ -26,6 +26,20 @@ export function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+/** First 1–2 letters for avatars — skips leading emoji/symbols. */
+export function clientInitials(name) {
+  const letters = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .map((word) => {
+      const match = word.match(/\p{L}/u);
+      return match ? match[0] : '';
+    })
+    .filter(Boolean);
+  if (!letters.length) return '?';
+  return letters.join('').slice(0, 2).toUpperCase();
+}
+
 import { animateToastIn, animateToastOut, closeModal, isModalOpen, openModal } from './animations.js';
 
 const TOAST_ICON_OK = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>`;
