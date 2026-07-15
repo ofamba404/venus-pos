@@ -272,7 +272,7 @@ export function animateToastOut(el) {
 }
 
 const PAGE_CONTENT_SELECTOR =
-  '.kpi-grid > *, .stock-card, .section-head, .page-hint, .client-add-row, .client-search-wrap, .ao-hero, .ao-tiles > *, .ao-feature, .credit-panel, .analytics-block, .rev-chart-card, .pattern-card, .dl-model-card, .delivery-day-group, .delivery-stats, .delivery-log, .history-hero, .history-section, .card, .section-title, .product-row, .client-row, .credit-row, .bar-row';
+  '.kpi-grid > *, .stock-card, .section-head, .page-hint, .client-add-row, .client-search-wrap, .ao-hero, .ao-tiles > *, .ao-feature, .credit-panel, .analytics-block, .rev-chart-card, .pattern-card, .dl-model-card, .delivery-day-group, .delivery-stats, .delivery-log, .history-hero, .history-section, .card, .section-title, .product-row, .client-row, .bar-row';
 
 function markAppReady() {
   document.body.classList.add('is-ready');

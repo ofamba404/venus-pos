@@ -11,11 +11,37 @@ export const STALE_MS = {
 };
 
 const FETCHERS = {
-  sales: () => sbFetch('sales?select=*&order=created_at.desc&limit=200'),
+  sales: fetchSalesMerged,
   inventory: () => sbFetch('inventory?select=category_id,stock'),
   clients: () => sbFetch('clients?select=*&order=name.asc'),
   deliveries: () => sbFetch('deliveries?select=*&order=created_at.desc&limit=500'),
 };
+
+/** Recent sales plus any outstanding credit outside the recent window. */
+async function fetchSalesMerged() {
+  const [recentRes, openRes] = await Promise.all([
+    // Wide recent window for charts/history; open credits merged in so old AR never drops out.
+    sbFetch('sales?select=*&order=created_at.desc&limit=2000'),
+    sbFetch(
+      'sales?is_credit=eq.true&credit_cleared=eq.false&select=*&order=created_at.desc',
+    ),
+  ]);
+  if (!recentRes.ok) throw new Error(`Supabase ${recentRes.status}`);
+  const recent = await recentRes.json();
+  if (!Array.isArray(recent)) return recent;
+
+  if (!openRes.ok) return recent;
+  const open = await openRes.json();
+  if (!Array.isArray(open) || open.length === 0) return recent;
+
+  const seen = new Set(recent.map((s) => s.id));
+  const extras = open.filter((s) => s?.id && !seen.has(s.id));
+  if (extras.length === 0) return recent;
+
+  return [...recent, ...extras].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+}
 
 export async function fetchEntityFromNetwork(entity) {
   const res = await FETCHERS[entity]();

@@ -1,7 +1,8 @@
 import { sbFetch } from './api.js';
 import { dataStore } from './store/index.js';
+import { clientArSummary } from './settle-credit.js';
 import { clients } from './state.js';
-import { debounce, escapeHtml, showConfirm, showToast } from './utils.js';
+import { debounce, escapeHtml, fmtCompact, showConfirm, showToast } from './utils.js';
 import { clientRowPlaceholders, showPlaceholder } from './pending.js';
 import { mountVirtualList } from './virtual-list.js';
 
@@ -84,7 +85,12 @@ export function renderClientsTab() {
   if (!list) return;
 
   const query = getClientSearchQuery();
-  const filtered = filterClients(query);
+  const filtered = filterClients(query).slice().sort((a, b) => {
+    const aOwed = clientArSummary(a.id)?.totalUgx || 0;
+    const bOwed = clientArSummary(b.id)?.totalUgx || 0;
+    if (aOwed !== bOwed) return bOwed - aOwed;
+    return a.name.localeCompare(b.name);
+  });
   updateClientListMeta(filtered.length, clients.length, query);
 
   if (clients.length === 0) {
@@ -105,10 +111,14 @@ export function renderClientsTab() {
     renderRow: (c) => {
       const d = new Date(c.created_at);
       const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      const ar = clientArSummary(c.id);
+      const arBadge = ar
+        ? `<span class="cl-owed" title="${ar.count} open credit order${ar.count === 1 ? '' : 's'}">owes ${fmtCompact(ar.totalUgx)}</span>`
+        : `<span class="cl-date">since ${dateStr}</span>`;
       return `
-        <div class="client-row" data-client-row="${c.id}">
+        <div class="client-row${ar ? ' has-credit' : ''}" data-client-row="${c.id}">
           <span class="cl-name">${highlightClientName(c.name, query)}</span>
-          <span class="cl-date">since ${dateStr}</span>
+          ${arBadge}
           <div class="cl-actions">
             <button class="cl-icon-btn" data-rename="${c.id}" title="Rename" type="button">✎</button>
             <button class="cl-icon-btn delete" data-delete="${c.id}" title="Delete" type="button">✕</button>
@@ -123,8 +133,8 @@ function startRenameClient(id) {
   const row = document.querySelector(`[data-client-row="${id}"]`);
   if (!client || !row) return;
 
-  const dateEl = row.querySelector('.cl-date');
-  if (dateEl) dateEl.style.display = 'none';
+  const metaEl = row.querySelector('.cl-date, .cl-owed');
+  if (metaEl) metaEl.style.display = 'none';
   row.querySelector('.cl-name').outerHTML = `<input type="text" class="cl-name-input" id="renameInput-${id}" value="${escapeHtml(client.name)}" />`;
   const input = document.getElementById(`renameInput-${id}`);
   input.focus();

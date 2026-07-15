@@ -1,7 +1,8 @@
 import { addClient, filterClients, findClientByName, highlightClientName } from './clients.js';
 import { animateDropdown } from './animations.js';
+import { clientArSummary } from './settle-credit.js';
 import { clients } from './state.js';
-import { escapeHtml, showToast } from './utils.js';
+import { escapeHtml, fmtCompact, showToast } from './utils.js';
 
 const BLUR_HIDE_MS = 140;
 
@@ -107,16 +108,29 @@ export function wireClientAutocomplete({
     }
 
     html += filtered
-      .map(
-        (c) => `
+      .map((c) => {
+        const ar = clientArSummary(c.id);
+        const owed = ar
+          ? `<span class="client-ac-owed">owes ${fmtCompact(ar.totalUgx)}</span>`
+          : '';
+        return `
         <button class="suggest-row client-ac-row" data-client="${c.id}" type="button" role="option">
-          ${highlightClientName(c.name, trimmed)}
-        </button>`,
-      )
+          <span class="client-ac-name">${highlightClientName(c.name, trimmed)}</span>
+          ${owed}
+        </button>`;
+      })
       .join('');
 
     openWithHtml(html, { contentUpdate: wasOpen });
   };
+
+  const rankByAr = (list) =>
+    list.slice().sort((a, b) => {
+      const aOwed = clientArSummary(a.id)?.totalUgx || 0;
+      const bOwed = clientArSummary(b.id)?.totalUgx || 0;
+      if (aOwed !== bOwed) return bOwed - aOwed;
+      return a.name.localeCompare(b.name);
+    });
 
   const updateDropdown = (query) => {
     const trimmed = query?.trim() || '';
@@ -126,11 +140,11 @@ export function wireClientAutocomplete({
         hide();
         return;
       }
-      renderDropdownRows(filterClients(''), '', false);
+      renderDropdownRows(rankByAr(filterClients('')), '', false);
       return;
     }
 
-    const filtered = filterClients(trimmed);
+    const filtered = rankByAr(filterClients(trimmed));
     const exact = findClientByName(trimmed);
     const showCreate = !exact;
 

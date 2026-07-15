@@ -121,6 +121,10 @@ export function renderModals(currentPage = 'home') {
       </div>
     </div>
 
+    <div class="modal-overlay" id="settleOverlay" hidden>
+      <div class="modal settle-modal" id="settleModalBody" role="dialog" aria-modal="true" aria-labelledby="settleModalTitle"></div>
+    </div>
+
     <div class="modal-overlay" id="editOverlay" hidden>
       <div class="modal" id="editModalBody" role="dialog" aria-modal="true" aria-labelledby="editModalTitle"></div>
     </div>

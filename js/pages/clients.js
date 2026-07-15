@@ -5,7 +5,9 @@ runPageBoot({
   page: 'clients',
   wire: wireClientsPage,
   paint: renderClientsTab,
+  entities: ['clients', 'sales'],
   slices: {
     clients: renderClientsTab,
+    sales: renderClientsTab,
   },
 });

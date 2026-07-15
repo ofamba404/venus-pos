@@ -51,10 +51,15 @@ import {
   getOrderMeta,
   inventory,
   resetDraftStock,
+  salesCache,
   setCart,
   setOrderMeta,
 } from './state.js';
-import { escapeHtml, fmtUGX, showToast } from './utils.js';
+import { escapeHtml, fmtUGX, showConfirm, showToast } from './utils.js';
+import {
+  getClientOutstandingCredit,
+  sumCreditOwed,
+} from './credit.js';
 
 let modalMode = 'cart';
 let configProduct = null;
@@ -74,6 +79,26 @@ let lastCheckoutReceipt = null;
 let lastCheckoutProcessing = null;
 let lastOrderModalMode = null;
 let checkoutInFlight = false;
+
+function clientOpenCreditSummary(clientId) {
+  const open = getClientOutstandingCredit(salesCache, clientId);
+  if (!open.length) return null;
+  return {
+    count: open.length,
+    totalUgx: sumCreditOwed(open),
+  };
+}
+
+function clientCreditHintHtml(clientId, { creditOn = false } = {}) {
+  const summary = clientOpenCreditSummary(clientId);
+  if (!summary) return '';
+  const ordersLabel =
+    summary.count === 1 ? '1 open credit order' : `${summary.count} open credit orders`;
+  const warn = creditOn
+    ? `<p class="credit-warning" id="cartCreditDebtWarning">Already owes ${fmtUGX(summary.totalUgx)} — this will stack another credit.</p>`
+    : '';
+  return `<div class="client-credit-hint" id="cartClientCreditHint">${escapeHtml(ordersLabel)} · ${fmtUGX(summary.totalUgx)} owed</div>${warn}`;
+}
 
 function getOrderClientName() {
   return getOrderMeta().clientName || '';
@@ -494,6 +519,7 @@ function autoFillPickupLocation() {
 function updateCartCheckoutState() {
   const cart = getCart();
   const orderClientName = getOrderClientName();
+  const orderClientId = getOrderClientId();
   const orderIsCredit = getOrderIsCredit();
   const clientMissing = !orderClientName;
   const checkoutBtn = document.getElementById('checkoutBtn');
@@ -509,6 +535,11 @@ function updateCartCheckoutState() {
 
   const totalVal = document.querySelector('#orderModalBody .cart-total-row .ct-val');
   if (totalVal) totalVal.textContent = fmtUGX(cartTotal(cart));
+
+  const hintHost = document.getElementById('cartClientCreditHintSlot');
+  if (hintHost) {
+    hintHost.innerHTML = clientCreditHintHtml(orderClientId, { creditOn: orderIsCredit });
+  }
 }
 
 function cartItemHtml(item) {
@@ -670,6 +701,7 @@ function renderCartView() {
             value: orderClientName,
             placeholder: 'Search or type client name…',
           })}
+          <div id="cartClientCreditHintSlot">${clientCreditHintHtml(getOrderClientId(), { creditOn: orderIsCredit })}</div>
         </div>
       </section>
 
@@ -1045,12 +1077,23 @@ async function checkout() {
 
   const cart = getCart();
   const orderClientName = getOrderClientName();
+  const orderClientId = getOrderClientId();
   const orderIsCredit = getOrderIsCredit();
 
   if (cart.length === 0) return;
   if (!orderClientName) {
     showToast('Client name is required', true);
     return;
+  }
+
+  if (orderIsCredit && orderClientId) {
+    const openDebt = clientOpenCreditSummary(orderClientId);
+    if (openDebt) {
+      const ok = await showConfirm(
+        `${orderClientName} already owes ${fmtUGX(openDebt.totalUgx)} across ${openDebt.count} order${openDebt.count === 1 ? '' : 's'}. Record another credit?`,
+      );
+      if (!ok) return;
+    }
   }
 
   checkoutInFlight = true;
@@ -1101,6 +1144,8 @@ async function checkout() {
         client_id: clientId,
         is_credit: orderIsCredit,
         credit_cleared: !orderIsCredit,
+        amount_paid_ugx: orderIsCredit ? 0 : total,
+        cleared_at: null,
       }),
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}`);

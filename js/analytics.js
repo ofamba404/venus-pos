@@ -25,7 +25,19 @@ import {
 } from './analytics-chart.js';
 import { resolveClientId } from './clients.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
-import { itemOwnerRevenue, saleOwnerRevenue, sumOwnerRevenue } from './revenue.js';
+import {
+  creditBalance,
+  getOutstandingCredit,
+  groupOutstandingByClient,
+  sumCreditOwed,
+} from './credit.js';
+import { settleClientCredit, settleSaleCredit } from './settle-credit.js';
+import {
+  itemOwnerRevenue,
+  salePaidRatio,
+  saleRecognizedOwnerRevenue,
+  sumOwnerRevenue,
+} from './revenue.js';
 import { clients, inventory, salesCache } from './state.js';
 import {
   closeEditModal,
@@ -60,10 +72,73 @@ let editConfigSelection = {};
 let editingSaleItemIdx = null;
 let creditPanelOpen = false;
 
+function creditInitials(name) {
+  return (name || '?')
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function creditOrderDate(sale) {
+  return new Date(sale.created_at).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function creditOrderBalanceLabel(sale, { multi = false } = {}) {
+  const balance = creditBalance(sale);
+  const total = Number(sale.total_ugx) || 0;
+  const paid = Math.max(0, Number(sale.amount_paid_ugx) || 0);
+  const date = creditOrderDate(sale);
+  if (paid > 0 && balance > 0) {
+    return multi
+      ? `${fmtUGX(balance)} left of ${fmtUGX(total)} · ${date}`
+      : `${fmtUGX(balance)} left of ${fmtUGX(total)} · since ${date}`;
+  }
+  return multi ? `${fmtUGX(balance)} · ${date}` : `${fmtUGX(balance)} · since ${date}`;
+}
+
+function renderCreditClientGroup(group) {
+  const multi = group.sales.length > 1;
+  const payAllBtn =
+    multi && group.clientId
+      ? `<button class="credit-clear-btn credit-clear-btn--all" data-pay-client-credit="${escapeHtml(group.clientId)}" type="button">Pay</button>`
+      : '';
+
+  const orderRows = group.sales
+    .map((s) => {
+      return `
+        <div class="credit-panel-order">
+          <div class="credit-panel-order-main">
+            <div class="cr-meta">${creditOrderBalanceLabel(s, { multi: true })}</div>
+          </div>
+          <button class="credit-clear-btn" data-pay-credit="${s.id}" type="button">Pay</button>
+        </div>`;
+    })
+    .join('');
+
+  return `
+    <div class="credit-client-group${multi ? ' is-multi' : ''}">
+      <div class="credit-panel-item credit-client-head">
+        <div class="credit-panel-avatar" aria-hidden="true">${escapeHtml(creditInitials(group.name))}</div>
+        <div class="credit-panel-item-main">
+          <div class="cr-name">${escapeHtml(group.name)}</div>
+          <div class="cr-meta">${multi
+            ? `${fmtUGX(group.totalUgx)} · ${group.sales.length} orders`
+            : creditOrderBalanceLabel(group.sales[0])}</div>
+        </div>
+        ${multi ? payAllBtn : `<button class="credit-clear-btn" data-pay-credit="${group.sales[0].id}" type="button">Pay</button>`}
+      </div>
+      ${multi ? `<div class="credit-client-orders">${orderRows}</div>` : ''}
+    </div>`;
+}
+
 function renderCreditPanel(outstandingCredit, totalCreditOwed) {
-  const uniqueClients = new Set(
-    outstandingCredit.map((s) => s.client_id || `unknown-${s.id}`),
-  ).size;
+  const groups = groupOutstandingByClient(outstandingCredit, clients);
+  const uniqueClients = groups.length;
 
   if (outstandingCredit.length === 0) {
     return `
@@ -78,14 +153,7 @@ function renderCreditPanel(outstandingCredit, totalCreditOwed) {
       </div>`;
   }
 
-  const previewNames = outstandingCredit
-    .map((s) => {
-      const client = s.client_id ? clients.find((c) => c.id === s.client_id) : null;
-      return client ? client.name : 'Unknown';
-    })
-    .filter((name, i, arr) => arr.indexOf(name) === i)
-    .slice(0, 3);
-
+  const previewNames = groups.map((g) => g.name).slice(0, 3);
   const preview =
     previewNames.length > 0
       ? `<div class="credit-panel-chips">${previewNames
@@ -93,29 +161,7 @@ function renderCreditPanel(outstandingCredit, totalCreditOwed) {
           .join('')}${uniqueClients > 3 ? `<span class="credit-chip more">+${uniqueClients - 3}</span>` : ''}</div>`
       : '';
 
-  const rows = outstandingCredit
-    .map((s) => {
-      const client = s.client_id ? clients.find((c) => c.id === s.client_id) : null;
-      const t = new Date(s.created_at);
-      const dateStr = t.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-      const initials = (client?.name || '?')
-        .split(/\s+/)
-        .map((w) => w[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
-      return `
-        <div class="credit-panel-item">
-          <div class="credit-panel-avatar" aria-hidden="true">${escapeHtml(initials)}</div>
-          <div class="credit-panel-item-main">
-            <div class="cr-name">${escapeHtml(client ? client.name : 'Unknown client')}</div>
-            <div class="cr-meta">${fmtUGX(s.total_ugx)} · since ${dateStr}</div>
-          </div>
-          <button class="credit-clear-btn" data-clear-credit="${s.id}" type="button">Clear</button>
-        </div>`;
-    })
-    .join('');
-
+  const rows = groups.map(renderCreditClientGroup).join('');
   const expanded = creditPanelOpen ? ' expanded' : '';
 
   return `
@@ -150,10 +196,19 @@ function wireCreditPanel() {
     if (body) animateAccordionPanel(body, creditPanelOpen);
   });
 
-  panel.querySelectorAll('[data-clear-credit]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
+  panel.querySelectorAll('[data-pay-credit]').forEach((payBtn) => {
+    payBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      clearCredit(btn.dataset.clearCredit);
+      const ok = await settleSaleCredit(payBtn.dataset.payCredit);
+      if (ok) renderAnalytics();
+    });
+  });
+
+  panel.querySelectorAll('[data-pay-client-credit]').forEach((payBtn) => {
+    payBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const ok = await settleClientCredit(payBtn.dataset.payClientCredit);
+      if (ok) renderAnalytics();
     });
   });
 }
@@ -236,25 +291,25 @@ function renderOverviewSections() {
     const weekStart = mondayOfWeek(now);
     const revenueWeek = salesCache
       .filter((s) => new Date(s.created_at) >= weekStart)
-      .reduce((sum, s) => sum + saleOwnerRevenue(s), 0);
+      .reduce((sum, s) => sum + saleRecognizedOwnerRevenue(s), 0);
     const revenueMonth = salesCache
       .filter((s) => {
         const d = new Date(s.created_at);
         return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
       })
-      .reduce((sum, s) => sum + saleOwnerRevenue(s), 0);
+      .reduce((sum, s) => sum + saleRecognizedOwnerRevenue(s), 0);
 
     const periodSales = filterSalesByInsightPeriod(salesCache, period);
     const { topProduct, topCount } = topProductForSales(periodSales);
 
-    const outstandingCredit = salesCache.filter((s) => s.is_credit && !s.credit_cleared);
-    const totalCreditOwed = outstandingCredit.reduce((sum, s) => sum + s.total_ugx, 0);
+    const outstandingCredit = getOutstandingCredit(salesCache);
+    const totalCreditOwed = sumCreditOwed(outstandingCredit);
 
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayRev = salesCache
       .filter((s) => isSameDay(new Date(s.created_at), yesterday))
-      .reduce((sum, s) => sum + saleOwnerRevenue(s), 0);
+      .reduce((sum, s) => sum + saleRecognizedOwnerRevenue(s), 0);
     const delta = revenueDelta(revenueToday, yesterdayRev);
     const monthShare = revenueAll > 0 ? Math.round((revenueMonth / revenueAll) * 100) : 0;
     const ordersToday = todaySales.length;
@@ -364,11 +419,13 @@ function renderInsightLists() {
   wireInsightPeriodPills(clientsPeriodEl);
 
   const productRevenueMap = {};
-  periodSales.forEach((s) =>
+  periodSales.forEach((s) => {
+    const ratio = salePaidRatio(s);
     (s.items || []).forEach((i) => {
-      productRevenueMap[i.product_name] = (productRevenueMap[i.product_name] || 0) + itemOwnerRevenue(i);
-    }),
-  );
+      productRevenueMap[i.product_name] =
+        (productRevenueMap[i.product_name] || 0) + itemOwnerRevenue(i) * ratio;
+    });
+  });
   const sortedProducts = Object.entries(productRevenueMap).sort((a, b) => b[1] - a[1]);
   const maxProdRev = Math.max(1, ...sortedProducts.map(([, v]) => v));
   const productRevenueEl = document.getElementById('productRevenue');
@@ -396,7 +453,7 @@ function renderInsightLists() {
   periodSales.forEach((s) => {
     if (!s.client_id) return;
     if (!clientTotals[s.client_id]) clientTotals[s.client_id] = { revenue: 0, orders: 0 };
-    clientTotals[s.client_id].revenue += saleOwnerRevenue(s);
+    clientTotals[s.client_id].revenue += saleRecognizedOwnerRevenue(s);
     clientTotals[s.client_id].orders += 1;
   });
   const rankedClients = Object.entries(clientTotals)
@@ -487,35 +544,6 @@ async function refreshAfterSaleEdit() {
     updateTodayStrip();
   } catch {
     /* home strip unused off home */
-  }
-}
-
-async function clearCredit(saleId) {
-  const ok = await showConfirm('Mark this credit as cleared?');
-  if (!ok) return;
-  try {
-    const clearedAt = new Date().toISOString();
-    const res = await sbFetch(`sales?id=eq.${saleId}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({ credit_cleared: true, cleared_at: clearedAt }),
-    });
-    if (!res.ok) throw new Error(`Supabase ${res.status}`);
-    const rows = await res.json();
-    if (!Array.isArray(rows) || rows.length === 0) {
-      throw new Error('Clear blocked — no rows updated');
-    }
-    const local = salesCache.find((s) => s.id === saleId);
-    if (local) {
-      local.credit_cleared = true;
-      local.cleared_at = clearedAt;
-    }
-    await dataStore.invalidate('sales');
-    showToast('Credit cleared');
-    renderAnalytics();
-  } catch (e) {
-    console.error('clear credit failed', e);
-    showToast('Could not clear credit', true);
   }
 }
 
@@ -902,13 +930,30 @@ async function saveSaleEdit() {
     clientId = null;
   }
 
+  const prevPaid = Math.max(0, Number(sale.amount_paid_ugx) || 0);
+  let amountPaid = prevPaid;
+  let creditCleared = editSaleIsCredit ? editSaleCreditCleared : true;
+  let clearedAt =
+    editSaleIsCredit && creditCleared ? sale.cleared_at || new Date().toISOString() : null;
+
+  if (!editSaleIsCredit) {
+    amountPaid = total;
+    creditCleared = true;
+    clearedAt = null;
+  } else if (creditCleared) {
+    amountPaid = Math.max(prevPaid, total);
+  } else {
+    amountPaid = Math.min(prevPaid, total);
+  }
+
   const payload = {
     items: editSaleItems,
     total_ugx: total,
     client_id: clientId,
     is_credit: editSaleIsCredit,
-    credit_cleared: editSaleIsCredit ? editSaleCreditCleared : true,
-    cleared_at: editSaleIsCredit && editSaleCreditCleared ? sale.cleared_at || new Date().toISOString() : null,
+    credit_cleared: creditCleared,
+    cleared_at: clearedAt,
+    amount_paid_ugx: amountPaid,
   };
 
   try {

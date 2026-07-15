@@ -3,6 +3,7 @@ import { wireDebugPanel } from './debug.js';
 import { mountShell } from './layout.js';
 import { wireOrders } from './orders.js';
 import { registerServiceWorker } from './sw-register.js';
+import { wireSettleOverlay } from './settle-credit.js';
 import { wireConfirmDialog, wireEditOverlay } from './utils.js';
 
 export function mountApp(page) {
@@ -10,6 +11,7 @@ export function mountApp(page) {
   wireDebugPanel();
   wireConfirmDialog();
   wireEditOverlay();
+  wireSettleOverlay();
   wireOrders();
 }
 

@@ -1,6 +1,11 @@
 import { animateRevenueChart } from './animations.js';
 import { revenueChartPlaceholder, salesPatternsPlaceholder, showPlaceholder } from './pending.js';
-import { sumOwnerRevenue, saleOwnerRevenue } from './revenue.js';
+import { isOutstandingCredit } from './credit.js';
+import {
+  saleOwnerRevenue,
+  saleRecognizedOwnerRevenue,
+  sumOwnerRevenue,
+} from './revenue.js';
 import { fmtCompact, fmtUGX, isSameDay } from './utils.js';
 
 /** Calendar ranges: weeks = Mon–Sun, months = calendar months. `offset` = complete weeks ago (1 = last week). */
@@ -223,7 +228,7 @@ export function buildTimeSeries(sales, range) {
       });
     }
     const b = monthMap.get(key);
-    b.revenue += saleOwnerRevenue(s);
+    b.revenue += saleRecognizedOwnerRevenue(s);
     b.orders += 1;
   });
   return Array.from(monthMap.values())
@@ -505,13 +510,19 @@ export function computeSalesPatterns(sales) {
     const d = new Date(s.created_at);
     const h = d.getHours();
     const wd = d.getDay();
-    const rev = saleOwnerRevenue(s);
-    hours[h] += rev;
+    const recognized = saleRecognizedOwnerRevenue(s);
+    const full = saleOwnerRevenue(s);
+    hours[h] += recognized;
     hourOrders[h] += 1;
-    weekdays[wd] += rev;
+    weekdays[wd] += recognized;
     weekdayOrders[wd] += 1;
-    if (s.is_credit) creditRevenue += rev;
-    else paidRevenue += rev;
+    // Settled credit counts as paid; only open AR stays in the credit bucket.
+    if (isOutstandingCredit(s)) {
+      paidRevenue += recognized;
+      creditRevenue += Math.max(0, full - recognized);
+    } else {
+      paidRevenue += recognized;
+    }
     (s.items || []).forEach((item) => {
       Object.entries(item.breakdown || {}).forEach(([id, qty]) => {
         if (id === 'cookie') cookies += qty;
@@ -619,15 +630,15 @@ export function renderSalesPatterns(container, sales) {
       <div class="pattern-card pattern-mix">
         <div class="pattern-card-head">
           <span class="pattern-title">Payment mix</span>
-          <span class="pattern-hint">${p.creditPct}% on credit</span>
+          <span class="pattern-hint">${p.creditPct}% open credit</span>
         </div>
         <div class="mix-bar">
           <div class="mix-paid" style="width:${100 - p.creditPct}%"></div>
           <div class="mix-credit" style="width:${p.creditPct}%"></div>
         </div>
         <div class="mix-legend">
-          <span><i class="mix-dot paid"></i>Paid ${fmtCompact(p.paidRevenue)}</span>
-          <span><i class="mix-dot credit"></i>Credit ${fmtCompact(p.creditRevenue)}</span>
+          <span><i class="mix-dot paid"></i>Collected ${fmtCompact(p.paidRevenue)}</span>
+          <span><i class="mix-dot credit"></i>Open ${fmtCompact(p.creditRevenue)}</span>
         </div>
         <div class="pattern-card-head" style="margin-top:14px">
           <span class="pattern-title">Units sold</span>
