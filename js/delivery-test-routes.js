@@ -15,97 +15,116 @@ export const BASE_ORIGIN = {
   id: 'prisca-honey',
   label: 'Prisca Honey Enterprises, Aryan Hostel, Nkinzi Road',
   shortLabel: 'Prisca Honey · Nkinzi Rd',
-  // Makerere / Kikoni · Nkinzi Rd — Distance Matrix snaps to road network.
-  lat: 0.3382,
-  lng: 32.5635,
+  // Google Places rooftop — Plot 29/30 Aryan Hostel, Shop 06 Nkinzi Rd.
+  lat: 0.3351426,
+  lng: 32.5737724,
 };
 
 /**
- * Drop-offs chosen for:
- * - distance ladder (~1.5 → ~9 km) from the base
- * - different corridors (Wandegeya / Kololo / city / Ntinda / Bugolobi)
- * - easy to search in the SafeBoda app
+ * Quote-lab drop-offs — curated for SafeBoda fee-model coverage, not random.
+ *
+ * Selection rules (from verified Prisca Honey origin):
+ * 1. Real Google Places POIs that are easy to search in SafeBoda
+ * 2. Road-distance ladder via Distance Matrix (~0.8 → ~11 km)
+ * 3. Different corridors / jam patterns (campus, Kololo, CBD, Gayaza north,
+ *    Bugolobi, Ntinda, Northern Bypass)
+ * 4. Band mix: 2 short (<2.5) · 3 mid (<6) · 3 long (≥6)
+ *
+ * approxKm = Google driving distance. SafeBoda km/fee can still differ slightly.
  */
 export const TEST_DROPOFFS = [
   {
     id: 'wandegeya',
     label: 'Wandegeya Market, Kampala',
     shortLabel: 'Wandegeya Market',
-    lat: 0.3318,
-    lng: 32.5735,
+    searchAs: 'Wandegeya Market',
+    lat: 0.3305576,
+    lng: 32.5733405,
     band: 'short',
-    approxKm: 1.5,
-    why: 'Near-shop short hop — anchors base fare',
+    approxKm: 0.8,
+    why: 'Nearest market hop — anchors base fare',
   },
   {
     id: 'makerere-gate',
     label: 'Makerere University Main Gate, Kampala',
-    shortLabel: 'Makerere Main Gate',
-    lat: 0.3336,
-    lng: 32.5675,
+    shortLabel: 'Makerere University Main Gate',
+    searchAs: 'Makerere University Main Gate',
+    lat: 0.329201,
+    lng: 32.5710341,
     band: 'short',
     approxKm: 1.2,
-    why: 'Short campus route — confirms minimum band',
+    why: 'Campus corridor — SafeBoda-confirmed POI name',
   },
   {
     id: 'acacia',
-    label: 'Acacia Mall, Kisementi, Kampala',
+    label: 'Acacia Mall, Cooper Road, Kampala',
     shortLabel: 'Acacia Mall',
-    lat: 0.3378,
-    lng: 32.5865,
+    searchAs: 'Acacia Mall',
+    lat: 0.3381812,
+    lng: 32.5863218,
     band: 'mid',
-    approxKm: 3.2,
-    why: 'Typical mid-range student / office drop',
-  },
-  {
-    id: 'garden-city',
-    label: 'Garden City Mall, Yusuf Lule Road, Kampala',
-    shortLabel: 'Garden City',
-    lat: 0.3265,
-    lng: 32.582,
-    band: 'mid',
-    approxKm: 4.5,
-    why: 'City-centre corridor with different traffic',
+    approxKm: 2.9,
+    why: 'Kololo / Kisementi — mid student & office drops',
   },
   {
     id: 'nakasero',
     label: 'Nakasero Market, Kampala',
     shortLabel: 'Nakasero Market',
-    lat: 0.3155,
-    lng: 32.5825,
+    searchAs: 'Nakasero Market',
+    lat: 0.3117969,
+    lng: 32.5800566,
     band: 'mid',
-    approxKm: 5.0,
-    why: 'Central business corridor — common daytime drop',
+    approxKm: 3.2,
+    why: 'CBD market corridor — daytime traffic pattern',
   },
   {
     id: 'kawempe',
-    label: 'Kawempe Taxi Park, Kampala',
-    shortLabel: 'Kawempe Taxi Park',
-    lat: 0.379,
-    lng: 32.561,
-    band: 'long',
-    approxKm: 6.5,
-    why: 'North corridor — different jam pattern than Ntinda/Bugolobi',
-  },
-  {
-    id: 'ntinda',
-    label: 'Ntinda Shopping Complex, Kampala',
-    shortLabel: 'Ntinda Complex',
-    lat: 0.356,
-    lng: 32.616,
-    band: 'long',
-    approxKm: 7.0,
-    why: 'Long east run — stretches the km rate',
+    label: 'Mperwerwe Gayaza Stage, Gayaza-Kampala Road',
+    shortLabel: 'Mperwerwe Gayaza Stage',
+    searchAs: 'Mperwerwe Gayaza Stage',
+    aliases: ['mpererwe', 'gayaza stage', 'kawempe taxi park', 'mpererwe kasangati'],
+    lat: 0.3822452,
+    lng: 32.5767988,
+    band: 'mid',
+    approxKm: 5.6,
+    why: 'North / Gayaza corridor — upper-mid jam pattern',
   },
   {
     id: 'bugolobi',
-    label: 'Village Mall, Bugolobi, Kampala',
-    shortLabel: 'Village Mall Bugolobi',
-    lat: 0.318,
-    lng: 32.62,
+    label: 'Village Mall, Spring Road, Kampala',
+    shortLabel: 'Village Mall',
+    searchAs: 'Village Mall',
+    aliases: ['village mall bugolobi', 'bugolobi'],
+    lat: 0.320333,
+    lng: 32.6179634,
     band: 'long',
-    approxKm: 9.0,
-    why: 'Longest preset — stress-tests far quotes',
+    approxKm: 6.8,
+    why: 'Bugolobi / Spring Rd — SafeBoda-confirmed long SE run',
+  },
+  {
+    id: 'ntinda',
+    label: 'Capital Shoppers, Ntinda Road, Kampala',
+    shortLabel: 'Capital Shoppers Ntinda',
+    searchAs: 'Capital Shoppers Ntinda',
+    aliases: ['ntinda shopping complex', 'ntinda shopping center', 'ntinda'],
+    lat: 0.3491591,
+    lng: 32.6165672,
+    band: 'long',
+    approxKm: 9.3,
+    why: 'Ntinda east — stretches the km rate (~9 km)',
+  },
+  {
+    id: 'garden-city',
+    // Longest arm — Northern Bypass / Namugongo corridor.
+    label: 'Metroplex Shopping Centre, Northern Bypass, Kampala',
+    shortLabel: 'Metroplex',
+    searchAs: 'Metroplex Shopping Centre',
+    aliases: ['metroplex', 'garden city'],
+    lat: 0.3675,
+    lng: 32.6330556,
+    band: 'long',
+    approxKm: 11.3,
+    why: 'Northern Bypass long run — top of the distance ladder',
   },
 ];
 
@@ -195,13 +214,20 @@ function bandForKm(km) {
   return 'long';
 }
 
-/** Match a logged row to a preset drop-off (label or ~400m proximity). */
+/** Match a logged row to a preset drop-off (label, aliases, or ~400m proximity). */
 export function matchDropoff(row) {
   const label = String(row.dest_label || '').toLowerCase();
   for (const d of TEST_DROPOFFS) {
-    if (label.includes(d.shortLabel.toLowerCase()) || label.includes(d.id.replace(/-/g, ' '))) {
-      return d;
-    }
+    const needles = [
+      d.shortLabel,
+      d.label,
+      d.searchAs,
+      d.id.replace(/-/g, ' '),
+      ...(d.aliases || []),
+    ]
+      .filter(Boolean)
+      .map((s) => String(s).toLowerCase());
+    if (needles.some((n) => n && label.includes(n))) return d;
   }
   if (row.dest_lat != null && row.dest_lng != null) {
     let best = null;
