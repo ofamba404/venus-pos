@@ -24,6 +24,17 @@ import {
   deliveryModelPlaceholder,
   showPlaceholder,
 } from './pending.js';
+import {
+  estimateDurationMin,
+  fitDeliveryFeeModel,
+  formatPremiumVsDay,
+  listPeriods,
+  modelConfidence,
+  periodForDate,
+  periodMeta,
+  predictSafeBodaFee as predictFromModel,
+  quoteFee,
+} from './delivery-fee-model.js';
 
 let editingDeliveryId = null;
 let editOrigin = null;
@@ -49,51 +60,28 @@ export async function loadDeliveries() {
   await dataStore.fetch('deliveries');
 }
 
-function linearRegression(points) {
-  const n = points.length;
-  if (n < 2) return null;
-  const meanX = points.reduce((s, p) => s + p.x, 0) / n;
-  const meanY = points.reduce((s, p) => s + p.y, 0) / n;
-  let ssXY = 0;
-  let ssXX = 0;
-  let ssYY = 0;
-  points.forEach((p) => {
-    ssXY += (p.x - meanX) * (p.y - meanY);
-    ssXX += (p.x - meanX) ** 2;
-    ssYY += (p.y - meanY) ** 2;
-  });
-  if (ssXX === 0) return null;
-  const slope = ssXY / ssXX;
-  const intercept = meanY - slope * meanX;
-  const r2 = ssYY === 0 ? 1 : (ssXY * ssXY) / (ssXX * ssYY);
-  return { slope, intercept, r2, n };
-}
-
-/** SafeBoda quotes land on 500 UGX steps — round model output to match. */
-function roundFeeToNearest500(fee) {
-  return Math.max(0, Math.round(fee / 500) * 500);
-}
-
-function quoteFee(km, reg) {
-  if (!reg || km == null || isNaN(km)) return 0;
-  return roundFeeToNearest500(reg.intercept + reg.slope * km);
-}
-
 export function getDeliveryFeeModel() {
-  const points = deliveries
-    .map((d) => ({ x: Number(d.distance_km), y: Number(d.fee_ugx) }))
-    .filter((p) => !isNaN(p.x) && !isNaN(p.y));
-  return linearRegression(points);
+  return fitDeliveryFeeModel(deliveries);
 }
 
-/** Predicted SafeBoda fee for a route, or null if the model isn't ready yet. */
-export function predictSafeBodaFee(km, reg = getDeliveryFeeModel()) {
-  if (!reg || km == null || isNaN(km)) return null;
-  const fee = quoteFee(km, reg);
-  return fee > 0 ? fee : null;
+/**
+ * Predicted SafeBoda fee for a route, or null if the model isn't ready yet.
+ * @param {number} km
+ * @param {{ durationMin?: number|null, period?: string|null, at?: Date|string|null, model?: object|null }} [opts]
+ */
+export function predictSafeBodaFee(km, opts = {}) {
+  const model = opts.model ?? getDeliveryFeeModel();
+  return predictFromModel(km, model, opts);
 }
 
-function buildDeliveryScatterSVG(points, reg) {
+function buildDeliveryScatterSVG(model) {
+  const points = (model.samples || []).map((s) => ({
+    x: s.km,
+    y: s.fee,
+    period: s.period,
+  }));
+  if (!points.length) return '';
+
   const w = 360;
   const h = 200;
   const pad = { t: 20, r: 16, b: 36, l: 44 };
@@ -114,17 +102,17 @@ function buildDeliveryScatterSVG(points, reg) {
     .join('');
 
   const dots = points
-    .map(
-      (p) =>
-        `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="5" class="dl-scatter-dot">
-          <title>${p.x.toFixed(1)} km → ${fmtUGX(p.y)}</title>
-        </circle>`,
-    )
+    .map((p) => {
+      const meta = periodMeta(p.period);
+      return `<circle cx="${sx(p.x).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="5" class="dl-scatter-dot period-${p.period}">
+          <title>${p.x.toFixed(1)} km · ${meta.label} → ${fmtUGX(p.y)}</title>
+        </circle>`;
+    })
     .join('');
 
-  const lineY0 = reg.intercept;
-  const lineY1 = reg.intercept + reg.slope * maxX;
-  const fitLabel = `R² ${reg.r2.toFixed(2)}`;
+  const lineY0 = model.intercept;
+  const lineY1 = model.intercept + model.slope * maxX;
+  const fitLabel = `R² ${model.r2.toFixed(2)}`;
 
   return `<svg class="dl-scatter-svg" viewBox="0 0 ${w} ${h}" role="img" aria-label="Delivery fee vs distance scatter plot">
     ${grid}
@@ -138,78 +126,115 @@ function buildDeliveryScatterSVG(points, reg) {
   </svg>`;
 }
 
-function modelConfidence(reg) {
-  if (!reg) return { label: 'Need more data', cls: 'low', pct: 0 };
-  const pct = Math.round(reg.r2 * 100);
-  if (reg.r2 >= 0.9) return { label: 'Strong fit', cls: 'high', pct };
-  if (reg.r2 >= 0.75) return { label: 'Good fit', cls: 'mid', pct };
-  if (reg.r2 >= 0.5) return { label: 'Rough estimate', cls: 'mid', pct };
-  return { label: 'Weak — log more quotes', cls: 'low', pct };
-}
-
-function buildReferenceTable(reg) {
+function buildReferenceTable(model, period) {
   const distances = [1, 2, 3, 5, 8, 10];
   return distances
-    .map(
-      (km) => `
+    .map((km) => {
+      const mins = estimateDurationMin(km, model);
+      return `
     <div class="dl-ref-row">
       <span class="dl-ref-km">${km} km</span>
-      <span class="dl-ref-fee">${fmtUGX(quoteFee(km, reg))}</span>
-    </div>`,
-    )
+      <span class="dl-ref-fee">${fmtUGX(quoteFee(km, model, { durationMin: mins, period }))}</span>
+    </div>`;
+    })
     .join('');
 }
 
-function renderDeliveryModel(reg) {
+function buildPeriodPremiumRows(model) {
+  return listPeriods()
+    .map((p) => {
+      const n = model.periodCounts[p.id] || 0;
+      const vsDay = formatPremiumVsDay(model, p.id);
+      let val = '—';
+      if (n >= 2 && vsDay != null) {
+        if (vsDay === 0) val = '≈ day';
+        else val = `${vsDay > 0 ? '+' : ''}${fmtCompact(vsDay)}`;
+      } else if (n === 1) {
+        val = 'need more';
+      }
+      return `<div class="dl-period-row">
+        <span class="dl-period-name"><i class="dl-period-swatch period-${p.id}"></i>${p.label}</span>
+        <span class="dl-period-meta">${p.hint} · ${n}</span>
+        <span class="dl-period-val">${val}</span>
+      </div>`;
+    })
+    .join('');
+}
+
+function renderDeliveryModel(model) {
   const el = document.getElementById('deliveryModel');
   if (!el) return;
 
   const sampleCount = deliveries.length;
 
-  if (!reg && showPlaceholder('deliveries', sampleCount)) {
+  if (!model && showPlaceholder('deliveries', sampleCount)) {
     el.innerHTML = deliveryModelPlaceholder();
     return;
   }
 
-  if (!reg) {
+  if (!model) {
     el.innerHTML = `
       <div class="dl-model-card empty">
         <div class="dl-model-icon" aria-hidden="true">${ICON_ROUTE}</div>
         <div class="dl-model-title">Decode SafeBoda pricing</div>
-        <div class="dl-model-copy">Log real SafeBoda quotes at checkout — pickup, drop-off, distance, and the fee they charged. Venus fits a formula so you can predict costs before ordering.</div>
+        <div class="dl-model-copy">Log real SafeBoda quotes at checkout — pickup, drop-off, distance, and the fee they charged. Venus fits distance, travel time, and time of day so estimates stay accurate day and night.</div>
         ${
           sampleCount > 0
             ? `<div class="dl-progress">
             <div class="dl-progress-track"><div class="dl-progress-fill" style="width:${(sampleCount / 2) * 100}%"></div></div>
             <span class="dl-progress-label">${sampleCount} of 2 samples logged</span>
           </div>`
-            : `<div class="dl-formula-preview">Predicted fee ≈ <em>base</em> + (km × <em>per-km rate</em>)</div>`
+            : `<div class="dl-formula-preview">Predicted fee ≈ <em>base</em> + (km × <em>rate</em>) + (min × <em>rate</em>) + <em>time premium</em></div>`
         }
       </div>`;
     return;
   }
 
-  const base = Math.round(reg.intercept);
-  const rate = Math.round(reg.slope);
-  const conf = modelConfidence(reg);
+  const base = Math.round(model.core.intercept);
+  const kmRate = Math.round(model.core.kmRate);
+  const slowdownRate =
+    model.core.slowdownRate != null && model.core.slowdownRate > 0
+      ? Math.round(model.core.slowdownRate)
+      : null;
+  const conf = modelConfidence(model);
+  const nowPeriod = periodForDate(new Date());
   const defaultKm = deliveries.length ? Number(deliveries[0].distance_km) || 5 : 5;
-  const effectiveRates = deliveries
-    .map((d) => {
-      const km = Number(d.distance_km);
-      const fee = Number(d.fee_ugx);
-      return km > 0 ? fee / km : null;
+  const defaultMins = estimateDurationMin(defaultKm, model);
+  const defaultFee = quoteFee(defaultKm, model, { durationMin: defaultMins, period: nowPeriod });
+
+  const formulaParts = [
+    `<span class="dl-formula-part base">${fmtCompact(base)}</span>`,
+    `<span class="dl-formula-op">+</span>`,
+    `<span class="dl-formula-part">( km × </span>`,
+    `<span class="dl-formula-part rate">${fmtCompact(kmRate)}</span>`,
+    `<span class="dl-formula-part"> )</span>`,
+  ];
+  if (slowdownRate != null) {
+    formulaParts.push(
+      `<span class="dl-formula-op">+</span>`,
+      `<span class="dl-formula-part">( slow min × </span>`,
+      `<span class="dl-formula-part rate">${fmtCompact(slowdownRate)}</span>`,
+      `<span class="dl-formula-part"> )</span>`,
+    );
+  }
+  formulaParts.push(
+    `<span class="dl-formula-op">+</span>`,
+    `<span class="dl-formula-part">time premium</span>`,
+  );
+
+  const periodOptions = listPeriods()
+    .map((p) => {
+      const selected = p.id === nowPeriod ? ' selected' : '';
+      return `<option value="${p.id}"${selected}>${p.label} (${p.hint})</option>`;
     })
-    .filter((v) => v != null);
-  const avgEffective = effectiveRates.length
-    ? Math.round(effectiveRates.reduce((s, v) => s + v, 0) / effectiveRates.length)
-    : rate;
+    .join('');
 
   el.innerHTML = `
     <div class="dl-model-card">
       <div class="dl-model-head">
         <div>
           <div class="dl-model-title">SafeBoda pricing model</div>
-          <div class="dl-model-sub">Reverse-engineered from ${reg.n} logged quote${reg.n === 1 ? '' : 's'}</div>
+          <div class="dl-model-sub">Dynamic fit from ${model.n} logged quote${model.n === 1 ? '' : 's'} · distance${model.usesDuration ? ' + traffic slowdown' : ''} + hour of day</div>
         </div>
         <span class="dl-confidence ${conf.cls}" title="${conf.label}">${conf.pct}% fit</span>
       </div>
@@ -217,24 +242,23 @@ function renderDeliveryModel(reg) {
       <div class="dl-intel">
         <div class="dl-intel-item">
           <span class="dl-intel-val">${fmtUGX(base)}</span>
-          <span class="dl-intel-lbl">Est. base fee</span>
+          <span class="dl-intel-lbl">Est. base</span>
         </div>
         <div class="dl-intel-item">
-          <span class="dl-intel-val">${fmtUGX(rate)}</span>
+          <span class="dl-intel-val">${fmtUGX(kmRate)}</span>
           <span class="dl-intel-lbl">Per km</span>
         </div>
         <div class="dl-intel-item">
-          <span class="dl-intel-val">${fmtUGX(avgEffective)}</span>
-          <span class="dl-intel-lbl">Avg effective/km</span>
+          <span class="dl-intel-val">${slowdownRate != null ? fmtUGX(slowdownRate) : '—'}</span>
+          <span class="dl-intel-lbl">Per slow min</span>
         </div>
       </div>
 
-      <div class="dl-formula">
-        <span class="dl-formula-part base">${fmtCompact(base)}</span>
-        <span class="dl-formula-op">+</span>
-        <span class="dl-formula-part">( km × </span>
-        <span class="dl-formula-part rate">${fmtCompact(rate)}</span>
-        <span class="dl-formula-part"> )</span>
+      <div class="dl-formula">${formulaParts.join('')}</div>
+
+      <div class="dl-period-card">
+        <div class="dl-period-title">Time-of-day premiums vs day</div>
+        ${buildPeriodPremiumRows(model)}
       </div>
 
       <div class="dl-estimator">
@@ -242,36 +266,57 @@ function renderDeliveryModel(reg) {
         <div class="dl-estimator-row">
           <input type="number" id="deliveryEstimateKm" class="dl-estimator-input" min="0" step="0.5" value="${defaultKm.toFixed(1)}" inputmode="decimal" />
           <span class="dl-estimator-unit">km</span>
+          <select id="deliveryEstimatePeriod" class="dl-estimator-select" aria-label="Time of day">${periodOptions}</select>
           <span class="dl-estimator-arrow" aria-hidden="true">→</span>
-          <span class="dl-estimator-result" id="deliveryEstimateFee">${fmtUGX(quoteFee(defaultKm, reg))}</span>
+          <span class="dl-estimator-result" id="deliveryEstimateFee">${fmtUGX(defaultFee)}</span>
         </div>
+        <div class="dl-estimator-note" id="deliveryEstimateNote">Using ~${Math.round(defaultMins)} min travel · ${periodMeta(nowPeriod).label}</div>
       </div>
 
       <div class="dl-reference">
-        <div class="dl-ref-title">Quick lookup</div>
-        ${buildReferenceTable(reg)}
+        <div class="dl-ref-title">Quick lookup · <span id="deliveryRefPeriodLabel">${periodMeta(nowPeriod).label}</span></div>
+        <div id="deliveryRefTable">${buildReferenceTable(model, nowPeriod)}</div>
       </div>
 
-      <div class="dl-scatter-wrap">${buildDeliveryScatterSVG(
-        deliveries.map((d) => ({ x: Number(d.distance_km), y: Number(d.fee_ugx) })).filter((p) => !isNaN(p.x) && !isNaN(p.y)),
-        reg,
-      )}</div>
+      <div class="dl-scatter-wrap">${buildDeliveryScatterSVG(model)}</div>
       <div class="dl-scatter-legend">
-        <span><i class="dl-legend-dot"></i> Logged quotes</span>
-        <span><i class="dl-legend-line"></i> Fitted line</span>
+        <span><i class="dl-legend-dot period-day"></i> Day</span>
+        <span><i class="dl-legend-dot period-morning_peak"></i> AM peak</span>
+        <span><i class="dl-legend-dot period-evening_peak"></i> PM peak</span>
+        <span><i class="dl-legend-dot period-night"></i> Night</span>
+        <span><i class="dl-legend-line"></i> Distance trend</span>
       </div>
-      ${conf.cls === 'low' ? `<div class="dl-model-hint">Log more varied distances to sharpen the model — short and long trips help most.</div>` : ''}
+      ${
+        conf.cls === 'low'
+          ? `<div class="dl-model-hint">Log quotes across day and night, and mix short vs long trips — that sharpens time premiums.</div>`
+          : `<div class="dl-model-hint">SafeBoda also shifts with rain / demand — treat this as a strong estimate, then confirm in-app before dispatch.</div>`
+      }
     </div>`;
 
   const kmInput = document.getElementById('deliveryEstimateKm');
+  const periodSelect = document.getElementById('deliveryEstimatePeriod');
   const feeEl = document.getElementById('deliveryEstimateFee');
-  kmInput?.addEventListener('input', () => {
-    const km = parseFloat(kmInput.value);
-    if (feeEl) feeEl.textContent = fmtUGX(quoteFee(km, reg));
-  });
+  const noteEl = document.getElementById('deliveryEstimateNote');
+  const refTable = document.getElementById('deliveryRefTable');
+  const refLabel = document.getElementById('deliveryRefPeriodLabel');
+
+  const refreshEstimate = () => {
+    const km = parseFloat(kmInput?.value);
+    const period = periodSelect?.value || nowPeriod;
+    const mins = estimateDurationMin(km, model);
+    if (feeEl) feeEl.textContent = fmtUGX(quoteFee(km, model, { durationMin: mins, period }));
+    if (noteEl && !Number.isNaN(km)) {
+      noteEl.textContent = `Using ~${Math.round(mins || 0)} min travel · ${periodMeta(period).label}`;
+    }
+    if (refTable) refTable.innerHTML = buildReferenceTable(model, period);
+    if (refLabel) refLabel.textContent = periodMeta(period).label;
+  };
+
+  kmInput?.addEventListener('input', refreshEstimate);
+  periodSelect?.addEventListener('change', refreshEstimate);
 }
 
-function renderDeliveryLog(reg) {
+function renderDeliveryLog(model) {
   const listEl = document.getElementById('deliveryLogList');
   if (!listEl) return;
 
@@ -308,15 +353,20 @@ function renderDeliveryLog(reg) {
           const km = Number(d.distance_km);
           const fee = Number(d.fee_ugx);
           const dur = d.duration_min != null ? Math.round(Number(d.duration_min)) : null;
+          const tripPeriod = d.created_at ? periodForDate(new Date(d.created_at)) : 'day';
+          const periodLabel = periodMeta(tripPeriod).short;
           const effectiveKm = km > 0 ? Math.round(fee / km) : null;
           let modelNote = '';
-          if (reg && km > 0) {
-            const predicted = quoteFee(km, reg);
+          if (model && km > 0) {
+            const predicted = quoteFee(km, model, {
+              durationMin: d.duration_min != null ? Number(d.duration_min) : null,
+              period: tripPeriod,
+            });
             const diff = fee - predicted;
-            if (Math.abs(diff) <= 200) modelNote = '<span class="dl-trip-match">on model</span>';
+            if (Math.abs(diff) <= 250) modelNote = '<span class="dl-trip-match">on model</span>';
             else modelNote = `<span class="dl-trip-diff ${diff > 0 ? 'over' : 'under'}">${diff > 0 ? '+' : ''}${fmtCompact(diff)} vs model</span>`;
           }
-          const meta = `${!isNaN(km) ? `${km.toFixed(1)} km` : '—'}${effectiveKm != null ? ` · ${fmtUGX(effectiveKm)}/km` : ''}${dur != null ? ` · ~${dur} min` : ''}`;
+          const meta = `${!isNaN(km) ? `${km.toFixed(1)} km` : '—'}${effectiveKm != null ? ` · ${fmtUGX(effectiveKm)}/km` : ''}${dur != null ? ` · ~${dur} min` : ''} · ${periodLabel}`;
 
           return `<button class="delivery-trip" type="button" data-edit-delivery="${d.id}">
             <div class="delivery-trip-route" aria-hidden="true">
@@ -365,13 +415,9 @@ function renderDeliveryLog(reg) {
 }
 
 export function renderDeliveryAnalysis() {
-  const points = deliveries
-    .map((d) => ({ x: Number(d.distance_km), y: Number(d.fee_ugx) }))
-    .filter((p) => !isNaN(p.x) && !isNaN(p.y));
-  const reg = linearRegression(points);
-
-  renderDeliveryModel(reg);
-  renderDeliveryLog(reg);
+  const model = getDeliveryFeeModel();
+  renderDeliveryModel(model);
+  renderDeliveryLog(model);
 }
 
 function updateEditDistanceReadout() {

@@ -1,4 +1,4 @@
-﻿  :root {
+  :root {
     --bg: #eef2f6;
     --bg-glow: #f8fafc;
     --surface: #ffffff;
@@ -3928,6 +3928,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
+    row-gap: 6px;
     font-family: var(--font-mono);
     font-size: var(--text-sm);
     padding: var(--space-3) var(--space-4);
@@ -4011,6 +4012,93 @@
     margin-left: auto;
   }
 
+  .dl-estimator-select {
+    min-width: 9.5rem;
+    max-width: 100%;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text);
+    background: var(--btn-bg);
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+  }
+
+  .dl-estimator-select:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px var(--gold-dim);
+  }
+
+  .dl-estimator-note {
+    margin-top: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-dim);
+  }
+
+  .dl-period-card {
+    background: color-mix(in srgb, var(--gold) 4%, var(--btn-bg));
+    border: 1px solid var(--panel-edge-subtle);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .dl-period-title {
+    font-size: var(--text-xs);
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: var(--space-2);
+  }
+
+  .dl-period-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--space-2);
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--panel-edge-subtle);
+    font-size: var(--text-sm);
+  }
+
+  .dl-period-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .dl-period-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .dl-period-meta {
+    font-size: var(--text-xs);
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .dl-period-val {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: var(--text-xs);
+    color: var(--text);
+    text-align: right;
+    min-width: 3.5rem;
+  }
+
+  .dl-period-swatch {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
   .dl-scatter-wrap {
     background: color-mix(in srgb, var(--jade) 3%, var(--btn-bg));
     border: 1px solid var(--panel-edge-subtle);
@@ -4064,7 +4152,8 @@
 
   .dl-scatter-legend {
     display: flex;
-    gap: var(--space-4);
+    flex-wrap: wrap;
+    gap: var(--space-3);
     font-size: var(--text-xs);
     color: var(--text-dim);
   }
@@ -4087,6 +4176,34 @@
     width: 16px;
     height: 0;
     border-top: 2px dashed var(--gold);
+  }
+
+  .dl-scatter-dot.period-day,
+  .dl-legend-dot.period-day,
+  .dl-period-swatch.period-day {
+    background: var(--jade);
+    fill: var(--jade);
+  }
+
+  .dl-scatter-dot.period-morning_peak,
+  .dl-legend-dot.period-morning_peak,
+  .dl-period-swatch.period-morning_peak {
+    background: #e8a317;
+    fill: #e8a317;
+  }
+
+  .dl-scatter-dot.period-evening_peak,
+  .dl-legend-dot.period-evening_peak,
+  .dl-period-swatch.period-evening_peak {
+    background: #d97706;
+    fill: #d97706;
+  }
+
+  .dl-scatter-dot.period-night,
+  .dl-legend-dot.period-night,
+  .dl-period-swatch.period-night {
+    background: #6366f1;
+    fill: #6366f1;
   }
 
   .delivery-day-group {

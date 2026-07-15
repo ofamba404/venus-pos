@@ -381,7 +381,10 @@ function updateCheckoutDistanceReadout() {
 
 function applyPredictedFee() {
   if (checkoutFeeManuallyEdited || checkoutDistanceKm == null) return;
-  const predicted = predictSafeBodaFee(checkoutDistanceKm);
+  const predicted = predictSafeBodaFee(checkoutDistanceKm, {
+    durationMin: checkoutDurationMin,
+    at: new Date(),
+  });
   if (predicted == null) return;
   checkoutFeeValue = String(predicted);
   const feeInput = document.getElementById('deliveryFeeInputCart');

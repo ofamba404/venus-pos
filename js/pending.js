@@ -147,8 +147,8 @@ export function deliveryModelPlaceholder() {
     <div class="dl-model-card empty">
       <div class="dl-model-icon" aria-hidden="true">${ICON_ROUTE}</div>
       <div class="dl-model-title">Decode SafeBoda pricing</div>
-      <div class="dl-model-copy">Log real SafeBoda quotes at checkout — pickup, drop-off, distance, and the fee they charged. Venus fits a formula so you can predict costs before ordering.</div>
-      <div class="dl-formula-preview is-pending">Predicted fee ≈ base + (km × per-km rate)</div>
+      <div class="dl-model-copy">Log real SafeBoda quotes at checkout — pickup, drop-off, distance, and the fee they charged. Venus fits distance, travel time, and time of day so estimates stay accurate day and night.</div>
+      <div class="dl-formula-preview is-pending">Predicted fee ≈ base + (km × rate) + (min × rate) + time premium</div>
     </div>`;
 }
 
