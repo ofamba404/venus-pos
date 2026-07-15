@@ -161,6 +161,56 @@ function buildPeriodPremiumRows(model) {
     .join('');
 }
 
+function buildEstimateFeedbackSummary() {
+  const scored = deliveries.filter((d) => d.predicted_fee_ugx != null);
+  if (scored.length === 0) return '';
+
+  const accepted = scored.filter((d) => !d.fee_was_edited).length;
+  const edited = scored.filter((d) => d.fee_was_edited);
+  const acceptPct = Math.round((accepted / scored.length) * 100);
+  let avgDelta = null;
+  if (edited.length) {
+    const sum = edited.reduce(
+      (acc, d) => acc + (Number(d.fee_ugx) - Number(d.predicted_fee_ugx)),
+      0,
+    );
+    avgDelta = Math.round(sum / edited.length);
+  }
+
+  const acceptLabel =
+    accepted === 1 ? '1 took estimate' : `${accepted} took estimate`;
+  const editLabel =
+    edited.length === 0
+      ? '0 edited'
+      : `${edited.length} edited${avgDelta != null ? ` · avg ${avgDelta > 0 ? '+' : ''}${fmtCompact(avgDelta)}` : ''}`;
+
+  return `<div class="dl-feedback" title="From checkouts that had a model estimate">
+    <div class="dl-feedback-title">Checkout estimate accuracy</div>
+    <div class="dl-feedback-row">
+      <span class="dl-feedback-stat">${acceptPct}% accepted</span>
+      <span class="dl-feedback-meta">${acceptLabel} · ${editLabel} · ${scored.length} scored</span>
+    </div>
+  </div>`;
+}
+
+function tripEstimateOutcomeNote(d, liveModelNote) {
+  if (d.predicted_fee_ugx == null) return liveModelNote;
+
+  const predicted = Number(d.predicted_fee_ugx);
+  const fee = Number(d.fee_ugx);
+  const diff = fee - predicted;
+
+  if (!d.fee_was_edited) {
+    return '<span class="dl-trip-match" title="Cashier kept the model estimate">took estimate</span>';
+  }
+
+  if (Math.abs(diff) <= 0) {
+    return '<span class="dl-trip-match" title="Cashier touched the fee but kept the same amount">edited · same</span>';
+  }
+
+  return `<span class="dl-trip-diff ${diff > 0 ? 'over' : 'under'}" title="Model suggested ${fmtUGX(predicted)}; cashier logged ${fmtUGX(fee)}">edited ${diff > 0 ? '+' : ''}${fmtCompact(diff)}</span>`;
+}
+
 function renderDeliveryModel(model) {
   const el = document.getElementById('deliveryModel');
   if (!el) return;
@@ -291,6 +341,7 @@ function renderDeliveryModel(model) {
           ? `<div class="dl-model-hint">Log quotes across day and night, and mix short vs long trips — that sharpens time premiums.</div>`
           : `<div class="dl-model-hint">SafeBoda also shifts with rain / demand — treat this as a strong estimate, then confirm in-app before dispatch.</div>`
       }
+      ${buildEstimateFeedbackSummary()}
     </div>`;
 
   const kmInput = document.getElementById('deliveryEstimateKm');
@@ -366,6 +417,8 @@ function renderDeliveryLog(model) {
             if (Math.abs(diff) <= 250) modelNote = '<span class="dl-trip-match">on model</span>';
             else modelNote = `<span class="dl-trip-diff ${diff > 0 ? 'over' : 'under'}">${diff > 0 ? '+' : ''}${fmtCompact(diff)} vs model</span>`;
           }
+          // Prefer checkout-time outcome when logged; live "vs model" is secondary for older rows.
+          modelNote = tripEstimateOutcomeNote(d, modelNote);
           const meta = `${!isNaN(km) ? `${km.toFixed(1)} km` : '—'}${effectiveKm != null ? ` · ${fmtUGX(effectiveKm)}/km` : ''}${dur != null ? ` · ~${dur} min` : ''} · ${periodLabel}`;
 
           return `<button class="delivery-trip" type="button" data-edit-delivery="${d.id}">

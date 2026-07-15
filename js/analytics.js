@@ -71,6 +71,8 @@ let editConfigProduct = null;
 let editConfigSelection = {};
 let editingSaleItemIdx = null;
 let creditPanelOpen = false;
+/** Client keys with order details expanded inside the credit panel. */
+const creditGroupOpen = new Set();
 
 function creditInitials(name) {
   return (name || '?')
@@ -103,36 +105,40 @@ function creditOrderBalanceLabel(sale, { multi = false } = {}) {
 
 function renderCreditClientGroup(group) {
   const multi = group.sales.length > 1;
-  const payAllBtn =
-    multi && group.clientId
-      ? `<button class="credit-clear-btn credit-clear-btn--all" data-pay-client-credit="${escapeHtml(group.clientId)}" type="button">Pay</button>`
-      : '';
+  const groupKey = group.key;
+  const open = multi && creditGroupOpen.has(groupKey);
+  const payTarget = multi
+    ? `data-pay-client-credit="${escapeHtml(group.clientId)}"`
+    : `data-pay-credit="${group.sales[0].id}"`;
 
-  const orderRows = group.sales
-    .map((s) => {
-      return `
+  const headMeta = multi
+    ? `${fmtUGX(group.totalUgx)} · ${group.sales.length} orders`
+    : creditOrderBalanceLabel(group.sales[0]);
+
+  const orderRows = multi
+    ? group.sales
+        .map(
+          (s) => `
         <div class="credit-panel-order">
-          <div class="credit-panel-order-main">
-            <div class="cr-meta">${creditOrderBalanceLabel(s, { multi: true })}</div>
-          </div>
+          <div class="cr-meta">${creditOrderBalanceLabel(s, { multi: true })}</div>
           <button class="credit-clear-btn" data-pay-credit="${s.id}" type="button">Pay</button>
-        </div>`;
-    })
-    .join('');
+        </div>`,
+        )
+        .join('')
+    : '';
 
   return `
-    <div class="credit-client-group${multi ? ' is-multi' : ''}">
-      <div class="credit-panel-item credit-client-head">
+    <div class="credit-client-group${multi ? ' is-multi' : ''}${open ? ' is-open' : ''}" data-credit-group="${escapeHtml(groupKey)}">
+      <div class="credit-panel-item credit-client-head"${multi ? ` role="button" tabindex="0" aria-expanded="${open}"` : ''}>
         <div class="credit-panel-avatar" aria-hidden="true">${escapeHtml(creditInitials(group.name))}</div>
         <div class="credit-panel-item-main">
           <div class="cr-name">${escapeHtml(group.name)}</div>
-          <div class="cr-meta">${multi
-            ? `${fmtUGX(group.totalUgx)} · ${group.sales.length} orders`
-            : creditOrderBalanceLabel(group.sales[0])}</div>
+          <div class="cr-meta">${headMeta}</div>
         </div>
-        ${multi ? payAllBtn : `<button class="credit-clear-btn" data-pay-credit="${group.sales[0].id}" type="button">Pay</button>`}
+        ${multi ? `<span class="credit-group-caret" aria-hidden="true">▸</span>` : ''}
+        <button class="credit-clear-btn" ${payTarget} type="button">Pay</button>
       </div>
-      ${multi ? `<div class="credit-client-orders">${orderRows}</div>` : ''}
+      ${multi ? `<div class="credit-client-orders"${open ? '' : ' hidden'}>${orderRows}</div>` : ''}
     </div>`;
 }
 
@@ -194,6 +200,33 @@ function wireCreditPanel() {
     panel.classList.toggle('expanded', creditPanelOpen);
     btn?.setAttribute('aria-expanded', String(creditPanelOpen));
     if (body) animateAccordionPanel(body, creditPanelOpen);
+  });
+
+  const toggleGroup = (groupEl) => {
+    if (!groupEl?.classList.contains('is-multi')) return;
+    const key = groupEl.dataset.creditGroup;
+    if (!key) return;
+    const open = !creditGroupOpen.has(key);
+    if (open) creditGroupOpen.add(key);
+    else creditGroupOpen.delete(key);
+    groupEl.classList.toggle('is-open', open);
+    const head = groupEl.querySelector('.credit-client-head');
+    head?.setAttribute('aria-expanded', String(open));
+    const orders = groupEl.querySelector('.credit-client-orders');
+    if (orders) orders.hidden = !open;
+  };
+
+  panel.querySelectorAll('.credit-client-group.is-multi .credit-client-head').forEach((head) => {
+    head.addEventListener('click', (e) => {
+      if (e.target.closest('.credit-clear-btn')) return;
+      toggleGroup(head.closest('.credit-client-group'));
+    });
+    head.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (e.target.closest('.credit-clear-btn')) return;
+      e.preventDefault();
+      toggleGroup(head.closest('.credit-client-group'));
+    });
   });
 
   panel.querySelectorAll('[data-pay-credit]').forEach((payBtn) => {
@@ -332,7 +365,17 @@ function renderOverviewSections() {
     };
   });
 
-  if (metrics.outstandingCredit.length === 0) creditPanelOpen = false;
+  if (metrics.outstandingCredit.length === 0) {
+    creditPanelOpen = false;
+    creditGroupOpen.clear();
+  } else {
+    const liveKeys = new Set(
+      groupOutstandingByClient(metrics.outstandingCredit, clients).map((g) => g.key),
+    );
+    for (const key of [...creditGroupOpen]) {
+      if (!liveKeys.has(key)) creditGroupOpen.delete(key);
+    }
+  }
 
   const {
     revenueToday,

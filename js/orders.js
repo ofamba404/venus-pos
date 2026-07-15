@@ -74,6 +74,8 @@ let checkoutDistanceKm = null;
 let checkoutDurationMin = null;
 let checkoutFeeValue = '';
 let checkoutFeeManuallyEdited = false;
+/** Model suggestion snapshotted when autofilled — used for accuracy logging at checkout. */
+let checkoutPredictedFee = null;
 let pickupAutoRequested = false;
 let lastCheckoutReceipt = null;
 let lastCheckoutProcessing = null;
@@ -154,6 +156,7 @@ function resetCheckoutDelivery() {
   checkoutDurationMin = null;
   checkoutFeeValue = '';
   checkoutFeeManuallyEdited = false;
+  checkoutPredictedFee = null;
   pickupAutoRequested = false;
 }
 
@@ -410,7 +413,11 @@ function applyPredictedFee() {
     durationMin: checkoutDurationMin,
     at: new Date(),
   });
-  if (predicted == null) return;
+  if (predicted == null) {
+    checkoutPredictedFee = null;
+    return;
+  }
+  checkoutPredictedFee = predicted;
   checkoutFeeValue = String(predicted);
   const feeInput = document.getElementById('deliveryFeeInputCart');
   if (feeInput) feeInput.value = checkoutFeeValue;
@@ -472,6 +479,7 @@ function wireDeliveryAutocompletes() {
       checkoutDest = { lat, lng };
       checkoutDestText = label;
       checkoutFeeManuallyEdited = false;
+      checkoutPredictedFee = null;
       setDeliveryFieldValue('deliveryDestInput', label);
       updateCartDeliveryHint();
       computeCheckoutDistance();
@@ -969,6 +977,8 @@ async function saveCheckoutDelivery({ clientId, orderClientName, saleId, snapsho
       distance_km: Number(snapshot.distanceKm.toFixed(3)),
       duration_min: snapshot.durationMin != null ? Number(snapshot.durationMin.toFixed(1)) : null,
       fee_ugx: snapshot.fee,
+      predicted_fee_ugx: snapshot.predictedFee != null ? snapshot.predictedFee : null,
+      fee_was_edited: !!snapshot.feeWasEdited,
     }),
   });
   if (!delRes.ok) throw new Error(`Supabase ${delRes.status}`);
@@ -1155,6 +1165,18 @@ async function checkout() {
     const feeVal = parseInt(checkoutFeeValue, 10);
     const deliveryAttempted =
       checkoutOrigin && checkoutDest && checkoutDistanceKm != null && feeVal > 0;
+    // Recompute once at confirm so we still log an estimate even if autofill never ran
+    // (e.g. model became ready mid-flow); prefer the autofilled snapshot when present.
+    let predictedAtCheckout = checkoutPredictedFee;
+    if (predictedAtCheckout == null && checkoutDistanceKm != null) {
+      predictedAtCheckout = predictSafeBodaFee(checkoutDistanceKm, {
+        durationMin: checkoutDurationMin,
+        at: new Date(),
+      });
+    }
+    const feeWasEdited =
+      checkoutFeeManuallyEdited &&
+      (predictedAtCheckout == null || feeVal !== predictedAtCheckout);
     const deliverySnapshot = deliveryAttempted
       ? {
           origin: { ...checkoutOrigin },
@@ -1164,6 +1186,8 @@ async function checkout() {
           distanceKm: checkoutDistanceKm,
           durationMin: checkoutDurationMin,
           fee: feeVal,
+          predictedFee: predictedAtCheckout,
+          feeWasEdited,
         }
       : null;
 
