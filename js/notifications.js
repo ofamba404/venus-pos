@@ -25,8 +25,31 @@ let pollTimer = null;
 let activeSchedules = [];
 
 function logoIconUrl() {
-  // PNG is more reliable than SVG for Notification icons across browsers.
-  return new URL(getAssetHref('logo.png'), location.href).href;
+  // Circular jade→teal mark — PNG is more reliable than SVG across browsers.
+  return new URL(getAssetHref('logo-notif.png'), location.href).href;
+}
+
+function logoBadgeUrl() {
+  // White leaf + wordmark on transparent — Android status-bar badge (alpha mask).
+  // iOS ignores Notification.badge; it uses apple-touch-icon instead.
+  return new URL(getAssetHref('logo-badge.png'), location.href).href;
+}
+
+/** Home-screen red count on iOS (Add to Home Screen PWA). No-op elsewhere. */
+async function bumpAppBadge() {
+  try {
+    if ('setAppBadge' in navigator) await navigator.setAppBadge(1);
+  } catch {
+    /* unsupported / denied */
+  }
+}
+
+export async function clearAppBadge() {
+  try {
+    if ('clearAppBadge' in navigator) await navigator.clearAppBadge();
+  } catch {
+    /* unsupported */
+  }
 }
 
 function readJson(key, fallback) {
@@ -116,7 +139,7 @@ export async function showAppNotification(opts) {
   const options = {
     body,
     icon: logoIconUrl(),
-    badge: logoIconUrl(),
+    badge: logoBadgeUrl(),
     tag,
     renotify: true,
     requireInteraction,
@@ -127,6 +150,7 @@ export async function showAppNotification(opts) {
     if ('serviceWorker' in navigator) {
       const reg = await navigator.serviceWorker.ready;
       await reg.showNotification(title, options);
+      await bumpAppBadge();
       return { ok: true, via: 'service-worker' };
     }
   } catch (e) {
@@ -137,9 +161,11 @@ export async function showAppNotification(opts) {
     const n = new Notification(title, options);
     n.onclick = () => {
       window.focus();
+      clearAppBadge();
       if (absoluteUrl && absoluteUrl !== location.href) location.href = absoluteUrl;
       n.close();
     };
+    await bumpAppBadge();
     return { ok: true, via: 'notification-api' };
   } catch (e) {
     console.warn('Notification API failed', e);

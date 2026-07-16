@@ -25,6 +25,7 @@ import {
   predictSafeBodaFee,
 } from './delivery-fee-model.js';
 import {
+  clearAppBadge,
   ensureNotificationPermission,
   getNotificationPrefs,
   notificationPermission,
@@ -457,6 +458,7 @@ export function initQuoteLabReminders() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
       if (event.data?.type === 'venus-notif-click' && event.data.url) {
+        clearAppBadge();
         location.href = event.data.url;
       }
     });

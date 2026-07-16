@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'venus-pos-v4';
+const CACHE_VERSION = 'venus-pos-v6';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -13,6 +13,9 @@ const SHELL_URLS = [
   '/css/main.css',
   '/assets/logo.svg',
   '/assets/logo.png',
+  '/assets/logo-notif.png',
+  '/assets/logo-badge.png',
+  '/assets/apple-touch-icon.png',
   '/js/app.js',
   '/js/bootstrap.js',
   '/js/store/data-store.js',
@@ -98,7 +101,14 @@ self.addEventListener('notificationclick', (event) => {
     event.notification.data?.url || new URL('pages/delivery.html', self.registration.scope).href;
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
+    (async () => {
+      try {
+        if (self.navigator?.clearAppBadge) await self.navigator.clearAppBadge();
+      } catch {
+        /* iOS Home Screen only; ignore elsewhere */
+      }
+
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of clientList) {
         if (!('focus' in client)) continue;
         await client.focus();
@@ -114,6 +124,6 @@ self.addEventListener('notificationclick', (event) => {
         return;
       }
       if (self.clients.openWindow) await self.clients.openWindow(targetUrl);
-    }),
+    })(),
   );
 });
