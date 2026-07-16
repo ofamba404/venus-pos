@@ -171,7 +171,9 @@ export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body =
   el.dataset.type = type;
   el.hidden = false;
   el.innerHTML = `
-    <img class="in-app-banner-logo" src="${logo}" alt="" width="36" height="36" decoding="async" />
+    <span class="in-app-banner-logo-wrap" aria-hidden="true">
+      <img class="in-app-banner-logo" src="${logo}" alt="" width="32" height="32" decoding="async" />
+    </span>
     <div class="in-app-banner-copy">
       <div class="in-app-banner-title">${escapeBanner(title)}</div>
       ${body ? `<div class="in-app-banner-body">${escapeBanner(body)}</div>` : ''}

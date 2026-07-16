@@ -659,21 +659,40 @@ async function findNearbyPoiLabel(latLng) {
 /**
  * Reverse-geocode coords → human label. Prefers nearby POI names (SafeBoda-like)
  * over bare street numbers when Google has a place within ~90m.
+ *
+ * Progressive: calls `cb` as soon as a street label is ready, then again if a
+ * nearby POI is better — so pickup can paint without waiting on Places.
  */
 export function reverseGeocodeLabel(latLng, cb) {
   setPlacesSearchOrigin(latLng);
   loadGoogleMaps(() => {
     const fallback = `${Number(latLng.lat).toFixed(5)}, ${Number(latLng.lng).toFixed(5)}`;
     void (async () => {
+      let emitted = false;
+      const emit = (label) => {
+        if (!label) return;
+        emitted = true;
+        cb(label);
+      };
+
       try {
-        const [{ label: streetLabel }, poiLabel] = await Promise.all([
-          geocodeAddress(latLng),
-          findNearbyPoiLabel(latLng),
+        const streetP = geocodeAddress(latLng);
+        const poiP = findNearbyPoiLabel(latLng);
+
+        // Street / plus-code usually returns first — paint early.
+        streetP.then(({ label }) => emit(label)).catch(() => {});
+
+        const [street, poiLabel] = await Promise.all([
+          streetP.catch(() => ({ label: '' })),
+          poiP.catch(() => ''),
         ]);
-        cb(poiLabel || streetLabel || fallback);
+        const best = poiLabel || street.label || fallback;
+        // Always finish with best available (may re-emit same street label).
+        if (best !== street.label || !emitted) emit(best);
+        else if (poiLabel) emit(poiLabel);
       } catch (err) {
         logDebug(`Reverse geocode failed: ${err?.message || err}`);
-        cb(fallback);
+        if (!emitted) cb(fallback);
       }
     })();
   });

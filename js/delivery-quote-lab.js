@@ -42,13 +42,15 @@ function liveModel() {
 }
 
 let selectedDropId = null;
-/** @type {{ km: number, mins: number } | null} */
+/** @type {{ km: number, mins: number, dropId?: string } | null} */
 let routeMetrics = null;
 let feeDraft = '';
 let saving = false;
 let labWired = false;
 /** Only auto-scroll to #quote-lab once per visit — not after every save refresh. */
 let didScrollToLab = false;
+/** Ignore stale Distance Matrix callbacks when the selected drop changes. */
+let metricsRequestGen = 0;
 
 function setSaveButtonSaving(isSaving) {
   const saveBtn = document.getElementById('quoteLabSave');
@@ -63,10 +65,35 @@ function preferNextDrop(coverage) {
   return coverage.nextRecommended?.drop?.id || TEST_DROPOFFS[0].id;
 }
 
+function metricsLineHtml(metrics) {
+  if (!metrics) return `${ICON_ROUTE} Measuring route…`;
+  return `${ICON_ROUTE} ${metrics.km.toFixed(1)} km · ~${Math.round(metrics.mins)} min driving`;
+}
+
+function predictLineText(metrics) {
+  if (!metrics) return '\u00a0';
+  const model = liveModel();
+  const predicted = predictSafeBodaFee(metrics.km, model, {
+    durationMin: metrics.mins,
+    at: new Date(),
+  });
+  return predicted != null
+    ? `Model guess now: ${fmtUGX(predicted)} — enter the real SafeBoda quote`
+    : 'Model not ready yet — your quote still helps train it';
+}
+
 function computeRouteMetrics(drop) {
-  routeMetrics = null;
-  updateMetricsReadout();
-  if (!drop) return;
+  if (!drop) {
+    routeMetrics = null;
+    updateMetricsReadout();
+    return;
+  }
+
+  const reqId = ++metricsRequestGen;
+  // Keep prior readout (same height) while Distance Matrix runs — no collapse.
+  if (!routeMetrics || routeMetrics.dropId !== drop.id) {
+    updateMetricsReadout({ measuring: true });
+  }
 
   loadGoogleMaps(() => {
     const service = new google.maps.DistanceMatrixService();
@@ -77,14 +104,20 @@ function computeRouteMetrics(drop) {
         travelMode: google.maps.TravelMode.DRIVING,
       },
       (res, status) => {
+        if (reqId !== metricsRequestGen) return;
         if (status === 'OK' && res.rows[0]?.elements[0]?.status === 'OK') {
           const el = res.rows[0].elements[0];
           routeMetrics = {
             km: el.distance.value / 1000,
             mins: el.duration.value / 60,
+            dropId: drop.id,
           };
         } else {
-          routeMetrics = { km: drop.approxKm, mins: (drop.approxKm / 18) * 60 };
+          routeMetrics = {
+            km: drop.approxKm,
+            mins: (drop.approxKm / 18) * 60,
+            dropId: drop.id,
+          };
         }
         updateMetricsReadout();
       },
@@ -92,27 +125,28 @@ function computeRouteMetrics(drop) {
   });
 }
 
-function updateMetricsReadout() {
+function updateMetricsReadout({ measuring = false } = {}) {
   const el = document.getElementById('quoteLabMetrics');
   const predEl = document.getElementById('quoteLabPredict');
   if (!el) return;
 
-  if (!routeMetrics) {
-    el.textContent = 'Select a drop-off to measure the route…';
-    if (predEl) predEl.textContent = '';
+  if (measuring && routeMetrics) {
+    // Keep numbers visible while remeasuring the same/next drop.
+    el.innerHTML = metricsLineHtml(routeMetrics);
+    if (predEl) predEl.textContent = predictLineText(routeMetrics);
     return;
   }
 
-  el.innerHTML = `${ICON_ROUTE} ${routeMetrics.km.toFixed(1)} km · ~${Math.round(routeMetrics.mins)} min driving`;
-
-  const model = liveModel();
-  const predicted = predictSafeBodaFee(routeMetrics.km, model, {
-    durationMin: routeMetrics.mins,
-    at: new Date(),
-  });
-  if (predEl) {
-    predEl.textContent = predicted != null ? `Model guess now: ${fmtUGX(predicted)} — enter the real SafeBoda quote` : 'Model not ready yet — your quote still helps train it';
+  if (!routeMetrics) {
+    el.innerHTML = measuring
+      ? metricsLineHtml(null)
+      : `${ICON_ROUTE} Select a drop-off to measure the route…`;
+    if (predEl) predEl.textContent = '\u00a0';
+    return;
   }
+
+  el.innerHTML = metricsLineHtml(routeMetrics);
+  if (predEl) predEl.textContent = predictLineText(routeMetrics);
 }
 
 function coverageBadgeClass(count, target) {
@@ -211,6 +245,16 @@ export function renderQuoteLab() {
   const progressPct = Math.round(coverage.progressStrong * 100);
   const next = coverage.nextRecommended;
 
+  // Seed metrics/predict on paint so a re-render never collapses those rows.
+  let seedMetrics = routeMetrics;
+  if (drop && (!routeMetrics || routeMetrics.dropId !== drop.id)) {
+    seedMetrics = {
+      km: drop.approxKm,
+      mins: (drop.approxKm / 18) * 60,
+      dropId: drop.id,
+    };
+  }
+
   root.innerHTML = `
     <section class="ql-card" id="quote-lab">
       <div class="ql-head">
@@ -254,8 +298,8 @@ export function renderQuoteLab() {
       <div class="ql-label">Drop-off presets</div>
       <div class="ql-chips" id="quoteLabChips">${buildDropChips(coverage)}</div>
 
-      <div class="ql-metrics" id="quoteLabMetrics">Select a drop-off to measure the route…</div>
-      <div class="ql-predict" id="quoteLabPredict"></div>
+      <div class="ql-metrics" id="quoteLabMetrics">${metricsLineHtml(seedMetrics)}</div>
+      <div class="ql-predict" id="quoteLabPredict">${escapeHtml(predictLineText(seedMetrics))}</div>
 
       <label class="ql-fee-label" for="quoteLabFee">SafeBoda fee (UGX)</label>
       <div class="ql-fee-row">

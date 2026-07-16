@@ -78,6 +78,10 @@ let checkoutFeeManuallyEdited = false;
 /** Model suggestion snapshotted when autofilled — used for accuracy logging at checkout. */
 let checkoutPredictedFee = null;
 let pickupAutoRequested = false;
+/** Bumps when a newer GPS fix / geocode should win (ignore stale callbacks). */
+let pickupLocateGen = 0;
+/** True once the cashier edits pickup — auto labels must not overwrite. */
+let pickupTouchedByUser = false;
 let lastCheckoutReceipt = null;
 let lastCheckoutProcessing = null;
 let lastOrderModalMode = null;
@@ -159,6 +163,8 @@ function resetCheckoutDelivery() {
   checkoutFeeManuallyEdited = false;
   checkoutPredictedFee = null;
   pickupAutoRequested = false;
+  pickupTouchedByUser = false;
+  pickupLocateGen += 1;
 }
 
 export function updateFabBadge() {
@@ -470,6 +476,8 @@ function wireDeliveryAutocompletes() {
     'deliveryDestDropdown',
     {
     onPickupSelect: ({ lat, lng, label }) => {
+      pickupTouchedByUser = true;
+      pickupLocateGen += 1; // cancel in-flight auto locate / geocode
       checkoutOrigin = { lat, lng };
       checkoutPickupText = label;
       setDeliveryFieldValue('deliveryPickupInput', label);
@@ -489,6 +497,7 @@ function wireDeliveryAutocompletes() {
     onDestFocus: () => {},
     onPickupInput: (value) => {
       checkoutPickupText = value;
+      if (value && value !== PICKUP_PROVISIONAL) pickupTouchedByUser = true;
       updateCartDeliveryHint();
       if (!value) {
         checkoutOrigin = null;
@@ -508,21 +517,83 @@ function wireDeliveryAutocompletes() {
   });
 }
 
+const PICKUP_PROVISIONAL = 'Locating…';
+
+function setPickupField(label) {
+  checkoutPickupText = label;
+  setDeliveryFieldValue('deliveryPickupInput', label);
+  updateCartDeliveryHint();
+}
+
+function applyPickupCoords(latLng, gen) {
+  if (gen !== pickupLocateGen) return;
+  checkoutOrigin = latLng;
+  setPlacesSearchOrigin(latLng);
+  // Instant pin — don't wait on Maps / geocode for coords or distance.
+  if (!checkoutPickupText || checkoutPickupText === PICKUP_PROVISIONAL) {
+    setPickupField(PICKUP_PROVISIONAL);
+  }
+  computeCheckoutDistance();
+
+  reverseGeocodeLabel(latLng, (label) => {
+    if (gen !== pickupLocateGen || pickupTouchedByUser) return;
+    if (!label) return;
+    setPickupField(label);
+    computeCheckoutDistance();
+  });
+}
+
 function autoFillPickupLocation() {
   if (!navigator.geolocation) return;
+
+  // Warm Maps + Places while GPS resolves.
+  loadGoogleMaps(() => {});
+
+  const gen = ++pickupLocateGen;
+  pickupTouchedByUser = false;
+  setPickupField(PICKUP_PROVISIONAL);
+
+  const onFix = (pos) => {
+    applyPickupCoords(
+      { lat: pos.coords.latitude, lng: pos.coords.longitude },
+      gen,
+    );
+  };
+
+  // Fast path: network/cached fix (often <1s). High-accuracy GPS can take many seconds.
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      checkoutOrigin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      setPlacesSearchOrigin(checkoutOrigin);
-      reverseGeocodeLabel(checkoutOrigin, (label) => {
-        checkoutPickupText = label;
-        setDeliveryFieldValue('deliveryPickupInput', checkoutPickupText);
-        updateCartDeliveryHint();
-        computeCheckoutDistance();
-      });
+      onFix(pos);
+      // Quiet refine — only keep it if this locate session is still current.
+      navigator.geolocation.getCurrentPosition(
+        (pos2) => {
+          if (gen !== pickupLocateGen) return;
+          const next = { lat: pos2.coords.latitude, lng: pos2.coords.longitude };
+          const prev = checkoutOrigin;
+          if (
+            prev &&
+            Math.hypot(next.lat - prev.lat, next.lng - prev.lng) < 0.00015
+          ) {
+            return; // ~15m — not worth re-labeling
+          }
+          applyPickupCoords(next, gen);
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
+      );
     },
-    () => {},
-    { enableHighAccuracy: true, timeout: 10000 },
+    () => {
+      // Fallback when low-accuracy fails: one high-accuracy attempt with cache.
+      navigator.geolocation.getCurrentPosition(
+        onFix,
+        () => {
+          if (gen !== pickupLocateGen) return;
+          if (checkoutPickupText === PICKUP_PROVISIONAL) setPickupField('');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      );
+    },
+    { enableHighAccuracy: false, maximumAge: 120000, timeout: 4000 },
   );
 }
 

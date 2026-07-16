@@ -4872,6 +4872,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    min-height: 20px;
     font-size: var(--text-sm);
     font-weight: 600;
     color: var(--text-secondary);
@@ -4881,9 +4882,12 @@
   .ql-metrics svg { flex-shrink: 0; }
 
   .ql-predict {
+    min-height: 17px;
     font-size: var(--text-xs);
     color: var(--text-dim);
     margin-bottom: var(--space-3);
+    /* Keep one line of height even while empty / measuring */
+    line-height: 17px;
   }
 
   .ql-fee-label {
@@ -6037,12 +6041,24 @@
     display: none !important;
   }
 
-  .in-app-banner-logo {
+  .in-app-banner-logo-wrap {
     flex-shrink: 0;
     width: 36px;
     height: 36px;
-    border-radius: 8px;
+    border-radius: 50%;
+    padding: 2px;
+    background: linear-gradient(135deg, var(--jade), color-mix(in srgb, var(--jade) 75%, #14b8a6));
+    box-shadow: 0 2px 10px var(--jade-glow);
+  }
+
+  .in-app-banner-logo {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
     object-fit: cover;
+    object-position: center 38%;
+    background: var(--surface);
   }
 
   .in-app-banner-copy {

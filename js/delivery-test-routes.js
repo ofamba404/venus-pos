@@ -115,11 +115,12 @@ export const TEST_DROPOFFS = [
   },
   {
     id: 'garden-city',
-    // Longest arm — Northern Bypass / Namugongo corridor.
-    label: 'Metroplex Shopping Centre, Northern Bypass, Kampala',
-    shortLabel: 'Metroplex',
+    // Longest arm — Northern Bypass. SafeBoda lists several Metroplex hits;
+    // use the full "Shopping Centre" name (not bare "Metroplex").
+    label: 'Metroplex Shopping Centre, Kampala - Northern Bypass Highway',
+    shortLabel: 'Metroplex Shopping Centre',
     searchAs: 'Metroplex Shopping Centre',
-    aliases: ['metroplex', 'garden city'],
+    aliases: ['metroplex shopping mall', 'metroplex', 'garden city'],
     lat: 0.3675,
     lng: 32.6330556,
     band: 'long',

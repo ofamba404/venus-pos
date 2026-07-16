@@ -234,6 +234,7 @@ export async function appendSale(record) {
 
 /** Append or upsert a single delivery after checkout POST. */
 export async function appendDelivery(record) {
+  if (!record) return;
   deliveries.unshift(record);
   await persistCurrent('deliveries');
 }
