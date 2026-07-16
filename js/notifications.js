@@ -25,7 +25,8 @@ let pollTimer = null;
 let activeSchedules = [];
 
 function logoIconUrl() {
-  return new URL(getAssetHref('logo.svg'), location.href).href;
+  // Circular crop of the brand mark — Notification API needs a round bitmap (CSS can't clip it).
+  return new URL(getAssetHref('logo-notif.png'), location.href).href;
 }
 
 function logoBadgeUrl() {
