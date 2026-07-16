@@ -187,7 +187,7 @@ export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body =
     document.body.appendChild(el);
   }
 
-  const logo = getAssetHref('logo.svg');
+  const logo = getAssetHref('logo-notif.png');
   const primaryUrl = url || getPageHref('delivery');
   const actionHtml =
     actions ||

@@ -6046,8 +6046,7 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    padding: 2px;
-    background: linear-gradient(135deg, var(--jade), color-mix(in srgb, var(--jade) 75%, #14b8a6));
+    overflow: hidden;
     box-shadow: 0 2px 10px var(--jade-glow);
   }
 
@@ -6057,8 +6056,7 @@
     height: 100%;
     border-radius: 50%;
     object-fit: cover;
-    object-position: center 38%;
-    background: var(--surface);
+    object-position: center;
   }
 
   .in-app-banner-copy {
@@ -6108,11 +6106,14 @@
   }
 
   /* ---------- Toast ---------- */
+  /* Center with left/right + margin so GSAP can own transform (y/scale) without fighting translateX(-50%). */
   .toast {
     position: fixed;
     bottom: calc(var(--fab-stack-height) + var(--space-3) + env(safe-area-inset-bottom, 0px));
-    left: 50%;
-    transform: translateX(-50%) translateY(14px) scale(0.96);
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    transform: translateY(14px) scale(0.96);
     display: flex;
     align-items: center;
     gap: 12px;
@@ -6157,7 +6158,7 @@
 
   .toast.show {
     opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
+    transform: translateY(0) scale(1);
   }
 
   .toast-icon {

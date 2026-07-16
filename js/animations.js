@@ -237,7 +237,8 @@ export function animateToastIn(el) {
   }
 
   el.classList.remove('show');
-  gsap().set(el, { xPercent: -50, y: 14, scale: 0.96, opacity: 0 });
+  // Centering is CSS (left/right + margin); keep transform free of x/xPercent.
+  gsap().set(el, { x: 0, xPercent: 0, y: 14, scale: 0.96, opacity: 0 });
   toastTween = gsap().to(el, {
     y: 0,
     scale: 1,
@@ -266,7 +267,7 @@ export function animateToastOut(el) {
     onComplete: () => {
       el.classList.remove('show');
       el.hidden = true;
-      gsap().set(el, { clearProps: 'opacity,transform' });
+      gsap().set(el, { clearProps: 'opacity,transform,x,xPercent,y,scale' });
     },
   });
 }
