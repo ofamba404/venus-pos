@@ -25,8 +25,7 @@ let pollTimer = null;
 let activeSchedules = [];
 
 function logoIconUrl() {
-  // Circular jade→teal mark — PNG is more reliable than SVG across browsers.
-  return new URL(getAssetHref('logo-notif.png'), location.href).href;
+  return new URL(getAssetHref('logo.svg'), location.href).href;
 }
 
 function logoBadgeUrl() {
