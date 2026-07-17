@@ -635,7 +635,7 @@
   }
 
   .donut-status .ds-joints .ds-group-label { color: var(--jade); }
-  .donut-status .ds-cookies .ds-group-label { color: var(--gold); }
+  .donut-status .ds-cookies .ds-group-label { color: #D4A355; }
 
   .donut-status .ds-group-stats {
     display: flex;
@@ -1878,7 +1878,7 @@
   .mix-paid { background: var(--jade); }
   .mix-credit { background: var(--danger); }
   .mix-joints { background: var(--jade); }
-  .mix-cookies { background: var(--gold); }
+  .mix-cookies { background: #D4A355; }
 
   .mix-legend {
     display: flex;
@@ -1901,7 +1901,7 @@
   .mix-dot.paid { background: var(--jade); }
   .mix-dot.credit { background: var(--danger); }
   .mix-dot.joints { background: var(--jade); }
-  .mix-dot.cookies { background: var(--gold); }
+  .mix-dot.cookies { background: #D4A355; }
 
   .analytics-grid {
     display: grid;

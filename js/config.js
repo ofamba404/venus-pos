@@ -2,6 +2,10 @@ export const SUPABASE_URL = 'https://xiangrykfxlnacthjcad.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_UAR75C14ePR5_mqOez4wjg_mqdlnt5X';
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyCrCkJGwRrloiRPW3x91dvWMeVKEecKL7Y';
 
+/** Web Push VAPID public key (private key lives in Netlify env `VAPID_PRIVATE_KEY`). */
+export const VAPID_PUBLIC_KEY =
+  'BFnscOwOMzgLqNfjhxeGJ8lfii156h-gBuSbv2vMp2XBPDrv1r6DofpbGHHIzeXG7AUf2ae8Fpa42lJJcWwM6D0';
+
 export const CATEGORIES = [
   { id: 'mint', name: 'Mint', sub: '', color: '#8fd6f0' },
   { id: 'strawberry', name: 'Strawberry', sub: '', color: '#d81e2c' },
@@ -13,7 +17,7 @@ export const CATEGORIES = [
   { id: 'classic', name: 'Plain', sub: '', color: '#e3cba7' },
   { id: 'spliff5050', name: 'Bangis', sub: '50/50', color: '#ffd400' },
   { id: 'spliff7030', name: 'Bangis', sub: '70/30', color: '#FFFFA5' },
-  { id: 'cookie', name: 'Cookies', sub: '', color: '#a6752e' },
+  { id: 'cookie', name: 'Cookies', sub: '', color: '#D4A355' },
 ];
 
 export const CAT_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));

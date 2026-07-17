@@ -302,7 +302,7 @@ export function renderProductConfigView(
     inner += flavorSwatchHtml({
       id: 'qty',
       label: cat?.name || product.name,
-      color: cat?.color || '#a6752e',
+      color: cat?.color || '#D4A355',
       chosen: qty,
       stock,
       canAdd: qty < stock,

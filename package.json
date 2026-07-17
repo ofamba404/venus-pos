@@ -1,0 +1,11 @@
+{
+  "name": "venus-pos",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "^10.7.9",
+    "@netlify/functions": "^5.3.0",
+    "web-push": "^3.6.7"
+  }
+}

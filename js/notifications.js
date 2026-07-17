@@ -1,11 +1,11 @@
 /**
  * Reusable browser + in-app notifications for Venus POS.
  *
- * Same surface powers SafeBoda quote-test reminders today and can later
- * drive storefront "new order" alerts — pass a different `type` + `url`.
+ * Local polling covers open tabs. Web Push (Enable) covers closed browser
+ * via Netlify scheduled functions + the service worker `push` handler.
  */
 
-import { getAssetHref, getPageHref } from './config.js';
+import { getAssetHref, getPageHref, VAPID_PUBLIC_KEY } from './config.js';
 import { kampalaHour } from './delivery-fee-model.js';
 
 /** @typedef {'delivery-test' | 'storefront-order' | string} NotifType */
@@ -74,6 +74,7 @@ export function getNotificationPrefs() {
   return {
     permissionAsked: !!prefs.permissionAsked,
     schedulesEnabled: prefs.schedulesEnabled !== false,
+    pushSubscribed: !!prefs.pushSubscribed,
   };
 }
 
@@ -100,6 +101,101 @@ export async function ensureNotificationPermission() {
   } catch {
     return Notification.permission;
   }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+function pushApi(path) {
+  return new URL(path, location.origin).href;
+}
+
+/**
+ * Subscribe this device to Web Push and register the endpoint with Netlify.
+ * Required for reminders when the browser is closed.
+ */
+export async function subscribeWebPush({ schedulesEnabled = true } = {}) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return { ok: false, reason: 'unsupported' };
+  }
+  const perm = await ensureNotificationPermission();
+  if (perm !== 'granted') return { ok: false, reason: perm };
+
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+  }
+
+  const res = await fetch(pushApi('/api/push/subscribe'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      subscription: sub.toJSON(),
+      schedulesEnabled,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    console.warn('push subscribe failed', res.status, err);
+    return { ok: false, reason: 'server' };
+  }
+
+  setNotificationPrefs({ pushSubscribed: true, schedulesEnabled });
+  return { ok: true, subscription: sub };
+}
+
+/** Pause/resume server-side schedules, or fully unsubscribe. */
+export async function syncWebPushPrefs({ schedulesEnabled, unsubscribe = false } = {}) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return { ok: false, reason: 'unsupported' };
+  }
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    setNotificationPrefs({ pushSubscribed: false });
+    return { ok: true, missing: true };
+  }
+
+  if (unsubscribe) {
+    try {
+      await fetch(pushApi('/api/push/unsubscribe'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: sub.endpoint }),
+      });
+    } catch (e) {
+      console.warn('push unsubscribe sync failed', e);
+    }
+    try {
+      await sub.unsubscribe();
+    } catch {
+      /* ignore */
+    }
+    setNotificationPrefs({ pushSubscribed: false, schedulesEnabled: false });
+    return { ok: true, unsubscribed: true };
+  }
+
+  const res = await fetch(pushApi('/api/push/unsubscribe'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      endpoint: sub.endpoint,
+      schedulesEnabled: !!schedulesEnabled,
+    }),
+  });
+  if (!res.ok) return { ok: false, reason: 'server' };
+  setNotificationPrefs({ schedulesEnabled: !!schedulesEnabled, pushSubscribed: true });
+  return { ok: true };
 }
 
 /**
@@ -260,15 +356,19 @@ export function setLocalSchedules(schedules) {
 
 async function tickSchedules() {
   if (!getNotificationPrefs().schedulesEnabled) return;
+  // When Web Push is registered, the Netlify cron delivers closed-browser
+  // reminders — skip local duplicates while the tab is open.
+  if (getNotificationPrefs().pushSubscribed) return;
+
   const nowMin = kampalaMinuteOfDay();
 
-  for (const s of activeSchedules) {
-    if (s.enabled === false) continue;
-    const target = s.hour * 60 + (s.minute || 0);
-    // Fire in a 2-minute window so a 30s poll won't miss the slot.
-    if (nowMin < target || nowMin > target + 1) continue;
-    if (wasFiredToday(s.id)) continue;
+  const due = activeSchedules
+    .filter((s) => s.enabled !== false)
+    .map((s) => ({ s, target: s.hour * 60 + (s.minute || 0) }))
+    .filter(({ s, target }) => nowMin >= target && !wasFiredToday(s.id))
+    .sort((a, b) => a.target - b.target);
 
+  for (const { s } of due) {
     markFiredToday(s.id);
     await showAppNotification({
       type: s.type || NOTIF_TYPE.DELIVERY_TEST,

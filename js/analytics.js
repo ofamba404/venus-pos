@@ -981,7 +981,11 @@ async function saveSaleEdit() {
   } else if (creditCleared) {
     amountPaid = Math.max(prevPaid, total);
   } else {
-    amountPaid = Math.min(prevPaid, total);
+    // Unpaid credit: newly converting from cash/cleared must zero paid
+    // (match checkout) so AR/clients see the balance. Keep prior paid only
+    // when this sale was already open unpaid credit (partial payments).
+    const wasOpenUnpaid = Boolean(sale.is_credit && !sale.credit_cleared);
+    amountPaid = wasOpenUnpaid ? Math.min(prevPaid, total) : 0;
   }
 
   const payload = {

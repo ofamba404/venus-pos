@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'venus-pos-v10';
+const CACHE_VERSION = 'venus-pos-v11';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -92,6 +92,39 @@ self.addEventListener('fetch', (event) => {
       }
       return Response.error();
     }),
+  );
+});
+
+/** Web Push — works when the browser/tab is closed (Android Chrome / installed PWA). */
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : '' };
+  }
+
+  const title = data.title || 'Venus';
+  const targetPath = data.url || '/pages/delivery.html#quote-lab';
+  const absoluteUrl = new URL(targetPath, self.registration.scope).href;
+
+  event.waitUntil(
+    (async () => {
+      try {
+        if (self.navigator?.setAppBadge) await self.navigator.setAppBadge(1);
+      } catch {
+        /* ignore */
+      }
+      await self.registration.showNotification(title, {
+        body: data.body || '',
+        icon: '/assets/logo-browser.svg',
+        badge: '/assets/logo-badge.png',
+        tag: data.tag || `venus-push-${Date.now()}`,
+        renotify: true,
+        requireInteraction: true,
+        data: { type: data.type || 'delivery-test', url: absoluteUrl },
+      });
+    })(),
   );
 });
 

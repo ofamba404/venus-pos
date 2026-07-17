@@ -33,6 +33,8 @@ import {
   setNotificationPrefs,
   showAppNotification,
   startNotificationRuntime,
+  subscribeWebPush,
+  syncWebPushPrefs,
 } from './notifications.js';
 
 const ICON_CASH = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.3" y="6.2" width="19.4" height="11.6" rx="2.1"></rect><circle cx="12" cy="12" r="2.7"></circle><path d="M6 9.4v.01M18 14.6v.01"></path></svg>`;
@@ -195,6 +197,7 @@ function reminderStatusHtml() {
   const perm = notificationPermission();
   const prefs = getNotificationPrefs();
   const enabled = prefs.schedulesEnabled && perm === 'granted';
+  const pushOn = prefs.pushSubscribed && enabled;
   const slots = DELIVERY_TEST_REMINDERS.map((r) => {
     const hh = String(r.hour).padStart(2, '0');
     const mm = String(r.minute).padStart(2, '0');
@@ -208,11 +211,14 @@ function reminderStatusHtml() {
   } else if (perm === 'denied') {
     status = 'Blocked — use in-app banners only (enable in browser settings)';
   } else if (perm === 'default') {
-    status = 'Tap Enable for browser + in-app reminders';
+    status = 'Tap Enable for closed-browser push + in-app reminders';
     statusCls = 'mid';
-  } else if (enabled) {
-    status = 'On — browser + in-app at each slot';
+  } else if (pushOn) {
+    status = 'Push on — fires even if the browser is closed';
     statusCls = 'ok';
+  } else if (enabled) {
+    status = 'On while POS is open only — tap Enable again to register push';
+    statusCls = 'mid';
   } else {
     status = 'Permission granted — schedules paused';
     statusCls = 'mid';
@@ -351,17 +357,34 @@ function wireQuoteLabDom() {
     if (perm === 'granted') {
       setNotificationPrefs({ schedulesEnabled: true });
       setLocalSchedules(DELIVERY_TEST_REMINDERS);
-      showToast('Reminders enabled');
+      const push = await subscribeWebPush({ schedulesEnabled: true });
+      if (push.ok) {
+        showToast('Push reminders on — work with browser closed');
+      } else if (push.reason === 'unsupported') {
+        showToast('Reminders on while POS is open (this browser has no Web Push)');
+      } else {
+        showToast('Reminders on while open — push registration failed', true);
+      }
     } else if (perm === 'denied') {
       showToast('Notifications blocked — in-app banners still work', true);
     }
     renderQuoteLab();
   });
 
-  document.getElementById('quoteLabToggleSched')?.addEventListener('click', () => {
+  document.getElementById('quoteLabToggleSched')?.addEventListener('click', async () => {
     const prefs = getNotificationPrefs();
-    setNotificationPrefs({ schedulesEnabled: !prefs.schedulesEnabled });
-    showToast(prefs.schedulesEnabled ? 'Reminders paused' : 'Reminders resumed');
+    const next = !prefs.schedulesEnabled;
+    setNotificationPrefs({ schedulesEnabled: next });
+    if (prefs.pushSubscribed) {
+      await syncWebPushPrefs({ schedulesEnabled: next });
+    } else if (next) {
+      const push = await subscribeWebPush({ schedulesEnabled: true });
+      if (push.ok) showToast('Push reminders on — work with browser closed');
+      else showToast('Reminders resumed (open-tab only)');
+      renderQuoteLab();
+      return;
+    }
+    showToast(next ? 'Reminders resumed' : 'Reminders paused');
     renderQuoteLab();
   });
 
@@ -460,6 +483,16 @@ export function initQuoteLabReminders() {
       if (event.data?.type === 'venus-notif-click' && event.data.url) {
         clearAppBadge();
         location.href = event.data.url;
+      }
+    });
+  }
+
+  // Re-register Web Push if permission already granted (closed-browser delivery).
+  const prefs = getNotificationPrefs();
+  if (notificationPermission() === 'granted' && prefs.schedulesEnabled) {
+    void subscribeWebPush({ schedulesEnabled: true }).then((r) => {
+      if (r.ok && !prefs.pushSubscribed) {
+        console.info('Venus push subscription ready');
       }
     });
   }
