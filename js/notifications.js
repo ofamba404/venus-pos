@@ -25,7 +25,7 @@ let pollTimer = null;
 let activeSchedules = [];
 
 function logoIconUrl() {
-  return new URL(getAssetHref('logo.svg'), location.href).href;
+  return new URL(getAssetHref('logo-browser.svg'), location.href).href;
 }
 
 function logoBadgeUrl() {
