@@ -891,5 +891,3 @@ export function startStoreOrdersRuntime() {
     if (storeOrdersHashActive()) consumeStoreOrdersHash();
   });
 }
-
-export { NOTIF_TYPE };
