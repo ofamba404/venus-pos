@@ -165,16 +165,24 @@ function usersListHtml() {
           const location = String(user.location_label || '').trim();
           const created = formatDate(user.created_at);
           const referral = String(user.referral_code || '').trim();
+          const referredByName = String(user.referred_by_name || '').trim();
+          const referredByCode = String(user.referred_by_code || '').trim();
+          const referredBy = referredByName
+            ? `Referred by ${referredByName}`
+            : referredByCode
+              ? `Referred by ${referredByCode}`
+              : '';
           return `
             <li class="admin-user-row" data-user-id="${escapeHtml(String(user.id || ''))}">
               <div class="admin-user-row__index">${index + 1}</div>
               <div class="admin-user-row__main">
-                <div class="admin-user-row__name">@${escapeHtml(name)}</div>
+                <div class="admin-user-row__name">${escapeHtml(name)}</div>
                 <div class="admin-user-row__meta">
                   ${phone ? `<span>${escapeHtml(phone)}</span>` : ''}
                   ${location ? `<span>${escapeHtml(location)}</span>` : ''}
                   ${created ? `<span>${escapeHtml(created)}</span>` : ''}
                   ${referral ? `<span>${escapeHtml(referral)}</span>` : ''}
+                  ${referredBy ? `<span>${escapeHtml(referredBy)}</span>` : ''}
                 </div>
               </div>
               <button type="button" class="admin-user-row__delete" data-delete-store-user="${escapeHtml(String(user.id || ''))}" title="Delete account">Delete</button>
@@ -270,7 +278,7 @@ function wireUserActions(root) {
       const id = btn.getAttribute('data-delete-store-user');
       if (!id) return;
       const user = storeUsers.find((u) => String(u.id) === id);
-      const label = user?.snapchat_name ? `@${user.snapchat_name}` : 'this account';
+      const label = user?.snapchat_name ? user.snapchat_name : 'this account';
       const ok = await showConfirm(`Delete storefront account ${label}? This cannot be undone.`);
       if (!ok) return;
       try {
@@ -338,7 +346,10 @@ function wireToolActions(root) {
       if (action === 'copy-users') {
         const lines = storeUsers.map((u, i) => {
           const phone = formatPhone(u);
-          return `${i + 1}. @${u.snapchat_name || 'user'}${phone ? ` · ${phone}` : ''}${u.location_label ? ` · ${u.location_label}` : ''}`;
+          const referredBy = u.referred_by_name
+            ? ` · referred by ${u.referred_by_name}`
+            : '';
+          return `${i + 1}. ${u.snapchat_name || 'user'}${phone ? ` · ${phone}` : ''}${u.location_label ? ` · ${u.location_label}` : ''}${u.referral_code ? ` · ${u.referral_code}` : ''}${referredBy}`;
         });
         await copyText(lines.join('\n') || 'No users', 'Users copied');
         return;

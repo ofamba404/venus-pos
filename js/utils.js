@@ -64,6 +64,23 @@ export function showToast(msg, isError = false) {
   showToast._t = setTimeout(() => animateToastOut(t), isError ? 3200 : 2600);
 }
 
+/** Copy text to clipboard and toast. Returns whether the write succeeded. */
+export async function copyText(text, okMsg = 'Copied') {
+  const value = String(text || '').trim();
+  if (!value) {
+    showToast('Nothing to copy', true);
+    return false;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    showToast(okMsg);
+    return true;
+  } catch {
+    showToast('Could not copy', true);
+    return false;
+  }
+}
+
 let confirmResolve = null;
 
 export function showConfirm(message) {

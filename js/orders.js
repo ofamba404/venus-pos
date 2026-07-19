@@ -56,7 +56,7 @@ import {
   setCart,
   setOrderMeta,
 } from './state.js';
-import { escapeHtml, fmtUGX, showConfirm, showToast } from './utils.js';
+import { copyText, escapeHtml, fmtUGX, showConfirm, showToast } from './utils.js';
 import {
   getClientOutstandingCredit,
   sumCreditOwed,
@@ -666,16 +666,27 @@ function updateCartCheckoutState() {
   }
 }
 
-function cartItemHtml(item) {
-  return `
-    <div class="cart-item">
-      <div class="ci-main">
-        <div class="ci-name">${escapeHtml(item.name)}</div>
-        <div class="ci-detail">${escapeHtml(item.detail)}</div>
-      </div>
-      <div class="cart-item-actions">
-        <div class="ci-price">${fmtUGX(item.lineTotal)}</div>
-        <div class="cart-item-tools">
+const ICON_COPY = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+
+function cartLineQty(item) {
+  return Object.values(item?.breakdown || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+}
+
+/** National 9-digit phone for display/copy (Uganda mobile without country code). */
+function phoneNineDigits(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.slice(-9);
+}
+
+function cartItemHtml(item, { readonly = false } = {}) {
+  const qty = cartLineQty(item);
+  const qtyHtml = qty
+    ? `<div class="ci-qty" aria-label="Quantity ${qty}">${qty}</div>`
+    : '';
+  const toolsHtml = readonly
+    ? ''
+    : `<div class="cart-item-tools">
           <button class="cart-tool cart-edit" data-edit="${item.key}" type="button" title="Edit item" aria-label="Edit ${escapeHtml(item.name)}">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
@@ -686,9 +697,123 @@ function cartItemHtml(item) {
               <path d="M6 6l12 12M18 6L6 18"/>
             </svg>
           </button>
-        </div>
+        </div>`;
+
+  return `
+    <div class="cart-item${readonly ? ' cart-item--readonly' : ''}">
+      ${qtyHtml}
+      <div class="ci-main">
+        <div class="ci-name">${escapeHtml(item.name)}</div>
+        <div class="ci-detail">${escapeHtml(item.detail)}</div>
+      </div>
+      <div class="cart-item-actions">
+        <div class="ci-price">${fmtUGX(item.lineTotal)}</div>
+        ${toolsHtml}
       </div>
     </div>`;
+}
+
+function cartFactRowHtml({ label, value, copyValue = '', copyLabel = '' }) {
+  const display = String(value || '').trim();
+  const copy = String(copyValue || display).trim();
+  const copyBtn = copy
+    ? `<button type="button" class="cart-copy-btn" data-copy="${escapeHtml(copy)}" aria-label="${escapeHtml(copyLabel || `Copy ${label}`)}" title="Copy">${ICON_COPY}</button>`
+    : '';
+  return `
+    <div class="cart-fact">
+      <div class="cart-fact__label">${escapeHtml(label)}</div>
+      <div class="cart-fact__row">
+        <div class="cart-fact__value${display ? '' : ' is-empty'}">${display ? escapeHtml(display) : '—'}</div>
+        ${copyBtn}
+      </div>
+    </div>`;
+}
+
+function creditToggleHtml(orderIsCredit) {
+  return `
+    <button
+      type="button"
+      id="creditToggle"
+      class="credit-chip${orderIsCredit ? ' is-on' : ''}"
+      role="switch"
+      aria-checked="${orderIsCredit ? 'true' : 'false'}"
+      title="Record as unpaid credit sale (optional)"
+    >
+      <span class="credit-chip__dot" aria-hidden="true"></span>
+      <span class="credit-chip__text">Credit</span>
+    </button>`;
+}
+
+function wireCartCopyButtons(root) {
+  root.querySelectorAll('[data-copy]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      void copyText(btn.getAttribute('data-copy') || '', 'Copied');
+    });
+  });
+}
+
+/** Keep focused fields / open dropdowns above the soft keyboard on mobile. */
+function wireCartKeyboardAware(orderModalBody) {
+  const sheet = orderModalBody?.querySelector('.cart-sheet');
+  const modal = orderModalBody?.closest('.modal') || document.getElementById('orderModal');
+  if (!sheet || !modal) return;
+
+  const scrollTargetIntoView = (el) => {
+    if (!el || typeof el.scrollIntoView !== 'function') return;
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    });
+  };
+
+  const applyKeyboardInset = () => {
+    const vv = window.visualViewport;
+    if (!vv) {
+      modal.style.setProperty('--cart-keyboard-inset', '0px');
+      return;
+    }
+    const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    modal.style.setProperty('--cart-keyboard-inset', `${inset}px`);
+  };
+
+  const onFocusIn = (e) => {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    if (!t.matches('input, textarea, select')) return;
+    const anchor =
+      t.closest('.delivery-input-wrap, .client-search-wrap, .cart-compose-field, .cart-fact, label') || t;
+    applyKeyboardInset();
+    scrollTargetIntoView(anchor);
+  };
+
+  const onDropdownOpen = (e) => {
+    const panel = e.target;
+    if (!(panel instanceof HTMLElement) || !panel.classList.contains('suggest-menu')) return;
+    const anchor =
+      panel.closest('.delivery-input-wrap, .client-search-wrap, .cart-compose-field') || panel;
+    applyKeyboardInset();
+    // Wait a beat so dropdown height is applied before scrolling.
+    setTimeout(() => scrollTargetIntoView(anchor), 60);
+  };
+
+  applyKeyboardInset();
+  sheet.addEventListener('focusin', onFocusIn);
+  sheet.addEventListener('venus:dropdown-open', onDropdownOpen);
+
+  const vv = window.visualViewport;
+  if (vv) {
+    vv.addEventListener('resize', applyKeyboardInset);
+    vv.addEventListener('scroll', applyKeyboardInset);
+  }
+
+  // Clean previous listeners when cart re-renders by storing disposer on the body.
+  orderModalBody._cartKeyboardCleanup?.();
+  orderModalBody._cartKeyboardCleanup = () => {
+    sheet.removeEventListener('focusin', onFocusIn);
+    sheet.removeEventListener('venus:dropdown-open', onDropdownOpen);
+    vv?.removeEventListener('resize', applyKeyboardInset);
+    vv?.removeEventListener('scroll', applyKeyboardInset);
+    modal.style.removeProperty('--cart-keyboard-inset');
+  };
 }
 
 function cartEmptyHtml() {
@@ -745,13 +870,16 @@ function syncCartViewAfterItemsChange() {
   }
 
   const cart = getCart();
+  const readonly = Boolean(getActiveStoreOrderId());
   const itemsAnchor = orderModalBody.querySelector('#cartItemsList');
   if (!itemsAnchor) {
     renderOrderModal();
     return;
   }
 
-  itemsAnchor.innerHTML = cart.length ? cart.map(cartItemHtml).join('') : cartEmptyHtml();
+  itemsAnchor.innerHTML = cart.length
+    ? cart.map((item) => cartItemHtml(item, { readonly })).join('')
+    : cartEmptyHtml();
   itemsAnchor.classList.toggle('is-empty', !cart.length);
 
   const countEl = orderModalBody.querySelector('.cart-section__count');
@@ -768,9 +896,141 @@ function syncCartViewAfterItemsChange() {
   updateCartCheckoutState();
 }
 
+function renderComposeCartHtml({
+  cart,
+  orderClientName,
+  orderIsCredit,
+  deliveryHint,
+}) {
+  return `
+    <div class="cart-sheet cart-sheet--compose" data-cart-mode="compose">
+      <section class="cart-section cart-section--compose">
+        <div class="client-picker">
+          <div class="client-picker__head">
+            <label for="cartClientInput">Client</label>
+            ${creditToggleHtml(orderIsCredit)}
+          </div>
+          ${clientAutocompleteMarkup({
+            inputId: 'cartClientInput',
+            dropdownId: 'cartClientDropdown',
+            clearId: 'cartClientClear',
+            value: orderClientName,
+            placeholder: 'Search or type client name…',
+          })}
+          <div id="cartClientCreditHintSlot">${clientCreditHintHtml(getOrderClientId(), { creditOn: orderIsCredit })}</div>
+        </div>
+
+        <div class="cart-details cart-details--compose is-open" data-accordion data-accordion-id="cart-delivery" data-accordion-open="true">
+          <button type="button" class="cart-details__summary" data-accordion-trigger>
+            <span class="cart-details__title">Delivery</span>
+            <span class="cart-details__hint" data-cart-delivery-hint>${escapeHtml(deliveryHint)}</span>
+          </button>
+          <div class="cart-details__body" data-accordion-panel>
+            <div class="delivery-mini">
+              <div class="delivery-input-wrap pickup">
+                ${deliveryPlaceFieldMarkup({
+                  inputId: 'deliveryPickupInput',
+                  dropdownId: 'deliveryPickupDropdown',
+                  placeholder: 'Pickup location',
+                  value: checkoutPickupText,
+                  icon: ICON_LOCATE,
+                })}
+              </div>
+              <div class="delivery-input-wrap dropoff">
+                ${deliveryPlaceFieldMarkup({
+                  inputId: 'deliveryDestInput',
+                  dropdownId: 'deliveryDestDropdown',
+                  placeholder: 'Drop-off location',
+                  value: checkoutDestText,
+                  icon: ICON_PIN,
+                })}
+              </div>
+              <div class="delivery-input-wrap fee">
+                <span class="di-icon">${ICON_CASH}</span>
+                <input type="text" inputmode="numeric" pattern="[0-9]*" class="client-input" id="deliveryFeeInputCart" placeholder="SafeBoda fee (UGX)" autocomplete="off" value="${escapeHtml(checkoutFeeValue)}" />
+              </div>
+              ${checkoutDistanceKm != null ? `<div class="delivery-mini-readout">${ICON_ROUTE} ${checkoutDistanceKm.toFixed(1)} km · ~${Math.round(checkoutDurationMin)} min</div>` : ''}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="cart-section cart-section--items">
+        <div class="cart-section__head">
+          <div class="cart-section__label">Items</div>
+          <div class="cart-section__count">${cart.length ? cart.length : ''}</div>
+        </div>
+        <div id="cartItemsList" class="cart-items${cart.length ? '' : ' is-empty'}">${cart.length ? cart.map((item) => cartItemHtml(item)).join('') : cartEmptyHtml()}</div>
+        <button class="add-item-btn" id="addItemBtn" type="button">
+          <span class="add-item-btn__icon" aria-hidden="true">+</span>
+          <span>Add item</span>
+        </button>
+        <div id="cartTotalSlot">${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}</div>
+      </section>
+    </div>`;
+}
+
+function renderReviewCartHtml({
+  cart,
+  orderClientName,
+  orderIsCredit,
+  orderClientPhone,
+  orderDeliveryTime,
+}) {
+  const phoneDisplay = phoneNineDigits(orderClientPhone);
+  const locationDisplay = checkoutDestText || '';
+
+  return `
+    <div class="cart-sheet cart-sheet--review" data-cart-mode="review">
+      <section class="cart-section cart-section--items cart-section--review">
+        <div class="cart-section__head">
+          <div class="cart-section__label">Order</div>
+          <div class="cart-section__count">${cart.length ? cart.length : ''}</div>
+        </div>
+        <div id="cartItemsList" class="cart-items cart-items--review${cart.length ? '' : ' is-empty'}">${
+          cart.length
+            ? cart.map((item) => cartItemHtml(item, { readonly: true })).join('')
+            : cartEmptyHtml()
+        }</div>
+        <div id="cartTotalSlot">${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}</div>
+      </section>
+
+      <section class="cart-section cart-section--review-meta">
+        <div class="cart-review-client">
+          <div class="cart-review-client__text">
+            <div class="cart-review-client__label">Client</div>
+            <div class="cart-review-client__name">${escapeHtml(orderClientName || '—')}</div>
+          </div>
+          ${creditToggleHtml(orderIsCredit)}
+        </div>
+        <div id="cartClientCreditHintSlot">${clientCreditHintHtml(getOrderClientId(), { creditOn: orderIsCredit })}</div>
+        <div class="cart-facts">
+          ${cartFactRowHtml({
+            label: 'Delivery time',
+            value: orderDeliveryTime || '—',
+          })}
+          ${cartFactRowHtml({
+            label: 'Delivery location',
+            value: locationDisplay || '—',
+            copyValue: locationDisplay,
+            copyLabel: 'Copy delivery location',
+          })}
+          ${cartFactRowHtml({
+            label: 'Phone',
+            value: phoneDisplay || '—',
+            copyValue: phoneDisplay,
+            copyLabel: 'Copy phone number',
+          })}
+        </div>
+      </section>
+    </div>`;
+}
+
 function renderCartView() {
   const orderModalBody = document.getElementById('orderModalBody');
   if (!orderModalBody) return;
+
+  orderModalBody._cartKeyboardCleanup?.();
 
   const cart = getCart();
   const orderClientName = getOrderClientName();
@@ -778,8 +1038,8 @@ function renderCartView() {
   const orderDeliveryTime = getOrderDeliveryTimeLabel();
   const orderIsCredit = getOrderIsCredit();
   const storeOrderId = getActiveStoreOrderId();
+  const isReview = Boolean(storeOrderId);
   const clientMissing = !orderClientName;
-  const hasDelivery = Boolean(checkoutPickupText || checkoutDestText || checkoutFeeValue);
   const deliveryHint = checkoutDestText || checkoutPickupText || (checkoutFeeValue ? `${checkoutFeeValue} fee` : 'Optional');
   let storeOrderCancelled = false;
   if (storeOrderId) {
@@ -792,149 +1052,88 @@ function renderCartView() {
     }
   }
 
+  const sheetHtml = isReview
+    ? renderReviewCartHtml({
+        cart,
+        orderClientName,
+        orderIsCredit,
+        orderClientPhone,
+        orderDeliveryTime,
+      })
+    : renderComposeCartHtml({
+        cart,
+        orderClientName,
+        orderIsCredit,
+        deliveryHint,
+      });
+
   orderModalBody.innerHTML = `
     <div class="modal-header">
-      <div class="modal-title" id="orderModalTitle">${storeOrderId ? 'Storefront order' : 'Current order'}</div>
+      <div class="modal-title" id="orderModalTitle">${isReview ? 'Storefront order' : 'Current order'}</div>
       <button class="modal-close" id="orderClose" type="button" aria-label="Close order">✕</button>
     </div>
-    ${storeOrderCancelled ? '<div class="store-order-cancelled-banner" data-store-order-cancelled-banner>Customer cancelled this order</div>' : ''}
-    <div class="cart-sheet">
-      <section class="cart-section cart-section--items">
-        <div class="cart-section__head">
-          <div class="cart-section__label">Items</div>
-          <div class="cart-section__count">${cart.length ? cart.length : ''}</div>
-        </div>
-        <div id="cartItemsList" class="cart-items${cart.length ? '' : ' is-empty'}">${cart.length ? cart.map(cartItemHtml).join('') : cartEmptyHtml()}</div>
-        <button class="add-item-btn" id="addItemBtn" type="button">
-          <span class="add-item-btn__icon" aria-hidden="true">+</span>
-          <span>Add item</span>
-        </button>
-        <div id="cartTotalSlot">${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}</div>
-      </section>
-
-      <section class="cart-section cart-section--client">
-        <div class="client-picker">
-          <div class="client-picker__head">
-            <label for="cartClientInput">Client</label>
-            <button
-              type="button"
-              id="creditToggle"
-              class="credit-chip${orderIsCredit ? ' is-on' : ''}"
-              role="switch"
-              aria-checked="${orderIsCredit ? 'true' : 'false'}"
-              title="Record as unpaid credit sale (optional)"
-            >
-              <span class="credit-chip__dot" aria-hidden="true"></span>
-              <span class="credit-chip__text">Credit</span>
-            </button>
-          </div>
-          ${clientAutocompleteMarkup({
-            inputId: 'cartClientInput',
-            dropdownId: 'cartClientDropdown',
-            clearId: 'cartClientClear',
-            value: orderClientName,
-            placeholder: 'Search or type client name…',
-          })}
-          <div id="cartClientCreditHintSlot">${clientCreditHintHtml(getOrderClientId(), { creditOn: orderIsCredit })}</div>
-          <div class="cart-client-extra">
-            <label class="cart-extra-field">
-              <span>Phone</span>
-              <input type="tel" class="client-input" id="cartClientPhone" inputmode="tel" autocomplete="tel" placeholder="+256…" value="${escapeHtml(orderClientPhone)}" />
-            </label>
-            <label class="cart-extra-field">
-              <span>Delivery time</span>
-              <input type="text" class="client-input" id="cartDeliveryTime" autocomplete="off" placeholder="Right now, in 30 min…" value="${escapeHtml(orderDeliveryTime)}" />
-            </label>
-          </div>
-        </div>
-      </section>
-
-      <div class="cart-details" data-accordion data-accordion-id="cart-delivery"${hasDelivery ? ' data-accordion-open="true"' : ''}>
-        <button type="button" class="cart-details__summary" data-accordion-trigger>
-          <span class="cart-details__title">Delivery</span>
-          <span class="cart-details__hint" data-cart-delivery-hint>${escapeHtml(deliveryHint)}</span>
-        </button>
-        <div class="cart-details__body" data-accordion-panel>
-          <div class="delivery-mini">
-            <div class="delivery-input-wrap pickup">
-              ${deliveryPlaceFieldMarkup({
-                inputId: 'deliveryPickupInput',
-                dropdownId: 'deliveryPickupDropdown',
-                placeholder: 'Pickup location',
-                value: checkoutPickupText,
-                icon: ICON_LOCATE,
-              })}
-            </div>
-            <div class="delivery-input-wrap dropoff">
-              ${deliveryPlaceFieldMarkup({
-                inputId: 'deliveryDestInput',
-                dropdownId: 'deliveryDestDropdown',
-                placeholder: 'Drop-off location',
-                value: checkoutDestText,
-                icon: ICON_PIN,
-              })}
-            </div>
-            <div class="delivery-input-wrap fee">
-              <span class="di-icon">${ICON_CASH}</span>
-              <input type="text" inputmode="numeric" pattern="[0-9]*" class="client-input" id="deliveryFeeInputCart" placeholder="SafeBoda fee (UGX)" autocomplete="off" value="${escapeHtml(checkoutFeeValue)}" />
-            </div>
-            ${checkoutDistanceKm != null ? `<div class="delivery-mini-readout">${ICON_ROUTE} ${checkoutDistanceKm.toFixed(1)} km · ~${Math.round(checkoutDurationMin)} min</div>` : ''}
-          </div>
-        </div>
-      </div>
-    </div>
+    ${storeOrderCancelled ? '<div class="store-order-cancelled-banner" data-store-order-cancelled-banner>This order was cancelled</div>' : ''}
+    ${sheetHtml}
     <div class="modal-btns cart-footer">
-      <button class="modal-btn cancel" id="cancelOrderBtn" type="button">Cancel</button>
+      <button class="modal-btn cancel" id="cancelOrderBtn" type="button">${isReview ? 'Clear' : 'Cancel'}</button>
       <button class="modal-btn confirm" id="checkoutBtn" ${cart.length && !clientMissing ? '' : 'disabled'} type="button">${orderIsCredit ? 'Record on credit' : 'Checkout'}</button>
     </div>`;
 
-  wireGsapAccordions(orderModalBody);
+  orderModalBody.dataset.cartMode = isReview ? 'review' : 'compose';
+
+  if (!isReview) {
+    wireGsapAccordions(orderModalBody);
+  }
   document.getElementById('orderClose')?.addEventListener('click', closeOrderModal);
-  wireClientAutocomplete({
-    inputId: 'cartClientInput',
-    dropdownId: 'cartClientDropdown',
-    clearId: 'cartClientClear',
-    showAllOnFocus: true,
-    onChange: (name, client) => {
-      if (client) {
-        setOrderClient(client);
-      } else if (!name) {
-        setOrderClient(null);
-        if (getOrderIsCredit()) setOrderIsCredit(false);
-      } else {
-        const meta = getOrderMeta();
-        meta.clientName = name;
-        meta.clientId = '';
-        setOrderMeta(meta);
-      }
-      updateCartCheckoutState();
-    },
-  });
-  document.getElementById('cartClientPhone')?.addEventListener('input', (e) => {
-    setOrderClientPhone(e.target.value);
-  });
-  document.getElementById('cartDeliveryTime')?.addEventListener('input', (e) => {
-    setOrderDeliveryTimeLabel(e.target.value);
-  });
+
+  if (!isReview) {
+    wireClientAutocomplete({
+      inputId: 'cartClientInput',
+      dropdownId: 'cartClientDropdown',
+      clearId: 'cartClientClear',
+      showAllOnFocus: true,
+      onChange: (name, client) => {
+        if (client) {
+          setOrderClient(client);
+        } else if (!name) {
+          setOrderClient(null);
+          if (getOrderIsCredit()) setOrderIsCredit(false);
+        } else {
+          const meta = getOrderMeta();
+          meta.clientName = name;
+          meta.clientId = '';
+          setOrderMeta(meta);
+        }
+        updateCartCheckoutState();
+      },
+    });
+  }
+
   document.getElementById('creditToggle')?.addEventListener('click', () => {
     setOrderIsCredit(!getOrderIsCredit());
     updateCartCheckoutState();
   });
-  document.getElementById('addItemBtn')?.addEventListener('click', () => {
-    modalMode = 'pick';
-    renderOrderModal();
-  });
 
-  wireDeliveryAutocompletes();
-  if (!pickupAutoRequested) {
-    pickupAutoRequested = true;
-    autoFillPickupLocation();
+  if (!isReview) {
+    document.getElementById('addItemBtn')?.addEventListener('click', () => {
+      modalMode = 'pick';
+      renderOrderModal();
+    });
+
+    wireDeliveryAutocompletes();
+    if (!pickupAutoRequested) {
+      pickupAutoRequested = true;
+      autoFillPickupLocation();
+    }
+    document.getElementById('deliveryFeeInputCart')?.addEventListener('input', (e) => {
+      checkoutFeeValue = e.target.value;
+      checkoutFeeManuallyEdited = true;
+      updateCartDeliveryHint();
+    });
+  } else {
+    wireCartCopyButtons(orderModalBody);
   }
-  document.getElementById('deliveryFeeInputCart')?.addEventListener('input', (e) => {
-    checkoutFeeValue = e.target.value;
-    checkoutFeeManuallyEdited = true;
-    updateCartDeliveryHint();
-  });
+
   document.getElementById('cancelOrderBtn')?.addEventListener('click', () => {
     setCart([]);
     setOrderMeta(emptyOrderMeta());
@@ -945,6 +1144,7 @@ function renderCartView() {
   });
   document.getElementById('checkoutBtn')?.addEventListener('click', checkout);
   wireCartItemButtons(orderModalBody);
+  wireCartKeyboardAware(orderModalBody);
 }
 
 function renderPickView() {
@@ -1394,11 +1594,16 @@ export function wireOrders() {
         const banner = document.createElement('div');
         banner.className = 'store-order-cancelled-banner';
         banner.dataset.storeOrderCancelledBanner = '1';
-        banner.textContent = 'Customer cancelled this order';
+        banner.textContent = event.detail?.byStaff
+          ? 'You cancelled this order'
+          : 'This order was cancelled';
         body.querySelector('.modal-header')?.insertAdjacentElement('afterend', banner);
       }
     }
-    showToast('This storefront order was cancelled', true);
+    // Staff cancel already toasts from the Order stack action.
+    if (!event.detail?.byStaff) {
+      showToast('This storefront order was cancelled', true);
+    }
   });
 
   updateFabBadge();

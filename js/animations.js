@@ -527,6 +527,7 @@ function settleDropdownOpen(panel) {
   panel.style.overflowX = 'hidden';
   panel.style.overflowY = 'auto';
   refreshDropdownAncestors(panel);
+  panel.dispatchEvent(new CustomEvent('venus:dropdown-open', { bubbles: true }));
 }
 
 /** Height + fade suggestion menus (client / places autocomplete). */
@@ -540,6 +541,7 @@ export function animateDropdown(panel, open, { contentUpdate = false } = {}) {
       panel.style.overflowX = 'hidden';
       panel.style.overflowY = 'auto';
       refreshDropdownAncestors(panel);
+      panel.dispatchEvent(new CustomEvent('venus:dropdown-open', { bubbles: true }));
     } else {
       panel.style.height = '';
       panel.style.overflowX = '';

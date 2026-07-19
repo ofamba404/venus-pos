@@ -5641,9 +5641,10 @@
   .modal[data-mode="success"] {
     display: flex;
     flex-direction: column;
-    max-height: 88dvh;
+    max-height: calc(88dvh - var(--cart-keyboard-inset, 0px));
     overflow: hidden;
     padding: 0;
+    transition: max-height 0.18s ease;
   }
 
   .modal[data-mode="cart"] .modal-header,
@@ -5696,20 +5697,192 @@
   .cart-sheet {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding: 4px 20px 16px;
     display: flex;
     flex-direction: column;
     gap: 18px;
+    scroll-padding-bottom: 24px;
   }
 
-  /* Items scroll; client + delivery stay pinned so delivery remains reachable. */
+  /* Compose: form fields first, whole sheet scrolls under the keyboard. */
+  .cart-sheet--compose {
+    gap: 16px;
+  }
+
+  .cart-section--compose {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .cart-details--compose {
+    margin: 0;
+  }
+
+  .cart-details--compose .delivery-mini {
+    margin: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  /* Review: order lines lead; meta facts stay compact below. */
+  .cart-sheet--review {
+    gap: 14px;
+  }
+
+  .cart-section--review {
+    flex: 0 0 auto;
+  }
+
+  .cart-section--review-meta {
+    flex-shrink: 0;
+    padding-top: 4px;
+    border-top: 1px solid var(--panel-edge-subtle);
+  }
+
+  .cart-items--review .cart-item {
+    padding: 14px 8px;
+    align-items: flex-start;
+  }
+
+  .cart-item--readonly:hover,
+  .cart-item--readonly:active {
+    background: transparent;
+  }
+
+  .ci-qty {
+    flex-shrink: 0;
+    min-width: 2rem;
+    height: 2rem;
+    margin-top: 1px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--jade);
+    background: color-mix(in srgb, var(--jade) 12%, transparent);
+  }
+
+  .cart-items--review .ci-name {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .cart-items--review .ci-detail {
+    font-size: 13px;
+    color: var(--text-secondary, var(--text-dim));
+    margin-top: 4px;
+  }
+
+  .cart-items--review .ci-price {
+    font-size: 15px;
+    padding-top: 2px;
+  }
+
+  .cart-review-client {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .cart-review-client__label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .cart-review-client__name {
+    margin-top: 2px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+
+  .cart-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .cart-fact__label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .cart-fact__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 10px 8px 12px;
+    border-radius: 12px;
+    background: var(--surface);
+  }
+
+  .cart-fact__value {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+    word-break: break-word;
+  }
+
+  .cart-fact__value.is-empty {
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  .cart-copy-btn {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--jade) 10%, transparent);
+    color: var(--jade);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .cart-copy-btn:active {
+    transform: scale(0.94);
+    background: color-mix(in srgb, var(--jade) 18%, transparent);
+  }
+
+  /* Items scroll within compose when the form is long; sheet itself still scrolls. */
+  .cart-sheet--compose .cart-section--items {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
   .cart-section--items {
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    overflow-y: visible;
   }
 
   .cart-section--client,
@@ -6760,6 +6933,12 @@
   .store-order-card__btn--confirm {
     background: color-mix(in srgb, var(--jade) 28%, transparent);
     border-color: color-mix(in srgb, var(--jade) 50%, var(--panel-edge));
+  }
+
+  .store-order-card__btn--danger {
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 35%, var(--panel-edge));
+    background: color-mix(in srgb, var(--danger) 8%, transparent);
   }
 
   .cart-client-extra {

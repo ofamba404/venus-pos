@@ -18,6 +18,50 @@ import { escapeHtml, fmtUGX, showConfirm, showToast } from './utils.js';
 /** Safety-net poll when Realtime is down or a change was missed. */
 const FALLBACK_POLL_MS = 30_000;
 const ACTIVE_STATUSES = new Set(['pending', 'confirmed', 'accepted', 'cancelled']);
+/** Storefront PWA push endpoint — notifies the customer when staff confirms. */
+const STORE_PUSH_NOTIFY_URL = 'https://venus-store.netlify.app/api/push/notify';
+/** Order ids cancelled from this POS session — skip “customer cancelled” toast. */
+const staffCancelledIds = new Set();
+
+/**
+ * Push a closed-browser notification to the customer's storefront PWA.
+ * @param {object} order
+ * @param {'confirmed' | 'cancelled'} kind
+ */
+async function notifyStoreCustomerPush(order, kind) {
+  const customerKey = String(order?.customer_name || '').trim().toLowerCase();
+  if (!customerKey || !order?.id) return;
+  const payloads = {
+    confirmed: {
+      type: 'order-confirmed',
+      title: 'Order confirmed',
+      body: 'Venus confirmed your order. We’re on it.',
+      requireInteraction: true,
+    },
+    cancelled: {
+      type: 'order-cancelled',
+      title: 'Order cancelled',
+      body: 'Your order was cancelled.',
+      requireInteraction: false,
+    },
+  };
+  const payload = payloads[kind];
+  if (!payload) return;
+  try {
+    await fetch(STORE_PUSH_NOTIFY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customerKey,
+        ...payload,
+        url: '/',
+        tag: `${payload.type}-${order.id}`,
+      }),
+    });
+  } catch (err) {
+    console.warn('store customer push failed', err);
+  }
+}
 
 /** @type {Map<string, object>} */
 const orderCache = new Map();
@@ -116,6 +160,7 @@ export async function markStoreOrderConfirmed(orderId) {
     orderCache.set(orderId, cached);
   }
   renderStoreOrderUi();
+  void notifyStoreCustomerPush(cached || { id: orderId }, 'confirmed');
 }
 
 export async function markStoreOrderAccepted(orderId) {
@@ -145,6 +190,9 @@ export async function markStoreOrderAccepted(orderId) {
     orderCache.set(orderId, cached);
   }
   renderStoreOrderUi();
+  if (body.confirmed_at) {
+    void notifyStoreCustomerPush(cached || { id: orderId }, 'confirmed');
+  }
 }
 
 export async function markStoreOrderCheckedOut(orderId, saleId = null) {
@@ -166,6 +214,30 @@ export async function markStoreOrderCheckedOut(orderId, saleId = null) {
   dismissedIds.delete(orderId);
   writeDismissed(dismissedIds);
   renderStoreOrderUi();
+}
+
+export async function markStoreOrderCancelled(orderId) {
+  if (!orderId) return;
+  const now = new Date().toISOString();
+  const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(orderId)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      status: 'cancelled',
+      cancelled_at: now,
+      updated_at: now,
+    }),
+  });
+  if (!res.ok) throw new Error(`Supabase ${res.status}`);
+  const cached = orderCache.get(orderId);
+  if (cached) {
+    cached.status = 'cancelled';
+    cached.cancelled_at = now;
+    cached.updated_at = now;
+    orderCache.set(orderId, cached);
+  }
+  renderStoreOrderUi();
+  void notifyStoreCustomerPush(cached || { id: orderId }, 'cancelled');
 }
 
 function dismissOrder(orderId) {
@@ -207,20 +279,28 @@ function upsertOrder(row, { announce = true } = {}) {
       });
     }
   } else if (prev && prev.status !== 'cancelled' && row.status === 'cancelled') {
-    showToast(`${orderTitle(row)} cancelled the order`, true);
-    void showAppNotification({
-      type: NOTIF_TYPE.STOREFRONT_ORDER,
-      title: 'Order cancelled',
-      body: `${orderTitle(row)} cancelled their storefront order`,
-      url: `${location.pathname}${location.search}#store-orders`,
-      tag: `storefront-order-cancelled-${row.id}`,
-      requireInteraction: true,
-      inApp: true,
-    });
-    if (getActiveStoreOrderId() === row.id) {
-      document.dispatchEvent(
-        new CustomEvent('store-order:cancelled', { detail: { orderId: row.id } }),
-      );
+    const byStaff = staffCancelledIds.has(row.id);
+    if (byStaff) {
+      staffCancelledIds.delete(row.id);
+      // Staff cancel already toasted + notified the open cart from cancelStoreOrder.
+    } else {
+      showToast(`${orderTitle(row)} cancelled the order`, true);
+      void showAppNotification({
+        type: NOTIF_TYPE.STOREFRONT_ORDER,
+        title: 'Order cancelled',
+        body: `${orderTitle(row)} cancelled their storefront order`,
+        url: `${location.pathname}${location.search}#store-orders`,
+        tag: `storefront-order-cancelled-${row.id}`,
+        requireInteraction: true,
+        inApp: true,
+      });
+      if (getActiveStoreOrderId() === row.id) {
+        document.dispatchEvent(
+          new CustomEvent('store-order:cancelled', {
+            detail: { orderId: row.id, byStaff: false },
+          }),
+        );
+      }
     }
   } else {
     seenIds.add(row.id);
@@ -319,9 +399,8 @@ function ensureDom() {
       btn.setAttribute('aria-label', 'Storefront orders');
       btn.title = 'Storefront orders';
       btn.innerHTML = `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M6 7h12l-1 12H7L6 7z"/>
-          <path d="M9 7V5a3 3 0 0 1 6 0v2"/>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M8.8999 7.5C8.8999 6.28498 9.88488 5.3 11.0999 5.3H12.8999C14.1149 5.3 15.0999 6.28498 15.0999 7.5C15.0999 7.77615 15.3238 8 15.5999 8C15.876 8 16.0999 7.77615 16.0999 7.5C16.0999 5.73269 14.6672 4.3 12.8999 4.3H11.0999C9.33259 4.3 7.8999 5.73269 7.8999 7.5C7.8999 7.77615 8.12376 8 8.3999 8C8.67604 8 8.8999 7.77615 8.8999 7.5ZM5.7998 15.6V9.39999H18.1998V15.6C18.1998 17.0359 17.0357 18.2 15.5998 18.2H8.39981C6.96387 18.2 5.7998 17.0359 5.7998 15.6ZM4.7998 9.29999C4.7998 8.80294 5.20275 8.39999 5.6998 8.39999H18.2998C18.7969 8.39999 19.1998 8.80294 19.1998 9.29999V15.6C19.1998 17.5882 17.588 19.2 15.5998 19.2H8.39981C6.41158 19.2 4.7998 17.5882 4.7998 15.6V9.29999Z" fill="currentColor"/>
         </svg>
         <span class="fab-badge" id="storeOrdersBadge" style="display:none;">0</span>`;
       actions.insertBefore(btn, actions.firstChild);
@@ -381,6 +460,7 @@ function stackItemHtml(order) {
           : ''
       }
                <button type="button" class="store-order-card__btn store-order-card__btn--primary" data-load-store-order="${escapeHtml(order.id)}">${active ? 'View cart' : 'Load into cart'}</button>
+               <button type="button" class="store-order-card__btn store-order-card__btn--danger" data-cancel-store-order="${escapeHtml(order.id)}">Cancel</button>
                <button type="button" class="store-order-card__btn" data-dismiss-store-order="${escapeHtml(order.id)}">Hide</button>`;
 
   return `
@@ -395,7 +475,7 @@ function stackItemHtml(order) {
         <span>${fmtUGX(order.subtotal_ugx || 0)}</span>
       </div>
       <div class="store-order-card__items">${itemBits || 'No items'}${more}</div>
-      ${cancelled ? '<p class="store-order-card__cancel-note">Customer cancelled this order</p>' : ''}
+      ${cancelled ? '<p class="store-order-card__cancel-note">Order cancelled</p>' : ''}
       <div class="store-order-card__actions">
         ${actions}
       </div>
@@ -461,6 +541,12 @@ export function renderStoreOrderUi() {
     });
   });
 
+  panel.querySelectorAll('[data-cancel-store-order]').forEach((el) => {
+    el.addEventListener('click', () => {
+      void cancelStoreOrder(el.getAttribute('data-cancel-store-order'));
+    });
+  });
+
   panel.querySelectorAll('[data-dismiss-store-order]').forEach((el) => {
     el.addEventListener('click', () => {
       dismissOrder(el.getAttribute('data-dismiss-store-order'));
@@ -491,7 +577,7 @@ export async function confirmStoreOrder(orderId) {
     return;
   }
   if (order.status === 'cancelled') {
-    showToast('This order was cancelled by the customer', true);
+    showToast('This order was cancelled', true);
     return;
   }
   if (order.status !== 'pending') {
@@ -508,6 +594,52 @@ export async function confirmStoreOrder(orderId) {
   }
 }
 
+export async function cancelStoreOrder(orderId) {
+  const order = orderCache.get(orderId);
+  if (!order) {
+    showToast('Order not found', true);
+    return;
+  }
+  if (order.status === 'cancelled') {
+    showToast('Order already cancelled');
+    return;
+  }
+  if (order.status === 'checked_out') {
+    showToast('Order already checked out', true);
+    return;
+  }
+
+  const wasOpen = panelOpen;
+  panelOpen = false;
+  renderStoreOrderUi();
+
+  const ok = await showConfirm(`Cancel ${orderTitle(order)}'s order? The customer will be notified.`);
+  if (!ok) {
+    if (wasOpen) {
+      panelOpen = true;
+      renderStoreOrderUi();
+    }
+    return;
+  }
+
+  staffCancelledIds.add(order.id);
+  try {
+    await markStoreOrderCancelled(order.id);
+    showToast(`Cancelled ${orderTitle(order)}`);
+    if (getActiveStoreOrderId() === order.id) {
+      document.dispatchEvent(
+        new CustomEvent('store-order:cancelled', {
+          detail: { orderId: order.id, byStaff: true },
+        }),
+      );
+    }
+  } catch (e) {
+    staffCancelledIds.delete(order.id);
+    console.error('cancel store order failed', e);
+    showToast('Could not cancel order', true);
+  }
+}
+
 export async function loadStoreOrderIntoCart(orderId) {
   const order = orderCache.get(orderId);
   if (!order) {
@@ -515,7 +647,7 @@ export async function loadStoreOrderIntoCart(orderId) {
     return;
   }
   if (order.status === 'cancelled') {
-    showToast('This order was cancelled by the customer', true);
+    showToast('This order was cancelled', true);
     return;
   }
 
