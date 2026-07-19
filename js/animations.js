@@ -185,7 +185,15 @@ export function openModal(overlay, { instant = false } = {}) {
   if (modal) gsap().set(modal, { y: 20, opacity: 0, force3D: true });
 
   gsap()
-    .timeline()
+    .timeline({
+      // Leaving translate3d(0,0,0) on the panel breaks iOS overflow-y scrolling
+      // when the .modal itself is the scroll container (e.g. edit order).
+      onComplete: () => {
+        gsap().set([overlay, modal].filter(Boolean), {
+          clearProps: 'opacity,transform,translate,rotate,scale,y',
+        });
+      },
+    })
     .to(overlay, { opacity: 1, duration: 0.22, ease: EASE.out })
     .to(
       modal,

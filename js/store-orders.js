@@ -5,11 +5,16 @@
 
 import { sbFetch } from './api.js';
 import { PRODUCTS } from './config.js';
-import { notifyStorefrontOrder, NOTIF_TYPE, showAppNotification } from './notifications.js';
+import { notifyOrderCancelled, notifyStorefrontOrder } from './notifications.js';
 import {
   applyStorefrontOrderToCart,
   openLoadedOrderModal,
   getActiveStoreOrderId,
+  captureStoreOrderSession,
+  hasStoreOrderSession,
+  restoreStoreOrderSession,
+  dropStoreOrderSession,
+  updateFabBadge,
 } from './orders.js';
 import { getRealtimeClient } from './realtime-client.js';
 import { getCart, getOrderMeta } from './state.js';
@@ -76,6 +81,48 @@ let realtimeChannel = null;
 let panelOpen = false;
 let bootstrapped = false;
 let realtimeLive = false;
+/** Ignore the bag-button click that follows an outside-dismiss pointerdown. */
+let ignoreNextBagToggle = false;
+
+function storeOrdersHashActive() {
+  return location.hash === '#store-orders';
+}
+
+/** Drop `#store-orders` so a refresh does not reopen the panel. */
+function clearStoreOrdersHash() {
+  if (!storeOrdersHashActive()) return;
+  history.replaceState(null, '', `${location.pathname}${location.search}`);
+}
+
+/** Open or close the order stack (URL hash is deep-link only, not sticky state). */
+export function setStoreOrdersPanelOpen(open) {
+  const next = !!open;
+  if (panelOpen === next) {
+    const panel = document.getElementById('storeOrdersPanel');
+    if (next && panel?.hidden) renderStoreOrderUi();
+    if (!next) clearStoreOrdersHash();
+    return;
+  }
+  panelOpen = next;
+  if (!next) clearStoreOrdersHash();
+  renderStoreOrderUi();
+}
+
+export function openStoreOrdersPanel() {
+  setStoreOrdersPanelOpen(true);
+}
+
+export function closeStoreOrdersPanel() {
+  setStoreOrdersPanelOpen(false);
+}
+
+/** Open from `#store-orders`, then clear the hash so refresh stays closed. */
+function consumeStoreOrdersHash() {
+  if (!storeOrdersHashActive()) return;
+  panelOpen = true;
+  clearStoreOrdersHash();
+  renderStoreOrderUi();
+}
 
 function readDismissed() {
   try {
@@ -111,10 +158,16 @@ export function getStackedStoreOrders() {
   );
 }
 
-function pendingCount() {
+function waitingStoreOrderCount() {
+  // Header badge: still need staff to load these into a cart.
   return getStackedStoreOrders().filter(
-    (o) => o.status === 'pending' || o.status === 'confirmed' || o.status === 'accepted',
+    (o) => o.status === 'pending' || o.status === 'confirmed',
   ).length;
+}
+
+/** Accepted in DB = loaded into a POS cart (survives refresh). */
+export function loadedStoreOrderCount() {
+  return getStackedStoreOrders().filter((o) => o.status === 'accepted').length;
 }
 
 function cancelledVisibleCount() {
@@ -195,6 +248,43 @@ export async function markStoreOrderAccepted(orderId) {
   }
 }
 
+/**
+ * Staff cleared the order from the cart without checkout — put it back in the waiting stack.
+ */
+export async function releaseStoreOrderFromCart(orderId) {
+  const id = String(orderId || '');
+  if (!id) return;
+  dropStoreOrderSession(id);
+
+  const cached = orderCache.get(id);
+  if (!cached || cached.status !== 'accepted') {
+    renderStoreOrderUi();
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const status = cached.confirmed_at ? 'confirmed' : 'pending';
+  try {
+    const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        status,
+        accepted_at: null,
+        updated_at: now,
+      }),
+    });
+    if (!res.ok) throw new Error(`Supabase ${res.status}`);
+    cached.status = status;
+    cached.accepted_at = null;
+    cached.updated_at = now;
+    orderCache.set(id, cached);
+  } catch (e) {
+    console.error('release store order failed', e);
+  }
+  renderStoreOrderUi();
+}
+
 export async function markStoreOrderCheckedOut(orderId, saleId = null) {
   if (!orderId) return;
   const now = new Date().toISOString();
@@ -213,6 +303,7 @@ export async function markStoreOrderCheckedOut(orderId, saleId = null) {
   orderCache.delete(orderId);
   dismissedIds.delete(orderId);
   writeDismissed(dismissedIds);
+  dropStoreOrderSession(orderId);
   renderStoreOrderUi();
 }
 
@@ -257,6 +348,7 @@ function upsertOrder(row, { announce = true } = {}) {
 
   if (!ACTIVE_STATUSES.has(row.status)) {
     orderCache.delete(row.id);
+    dropStoreOrderSession(row.id);
     return;
   }
 
@@ -275,24 +367,22 @@ function upsertOrder(row, { announce = true } = {}) {
         orderId: row.id,
         customerName: orderTitle(row),
         totalLabel: fmtUGX(row.subtotal_ugx || 0),
+        itemCount: row.item_count || (Array.isArray(row.items) ? row.items.length : 0),
         url: `${location.pathname}${location.search}#store-orders`,
       });
     }
   } else if (prev && prev.status !== 'cancelled' && row.status === 'cancelled') {
+    dropStoreOrderSession(row.id);
     const byStaff = staffCancelledIds.has(row.id);
     if (byStaff) {
       staffCancelledIds.delete(row.id);
       // Staff cancel already toasted + notified the open cart from cancelStoreOrder.
     } else {
       showToast(`${orderTitle(row)} cancelled the order`, true);
-      void showAppNotification({
-        type: NOTIF_TYPE.STOREFRONT_ORDER,
-        title: 'Order cancelled',
-        body: `${orderTitle(row)} cancelled their storefront order`,
+      void notifyOrderCancelled({
+        orderId: row.id,
+        customerName: orderTitle(row),
         url: `${location.pathname}${location.search}#store-orders`,
-        tag: `storefront-order-cancelled-${row.id}`,
-        requireInteraction: true,
-        inApp: true,
       });
       if (getActiveStoreOrderId() === row.id) {
         document.dispatchEvent(
@@ -408,6 +498,16 @@ function ensureDom() {
     }
   }
 
+  if (btn && !badge) {
+    badge = document.createElement('span');
+    badge.className = 'fab-badge';
+    badge.id = 'storeOrdersBadge';
+    badge.hidden = true;
+    badge.style.display = 'none';
+    badge.textContent = '0';
+    btn.appendChild(badge);
+  }
+
   let panel = document.getElementById('storeOrdersPanel');
   if (!panel) {
     panel = document.createElement('div');
@@ -422,8 +522,33 @@ function ensureDom() {
   if (btn && !btn.dataset.wired) {
     btn.dataset.wired = '1';
     btn.addEventListener('click', () => {
-      panelOpen = !panelOpen;
-      renderStoreOrderUi();
+      if (ignoreNextBagToggle) {
+        ignoreNextBagToggle = false;
+        return;
+      }
+      setStoreOrdersPanelOpen(!panelOpen);
+    });
+  }
+
+  if (panel && !panel.dataset.wiredDismiss) {
+    panel.dataset.wiredDismiss = '1';
+    document.addEventListener(
+      'pointerdown',
+      (event) => {
+        if (!panelOpen) return;
+        const target = event.target;
+        if (!(target instanceof Node)) return;
+        if (panel.contains(target)) return;
+        if (btn?.contains(target)) {
+          // pointerdown closes; the following click would toggle it back open.
+          ignoreNextBagToggle = true;
+        }
+        closeStoreOrdersPanel();
+      },
+      true,
+    );
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && panelOpen) closeStoreOrdersPanel();
     });
   }
 
@@ -446,11 +571,13 @@ function stackItemHtml(order) {
     ? 'Cancelled'
     : active
       ? 'In cart'
-      : order.status === 'accepted'
-        ? 'Opened'
-        : confirmed
-          ? 'Confirmed'
-          : 'New';
+      : hasStoreOrderSession(order.id)
+        ? 'Loaded'
+        : order.status === 'accepted'
+          ? 'Opened'
+          : confirmed
+            ? 'Confirmed'
+            : 'New';
 
   const actions = cancelled
     ? `<button type="button" class="store-order-card__btn" data-dismiss-store-order="${escapeHtml(order.id)}">Dismiss</button>`
@@ -459,9 +586,8 @@ function stackItemHtml(order) {
           ? `<button type="button" class="store-order-card__btn store-order-card__btn--confirm" data-confirm-store-order="${escapeHtml(order.id)}">Confirm</button>`
           : ''
       }
-               <button type="button" class="store-order-card__btn store-order-card__btn--primary" data-load-store-order="${escapeHtml(order.id)}">${active ? 'View cart' : 'Load into cart'}</button>
-               <button type="button" class="store-order-card__btn store-order-card__btn--danger" data-cancel-store-order="${escapeHtml(order.id)}">Cancel</button>
-               <button type="button" class="store-order-card__btn" data-dismiss-store-order="${escapeHtml(order.id)}">Hide</button>`;
+               <button type="button" class="store-order-card__btn store-order-card__btn--primary" data-load-store-order="${escapeHtml(order.id)}">${active ? 'View cart' : hasStoreOrderSession(order.id) ? 'Switch to cart' : 'Load into cart'}</button>
+               <button type="button" class="store-order-card__btn store-order-card__btn--danger" data-cancel-store-order="${escapeHtml(order.id)}">Cancel</button>`;
 
   return `
     <article class="store-order-card${cancelled ? ' is-cancelled' : ''}${confirmed ? ' is-confirmed' : ''}${active ? ' is-active' : ''}" data-store-order-id="${escapeHtml(order.id)}">
@@ -485,24 +611,36 @@ function stackItemHtml(order) {
 export function renderStoreOrderUi() {
   const { badge, btn, panel } = ensureDom();
   const stacked = getStackedStoreOrders();
-  const count = pendingCount();
+  const count = waitingStoreOrderCount();
   const cancelled = cancelledVisibleCount();
-  const badgeCount = count + cancelled;
+  // Numeric badge is only for orders not yet loaded into the cart.
+  const badgeCount = count;
 
   if (badge) {
     if (badgeCount > 0) {
+      badge.hidden = false;
       badge.style.display = 'flex';
       badge.textContent = String(badgeCount);
-      badge.classList.toggle('is-alert', cancelled > 0);
+      badge.classList.toggle('is-alert', false);
     } else {
+      badge.hidden = true;
       badge.style.display = 'none';
+      badge.textContent = '0';
+      badge.classList.remove('is-alert');
     }
   }
   if (btn) {
     btn.classList.toggle('has-orders', badgeCount > 0);
     btn.classList.toggle('has-cancelled', cancelled > 0);
     btn.setAttribute('aria-expanded', panelOpen ? 'true' : 'false');
+    btn.setAttribute(
+      'aria-label',
+      badgeCount > 0 ? `Storefront orders, ${badgeCount} waiting` : 'Storefront orders',
+    );
   }
+
+  updateFabBadge();
+  window.__venusRefreshStoreOrderCartSwitcher?.();
 
   if (!panel) return;
   panel.hidden = !panelOpen;
@@ -525,8 +663,7 @@ export function renderStoreOrderUi() {
     </div>`;
 
   panel.querySelector('[data-close-store-orders]')?.addEventListener('click', () => {
-    panelOpen = false;
-    renderStoreOrderUi();
+    closeStoreOrdersPanel();
   });
 
   panel.querySelectorAll('[data-load-store-order]').forEach((el) => {
@@ -610,15 +747,11 @@ export async function cancelStoreOrder(orderId) {
   }
 
   const wasOpen = panelOpen;
-  panelOpen = false;
-  renderStoreOrderUi();
+  closeStoreOrdersPanel();
 
   const ok = await showConfirm(`Cancel ${orderTitle(order)}'s order? The customer will be notified.`);
   if (!ok) {
-    if (wasOpen) {
-      panelOpen = true;
-      renderStoreOrderUi();
-    }
+    if (wasOpen) openStoreOrdersPanel();
     return;
   }
 
@@ -648,20 +781,50 @@ export async function loadStoreOrderIntoCart(orderId) {
   }
   if (order.status === 'cancelled') {
     showToast('This order was cancelled', true);
+    dropStoreOrderSession(orderId);
     return;
   }
 
   const cart = getCart();
   const meta = getOrderMeta();
   const activeId = getActiveStoreOrderId();
-  const dirty =
-    cart.length > 0 &&
-    (activeId !== orderId ||
-      meta.clientName ||
-      meta.clientPhone ||
-      meta.deliveryTimeLabel);
 
-  if (dirty && activeId !== orderId) {
+  // Already viewing this storefront order — just reopen the cart.
+  if (activeId === orderId) {
+    captureStoreOrderSession();
+    closeStoreOrdersPanel();
+    openLoadedOrderModal();
+    renderStoreOrderUi();
+    return;
+  }
+
+  // Save the current storefront cart before switching to another.
+  if (activeId) {
+    captureStoreOrderSession();
+  }
+
+  // Restore a previously loaded session (keeps credit toggle, etc.).
+  if (hasStoreOrderSession(orderId) && restoreStoreOrderSession(orderId)) {
+    try {
+      if (order.status === 'pending' || order.status === 'confirmed') {
+        await markStoreOrderAccepted(order.id);
+      }
+    } catch (e) {
+      console.error('mark accepted failed', e);
+    }
+    closeStoreOrdersPanel();
+    openLoadedOrderModal();
+    renderStoreOrderUi();
+    return;
+  }
+
+  // Only confirm when replacing a manual compose cart (not another storefront order).
+  const replacingCompose =
+    cart.length > 0 &&
+    !activeId &&
+    (meta.clientName || meta.clientPhone || meta.deliveryTimeLabel || meta.deliveryLocationLabel);
+
+  if (replacingCompose) {
     const ok = await showConfirm('Replace the current cart with this storefront order?');
     if (!ok) return;
   }
@@ -689,14 +852,20 @@ export async function loadStoreOrderIntoCart(orderId) {
     console.error('mark accepted failed', e);
   }
 
-  panelOpen = false;
-  renderStoreOrderUi();
+  closeStoreOrdersPanel();
   openLoadedOrderModal();
-  showToast(`Loaded ${orderTitle(order)}`);
+  renderStoreOrderUi();
 }
 
 export function startStoreOrdersRuntime() {
   ensureDom();
+  window.__venusGetSwitchableStoreOrders = () =>
+    getStackedStoreOrders().filter((o) => o.status !== 'cancelled');
+  window.__venusLoadStoreOrderIntoCart = (id) => loadStoreOrderIntoCart(id);
+  window.__venusRenderStoreOrderUi = renderStoreOrderUi;
+  window.__venusLoadedStoreOrderCount = loadedStoreOrderCount;
+  window.__venusReleaseStoreOrderFromCart = (id) => releaseStoreOrderFromCart(id);
+
   renderStoreOrderUi();
   void refreshStoreOrders({ silent: true }).then(() => {
     void startStoreOrdersRealtime();
@@ -714,16 +883,12 @@ export function startStoreOrdersRuntime() {
     if (document.visibilityState === 'visible') void refreshStoreOrders({ silent: true });
   });
 
-  if (location.hash === '#store-orders') {
-    panelOpen = true;
-    renderStoreOrderUi();
-  }
+  // Older builds wrote `#store-orders` while the panel was open; strip it on boot
+  // so refresh never leaves the stack stuck open. In-app deep links still open via hashchange.
+  clearStoreOrdersHash();
 
   window.addEventListener('hashchange', () => {
-    if (location.hash === '#store-orders') {
-      panelOpen = true;
-      renderStoreOrderUi();
-    }
+    if (storeOrdersHashActive()) consumeStoreOrdersHash();
   });
 }
 

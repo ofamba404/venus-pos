@@ -8,7 +8,7 @@ function json(data, status = 200) {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Venus-Push-Secret',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
     },
   });
@@ -33,6 +33,7 @@ export default async (req) => {
   }
 
   const schedulesEnabled = body.schedulesEnabled !== false;
+  const ordersEnabled = body.ordersEnabled !== false;
   const store = getStore({ name: 'venus-push', consistency: 'strong' });
   const key = subscriptionKey(endpoint);
 
@@ -40,6 +41,7 @@ export default async (req) => {
     endpoint,
     keys: { p256dh: keys.p256dh, auth: keys.auth },
     schedulesEnabled,
+    ordersEnabled,
     userAgent: req.headers.get('user-agent') || '',
     updatedAt: new Date().toISOString(),
   });

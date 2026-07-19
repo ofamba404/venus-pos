@@ -8,7 +8,7 @@ function json(data, status = 200) {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Venus-Push-Secret',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
     },
   });
@@ -33,13 +33,19 @@ export default async (req) => {
   const existing = await store.get(key, { type: 'json' });
   if (!existing) return json({ ok: true, missing: true });
 
-  if (typeof body.schedulesEnabled === 'boolean') {
-    await store.setJSON(key, {
+  if (typeof body.schedulesEnabled === 'boolean' || typeof body.ordersEnabled === 'boolean') {
+    const next = {
       ...existing,
-      schedulesEnabled: body.schedulesEnabled,
       updatedAt: new Date().toISOString(),
+    };
+    if (typeof body.schedulesEnabled === 'boolean') next.schedulesEnabled = body.schedulesEnabled;
+    if (typeof body.ordersEnabled === 'boolean') next.ordersEnabled = body.ordersEnabled;
+    await store.setJSON(key, next);
+    return json({
+      ok: true,
+      schedulesEnabled: next.schedulesEnabled,
+      ordersEnabled: next.ordersEnabled,
     });
-    return json({ ok: true, schedulesEnabled: body.schedulesEnabled });
   }
 
   await store.delete(key);

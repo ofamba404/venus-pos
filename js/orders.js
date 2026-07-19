@@ -1,6 +1,7 @@
 import { dataStore } from './store/index.js';
 import { sbFetch } from './api.js';
 import {
+  CAT_MAP,
   PRODUCTS,
 } from './config.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
@@ -21,6 +22,7 @@ import {
   wireDeliveryPlacesInputs,
 } from './places-autocomplete.js';
 import { adjustStock, renderStockGlance } from './inventory.js';
+import { notifyCreditSale, notifyStockCrossing } from './notifications.js';
 import {
   buildLineFromConfig,
   clearManualQtyEdit,
@@ -87,6 +89,13 @@ let lastCheckoutProcessing = null;
 let lastOrderModalMode = null;
 let checkoutInFlight = false;
 
+/**
+ * In-memory carts for storefront orders staff have opened.
+ * Lets the cart switcher flip between multiple loaded orders without losing credit toggles.
+ * @type {Map<string, { cart: object[], meta: object, checkout: object }>}
+ */
+const storeOrderSessions = new Map();
+
 function clientOpenCreditSummary(clientId) {
   const open = getClientOutstandingCredit(salesCache, clientId);
   if (!open.length) return null;
@@ -127,6 +136,14 @@ function getOrderDeliveryTimeLabel() {
   return getOrderMeta().deliveryTimeLabel || '';
 }
 
+function getOrderDeliveryLocationLabel() {
+  return String(getOrderMeta().deliveryLocationLabel || checkoutDestText || '').trim();
+}
+
+function getOrderDeliveryEnabled() {
+  return getOrderMeta().deliveryEnabled !== false;
+}
+
 export function getActiveStoreOrderId() {
   return getOrderMeta().storeOrderId || '';
 }
@@ -137,12 +154,376 @@ function emptyOrderMeta(extra = {}) {
     clientId: '',
     isCredit: false,
     clientPhone: '',
+    deliveryEnabled: true,
     deliveryTimeLabel: '',
+    deliveryLocationLabel: '',
     deliveryTimeMode: '',
     deliveryDeliverAt: '',
     storeOrderId: '',
     ...extra,
   };
+}
+
+function snapshotCheckoutDelivery() {
+  return {
+    origin: checkoutOrigin ? { ...checkoutOrigin } : null,
+    pickupText: checkoutPickupText,
+    dest: checkoutDest ? { ...checkoutDest } : null,
+    destText: checkoutDestText,
+    distanceKm: checkoutDistanceKm,
+    durationMin: checkoutDurationMin,
+    feeValue: checkoutFeeValue,
+    feeManuallyEdited: checkoutFeeManuallyEdited,
+    predictedFee: checkoutPredictedFee,
+  };
+}
+
+function applyCheckoutDeliverySnapshot(snap) {
+  if (!snap) {
+    resetCheckoutDelivery();
+    return;
+  }
+  checkoutOrigin = snap.origin ? { ...snap.origin } : null;
+  checkoutPickupText = snap.pickupText || '';
+  checkoutDest = snap.dest ? { ...snap.dest } : null;
+  checkoutDestText = snap.destText || '';
+  checkoutDistanceKm = snap.distanceKm ?? null;
+  checkoutDurationMin = snap.durationMin ?? null;
+  checkoutFeeValue = snap.feeValue || '';
+  checkoutFeeManuallyEdited = Boolean(snap.feeManuallyEdited);
+  checkoutPredictedFee = snap.predictedFee ?? null;
+}
+
+function cloneCartLines(lines) {
+  return (Array.isArray(lines) ? lines : []).map((line) => ({
+    ...line,
+    breakdown: line.breakdown && typeof line.breakdown === 'object' ? { ...line.breakdown } : {},
+  }));
+}
+
+/** Persist the active storefront order so staff can switch back to it. */
+export function captureStoreOrderSession() {
+  const id = String(getActiveStoreOrderId() || '');
+  if (!id) return;
+  storeOrderSessions.set(id, {
+    cart: cloneCartLines(getCart()),
+    meta: { ...getOrderMeta() },
+    checkout: snapshotCheckoutDelivery(),
+  });
+}
+
+export function hasStoreOrderSession(orderId) {
+  const id = String(orderId || '');
+  return Boolean(id) && storeOrderSessions.has(id);
+}
+
+/** Restore a previously loaded storefront order into the active cart. */
+export function restoreStoreOrderSession(orderId) {
+  const id = String(orderId || '');
+  const session = storeOrderSessions.get(id);
+  if (!session) return false;
+  resetDraftStock();
+  setCart(cloneCartLines(session.cart));
+  setOrderMeta({ ...emptyOrderMeta(), ...session.meta, storeOrderId: id });
+  applyCheckoutDeliverySnapshot(session.checkout);
+  pickupAutoRequested = false;
+  updateFabBadge();
+  return true;
+}
+
+export function dropStoreOrderSession(orderId) {
+  const id = String(orderId || '');
+  if (id) storeOrderSessions.delete(id);
+  updateFabBadge();
+}
+
+export function listStoreOrderSessionIds() {
+  return [...storeOrderSessions.keys()];
+}
+
+export function peekNextStoreOrderSessionId(exceptId = '') {
+  const skip = String(exceptId || '');
+  for (const id of storeOrderSessions.keys()) {
+    if (id && id !== skip) return id;
+  }
+  return '';
+}
+
+function cartStoreOrderSwitcherHtml(activeId) {
+  const orders = window.__venusGetSwitchableStoreOrders?.() || [];
+  if (!Array.isArray(orders) || orders.length < 2) return '';
+
+  const tabs = orders
+    .map((order) => {
+      const id = String(order?.id || '');
+      if (!id) return '';
+      const name = String(order.customer_name || '').trim() || 'Storefront order';
+      const active = id === activeId;
+      const loaded = hasStoreOrderSession(id);
+      const short = name.length > 16 ? `${name.slice(0, 15)}…` : name;
+      return `<button type="button" class="cart-order-switcher__tab${active ? ' is-active' : ''}${loaded && !active ? ' is-loaded' : ''}" role="tab" aria-selected="${active ? 'true' : 'false'}" data-switch-store-order="${escapeHtml(id)}" title="${escapeHtml(name)}">${escapeHtml(short)}</button>`;
+    })
+    .filter(Boolean)
+    .join('');
+
+  if (!tabs) return '';
+  return `<div class="cart-order-switcher" role="tablist" aria-label="Switch storefront order">${tabs}</div>`;
+}
+
+/** Ordered ids for review panels — stacked list first, then any leftover sessions. */
+function orderedReviewSessionIds(activeId = getActiveStoreOrderId()) {
+  const ids = [];
+  const seen = new Set();
+  const push = (raw) => {
+    const id = String(raw || '');
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    ids.push(id);
+  };
+
+  const orders = window.__venusGetSwitchableStoreOrders?.() || [];
+  if (Array.isArray(orders)) {
+    for (const order of orders) {
+      const id = String(order?.id || '');
+      if (hasStoreOrderSession(id) || id === activeId) push(id);
+    }
+  }
+  for (const id of storeOrderSessions.keys()) push(id);
+  push(activeId);
+  return ids;
+}
+
+function getActiveReviewPanel(root = document.getElementById('orderModalBody')) {
+  const id = getActiveStoreOrderId();
+  if (!root || !id) return null;
+  return root.querySelector(`[data-store-order-panel="${CSS.escape(id)}"]`);
+}
+
+function getActiveCartChromeRoot(root = document.getElementById('orderModalBody')) {
+  return getActiveReviewPanel(root) || root;
+}
+
+function setReviewDeckIndex(track, orderId, { instant = false } = {}) {
+  if (!track) return;
+  const panels = [...track.querySelectorAll('[data-store-order-panel]')];
+  const index = Math.max(
+    0,
+    panels.findIndex((el) => el.getAttribute('data-store-order-panel') === orderId),
+  );
+  if (instant) track.classList.add('is-instant');
+  track.style.setProperty('--deck-index', String(index));
+  panels.forEach((el, i) => {
+    const active = i === index;
+    el.classList.toggle('is-active', active);
+    el.setAttribute('aria-hidden', active ? 'false' : 'true');
+  });
+  if (instant) {
+    // Force layout so the next slide still animates.
+    void track.offsetWidth;
+    track.classList.remove('is-instant');
+  }
+}
+
+function reviewPropsFromSession(orderId, session) {
+  const meta = { ...emptyOrderMeta(), ...(session?.meta || {}) };
+  const checkout = session?.checkout || {};
+  return {
+    storeOrderId: orderId,
+    cart: Array.isArray(session?.cart) ? session.cart : [],
+    orderClientName: meta.clientName || '',
+    orderClientId: meta.clientId || '',
+    orderIsCredit: !!meta.isCredit,
+    orderClientPhone: meta.clientPhone || '',
+    orderDeliveryTime: meta.deliveryTimeLabel || '',
+    orderDeliveryLocation:
+      String(meta.deliveryLocationLabel || checkout.destText || '').trim(),
+    orderDeliveryEnabled: meta.deliveryEnabled !== false,
+  };
+}
+
+function reviewPropsFromLiveState(orderId = getActiveStoreOrderId()) {
+  return {
+    storeOrderId: orderId,
+    cart: getCart(),
+    orderClientName: getOrderClientName(),
+    orderClientId: getOrderClientId(),
+    orderIsCredit: getOrderIsCredit(),
+    orderClientPhone: getOrderClientPhone(),
+    orderDeliveryTime: getOrderDeliveryTimeLabel(),
+    orderDeliveryLocation: getOrderDeliveryLocationLabel(),
+    orderDeliveryEnabled: getOrderDeliveryEnabled(),
+  };
+}
+
+function renderReviewDeckHtml(activeId) {
+  captureStoreOrderSession();
+  const ids = orderedReviewSessionIds(activeId);
+  const index = Math.max(0, ids.indexOf(activeId));
+  const panels = ids
+    .map((id) => {
+      const props =
+        id === activeId
+          ? reviewPropsFromLiveState(id)
+          : reviewPropsFromSession(id, storeOrderSessions.get(id));
+      const sheet = renderReviewCartHtml(props);
+      return sheet.replace(
+        'class="cart-sheet cart-sheet--review"',
+        `class="cart-sheet cart-sheet--review${id === activeId ? ' is-active' : ''}"`,
+      );
+    })
+    .join('');
+
+  return `
+    <div class="cart-review-deck" data-cart-review-deck>
+      <div class="cart-review-deck__track" data-cart-review-track style="--deck-index: ${index}">
+        ${panels}
+      </div>
+    </div>`;
+}
+
+function syncReviewCartChrome(orderModalBody = document.getElementById('orderModalBody')) {
+  if (!orderModalBody) return;
+  const activeId = getActiveStoreOrderId();
+  const title = orderModalBody.querySelector('#orderModalTitle');
+  if (title) title.textContent = activeId ? 'Storefront order' : 'Current order';
+
+  let storeOrderCancelled = false;
+  if (activeId) {
+    try {
+      storeOrderCancelled = window.__venusStoreOrderCacheGet?.(activeId)?.status === 'cancelled';
+    } catch {
+      storeOrderCancelled = false;
+    }
+  }
+  const existingBanner = orderModalBody.querySelector('[data-store-order-cancelled-banner]');
+  if (storeOrderCancelled && !existingBanner) {
+    const banner = document.createElement('div');
+    banner.className = 'store-order-cancelled-banner';
+    banner.dataset.storeOrderCancelledBanner = '1';
+    banner.textContent = 'This order was cancelled';
+    orderModalBody.querySelector('.modal-header')?.insertAdjacentElement('afterend', banner);
+  } else if (!storeOrderCancelled && existingBanner) {
+    existingBanner.remove();
+  }
+
+  const cancelBtn = orderModalBody.querySelector('#cancelOrderBtn');
+  if (cancelBtn) cancelBtn.textContent = activeId ? 'Clear' : 'Cancel';
+
+  refreshStoreOrderCartSwitcher();
+  updateCartCheckoutState();
+  wireReviewCreditToggles(orderModalBody);
+}
+
+function wireReviewCreditToggles(root) {
+  root?.querySelectorAll('[data-credit-toggle]').forEach((btn) => {
+    if (btn.dataset.wired === '1') return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', () => {
+      const panel = btn.closest('[data-store-order-panel]');
+      const panelId = panel?.getAttribute('data-store-order-panel') || '';
+      if (panelId && panelId !== getActiveStoreOrderId()) return;
+      setOrderIsCredit(!getOrderIsCredit());
+      if (getActiveStoreOrderId()) captureStoreOrderSession();
+      updateCartCheckoutState();
+    });
+  });
+}
+
+/**
+ * Slide to an already-loaded storefront order without rebuilding the review cart.
+ * @returns {boolean} true when the deck handled the switch
+ */
+function slideStoreOrderInOpenCart(orderId) {
+  const orderModal = document.getElementById('orderModal');
+  const body = document.getElementById('orderModalBody');
+  const track = body?.querySelector('[data-cart-review-track]');
+  if (!orderModal || !body || !track || !isModalOpen(orderModal) || modalMode !== 'cart') {
+    return false;
+  }
+
+  const id = String(orderId || '');
+  if (!id || id === getActiveStoreOrderId()) return true;
+
+  const panel = track.querySelector(`[data-store-order-panel="${CSS.escape(id)}"]`);
+  if (!panel || !hasStoreOrderSession(id)) return false;
+
+  captureStoreOrderSession();
+  if (!restoreStoreOrderSession(id)) return false;
+
+  setReviewDeckIndex(track, id);
+  syncReviewCartChrome(body);
+  return true;
+}
+
+/**
+ * Soft-update an open review deck: slide to an existing panel or append a new one.
+ * @returns {boolean} true when the open deck handled the update
+ */
+function softUpdateOpenReviewDeck() {
+  const orderModal = document.getElementById('orderModal');
+  const body = document.getElementById('orderModalBody');
+  const track = body?.querySelector('[data-cart-review-track]');
+  const activeId = getActiveStoreOrderId();
+  if (
+    !orderModal ||
+    !body ||
+    !track ||
+    !activeId ||
+    !isModalOpen(orderModal) ||
+    modalMode !== 'cart'
+  ) {
+    return false;
+  }
+
+  captureStoreOrderSession();
+  let panel = track.querySelector(`[data-store-order-panel="${CSS.escape(activeId)}"]`);
+  if (!panel) {
+    track.insertAdjacentHTML('beforeend', renderReviewCartHtml(reviewPropsFromLiveState(activeId)));
+    panel = track.querySelector(`[data-store-order-panel="${CSS.escape(activeId)}"]`);
+    if (panel) {
+      wireCartCopyButtons(panel);
+      wireReviewCreditToggles(panel);
+    }
+  }
+
+  setReviewDeckIndex(track, activeId);
+  syncReviewCartChrome(body);
+  return true;
+}
+
+function wireCartStoreOrderSwitcher(root) {
+  root?.querySelectorAll('[data-switch-store-order]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-switch-store-order');
+      if (!id || id === getActiveStoreOrderId()) return;
+      if (slideStoreOrderInOpenCart(id)) return;
+      void window.__venusLoadStoreOrderIntoCart?.(id);
+    });
+  });
+}
+
+/** Keep the cart tab strip in sync when the storefront stack changes. */
+export function refreshStoreOrderCartSwitcher() {
+  if (modalMode !== 'cart' || !getActiveStoreOrderId()) return;
+  const orderModal = document.getElementById('orderModal');
+  const body = document.getElementById('orderModalBody');
+  if (!orderModal || !body || !isModalOpen(orderModal)) return;
+
+  const html = cartStoreOrderSwitcherHtml(getActiveStoreOrderId());
+  const existing = body.querySelector('.cart-order-switcher');
+  if (!html) {
+    existing?.remove();
+    return;
+  }
+  if (existing) {
+    existing.outerHTML = html;
+  } else {
+    const anchor =
+      body.querySelector('[data-store-order-cancelled-banner]') ||
+      body.querySelector('.modal-header');
+    anchor?.insertAdjacentHTML('afterend', html);
+  }
+  wireCartStoreOrderSwitcher(body);
 }
 
 function setOrderClient(client) {
@@ -213,16 +594,20 @@ function resetCheckoutDelivery() {
 }
 
 export function updateFabBadge() {
-  const cart = getCart();
   const fabBadge = document.getElementById('fabBadge');
   if (!fabBadge) return;
-  if (cart.length > 0) {
+  // DB `accepted` status is the source of truth (survives refresh).
+  const count =
+    typeof window.__venusLoadedStoreOrderCount === 'function'
+      ? window.__venusLoadedStoreOrderCount()
+      : 0;
+  if (count > 0) {
     fabBadge.style.display = 'flex';
-    fabBadge.textContent = cart.length;
+    fabBadge.textContent = String(count);
   } else {
     fabBadge.style.display = 'none';
   }
-  pulseFabBadge(cart.length);
+  pulseFabBadge(count);
 }
 
 function closeOrderModal() {
@@ -354,6 +739,13 @@ function renderSuccessView({ animate = true } = {}) {
   const deliveryPending = Boolean(delivery?.pending);
   const deliverySaved = Boolean(delivery && !delivery.pending);
   const showBadges = Boolean(clientName || isCredit || delivery || deliveryFailed);
+  const nextStoreOrderId = peekNextStoreOrderSessionId();
+  const nextStoreOrder = nextStoreOrderId
+    ? window.__venusStoreOrderCacheGet?.(nextStoreOrderId)
+    : null;
+  const nextStoreLabel = String(nextStoreOrder?.customer_name || '').trim() || 'Next order';
+  const nextStoreShort =
+    nextStoreLabel.length > 18 ? `${nextStoreLabel.slice(0, 17)}…` : nextStoreLabel;
 
   orderModalBody.innerHTML = `
     <div class="modal-header">
@@ -387,7 +779,7 @@ function renderSuccessView({ animate = true } = {}) {
           <div class="cart-item checkout-receipt-item">
             <div class="checkout-receipt-item-main">
               <div class="ci-name">${escapeHtml(item.name)}</div>
-              <div class="ci-detail">${escapeHtml(item.detail)}</div>
+              ${cartDetailHtml(item.detail)}
             </div>
             <div class="ci-price checkout-receipt-item-price">${fmtUGX(item.lineTotal)}</div>
           </div>`,
@@ -409,8 +801,13 @@ function renderSuccessView({ animate = true } = {}) {
     </div>
     <div class="checkout-success-footer">
       <div class="modal-btns">
-        <button class="modal-btn cancel" id="checkoutSuccessNewBtn" type="button">New order</button>
-        <button class="modal-btn confirm" id="checkoutSuccessDoneBtn" type="button">Done</button>
+        ${
+          nextStoreOrderId
+            ? `<button class="modal-btn cancel" id="checkoutSuccessDoneBtn" type="button">Done</button>
+        <button class="modal-btn confirm" id="checkoutSuccessNextStoreBtn" type="button" title="${escapeHtml(nextStoreLabel)}">Next: ${escapeHtml(nextStoreShort)}</button>`
+            : `<button class="modal-btn cancel" id="checkoutSuccessNewBtn" type="button">New order</button>
+        <button class="modal-btn confirm" id="checkoutSuccessDoneBtn" type="button">Done</button>`
+        }
       </div>
     </div>`;
 
@@ -421,6 +818,22 @@ function renderSuccessView({ animate = true } = {}) {
     lastCheckoutProcessing = null;
     modalMode = 'pick';
     renderOrderModal();
+  });
+  document.getElementById('checkoutSuccessNextStoreBtn')?.addEventListener('click', () => {
+    const id = nextStoreOrderId;
+    lastCheckoutReceipt = null;
+    lastCheckoutProcessing = null;
+    if (id && restoreStoreOrderSession(id)) {
+      modalMode = 'cart';
+      renderOrderModal();
+      window.__venusRenderStoreOrderUi?.();
+      return;
+    }
+    if (id) {
+      void window.__venusLoadStoreOrderIntoCart?.(id);
+      return;
+    }
+    dismissSuccessView();
   });
 
   if (animate) animateCheckoutSuccess(orderModalBody);
@@ -646,21 +1059,26 @@ function updateCartCheckoutState() {
   const orderClientId = getOrderClientId();
   const orderIsCredit = getOrderIsCredit();
   const clientMissing = !orderClientName;
+  const chromeRoot = getActiveCartChromeRoot();
   const checkoutBtn = document.getElementById('checkoutBtn');
   if (checkoutBtn) {
     checkoutBtn.disabled = !cart.length || clientMissing;
     checkoutBtn.textContent = orderIsCredit ? 'Record on credit' : 'Checkout';
   }
-  const creditChip = document.getElementById('creditToggle');
+  const creditChip =
+    chromeRoot?.querySelector('[data-credit-toggle], #creditToggle') ||
+    document.getElementById('creditToggle');
   if (creditChip) {
     creditChip.classList.toggle('is-on', orderIsCredit);
     creditChip.setAttribute('aria-checked', orderIsCredit ? 'true' : 'false');
   }
 
-  const totalVal = document.querySelector('#orderModalBody .cart-total-row .ct-val');
+  const totalVal = chromeRoot?.querySelector('.cart-total-row .ct-val');
   if (totalVal) totalVal.textContent = fmtUGX(cartTotal(cart));
 
-  const hintHost = document.getElementById('cartClientCreditHintSlot');
+  const hintHost =
+    chromeRoot?.querySelector('[data-cart-credit-hint]') ||
+    document.getElementById('cartClientCreditHintSlot');
   if (hintHost) {
     hintHost.innerHTML = clientCreditHintHtml(orderClientId, { creditOn: orderIsCredit });
   }
@@ -679,14 +1097,112 @@ function phoneNineDigits(phone) {
   return digits.slice(-9);
 }
 
+function cartFlavorEntries(breakdown) {
+  return Object.entries(breakdown || {})
+    .filter(([, qty]) => Number(qty) > 0)
+    .map(([id, qty]) => {
+      const cat = CAT_MAP[id];
+      if (!cat) return null;
+      return { id, qty: Number(qty), name: cat.name, color: cat.color };
+    })
+    .filter(Boolean);
+}
+
+/** Max flavor dots shown in a cart row before collapsing into +N. */
+const CART_SWATCH_VISIBLE = 8;
+
+function cartFlavorSwatchesHtml(
+  entries,
+  { maxVisible = CART_SWATCH_VISIBLE, varietyPlainLast = false } = {},
+) {
+  if (!entries.length) return '';
+
+  let flavors = entries;
+  let plain = null;
+  if (varietyPlainLast) {
+    plain = entries.find((e) => e.id === 'classic') || null;
+    flavors = entries.filter((e) => e.id !== 'classic');
+  }
+
+  // Keep Plain pinned at the end; overflow only collapses other flavors.
+  const plainSlots = plain ? 1 : 0;
+  const flavorSlots = Math.max(0, maxVisible - plainSlots);
+  const visibleFlavors = flavors.slice(0, flavorSlots);
+  const overflow = flavors.length - visibleFlavors.length;
+  const orderedForLabel = plain ? [...flavors, plain] : entries;
+  const label = orderedForLabel
+    .map((e) => (e.qty > 1 ? `${e.name} ×${e.qty}` : e.name))
+    .join(', ');
+
+  const swatchHtml = (e) => {
+    const bordered =
+      String(e.color).toLowerCase() === '#ffffff' || String(e.color).toLowerCase() === '#fff'
+        ? ' ci-swatch--bordered'
+        : '';
+    const title = e.qty > 1 ? `${e.name} ×${e.qty}` : e.name;
+    return `
+        <span class="ci-swatch${bordered}" role="listitem" style="--swatch:${e.color}" title="${escapeHtml(title)}">
+          <span class="ci-swatch__dot" aria-hidden="true"></span>
+          ${e.qty > 1 ? `<span class="ci-swatch__qty">×${e.qty}</span>` : ''}
+        </span>`;
+  };
+  const overflowHtml =
+    overflow > 0
+      ? `<span class="ci-swatch-more" role="listitem" title="${escapeHtml(label)}">+${overflow}</span>`
+      : '';
+  const plainHtml =
+    plain && (visibleFlavors.length || overflow > 0)
+      ? `<span class="ci-swatch-sep" aria-hidden="true"></span>${swatchHtml(plain)}`
+      : plain
+        ? swatchHtml(plain)
+        : '';
+
+  return `
+    <div class="ci-swatches" role="list" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">
+      ${visibleFlavors.map(swatchHtml).join('')}
+      ${overflowHtml}
+      ${plainHtml}
+    </div>`;
+}
+
+/** Keep long flavor lists to one line; full string stays in title for hover. */
+function cartDetailHtml(detailText) {
+  const text = String(detailText || '').trim();
+  if (!text) return '';
+  const parts = text.split(/,\s*/).filter(Boolean);
+  const display =
+    parts.length > 2 ? `${parts.slice(0, 2).join(', ')} +${parts.length - 2}` : text;
+  return `<div class="ci-detail" title="${escapeHtml(text)}">${escapeHtml(display)}</div>`;
+}
+
 function cartItemHtml(item, { readonly = false } = {}) {
+  const product = PRODUCTS.find((p) => p.id === item.productId);
+  const flavors = cartFlavorEntries(item.breakdown);
+  const swatchesHtml = cartFlavorSwatchesHtml(flavors, {
+    varietyPlainLast: product?.rule === 'choose_variety',
+  });
+  const detailText = String(item.detail || '').trim();
+  const detailHtml = swatchesHtml ? swatchesHtml : cartDetailHtml(detailText);
   const qty = cartLineQty(item);
-  const qtyHtml = qty
-    ? `<div class="ci-qty" aria-label="Quantity ${qty}">${qty}</div>`
-    : '';
-  const toolsHtml = readonly
-    ? ''
-    : `<div class="cart-item-tools">
+  const priceHtml = `<div class="ci-price">${fmtUGX(item.lineTotal)}</div>`;
+
+  if (readonly) {
+    // Name + price on one row; swatches get the full width below so they never collide.
+    return `
+    <div class="cart-item cart-item--readonly">
+      <div class="ci-main">
+        <div class="ci-head">
+          <div class="ci-name">${escapeHtml(item.name)}</div>
+          ${priceHtml}
+        </div>
+        ${detailHtml}
+      </div>
+    </div>`;
+  }
+
+  const qtyHtml =
+    qty > 0 ? `<div class="ci-qty" aria-label="Quantity ${qty}">${qty}</div>` : '';
+  const toolsHtml = `<div class="cart-item-tools">
           <button class="cart-tool cart-edit" data-edit="${item.key}" type="button" title="Edit item" aria-label="Edit ${escapeHtml(item.name)}">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
@@ -700,40 +1216,51 @@ function cartItemHtml(item, { readonly = false } = {}) {
         </div>`;
 
   return `
-    <div class="cart-item${readonly ? ' cart-item--readonly' : ''}">
+    <div class="cart-item">
       ${qtyHtml}
       <div class="ci-main">
         <div class="ci-name">${escapeHtml(item.name)}</div>
-        <div class="ci-detail">${escapeHtml(item.detail)}</div>
+        ${detailHtml}
       </div>
       <div class="cart-item-actions">
-        <div class="ci-price">${fmtUGX(item.lineTotal)}</div>
+        ${priceHtml}
         ${toolsHtml}
       </div>
     </div>`;
 }
 
-function cartFactRowHtml({ label, value, copyValue = '', copyLabel = '' }) {
-  const display = String(value || '').trim();
-  const copy = String(copyValue || display).trim();
+function cartFactRowHtml({
+  label,
+  value,
+  copyValue = '',
+  copyLabel = '',
+  truncate = false,
+} = {}) {
+  const full = String(value || '').trim();
+  if (!full) return '';
+  // Only show a copy control when callers opt in via copyValue (e.g. location/phone — not time).
+  const copy = String(copyValue || '').trim();
   const copyBtn = copy
     ? `<button type="button" class="cart-copy-btn" data-copy="${escapeHtml(copy)}" aria-label="${escapeHtml(copyLabel || `Copy ${label}`)}" title="Copy">${ICON_COPY}</button>`
     : '';
+  const valueClass = truncate ? 'cart-fact__value cart-fact__value--truncate' : 'cart-fact__value';
+  const titleAttr = truncate ? ` title="${escapeHtml(full)}"` : '';
   return `
     <div class="cart-fact">
       <div class="cart-fact__label">${escapeHtml(label)}</div>
       <div class="cart-fact__row">
-        <div class="cart-fact__value${display ? '' : ' is-empty'}">${display ? escapeHtml(display) : '—'}</div>
+        <div class="${valueClass}"${titleAttr}>${escapeHtml(full)}</div>
         ${copyBtn}
       </div>
     </div>`;
 }
 
-function creditToggleHtml(orderIsCredit) {
+function creditToggleHtml(orderIsCredit, { withId = true } = {}) {
+  const idAttr = withId ? 'id="creditToggle"' : 'data-credit-toggle';
   return `
     <button
       type="button"
-      id="creditToggle"
+      ${idAttr}
       class="credit-chip${orderIsCredit ? ' is-on' : ''}"
       role="switch"
       aria-checked="${orderIsCredit ? 'true' : 'false'}"
@@ -754,7 +1281,11 @@ function wireCartCopyButtons(root) {
 
 /** Keep focused fields / open dropdowns above the soft keyboard on mobile. */
 function wireCartKeyboardAware(orderModalBody) {
-  const sheet = orderModalBody?.querySelector('.cart-sheet');
+  const sheet =
+    orderModalBody?.querySelector('.cart-sheet--compose') ||
+    orderModalBody?.querySelector('.cart-sheet.is-active') ||
+    orderModalBody?.querySelector('.cart-review-deck') ||
+    orderModalBody?.querySelector('.cart-sheet');
   const modal = orderModalBody?.closest('.modal') || document.getElementById('orderModal');
   if (!sheet || !modal) return;
 
@@ -973,55 +1504,67 @@ function renderComposeCartHtml({
 function renderReviewCartHtml({
   cart,
   orderClientName,
+  orderClientId = '',
   orderIsCredit,
   orderClientPhone,
   orderDeliveryTime,
+  orderDeliveryLocation = '',
+  orderDeliveryEnabled = true,
+  storeOrderId = '',
 }) {
+  // Delivery orders always carry time + location + phone; pickup is name + items only.
   const phoneDisplay = phoneNineDigits(orderClientPhone);
-  const locationDisplay = checkoutDestText || '';
+  const factsHtml = orderDeliveryEnabled
+    ? [
+        cartFactRowHtml({
+          label: 'Time',
+          value: orderDeliveryTime,
+        }),
+        cartFactRowHtml({
+          label: 'Location',
+          value: orderDeliveryLocation,
+          copyValue: orderDeliveryLocation,
+          copyLabel: 'Copy delivery location',
+          truncate: true,
+        }),
+        cartFactRowHtml({
+          label: 'Phone',
+          value: phoneDisplay,
+          copyValue: phoneDisplay,
+          copyLabel: 'Copy phone number',
+        }),
+      ]
+        .filter(Boolean)
+        .join('')
+    : '';
+  const clientName = String(orderClientName || '').trim();
+  const clientTextHtml = clientName
+    ? `<div class="cart-review-client__text">
+            <div class="cart-review-client__name">${escapeHtml(clientName)}</div>
+          </div>`
+    : '';
+  const panelAttr = storeOrderId
+    ? ` data-store-order-panel="${escapeHtml(storeOrderId)}"`
+    : '';
 
   return `
-    <div class="cart-sheet cart-sheet--review" data-cart-mode="review">
+    <div class="cart-sheet cart-sheet--review" data-cart-mode="review"${panelAttr}>
       <section class="cart-section cart-section--items cart-section--review">
-        <div class="cart-section__head">
-          <div class="cart-section__label">Order</div>
-          <div class="cart-section__count">${cart.length ? cart.length : ''}</div>
-        </div>
-        <div id="cartItemsList" class="cart-items cart-items--review${cart.length ? '' : ' is-empty'}">${
+        <div class="cart-items cart-items--review${cart.length ? '' : ' is-empty'}" data-cart-items>${
           cart.length
             ? cart.map((item) => cartItemHtml(item, { readonly: true })).join('')
             : cartEmptyHtml()
         }</div>
-        <div id="cartTotalSlot">${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}</div>
+        <div data-cart-total>${cart.length ? `<div class="cart-total-row cart-total-row--review"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}</div>
       </section>
 
       <section class="cart-section cart-section--review-meta">
-        <div class="cart-review-client">
-          <div class="cart-review-client__text">
-            <div class="cart-review-client__label">Client</div>
-            <div class="cart-review-client__name">${escapeHtml(orderClientName || '—')}</div>
-          </div>
-          ${creditToggleHtml(orderIsCredit)}
+        <div class="cart-review-client${clientName ? '' : ' cart-review-client--chip-only'}">
+          ${clientTextHtml}
+          ${creditToggleHtml(orderIsCredit, { withId: false })}
         </div>
-        <div id="cartClientCreditHintSlot">${clientCreditHintHtml(getOrderClientId(), { creditOn: orderIsCredit })}</div>
-        <div class="cart-facts">
-          ${cartFactRowHtml({
-            label: 'Delivery time',
-            value: orderDeliveryTime || '—',
-          })}
-          ${cartFactRowHtml({
-            label: 'Delivery location',
-            value: locationDisplay || '—',
-            copyValue: locationDisplay,
-            copyLabel: 'Copy delivery location',
-          })}
-          ${cartFactRowHtml({
-            label: 'Phone',
-            value: phoneDisplay || '—',
-            copyValue: phoneDisplay,
-            copyLabel: 'Copy phone number',
-          })}
-        </div>
+        <div data-cart-credit-hint>${clientCreditHintHtml(orderClientId, { creditOn: orderIsCredit })}</div>
+        ${factsHtml ? `<div class="cart-facts">${factsHtml}</div>` : ''}
       </section>
     </div>`;
 }
@@ -1036,6 +1579,8 @@ function renderCartView() {
   const orderClientName = getOrderClientName();
   const orderClientPhone = getOrderClientPhone();
   const orderDeliveryTime = getOrderDeliveryTimeLabel();
+  const orderDeliveryLocation = getOrderDeliveryLocationLabel();
+  const orderDeliveryEnabled = getOrderDeliveryEnabled();
   const orderIsCredit = getOrderIsCredit();
   const storeOrderId = getActiveStoreOrderId();
   const isReview = Boolean(storeOrderId);
@@ -1053,13 +1598,7 @@ function renderCartView() {
   }
 
   const sheetHtml = isReview
-    ? renderReviewCartHtml({
-        cart,
-        orderClientName,
-        orderIsCredit,
-        orderClientPhone,
-        orderDeliveryTime,
-      })
+    ? renderReviewDeckHtml(storeOrderId)
     : renderComposeCartHtml({
         cart,
         orderClientName,
@@ -1073,6 +1612,7 @@ function renderCartView() {
       <button class="modal-close" id="orderClose" type="button" aria-label="Close order">✕</button>
     </div>
     ${storeOrderCancelled ? '<div class="store-order-cancelled-banner" data-store-order-cancelled-banner>This order was cancelled</div>' : ''}
+    ${isReview ? cartStoreOrderSwitcherHtml(storeOrderId) : ''}
     ${sheetHtml}
     <div class="modal-btns cart-footer">
       <button class="modal-btn cancel" id="cancelOrderBtn" type="button">${isReview ? 'Clear' : 'Cancel'}</button>
@@ -1081,10 +1621,16 @@ function renderCartView() {
 
   orderModalBody.dataset.cartMode = isReview ? 'review' : 'compose';
 
+  if (isReview) {
+    const track = orderModalBody.querySelector('[data-cart-review-track]');
+    setReviewDeckIndex(track, storeOrderId, { instant: true });
+  }
+
   if (!isReview) {
     wireGsapAccordions(orderModalBody);
   }
   document.getElementById('orderClose')?.addEventListener('click', closeOrderModal);
+  wireCartStoreOrderSwitcher(orderModalBody);
 
   if (!isReview) {
     wireClientAutocomplete({
@@ -1111,8 +1657,12 @@ function renderCartView() {
 
   document.getElementById('creditToggle')?.addEventListener('click', () => {
     setOrderIsCredit(!getOrderIsCredit());
+    if (getActiveStoreOrderId()) captureStoreOrderSession();
     updateCartCheckoutState();
   });
+  if (isReview) {
+    wireReviewCreditToggles(orderModalBody);
+  }
 
   if (!isReview) {
     document.getElementById('addItemBtn')?.addEventListener('click', () => {
@@ -1135,11 +1685,37 @@ function renderCartView() {
   }
 
   document.getElementById('cancelOrderBtn')?.addEventListener('click', () => {
+    const activeId = getActiveStoreOrderId();
+    const body = document.getElementById('orderModalBody');
+    const track = body?.querySelector('[data-cart-review-track]');
+    if (activeId) {
+      void window.__venusReleaseStoreOrderFromCart?.(activeId);
+      const clearedPanel = track?.querySelector(
+        `[data-store-order-panel="${CSS.escape(activeId)}"]`,
+      );
+      clearedPanel?.remove();
+      const nextId = peekNextStoreOrderSessionId(activeId);
+      if (nextId && restoreStoreOrderSession(nextId)) {
+        window.__venusRenderStoreOrderUi?.();
+        if (track?.querySelector(`[data-store-order-panel="${CSS.escape(nextId)}"]`)) {
+          // Panel removed mid-deck — jump index instantly so layout stays put.
+          setReviewDeckIndex(track, nextId, { instant: true });
+          syncReviewCartChrome(body);
+        } else {
+          renderOrderModal();
+        }
+        const nextName =
+          window.__venusStoreOrderCacheGet?.(nextId)?.customer_name || 'next order';
+        showToast(`Cleared — now viewing ${nextName}`);
+        return;
+      }
+    }
     setCart([]);
     setOrderMeta(emptyOrderMeta());
     resetDraftStock();
     resetCheckoutDelivery();
     updateFabBadge();
+    window.__venusRenderStoreOrderUi?.();
     closeOrderModal();
   });
   document.getElementById('checkoutBtn')?.addEventListener('click', checkout);
@@ -1466,9 +2042,11 @@ async function checkout() {
 
   try {
     for (const [id, qty] of Object.entries(mergedBreakdown)) {
+      const previous = inventory[id];
       inventory[id] = Math.max(0, inventory[id] - qty);
       const el = document.getElementById(`inv-count-${id}`);
       if (el) el.textContent = inventory[id];
+      void notifyStockCrossing(id, previous, inventory[id]);
     }
     resetDraftStock();
     renderStockGlance();
@@ -1501,7 +2079,15 @@ async function checkout() {
     const saleRows = await res.json();
     if (saleRows?.[0]) void dataStore.appendSale(saleRows[0]);
 
+    if (orderIsCredit) {
+      void notifyCreditSale({
+        clientName: orderClientName,
+        totalLabel: fmtUGX(total),
+      });
+    }
+
     if (storeOrderId) {
+      dropStoreOrderSession(storeOrderId);
       try {
         const { markStoreOrderCheckedOut } = await import('./store-orders.js');
         await markStoreOrderCheckedOut(storeOrderId, saleRows?.[0]?.id || null);
@@ -1571,6 +2157,7 @@ async function checkout() {
 
 export function wireOrders() {
   const orderModal = document.getElementById('orderModal');
+  window.__venusRefreshStoreOrderCartSwitcher = refreshStoreOrderCartSwitcher;
 
   orderModal?.addEventListener('click', (e) => {
     if (e.target === orderModal) closeOrderModal();
@@ -1632,13 +2219,16 @@ export function applyStorefrontOrderToCart({
 
   const wantsDelivery = deliveryEnabled !== false;
   const deliveryLabel = wantsDelivery ? String(delivery.label || '').trim() : '';
+  const locationText = wantsDelivery ? String(locationLabel || '').trim() : '';
   setOrderMeta(
     emptyOrderMeta({
       clientName: String(customerName || '').trim(),
       clientId: '',
       isCredit: false,
       clientPhone: String(phoneE164 || '').trim(),
+      deliveryEnabled: wantsDelivery,
       deliveryTimeLabel: deliveryLabel,
+      deliveryLocationLabel: locationText,
       deliveryTimeMode: wantsDelivery ? String(delivery.mode || '') : '',
       deliveryDeliverAt: wantsDelivery ? String(delivery.deliverAt || '') : '',
       storeOrderId: String(storeOrderId || ''),
@@ -1648,7 +2238,7 @@ export function applyStorefrontOrderToCart({
   resetCheckoutDelivery();
 
   if (wantsDelivery) {
-    checkoutDestText = String(locationLabel || '').trim();
+    checkoutDestText = locationText;
     if (
       locationLat != null &&
       locationLng != null &&
@@ -1678,6 +2268,9 @@ export function applyStorefrontOrderToCart({
 
   pickupAutoRequested = false;
   updateFabBadge();
+  if (storeOrderId) {
+    captureStoreOrderSession();
+  }
 }
 
 export function openLoadedOrderModal() {
@@ -1685,6 +2278,13 @@ export function openLoadedOrderModal() {
   lastCheckoutProcessing = null;
   modalMode = getCart().length ? 'cart' : 'pick';
   const orderModal = document.getElementById('orderModal');
+
+  // Keep the review shell mounted: slide or append instead of replacing the cart.
+  if (getActiveStoreOrderId() && softUpdateOpenReviewDeck()) {
+    if (orderModal) openModal(orderModal);
+    return;
+  }
+
   renderOrderModal();
   if (orderModal) openModal(orderModal);
   // Ensure drop-off field shows after render, then compute route if coords exist.

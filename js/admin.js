@@ -7,6 +7,12 @@ import { closeModal, openModal } from './animations.js';
 import { SUPABASE_ANON_JWT, SUPABASE_URL, getPageHref } from './config.js';
 import { sbFetch } from './api.js';
 import {
+  getNotificationPrefs,
+  notificationPermission,
+  subscribeWebPush,
+} from './notifications.js';
+import { promptPwaInstall, updateInstallUi } from './pwa.js';
+import {
   getCart,
   clients,
   resetDraftStock,
@@ -15,6 +21,7 @@ import {
 } from './state.js';
 import { escapeHtml, showConfirm, showToast } from './utils.js';
 import { dataStore } from './store/index.js';
+import { openStoreOrdersPanel } from './store-orders.js';
 
 const STORE_AUTH_URL = `${SUPABASE_URL}/functions/v1/store-auth`;
 
@@ -161,8 +168,6 @@ function usersListHtml() {
       ${storeUsers
         .map((user, index) => {
           const name = String(user.snapchat_name || 'User').trim() || 'User';
-          const phone = formatPhone(user);
-          const location = String(user.location_label || '').trim();
           const created = formatDate(user.created_at);
           const referral = String(user.referral_code || '').trim();
           const referredByName = String(user.referred_by_name || '').trim();
@@ -178,11 +183,9 @@ function usersListHtml() {
               <div class="admin-user-row__main">
                 <div class="admin-user-row__name">${escapeHtml(name)}</div>
                 <div class="admin-user-row__meta">
-                  ${phone ? `<span>${escapeHtml(phone)}</span>` : ''}
-                  ${location ? `<span>${escapeHtml(location)}</span>` : ''}
                   ${created ? `<span>${escapeHtml(created)}</span>` : ''}
                   ${referral ? `<span>${escapeHtml(referral)}</span>` : ''}
-                  ${referredBy ? `<span>${escapeHtml(referredBy)}</span>` : ''}
+                  ${referredBy ? `<span class="admin-user-row__referred">${escapeHtml(referredBy)}</span>` : ''}
                 </div>
               </div>
               <button type="button" class="admin-user-row__delete" data-delete-store-user="${escapeHtml(String(user.id || ''))}" title="Delete account">Delete</button>
@@ -219,6 +222,14 @@ function clientsListHtml() {
 
 function toolsHtml() {
   const cartCount = getCart().length;
+  const perm = notificationPermission();
+  const prefs = getNotificationPrefs();
+  const pushOn = prefs.pushSubscribed && perm === 'granted';
+  const pushLabel = pushOn
+    ? 'Push alerts on'
+    : perm === 'denied'
+      ? 'Notifications blocked'
+      : 'Enable push alerts';
   return `
     <div class="admin-tools">
       <div class="admin-stat-row">
@@ -226,6 +237,8 @@ function toolsHtml() {
         <div class="admin-stat"><span class="admin-stat__n">${clients.length}</span><span class="admin-stat__l">Clients</span></div>
         <div class="admin-stat"><span class="admin-stat__n">${cartCount}</span><span class="admin-stat__l">Cart lines</span></div>
       </div>
+      <button type="button" class="admin-tool-btn" data-admin-action="enable-push">${escapeHtml(pushLabel)}</button>
+      <button type="button" class="admin-tool-btn" data-admin-action="install-pwa" data-pwa-install-item data-pwa-install>Install app</button>
       <button type="button" class="admin-tool-btn" data-admin-action="refresh-users">Refresh user list</button>
       <button type="button" class="admin-tool-btn" data-admin-action="copy-users">Copy storefront users</button>
       <button type="button" class="admin-tool-btn" data-admin-action="copy-clients">Copy clients</button>
@@ -331,9 +344,28 @@ async function copyText(text, okMsg) {
 }
 
 function wireToolActions(root) {
+  updateInstallUi();
   root.querySelectorAll('[data-admin-action]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const action = btn.getAttribute('data-admin-action');
+      if (action === 'enable-push') {
+        const result = await subscribeWebPush({ ordersEnabled: true, schedulesEnabled: true });
+        if (result.ok) {
+          showToast('Push on — orders alert even when closed');
+        } else if (result.reason === 'denied') {
+          showToast('Notifications blocked — enable in browser settings', true);
+        } else if (result.reason === 'unsupported') {
+          showToast('This browser has no Web Push', true);
+        } else {
+          showToast('Could not enable push', true);
+        }
+        renderAdminBody();
+        return;
+      }
+      if (action === 'install-pwa') {
+        await promptPwaInstall();
+        return;
+      }
       if (action === 'refresh-users') {
         usersLoaded = false;
         renderAdminBody();
@@ -384,7 +416,7 @@ function wireToolActions(root) {
       }
       if (action === 'open-orders') {
         closeModal(document.getElementById('adminOverlay'));
-        location.hash = '#store-orders';
+        openStoreOrdersPanel();
         return;
       }
       if (action === 'open-clients') {

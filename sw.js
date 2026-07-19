@@ -1,10 +1,11 @@
-const CACHE_VERSION = 'venus-pos-v12';
+const CACHE_VERSION = 'venus-pos-v15';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
 const SHELL_URLS = [
   '/',
   '/index.html',
+  '/manifest.webmanifest',
   '/pages/inventory.html',
   '/pages/clients.html',
   '/pages/delivery.html',
@@ -17,8 +18,12 @@ const SHELL_URLS = [
   '/assets/logo-notif.png',
   '/assets/logo-badge.png',
   '/assets/apple-touch-icon.png',
+  '/assets/icons/icon-192.png',
+  '/assets/icons/icon-512.png',
   '/js/app.js',
   '/js/bootstrap.js',
+  '/js/pwa.js',
+  '/js/notifications.js',
   '/js/store/data-store.js',
   '/js/store/index.js',
   '/js/store/idb.js',
@@ -32,7 +37,8 @@ function isSameOrigin(url) {
 function isStaticAsset(pathname) {
   return (
     pathname === '/' ||
-    /\.(?:html?|js|css|svg|woff2?|ico)$/i.test(pathname) ||
+    pathname === '/manifest.webmanifest' ||
+    /\.(?:html?|js|css|svg|woff2?|ico|webmanifest|png)$/i.test(pathname) ||
     pathname.startsWith('/js/') ||
     pathname.startsWith('/css/') ||
     pathname.startsWith('/assets/') ||
@@ -67,6 +73,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (!isSameOrigin(url)) return;
   if (url.pathname.includes('/rest/v1/')) return;
+  if (url.pathname.startsWith('/api/')) return;
 
   if (!isStaticAsset(url.pathname)) return;
 
@@ -104,8 +111,8 @@ self.addEventListener('push', (event) => {
     data = { body: event.data ? event.data.text() : '' };
   }
 
-  const title = data.title || 'Venus';
-  const targetPath = data.url || '/pages/delivery.html#quote-lab';
+  const title = data.title || 'Venus POS';
+  const targetPath = data.url || '/#store-orders';
   const absoluteUrl = new URL(targetPath, self.registration.scope).href;
 
   event.waitUntil(
@@ -117,12 +124,12 @@ self.addEventListener('push', (event) => {
       }
       await self.registration.showNotification(title, {
         body: data.body || '',
-        icon: '/assets/logo-browser.svg',
+        icon: '/assets/logo-notif.png',
         badge: '/assets/logo-badge.png',
         tag: data.tag || `venus-push-${Date.now()}`,
         renotify: true,
-        requireInteraction: true,
-        data: { type: data.type || 'delivery-test', url: absoluteUrl },
+        requireInteraction: data.requireInteraction !== false,
+        data: { type: data.type || 'storefront-order', url: absoluteUrl },
       });
     })(),
   );
@@ -132,7 +139,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl =
-    event.notification.data?.url || new URL('pages/delivery.html', self.registration.scope).href;
+    event.notification.data?.url || new URL('/#store-orders', self.registration.scope).href;
 
   event.waitUntil(
     (async () => {

@@ -25,7 +25,6 @@ import {
   predictSafeBodaFee,
 } from './delivery-fee-model.js';
 import {
-  clearAppBadge,
   ensureNotificationPermission,
   getNotificationPrefs,
   notificationPermission,
@@ -472,30 +471,12 @@ async function saveTestQuote() {
   }
 }
 
-/** Call once from app boot — schedules SafeBoda lab reminders. */
+/** Call once from Delivery page — quote lab UI only (push runtime boots in app.js). */
 export function initQuoteLabReminders() {
   if (labWired) return;
   labWired = true;
+  // Keep local schedules registered if Delivery is the first page visited.
   startNotificationRuntime(DELIVERY_TEST_REMINDERS);
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data?.type === 'venus-notif-click' && event.data.url) {
-        clearAppBadge();
-        location.href = event.data.url;
-      }
-    });
-  }
-
-  // Re-register Web Push if permission already granted (closed-browser delivery).
-  const prefs = getNotificationPrefs();
-  if (notificationPermission() === 'granted' && prefs.schedulesEnabled) {
-    void subscribeWebPush({ schedulesEnabled: true }).then((r) => {
-      if (r.ok && !prefs.pushSubscribed) {
-        console.info('Venus push subscription ready');
-      }
-    });
-  }
 }
 
 export { isTestQuote };

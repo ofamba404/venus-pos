@@ -1,22 +1,27 @@
 /**
  * Reusable browser + in-app notifications for Venus POS.
  *
- * Local polling covers open tabs. Web Push (Enable) covers closed browser
- * via Netlify scheduled functions + the service worker `push` handler.
+ * Local Realtime covers open tabs. Web Push covers closed browser /
+ * installed PWA via Netlify `/api/push/notify` + the service worker `push` handler.
  */
 
-import { getAssetHref, getPageHref, VAPID_PUBLIC_KEY } from './config.js';
+import { CAT_MAP, getAssetHref, getPageHref, LOW_STOCK_THRESHOLD, VAPID_PUBLIC_KEY } from './config.js';
 import { kampalaHour } from './delivery-fee-model.js';
 
-/** @typedef {'delivery-test' | 'storefront-order' | string} NotifType */
+/** @typedef {'delivery-test' | 'storefront-order' | 'stock-low' | 'stock-out' | 'credit' | string} NotifType */
 
 export const NOTIF_TYPE = {
   DELIVERY_TEST: 'delivery-test',
   STOREFRONT_ORDER: 'storefront-order',
+  ORDER_CANCELLED: 'order-cancelled',
+  STOCK_LOW: 'stock-low',
+  STOCK_OUT: 'stock-out',
+  CREDIT: 'credit',
 };
 
 const PREFS_KEY = 'venus.notif.prefs.v1';
 const FIRED_KEY = 'venus.notif.fired.v1';
+const STOCK_FIRED_KEY = 'venus.notif.stock.v1';
 const POLL_MS = 30_000;
 
 /** @type {ReturnType<typeof setInterval> | null} */
@@ -25,7 +30,7 @@ let pollTimer = null;
 let activeSchedules = [];
 
 function logoIconUrl() {
-  return new URL(getAssetHref('logo-browser.svg'), location.href).href;
+  return new URL(getAssetHref('logo-notif.png'), location.href).href;
 }
 
 function logoBadgeUrl() {
@@ -35,9 +40,9 @@ function logoBadgeUrl() {
 }
 
 /** Home-screen red count on iOS (Add to Home Screen PWA). No-op elsewhere. */
-async function bumpAppBadge() {
+async function bumpAppBadge(count = 1) {
   try {
-    if ('setAppBadge' in navigator) await navigator.setAppBadge(1);
+    if ('setAppBadge' in navigator) await navigator.setAppBadge(count);
   } catch {
     /* unsupported / denied */
   }
@@ -74,7 +79,10 @@ export function getNotificationPrefs() {
   return {
     permissionAsked: !!prefs.permissionAsked,
     schedulesEnabled: prefs.schedulesEnabled !== false,
+    ordersEnabled: prefs.ordersEnabled !== false,
+    stockEnabled: prefs.stockEnabled !== false,
     pushSubscribed: !!prefs.pushSubscribed,
+    installHintDismissed: !!prefs.installHintDismissed,
   };
 }
 
@@ -85,6 +93,14 @@ export function setNotificationPrefs(patch) {
 export function notificationPermission() {
   if (!('Notification' in window)) return 'unsupported';
   return Notification.permission;
+}
+
+export function isStandalonePwa() {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    // @ts-expect-error iOS Safari
+    window.navigator.standalone === true
+  );
 }
 
 /**
@@ -118,9 +134,12 @@ function pushApi(path) {
 
 /**
  * Subscribe this device to Web Push and register the endpoint with Netlify.
- * Required for reminders when the browser is closed.
+ * Required for order alerts when the browser is closed.
  */
-export async function subscribeWebPush({ schedulesEnabled = true } = {}) {
+export async function subscribeWebPush({
+  schedulesEnabled = getNotificationPrefs().schedulesEnabled,
+  ordersEnabled = getNotificationPrefs().ordersEnabled,
+} = {}) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     return { ok: false, reason: 'unsupported' };
   }
@@ -141,7 +160,8 @@ export async function subscribeWebPush({ schedulesEnabled = true } = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       subscription: sub.toJSON(),
-      schedulesEnabled,
+      schedulesEnabled: !!schedulesEnabled,
+      ordersEnabled: !!ordersEnabled,
     }),
   });
   if (!res.ok) {
@@ -150,12 +170,20 @@ export async function subscribeWebPush({ schedulesEnabled = true } = {}) {
     return { ok: false, reason: 'server' };
   }
 
-  setNotificationPrefs({ pushSubscribed: true, schedulesEnabled });
+  setNotificationPrefs({
+    pushSubscribed: true,
+    schedulesEnabled: !!schedulesEnabled,
+    ordersEnabled: !!ordersEnabled,
+  });
   return { ok: true, subscription: sub };
 }
 
-/** Pause/resume server-side schedules, or fully unsubscribe. */
-export async function syncWebPushPrefs({ schedulesEnabled, unsubscribe = false } = {}) {
+/** Pause/resume server-side prefs, or fully unsubscribe. */
+export async function syncWebPushPrefs({
+  schedulesEnabled,
+  ordersEnabled,
+  unsubscribe = false,
+} = {}) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
     return { ok: false, reason: 'unsupported' };
   }
@@ -181,26 +209,30 @@ export async function syncWebPushPrefs({ schedulesEnabled, unsubscribe = false }
     } catch {
       /* ignore */
     }
-    setNotificationPrefs({ pushSubscribed: false, schedulesEnabled: false });
+    setNotificationPrefs({ pushSubscribed: false, schedulesEnabled: false, ordersEnabled: false });
     return { ok: true, unsubscribed: true };
   }
+
+  const body = { endpoint: sub.endpoint };
+  if (typeof schedulesEnabled === 'boolean') body.schedulesEnabled = schedulesEnabled;
+  if (typeof ordersEnabled === 'boolean') body.ordersEnabled = ordersEnabled;
 
   const res = await fetch(pushApi('/api/push/unsubscribe'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      endpoint: sub.endpoint,
-      schedulesEnabled: !!schedulesEnabled,
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) return { ok: false, reason: 'server' };
-  setNotificationPrefs({ schedulesEnabled: !!schedulesEnabled, pushSubscribed: true });
+
+  const patch = { pushSubscribed: true };
+  if (typeof schedulesEnabled === 'boolean') patch.schedulesEnabled = schedulesEnabled;
+  if (typeof ordersEnabled === 'boolean') patch.ordersEnabled = ordersEnabled;
+  setNotificationPrefs(patch);
   return { ok: true };
 }
 
 /**
  * Show a notification (SW when available) + optional in-app banner.
- * Repurpose for storefront orders with type STOREFRONT_ORDER and an orders URL.
  *
  * @param {{
  *   type?: NotifType,
@@ -210,6 +242,7 @@ export async function syncWebPushPrefs({ schedulesEnabled, unsubscribe = false }
  *   tag?: string,
  *   requireInteraction?: boolean,
  *   inApp?: boolean,
+ *   silentOs?: boolean,
  * }} opts
  */
 export async function showAppNotification(opts) {
@@ -217,15 +250,18 @@ export async function showAppNotification(opts) {
     type = NOTIF_TYPE.DELIVERY_TEST,
     title,
     body = '',
-    url = getPageHref('delivery'),
+    url = getPageHref('home'),
     tag = `${type}-${Date.now()}`,
     requireInteraction = false,
     inApp = true,
+    silentOs = false,
   } = opts;
 
   if (inApp) {
     showInAppBanner({ type, title, body, url });
   }
+
+  if (silentOs) return { ok: true, via: 'in-app-only' };
 
   const permission = notificationPermission();
   if (permission !== 'granted') return { ok: false, reason: permission };
@@ -283,7 +319,7 @@ export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body =
   }
 
   const logo = getAssetHref('logo.svg');
-  const primaryUrl = url || getPageHref('delivery');
+  const primaryUrl = url || getPageHref('home');
   const actionHtml =
     actions ||
     `<a class="in-app-banner-cta" href="${primaryUrl}">Open</a>
@@ -389,26 +425,142 @@ export function startNotificationRuntime(schedules = []) {
   void tickSchedules();
   pollTimer = setInterval(() => void tickSchedules(), POLL_MS);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void tickSchedules();
+    if (document.visibilityState === 'visible') {
+      void tickSchedules();
+      void clearAppBadge();
+    }
   });
 }
 
 /**
- * Convenience: storefront can later call the same helper.
- * Groundwork only — no storefront wiring yet.
+ * New storefront order — title: "{name} placed an order!"
+ * When push is subscribed, OS alert is left to Web Push (same tag) to avoid doubles.
  *
- * @param {{ orderId?: string, customerName?: string, totalLabel?: string, url?: string }} order
+ * @param {{ orderId?: string, customerName?: string, totalLabel?: string, itemCount?: number, url?: string }} order
  */
 export async function notifyStorefrontOrder(order = {}) {
-  const name = order.customerName || 'a customer';
-  const total = order.totalLabel ? ` · ${order.totalLabel}` : '';
+  const name = String(order.customerName || '').trim() || 'A customer';
+  const parts = [];
+  if (order.itemCount) parts.push(`${order.itemCount} item${order.itemCount === 1 ? '' : 's'}`);
+  if (order.totalLabel) parts.push(order.totalLabel);
+  const body = parts.join(' · ');
+  const tag = order.orderId ? `storefront-order-${order.orderId}` : `storefront-order-${Date.now()}`;
+  const url = order.url || `${getPageHref('home')}#store-orders`;
+  const pushOn = getNotificationPrefs().pushSubscribed;
+
   return showAppNotification({
     type: NOTIF_TYPE.STOREFRONT_ORDER,
-    title: 'New storefront order',
-    body: `${name}${total}`,
-    url: order.url || getPageHref('home'),
-    tag: order.orderId ? `storefront-order-${order.orderId}` : `storefront-order-${Date.now()}`,
+    title: `${name} placed an order!`,
+    body,
+    url,
+    tag,
     requireInteraction: true,
+    inApp: true,
+    // Prefer server Web Push for the OS alert when subscribed (same tag).
+    silentOs: pushOn,
+  });
+}
+
+/**
+ * Customer cancelled their storefront order.
+ * @param {{ orderId?: string, customerName?: string, url?: string }} order
+ */
+export async function notifyOrderCancelled(order = {}) {
+  const name = String(order.customerName || '').trim() || 'A customer';
+  const pushOn = getNotificationPrefs().pushSubscribed;
+  return showAppNotification({
+    type: NOTIF_TYPE.ORDER_CANCELLED,
+    title: 'Order cancelled',
+    body: `${name} cancelled their order`,
+    url: order.url || `${getPageHref('home')}#store-orders`,
+    tag: order.orderId ? `storefront-order-cancelled-${order.orderId}` : `order-cancelled-${Date.now()}`,
+    requireInteraction: true,
+    inApp: true,
+    silentOs: pushOn,
+  });
+}
+
+function stockLabel(categoryId) {
+  const cat = CAT_MAP[categoryId];
+  if (!cat) return categoryId;
+  return cat.sub ? `${cat.name} ${cat.sub}` : cat.name;
+}
+
+function stockFiredToday(key) {
+  const fired = readJson(STOCK_FIRED_KEY, {});
+  return fired[key] === kampalaDateKey();
+}
+
+function markStockFired(key) {
+  const fired = readJson(STOCK_FIRED_KEY, {});
+  fired[key] = kampalaDateKey();
+  writeJson(STOCK_FIRED_KEY, fired);
+}
+
+/**
+ * Fire when stock crosses into low / out after a checkout or manual adjust.
+ * Deduped once per category per Kampala day.
+ *
+ * @param {string} categoryId
+ * @param {number} previous
+ * @param {number} next
+ */
+export async function notifyStockCrossing(categoryId, previous, next) {
+  if (!getNotificationPrefs().stockEnabled) return { ok: false, reason: 'disabled' };
+  const prev = Number(previous);
+  const cur = Number(next);
+  if (!Number.isFinite(prev) || !Number.isFinite(cur)) return { ok: false, reason: 'bad-stock' };
+  if (cur >= prev) return { ok: false, reason: 'restock' };
+
+  const label = stockLabel(categoryId);
+  const invUrl = getPageHref('inventory');
+
+  if (cur === 0 && prev > 0) {
+    const key = `out:${categoryId}`;
+    if (stockFiredToday(key)) return { ok: false, reason: 'deduped' };
+    markStockFired(key);
+    return showAppNotification({
+      type: NOTIF_TYPE.STOCK_OUT,
+      title: `${label} is out of stock`,
+      body: 'Restock before the next order.',
+      url: invUrl,
+      tag: key,
+      requireInteraction: true,
+      inApp: true,
+    });
+  }
+
+  if (cur > 0 && cur < LOW_STOCK_THRESHOLD && prev >= LOW_STOCK_THRESHOLD) {
+    const key = `low:${categoryId}`;
+    if (stockFiredToday(key)) return { ok: false, reason: 'deduped' };
+    markStockFired(key);
+    return showAppNotification({
+      type: NOTIF_TYPE.STOCK_LOW,
+      title: `${label} is running low`,
+      body: `${cur} left · threshold ${LOW_STOCK_THRESHOLD}`,
+      url: invUrl,
+      tag: key,
+      requireInteraction: false,
+      inApp: true,
+    });
+  }
+
+  return { ok: false, reason: 'no-cross' };
+}
+
+/**
+ * Credit sale recorded — light heads-up on the open register.
+ * @param {{ clientName?: string, totalLabel?: string, url?: string }} sale
+ */
+export async function notifyCreditSale(sale = {}) {
+  const name = String(sale.clientName || '').trim() || 'A client';
+  return showAppNotification({
+    type: NOTIF_TYPE.CREDIT,
+    title: 'Credit sale recorded',
+    body: sale.totalLabel ? `${name} · ${sale.totalLabel}` : name,
+    url: sale.url || getPageHref('analytics'),
+    tag: `credit-${Date.now()}`,
+    requireInteraction: false,
     inApp: true,
   });
 }

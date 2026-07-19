@@ -10,6 +10,7 @@ import {
   getPageHref,
 } from './config.js';
 import { inventory, draftStock } from './state.js';
+import { notifyStockCrossing } from './notifications.js';
 import { showToast } from './utils.js';
 import { showPlaceholder, revealLoaded, stockStatusPlaceholder } from './pending.js';
 
@@ -57,11 +58,13 @@ export function refreshInvCard(id) {
 }
 
 export function adjustStock(id, delta) {
+  const previous = inventory[id];
   inventory[id] = Math.max(0, inventory[id] + delta);
   draftStock[id] = inventory[id];
   refreshInvCard(id);
   persistStock(id);
   renderStockGlance();
+  if (delta < 0) void notifyStockCrossing(id, previous, inventory[id]);
 }
 
 function startEditCount(el) {
@@ -96,11 +99,13 @@ function finishEditCount(id, value, fallback) {
   const el = document.getElementById(`inv-count-${id}`);
   const num = parseInt(value, 10);
   if (!isNaN(num) && num >= 0) {
+    const previous = inventory[id];
     inventory[id] = num;
     draftStock[id] = num;
     if (el) el.textContent = num;
     persistStock(id);
     renderStockGlance();
+    if (num < previous) void notifyStockCrossing(id, previous, num);
   } else if (el) {
     el.textContent = fallback;
   }
