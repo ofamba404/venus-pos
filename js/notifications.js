@@ -29,10 +29,6 @@ let pollTimer = null;
 /** @type {Array<{ id: string, type: NotifType, hour: number, minute: number, title: string, body: string, url: string, enabled?: boolean }>} */
 let activeSchedules = [];
 
-function logoIconUrl() {
-  return new URL(getAssetHref('logo-notif.png'), location.href).href;
-}
-
 function logoBadgeUrl() {
   // White leaf + wordmark on transparent — Android status-bar badge (alpha mask).
   // iOS ignores Notification.badge; it uses apple-touch-icon instead.
@@ -269,7 +265,6 @@ export async function showAppNotification(opts) {
   const absoluteUrl = new URL(url, location.href).href;
   const options = {
     body,
-    icon: logoIconUrl(),
     badge: logoBadgeUrl(),
     tag,
     renotify: true,

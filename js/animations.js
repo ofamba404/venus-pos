@@ -660,8 +660,14 @@ export function wireHeaderBodyAccordions(root, { headerSelector, getPanel = (hea
 
     const startOpen = header.classList.contains('expanded');
     header.setAttribute('aria-expanded', String(startOpen));
-    panel.removeAttribute('hidden');
-    setAccordionPanelInstant(panel, startOpen);
+
+    if (hasGsap() && !prefersReducedMotion()) {
+      // GSAP drives open/close via height; keep [hidden] off so layout can measure.
+      panel.hidden = false;
+      setAccordionPanelInstant(panel, startOpen);
+    } else {
+      setAccordionPanelInstant(panel, startOpen);
+    }
 
     header.addEventListener('click', () => {
       const willOpen = !header.classList.contains('expanded');
@@ -732,12 +738,12 @@ export function parseUGX(str) {
 let lastFabCount = 0;
 
 export function pulseFabBadge(count) {
-  const fab = document.getElementById('fabNewOrder');
+  const fab = document.getElementById('fabReviewOrders') || document.getElementById('fabNewOrder');
   const badge = document.getElementById('fabBadge');
 
   if (count > lastFabCount && count > 0) {
     if (hasGsap() && !prefersReducedMotion()) {
-      if (fab) {
+      if (fab && !fab.hidden) {
         gsap().fromTo(fab, { scale: 1 }, {
           scale: 1.05,
           duration: 0.1,
@@ -958,6 +964,8 @@ export function animateAccordionPanel(panel, open) {
   gsap().killTweensOf(panel);
 
   if (open) {
+    // Clear any pre-GSAP `hidden` so !important CSS (e.g. delivery-day-body) cannot block open.
+    panel.hidden = false;
     gsap()
       .timeline()
       .set(panel, { overflow: 'hidden', pointerEvents: 'none', display: 'block' })
@@ -990,6 +998,7 @@ export function animateAccordionPanel(panel, open) {
 export function setAccordionPanelInstant(panel, open) {
   if (hasGsap() && !prefersReducedMotion()) {
     gsap().killTweensOf(panel);
+    panel.hidden = false;
     if (open) {
       gsap().set(panel, { height: 'auto', opacity: 1, overflow: 'visible', pointerEvents: 'auto', display: 'block' });
     } else {

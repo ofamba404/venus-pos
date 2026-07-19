@@ -546,6 +546,9 @@ function renderEditDeliveryModal() {
   const body = document.getElementById('editModalBody');
   if (!body) return;
 
+  // Shared #editModalBody — clear sale pick/config shell so delivery scrolls as a normal sheet.
+  delete body.dataset.mode;
+
   body.innerHTML = `
     <div class="modal-header">
       <div class="modal-title" id="editModalTitle">Edit delivery</div>

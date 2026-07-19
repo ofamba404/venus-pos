@@ -640,7 +640,19 @@ export function openEditSale(saleId) {
   openEditModal();
 }
 
+function syncEditModalMode() {
+  const body = document.getElementById('editModalBody');
+  if (!body) return;
+  // Match order-modal shell: pick/config need flex + inner scroll; main uses whole-sheet scroll.
+  if (editSaleMode === 'pick' || editSaleMode === 'config') {
+    body.dataset.mode = editSaleMode;
+  } else {
+    delete body.dataset.mode;
+  }
+}
+
 function renderEditSaleModal() {
+  syncEditModalMode();
   if (editSaleMode === 'pick') renderEditSalePickView();
   else if (editSaleMode === 'config') renderEditSaleConfigView();
   else renderEditSaleMainView();

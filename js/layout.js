@@ -69,13 +69,19 @@ export function renderModals(currentPage = 'home') {
         </div>
       </nav>
       <div class="fab-stack" id="fabStack">
+        <button class="fab fab-review" id="fabReviewOrders" aria-label="Review storefront orders" type="button" hidden>
+          <svg class="fab-review-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M7 4h10a2 2 0 0 1 2 2v14l-3.5-2-3.5 2-3.5-2L5 20V6a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M9 9h6M9 13h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span class="fab-badge" id="fabBadge" style="display:none;">0</span>
+        </button>
         <button class="fab" id="fabNewOrder" aria-label="New order" type="button">
           <svg class="fab-cart-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path class="fab-cart-body" d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.58L23 6H6"/>
             <circle class="fab-cart-wheel" cx="8" cy="21" r="1.5"/>
             <circle class="fab-cart-wheel" cx="19" cy="21" r="1.5"/>
           </svg>
-          <span class="fab-badge" id="fabBadge" style="display:none;">0</span>
         </button>
         <button class="fab fab-nav" id="fabNavToggle" aria-label="Open navigation" aria-expanded="false" aria-controls="floatingNav" type="button">
           <svg class="fab-nav-icon fab-nav-icon--menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">

@@ -30,6 +30,7 @@
     --nav-height: 68px;
     --header-height: 56px;
     --fab-stack-height: 128px;
+    --fab-stack-height-with-review: 196px;
     --fab-offset: 24px;
 
     /* Typography */
@@ -2486,6 +2487,40 @@
       0 0 0 3px var(--jade-dim);
   }
 
+  button.credit-chip.credit-chip--confirm:not(.is-on) {
+    color: color-mix(in srgb, var(--jade) 85%, #0f172a);
+    background: color-mix(in srgb, var(--jade) 12%, var(--surface));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jade) 32%, transparent);
+  }
+
+  button.credit-chip.credit-chip--confirm:not(.is-on) .credit-chip__dot {
+    background: var(--jade);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jade) 16%, transparent);
+  }
+
+  button.credit-chip.credit-chip--confirm.is-on {
+    color: color-mix(in srgb, var(--jade) 75%, var(--text-dim));
+    background: color-mix(in srgb, var(--jade) 8%, var(--surface));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jade) 22%, transparent);
+    cursor: default;
+  }
+
+  button.credit-chip.credit-chip--confirm.is-on .credit-chip__dot {
+    background: var(--jade);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jade) 12%, transparent);
+  }
+
+  button.credit-chip.credit-chip--confirm:disabled {
+    opacity: 1;
+  }
+
+  button.credit-chip.credit-chip--confirm:focus-visible {
+    outline: none;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--jade) 45%, transparent),
+      0 0 0 3px var(--jade-dim);
+  }
+
   .client-picker input {
     width: 100%;
     background: var(--btn-bg);
@@ -3056,6 +3091,16 @@
     pointer-events: auto;
   }
 
+  body:has(.fab-stack.has-review-fab) {
+    --fab-stack-height: var(--fab-stack-height-with-review);
+  }
+
+  @media (min-width: 768px) {
+    body:has(.fab-stack.has-review-fab) {
+      --fab-stack-height: 126px;
+    }
+  }
+
   .fab {
     position: relative;
     width: 58px;
@@ -3070,7 +3115,31 @@
     cursor: pointer;
     box-shadow: 0 4px 20px var(--jade-glow), var(--shadow-md);
     -webkit-tap-highlight-color: transparent;
-    transition: transform 0.12s ease, box-shadow 0.15s ease;
+    transition: transform 0.12s ease, box-shadow 0.15s ease, opacity 0.18s ease;
+  }
+
+  .fab-review {
+    width: 52px;
+    height: 52px;
+    background: var(--surface);
+    color: var(--jade);
+    border: 1px solid color-mix(in srgb, var(--jade) 40%, var(--panel-edge));
+    box-shadow: var(--shadow-md);
+  }
+
+  .fab-review:active {
+    box-shadow: var(--shadow-sm);
+  }
+
+  .fab-review[hidden] {
+    display: none !important;
+  }
+
+  .fab-review-icon {
+    width: 22px;
+    height: 22px;
+    display: block;
+    flex-shrink: 0;
   }
 
   .fab-cart-icon {
@@ -3271,6 +3340,10 @@
     font-weight: 700;
     letter-spacing: var(--tracking-tight);
     line-height: var(--leading-tight);
+  }
+
+  #orderModalTitle {
+    font-size: var(--text-xl);
   }
 
   .modal-close {
@@ -4472,19 +4545,22 @@
     gap: 6px;
   }
 
-  .delivery-day-header.expanded + .delivery-day-body,
-  .delivery-day-body:not([hidden]) {
+  .delivery-day-header.expanded + .delivery-day-body {
     display: flex;
   }
 
   .delivery-day-body[hidden] {
-    display: none !important;
+    display: none;
   }
 
   body.has-gsap .delivery-day-body {
     display: flex;
     overflow: hidden;
     will-change: height, opacity;
+  }
+
+  body.has-gsap .delivery-day-body[hidden] {
+    display: none;
   }
 
   .delivery-trip {
@@ -5299,7 +5375,8 @@
     background: color-mix(in srgb, var(--surface-overlay) 70%, transparent);
   }
 
-  .cart-item .ci-main {
+  .cart-item .ci-main,
+  .cart-item-main {
     min-width: 0;
     flex: 1;
   }
@@ -5570,9 +5647,20 @@
     margin-top: 3px;
     line-height: var(--leading-snug);
     max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .cart-item .ci-detail::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .cart-item .ci-detail::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-dim) 40%, transparent);
+    border-radius: 999px;
   }
 
   .cart-item .ci-price {
@@ -5811,9 +5899,9 @@
     background:
       linear-gradient(
         105deg,
-        color-mix(in srgb, var(--jade) 8%, transparent) 0%,
-        color-mix(in srgb, var(--jade) 2%, transparent) 34%,
-        transparent 58%
+        color-mix(in srgb, var(--text-dim) 10%, transparent) 0%,
+        color-mix(in srgb, var(--text-dim) 5%, transparent) 48%,
+        color-mix(in srgb, var(--text-dim) 3%, transparent) 100%
       ),
       var(--surface);
   }
@@ -5827,9 +5915,9 @@
     background:
       linear-gradient(
         105deg,
-        color-mix(in srgb, var(--jade) 8%, transparent) 0%,
-        color-mix(in srgb, var(--jade) 2%, transparent) 34%,
-        transparent 58%
+        color-mix(in srgb, var(--text-dim) 10%, transparent) 0%,
+        color-mix(in srgb, var(--text-dim) 5%, transparent) 48%,
+        color-mix(in srgb, var(--text-dim) 3%, transparent) 100%
       ),
       var(--surface);
   }
@@ -5863,9 +5951,6 @@
     font-size: 13px;
     color: var(--text-secondary, var(--text-dim));
     margin-top: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .cart-items--review .ci-price {
@@ -6014,6 +6099,30 @@
 
   .cart-review-client--chip-only {
     justify-content: flex-end;
+  }
+
+  .cart-review-chips {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .cart-review-chips button.credit-chip {
+    gap: 5px;
+    min-height: 24px;
+    padding: 0 8px 0 7px;
+    font-size: 11px;
+  }
+
+  .cart-review-chips .credit-chip__dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .cart-review-chips button.credit-chip.is-on .credit-chip__dot,
+  .cart-review-chips button.credit-chip.credit-chip--confirm .credit-chip__dot {
+    box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 16%, transparent);
   }
 
   .cart-review-client__name {
@@ -6276,6 +6385,30 @@
   }
 
   /* ---------- Add-item picker (modal) ---------- */
+  /* Shell for pick lists outside data-mode (e.g. edit-sale Add item) —
+     without this, .pick-product-panel is overflow:auto with no height cap and
+     overscroll-behavior:contain traps gestures so neither panel nor sheet scrolls. */
+  .modal:has(.pick-product-panel) {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(88dvh - var(--cart-keyboard-inset, 0px));
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .modal:has(.pick-product-panel) .modal-header {
+    flex-shrink: 0;
+    padding: 20px 20px 8px;
+    margin-bottom: 0;
+  }
+
+  .modal:has(.pick-product-panel) .pick-footer {
+    flex-shrink: 0;
+    padding: 12px 20px max(18px, calc(env(safe-area-inset-bottom, 0px) + 12px));
+    margin-top: 0;
+    border-top: 1px solid var(--panel-edge-subtle);
+  }
+
   .modal:has(.pick-product-panel) .pick-product-panel {
     padding-left: 20px;
     padding-right: 20px;
@@ -6292,6 +6425,7 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
+    touch-action: pan-y;
   }
 
   .pick-product-section-label {
@@ -7212,11 +7346,6 @@
   .store-order-card__btn--primary {
     background: color-mix(in srgb, var(--jade) 18%, transparent);
     border-color: color-mix(in srgb, var(--jade) 35%, var(--panel-edge));
-  }
-
-  .store-order-card__btn--confirm {
-    background: color-mix(in srgb, var(--jade) 28%, transparent);
-    border-color: color-mix(in srgb, var(--jade) 50%, var(--panel-edge));
   }
 
   .store-order-card__btn--danger {

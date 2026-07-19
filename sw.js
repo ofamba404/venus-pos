@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'venus-pos-v15';
+const CACHE_VERSION = 'venus-pos-v16';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -15,7 +15,6 @@ const SHELL_URLS = [
   '/assets/logo.svg',
   '/assets/logo-browser.svg',
   '/assets/logo.png',
-  '/assets/logo-notif.png',
   '/assets/logo-badge.png',
   '/assets/apple-touch-icon.png',
   '/assets/icons/icon-192.png',
@@ -124,7 +123,6 @@ self.addEventListener('push', (event) => {
       }
       await self.registration.showNotification(title, {
         body: data.body || '',
-        icon: '/assets/logo-notif.png',
         badge: '/assets/logo-badge.png',
         tag: data.tag || `venus-push-${Date.now()}`,
         renotify: true,

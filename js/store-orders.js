@@ -11,13 +11,13 @@ import {
   openLoadedOrderModal,
   getActiveStoreOrderId,
   captureStoreOrderSession,
+  captureComposeDraft,
   hasStoreOrderSession,
   restoreStoreOrderSession,
   dropStoreOrderSession,
   updateFabBadge,
 } from './orders.js';
 import { getRealtimeClient } from './realtime-client.js';
-import { getCart, getOrderMeta } from './state.js';
 import { escapeHtml, fmtUGX, showConfirm, showToast } from './utils.js';
 
 /** Safety-net poll when Realtime is down or a change was missed. */
@@ -124,25 +124,16 @@ function consumeStoreOrdersHash() {
   renderStoreOrderUi();
 }
 
-function readDismissed() {
-  try {
-    const raw = sessionStorage.getItem('venus-pos-store-orders-dismissed');
-    const parsed = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed : []);
-  } catch {
-    return new Set();
-  }
-}
+/** In-flight / optimistic dismissals — survives poll races until DB confirms dismissed_at. */
+const dismissingIds = new Set();
 
-function writeDismissed(set) {
-  try {
-    sessionStorage.setItem('venus-pos-store-orders-dismissed', JSON.stringify([...set]));
-  } catch {
-    /* ignore */
-  }
+/** Cancelled orders stay in the stack until staff dismisses (dismissed_at set). */
+function isStackVisible(order) {
+  if (!order || !ACTIVE_STATUSES.has(order.status)) return false;
+  if (dismissingIds.has(order.id)) return false;
+  if (order.status === 'cancelled' && order.dismissed_at) return false;
+  return true;
 }
-
-const dismissedIds = readDismissed();
 
 export function getStoreOrderCache() {
   return [...orderCache.values()].sort(
@@ -153,9 +144,7 @@ export function getStoreOrderCache() {
 window.__venusStoreOrderCacheGet = (id) => orderCache.get(id) || null;
 
 export function getStackedStoreOrders() {
-  return getStoreOrderCache().filter(
-    (o) => ACTIVE_STATUSES.has(o.status) && !dismissedIds.has(o.id),
-  );
+  return getStoreOrderCache().filter(isStackVisible);
 }
 
 function waitingStoreOrderCount() {
@@ -180,13 +169,22 @@ function deliveryLabel(order) {
   return String(d.label || d.mode || 'Delivery').trim() || 'Delivery';
 }
 
+function orderTimeLabel(order) {
+  const raw = order?.created_at;
+  if (!raw) return '';
+  const t = new Date(raw);
+  if (Number.isNaN(t.getTime())) return '';
+  return t.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
 function orderTitle(order) {
   return String(order.customer_name || '').trim() || 'Storefront order';
 }
 
 async function fetchOpenOrders() {
+  // Open orders + cancelled that staff have not dismissed yet.
   const res = await sbFetch(
-    'store_orders?status=in.(pending,confirmed,accepted,cancelled)&order=created_at.desc&limit=40',
+    'store_orders?or=(status.in.(pending,confirmed,accepted),and(status.eq.cancelled,dismissed_at.is.null))&order=created_at.desc&limit=40',
   );
   if (!res.ok) throw new Error(`Supabase ${res.status}`);
   return res.json();
@@ -195,19 +193,22 @@ async function fetchOpenOrders() {
 export async function markStoreOrderConfirmed(orderId) {
   if (!orderId) return;
   const now = new Date().toISOString();
+  const cached = orderCache.get(orderId);
+  // Keep accepted/checked_out when confirming from the review cart after load.
+  const keepStatus =
+    cached?.status === 'accepted' || cached?.status === 'checked_out' ? cached.status : 'confirmed';
   const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(orderId)}`, {
     method: 'PATCH',
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({
-      status: 'confirmed',
+      status: keepStatus,
       confirmed_at: now,
       updated_at: now,
     }),
   });
   if (!res.ok) throw new Error(`Supabase ${res.status}`);
-  const cached = orderCache.get(orderId);
   if (cached && cached.status !== 'cancelled') {
-    cached.status = 'confirmed';
+    cached.status = keepStatus;
     cached.confirmed_at = now;
     cached.updated_at = now;
     orderCache.set(orderId, cached);
@@ -225,10 +226,7 @@ export async function markStoreOrderAccepted(orderId) {
     updated_at: now,
   };
   const cached = orderCache.get(orderId);
-  // Confirm for the customer if staff skips straight to load-into-cart.
-  if (cached && !cached.confirmed_at && cached.status === 'pending') {
-    body.confirmed_at = now;
-  }
+  // Confirmation is explicit in the review cart — loading does not notify the customer.
   const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(orderId)}`, {
     method: 'PATCH',
     headers: { Prefer: 'return=minimal' },
@@ -236,16 +234,12 @@ export async function markStoreOrderAccepted(orderId) {
   });
   if (!res.ok) throw new Error(`Supabase ${res.status}`);
   if (cached && cached.status !== 'cancelled') {
-    if (body.confirmed_at) cached.confirmed_at = body.confirmed_at;
     cached.status = 'accepted';
     cached.accepted_at = now;
     cached.updated_at = now;
     orderCache.set(orderId, cached);
   }
   renderStoreOrderUi();
-  if (body.confirmed_at) {
-    void notifyStoreCustomerPush(cached || { id: orderId }, 'confirmed');
-  }
 }
 
 /**
@@ -301,8 +295,7 @@ export async function markStoreOrderCheckedOut(orderId, saleId = null) {
   });
   if (!res.ok) throw new Error(`Supabase ${res.status}`);
   orderCache.delete(orderId);
-  dismissedIds.delete(orderId);
-  writeDismissed(dismissedIds);
+  dismissingIds.delete(orderId);
   dropStoreOrderSession(orderId);
   renderStoreOrderUi();
 }
@@ -331,9 +324,37 @@ export async function markStoreOrderCancelled(orderId) {
   void notifyStoreCustomerPush(cached || { id: orderId }, 'cancelled');
 }
 
-function dismissOrder(orderId) {
-  dismissedIds.add(orderId);
-  writeDismissed(dismissedIds);
+async function dismissOrder(orderId) {
+  const id = String(orderId || '');
+  if (!id) return;
+
+  dismissingIds.add(id);
+  renderStoreOrderUi();
+
+  const now = new Date().toISOString();
+  try {
+    const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        dismissed_at: now,
+        updated_at: now,
+      }),
+    });
+    if (!res.ok) throw new Error(`Supabase ${res.status}`);
+    const cached = orderCache.get(id);
+    if (cached) {
+      cached.dismissed_at = now;
+      cached.updated_at = now;
+      orderCache.set(id, cached);
+    }
+    orderCache.delete(id);
+    dismissingIds.delete(id);
+  } catch (e) {
+    console.error('dismiss store order failed', e);
+    dismissingIds.delete(id);
+    showToast('Could not dismiss order', true);
+  }
   renderStoreOrderUi();
 }
 
@@ -346,8 +367,9 @@ function upsertOrder(row, { announce = true } = {}) {
   if (!row?.id) return;
   const prev = orderCache.get(row.id);
 
-  if (!ACTIVE_STATUSES.has(row.status)) {
+  if (!ACTIVE_STATUSES.has(row.status) || (row.status === 'cancelled' && row.dismissed_at)) {
     orderCache.delete(row.id);
+    dismissingIds.delete(row.id);
     dropStoreOrderSession(row.id);
     return;
   }
@@ -557,7 +579,7 @@ function ensureDom() {
 
 function stackItemHtml(order) {
   const cancelled = order.status === 'cancelled';
-  const confirmed = order.status === 'confirmed';
+  const confirmed = Boolean(order.confirmed_at) || order.status === 'confirmed';
   const active = getActiveStoreOrderId() === order.id;
   const items = Array.isArray(order.items) ? order.items : [];
   const itemBits = items
@@ -567,26 +589,22 @@ function stackItemHtml(order) {
   const more = items.length > 3 ? ` +${items.length - 3}` : '';
   const phone = String(order.phone_e164 || '').trim();
   const when = deliveryLabel(order);
+  const orderedAt = orderTimeLabel(order);
   const statusLabel = cancelled
     ? 'Cancelled'
     : active
       ? 'In cart'
       : hasStoreOrderSession(order.id)
         ? 'Loaded'
-        : order.status === 'accepted'
-          ? 'Opened'
-          : confirmed
-            ? 'Confirmed'
+        : confirmed
+          ? 'Confirmed'
+          : order.status === 'accepted'
+            ? 'Opened'
             : 'New';
 
   const actions = cancelled
     ? `<button type="button" class="store-order-card__btn" data-dismiss-store-order="${escapeHtml(order.id)}">Dismiss</button>`
-    : `${
-        order.status === 'pending'
-          ? `<button type="button" class="store-order-card__btn store-order-card__btn--confirm" data-confirm-store-order="${escapeHtml(order.id)}">Confirm</button>`
-          : ''
-      }
-               <button type="button" class="store-order-card__btn store-order-card__btn--primary" data-load-store-order="${escapeHtml(order.id)}">${active ? 'View cart' : hasStoreOrderSession(order.id) ? 'Switch to cart' : 'Load into cart'}</button>
+    : `<button type="button" class="store-order-card__btn store-order-card__btn--primary" data-load-store-order="${escapeHtml(order.id)}">${active ? 'View cart' : hasStoreOrderSession(order.id) ? 'Switch to cart' : 'Load into cart'}</button>
                <button type="button" class="store-order-card__btn store-order-card__btn--danger" data-cancel-store-order="${escapeHtml(order.id)}">Cancel</button>`;
 
   return `
@@ -596,6 +614,7 @@ function stackItemHtml(order) {
         <div class="store-order-card__status">${statusLabel}</div>
       </div>
       <div class="store-order-card__meta">
+        ${orderedAt ? `<span>${escapeHtml(orderedAt)}</span>` : ''}
         <span>${escapeHtml(when)}</span>
         ${phone ? `<span>${escapeHtml(phone)}</span>` : ''}
         <span>${fmtUGX(order.subtotal_ugx || 0)}</span>
@@ -641,10 +660,22 @@ export function renderStoreOrderUi() {
 
   updateFabBadge();
   window.__venusRefreshStoreOrderCartSwitcher?.();
+  window.__venusSyncReviewCartChrome?.();
 
   if (!panel) return;
   panel.hidden = !panelOpen;
   if (!panelOpen) return;
+
+  // Replacing innerHTML removes the focused control (Dismiss/Cancel/etc.), which
+  // browsers often scroll the document to top for. Keep both scrolls stable.
+  const listEl = panel.querySelector('.store-orders-panel__list');
+  const listScrollTop = listEl?.scrollTop ?? 0;
+  const pageX = window.scrollX;
+  const pageY = window.scrollY;
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && panel.contains(active)) {
+    active.blur();
+  }
 
   panel.innerHTML = `
     <div class="store-orders-panel__head">
@@ -662,6 +693,16 @@ export function renderStoreOrderUi() {
       }
     </div>`;
 
+  const nextList = panel.querySelector('.store-orders-panel__list');
+  if (nextList) nextList.scrollTop = listScrollTop;
+  const restorePageScroll = () => {
+    if (window.scrollX !== pageX || window.scrollY !== pageY) {
+      window.scrollTo(pageX, pageY);
+    }
+  };
+  restorePageScroll();
+  requestAnimationFrame(restorePageScroll);
+
   panel.querySelector('[data-close-store-orders]')?.addEventListener('click', () => {
     closeStoreOrdersPanel();
   });
@@ -669,12 +710,6 @@ export function renderStoreOrderUi() {
   panel.querySelectorAll('[data-load-store-order]').forEach((el) => {
     el.addEventListener('click', () => {
       void loadStoreOrderIntoCart(el.getAttribute('data-load-store-order'));
-    });
-  });
-
-  panel.querySelectorAll('[data-confirm-store-order]').forEach((el) => {
-    el.addEventListener('click', () => {
-      void confirmStoreOrder(el.getAttribute('data-confirm-store-order'));
     });
   });
 
@@ -686,7 +721,7 @@ export function renderStoreOrderUi() {
 
   panel.querySelectorAll('[data-dismiss-store-order]').forEach((el) => {
     el.addEventListener('click', () => {
-      dismissOrder(el.getAttribute('data-dismiss-store-order'));
+      void dismissOrder(el.getAttribute('data-dismiss-store-order'));
     });
   });
 }
@@ -717,7 +752,12 @@ export async function confirmStoreOrder(orderId) {
     showToast('This order was cancelled', true);
     return;
   }
-  if (order.status !== 'pending') {
+  // Pending in stack, or accepted in review cart before staff confirms for the customer.
+  if (order.confirmed_at || order.status === 'confirmed' || order.status === 'checked_out') {
+    showToast('Order already confirmed');
+    return;
+  }
+  if (order.status !== 'pending' && order.status !== 'accepted') {
     showToast('Order already confirmed');
     return;
   }
@@ -785,8 +825,6 @@ export async function loadStoreOrderIntoCart(orderId) {
     return;
   }
 
-  const cart = getCart();
-  const meta = getOrderMeta();
   const activeId = getActiveStoreOrderId();
 
   // Already viewing this storefront order — just reopen the cart.
@@ -801,6 +839,9 @@ export async function loadStoreOrderIntoCart(orderId) {
   // Save the current storefront cart before switching to another.
   if (activeId) {
     captureStoreOrderSession();
+  } else {
+    // Park walk-in compose so staff can switch back via the compose FAB.
+    captureComposeDraft();
   }
 
   // Restore a previously loaded session (keeps credit toggle, etc.).
@@ -816,17 +857,6 @@ export async function loadStoreOrderIntoCart(orderId) {
     openLoadedOrderModal();
     renderStoreOrderUi();
     return;
-  }
-
-  // Only confirm when replacing a manual compose cart (not another storefront order).
-  const replacingCompose =
-    cart.length > 0 &&
-    !activeId &&
-    (meta.clientName || meta.clientPhone || meta.deliveryTimeLabel || meta.deliveryLocationLabel);
-
-  if (replacingCompose) {
-    const ok = await showConfirm('Replace the current cart with this storefront order?');
-    if (!ok) return;
   }
 
   applyStorefrontOrderToCart({
@@ -857,14 +887,27 @@ export async function loadStoreOrderIntoCart(orderId) {
   renderStoreOrderUi();
 }
 
+/** FAB review button: reopen an accepted storefront order after refresh / empty live cart. */
+export async function openAcceptedStoreOrderFromFab() {
+  const accepted = getStackedStoreOrders().filter((o) => o.status === 'accepted');
+  if (!accepted.length) {
+    showToast('No storefront orders in cart', true);
+    updateFabBadge();
+    return;
+  }
+  await loadStoreOrderIntoCart(accepted[0].id);
+}
+
 export function startStoreOrdersRuntime() {
   ensureDom();
   window.__venusGetSwitchableStoreOrders = () =>
     getStackedStoreOrders().filter((o) => o.status !== 'cancelled');
   window.__venusLoadStoreOrderIntoCart = (id) => loadStoreOrderIntoCart(id);
+  window.__venusOpenAcceptedStoreOrderFromFab = () => openAcceptedStoreOrderFromFab();
   window.__venusRenderStoreOrderUi = renderStoreOrderUi;
   window.__venusLoadedStoreOrderCount = loadedStoreOrderCount;
   window.__venusReleaseStoreOrderFromCart = (id) => releaseStoreOrderFromCart(id);
+  window.__venusConfirmStoreOrder = (id) => confirmStoreOrder(id);
 
   renderStoreOrderUi();
   void refreshStoreOrders({ silent: true }).then(() => {

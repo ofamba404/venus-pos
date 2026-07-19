@@ -96,6 +96,97 @@ let checkoutInFlight = false;
  */
 const storeOrderSessions = new Map();
 
+/**
+ * Walk-in compose cart parked while staff review storefront orders.
+ * @type {{ cart: object[], meta: object, checkout: object } | null}
+ */
+let composeDraft = null;
+
+function composeMetaHasContent(meta) {
+  if (!meta || typeof meta !== 'object') return false;
+  return Boolean(
+    meta.clientName ||
+      meta.clientPhone ||
+      meta.deliveryTimeLabel ||
+      meta.deliveryLocationLabel ||
+      meta.deliveryTimeMode ||
+      meta.deliveryDeliverAt ||
+      meta.clientId ||
+      meta.isCredit,
+  );
+}
+
+function composeCheckoutHasContent(snap) {
+  if (!snap || typeof snap !== 'object') return false;
+  return Boolean(
+    snap.pickupText ||
+      snap.destText ||
+      snap.feeValue ||
+      snap.origin ||
+      snap.dest ||
+      snap.distanceKm != null,
+  );
+}
+
+function composeLiveHasContent() {
+  return (
+    getCart().length > 0 ||
+    composeMetaHasContent(getOrderMeta()) ||
+    composeCheckoutHasContent(snapshotCheckoutDelivery())
+  );
+}
+
+/** Park the walk-in cart so storefront review can take over the live slot. */
+export function captureComposeDraft() {
+  if (getActiveStoreOrderId()) return;
+  if (!composeLiveHasContent()) {
+    composeDraft = null;
+    return;
+  }
+  composeDraft = {
+    cart: cloneCartLines(getCart()),
+    meta: { ...getOrderMeta(), storeOrderId: '' },
+    checkout: snapshotCheckoutDelivery(),
+  };
+}
+
+function restoreComposeDraft() {
+  resetDraftStock();
+  if (composeDraft) {
+    setCart(cloneCartLines(composeDraft.cart));
+    setOrderMeta({ ...emptyOrderMeta(), ...composeDraft.meta, storeOrderId: '' });
+    applyCheckoutDeliverySnapshot(composeDraft.checkout);
+  } else {
+    setCart([]);
+    setOrderMeta(emptyOrderMeta());
+    resetCheckoutDelivery();
+  }
+  pickupAutoRequested = false;
+}
+
+/** Switch live cart to walk-in compose (parks any active storefront review). */
+export function activateComposeCart() {
+  if (!getActiveStoreOrderId()) return;
+  captureStoreOrderSession();
+  restoreComposeDraft();
+  updateFabBadge();
+}
+
+/** Switch live cart to storefront review (parks walk-in compose when needed). */
+export function activateReviewCart() {
+  if (getActiveStoreOrderId()) return true;
+
+  captureComposeDraft();
+
+  const nextId = peekNextStoreOrderSessionId() || listStoreOrderSessionIds()[0] || '';
+  if (nextId && restoreStoreOrderSession(nextId)) {
+    window.__venusRenderStoreOrderUi?.();
+    return true;
+  }
+
+  return false;
+}
+
 function clientOpenCreditSummary(clientId) {
   const open = getClientOutstandingCredit(salesCache, clientId);
   if (!open.length) return null;
@@ -385,7 +476,7 @@ function syncReviewCartChrome(orderModalBody = document.getElementById('orderMod
   if (!orderModalBody) return;
   const activeId = getActiveStoreOrderId();
   const title = orderModalBody.querySelector('#orderModalTitle');
-  if (title) title.textContent = activeId ? 'Storefront order' : 'Current order';
+  if (title) title.textContent = activeId ? 'Orders' : 'Current order';
 
   let storeOrderCancelled = false;
   if (activeId) {
@@ -412,6 +503,8 @@ function syncReviewCartChrome(orderModalBody = document.getElementById('orderMod
   refreshStoreOrderCartSwitcher();
   updateCartCheckoutState();
   wireReviewCreditToggles(orderModalBody);
+  wireReviewConfirmPills(orderModalBody);
+  syncReviewConfirmPills(orderModalBody);
 }
 
 function wireReviewCreditToggles(root) {
@@ -595,17 +688,33 @@ function resetCheckoutDelivery() {
 
 export function updateFabBadge() {
   const fabBadge = document.getElementById('fabBadge');
-  if (!fabBadge) return;
+  const fabReview = document.getElementById('fabReviewOrders');
+  const fabStack = document.getElementById('fabStack');
   // DB `accepted` status is the source of truth (survives refresh).
   const count =
     typeof window.__venusLoadedStoreOrderCount === 'function'
       ? window.__venusLoadedStoreOrderCount()
       : 0;
-  if (count > 0) {
-    fabBadge.style.display = 'flex';
-    fabBadge.textContent = String(count);
-  } else {
-    fabBadge.style.display = 'none';
+  const showReview = count > 0;
+
+  if (fabReview) {
+    fabReview.hidden = !showReview;
+    fabReview.setAttribute(
+      'aria-label',
+      showReview
+        ? `Review storefront orders, ${count} in cart`
+        : 'Review storefront orders',
+    );
+  }
+  fabStack?.classList.toggle('has-review-fab', showReview);
+
+  if (fabBadge) {
+    if (showReview) {
+      fabBadge.style.display = 'flex';
+      fabBadge.textContent = String(count);
+    } else {
+      fabBadge.style.display = 'none';
+    }
   }
   pulseFabBadge(count);
 }
@@ -1271,6 +1380,72 @@ function creditToggleHtml(orderIsCredit, { withId = true } = {}) {
     </button>`;
 }
 
+/** Confirm pill for storefront review cart — only after staff has viewed the order. */
+function storeOrderConfirmPillHtml(storeOrderId) {
+  const id = String(storeOrderId || '').trim();
+  if (!id) return '';
+  let cached = null;
+  try {
+    cached = window.__venusStoreOrderCacheGet?.(id) || null;
+  } catch {
+    cached = null;
+  }
+  if (!cached || cached.status === 'cancelled') return '';
+  const confirmed = Boolean(cached.confirmed_at) || cached.status === 'confirmed' || cached.status === 'checked_out';
+  return `
+    <button
+      type="button"
+      class="credit-chip credit-chip--confirm${confirmed ? ' is-on' : ''}"
+      data-confirm-store-order="${escapeHtml(id)}"
+      ${confirmed ? 'disabled' : ''}
+      aria-pressed="${confirmed ? 'true' : 'false'}"
+      title="${confirmed ? 'Customer already notified' : 'Confirm order for the customer'}"
+    >
+      <span class="credit-chip__dot" aria-hidden="true"></span>
+      <span class="credit-chip__text">${confirmed ? 'Confirmed' : 'Confirm'}</span>
+    </button>`;
+}
+
+function syncReviewConfirmPills(root = document.getElementById('orderModalBody')) {
+  root?.querySelectorAll('[data-confirm-store-order]').forEach((btn) => {
+    const id = btn.getAttribute('data-confirm-store-order') || '';
+    let cached = null;
+    try {
+      cached = window.__venusStoreOrderCacheGet?.(id) || null;
+    } catch {
+      cached = null;
+    }
+    if (!cached || cached.status === 'cancelled') {
+      btn.hidden = true;
+      return;
+    }
+    btn.hidden = false;
+    const confirmed =
+      Boolean(cached.confirmed_at) || cached.status === 'confirmed' || cached.status === 'checked_out';
+    btn.classList.toggle('is-on', confirmed);
+    btn.disabled = confirmed;
+    btn.setAttribute('aria-pressed', confirmed ? 'true' : 'false');
+    btn.title = confirmed ? 'Customer already notified' : 'Confirm order for the customer';
+    const label = btn.querySelector('.credit-chip__text');
+    if (label) label.textContent = confirmed ? 'Confirmed' : 'Confirm';
+  });
+}
+
+function wireReviewConfirmPills(root) {
+  root?.querySelectorAll('[data-confirm-store-order]').forEach((btn) => {
+    if (btn.dataset.wired === '1') return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', () => {
+      const panel = btn.closest('[data-store-order-panel]');
+      const panelId = panel?.getAttribute('data-store-order-panel') || '';
+      const orderId = btn.getAttribute('data-confirm-store-order') || '';
+      if (panelId && panelId !== getActiveStoreOrderId()) return;
+      if (!orderId || btn.disabled) return;
+      void window.__venusConfirmStoreOrder?.(orderId);
+    });
+  });
+}
+
 function wireCartCopyButtons(root) {
   root.querySelectorAll('[data-copy]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1561,7 +1736,10 @@ function renderReviewCartHtml({
       <section class="cart-section cart-section--review-meta">
         <div class="cart-review-client${clientName ? '' : ' cart-review-client--chip-only'}">
           ${clientTextHtml}
-          ${creditToggleHtml(orderIsCredit, { withId: false })}
+          <div class="cart-review-chips">
+            ${storeOrderConfirmPillHtml(storeOrderId)}
+            ${creditToggleHtml(orderIsCredit, { withId: false })}
+          </div>
         </div>
         <div data-cart-credit-hint>${clientCreditHintHtml(orderClientId, { creditOn: orderIsCredit })}</div>
         ${factsHtml ? `<div class="cart-facts">${factsHtml}</div>` : ''}
@@ -1608,7 +1786,7 @@ function renderCartView() {
 
   orderModalBody.innerHTML = `
     <div class="modal-header">
-      <div class="modal-title" id="orderModalTitle">${isReview ? 'Storefront order' : 'Current order'}</div>
+      <div class="modal-title" id="orderModalTitle">${isReview ? 'Orders' : 'Current order'}</div>
       <button class="modal-close" id="orderClose" type="button" aria-label="Close order">✕</button>
     </div>
     ${storeOrderCancelled ? '<div class="store-order-cancelled-banner" data-store-order-cancelled-banner>This order was cancelled</div>' : ''}
@@ -1662,6 +1840,7 @@ function renderCartView() {
   });
   if (isReview) {
     wireReviewCreditToggles(orderModalBody);
+    wireReviewConfirmPills(orderModalBody);
   }
 
   if (!isReview) {
@@ -1709,6 +1888,8 @@ function renderCartView() {
         showToast(`Cleared — now viewing ${nextName}`);
         return;
       }
+    } else {
+      composeDraft = null;
     }
     setCart([]);
     setOrderMeta(emptyOrderMeta());
@@ -2126,6 +2307,7 @@ async function checkout() {
       : null;
 
     lastCheckoutProcessing = null;
+    if (!storeOrderId) composeDraft = null;
     showCheckoutSuccess({
       cart,
       total,
@@ -2158,6 +2340,10 @@ async function checkout() {
 export function wireOrders() {
   const orderModal = document.getElementById('orderModal');
   window.__venusRefreshStoreOrderCartSwitcher = refreshStoreOrderCartSwitcher;
+  window.__venusSyncReviewCartChrome = () => {
+    const body = document.getElementById('orderModalBody');
+    if (body) syncReviewCartChrome(body);
+  };
 
   orderModal?.addEventListener('click', (e) => {
     if (e.target === orderModal) closeOrderModal();
@@ -2166,10 +2352,21 @@ export function wireOrders() {
   document.getElementById('fabNewOrder')?.addEventListener('click', () => {
     lastCheckoutReceipt = null;
     lastCheckoutProcessing = null;
+    activateComposeCart();
     const cart = getCart();
     modalMode = cart.length ? 'cart' : 'pick';
     renderOrderModal();
     if (orderModal) openModal(orderModal);
+  });
+
+  document.getElementById('fabReviewOrders')?.addEventListener('click', () => {
+    lastCheckoutReceipt = null;
+    lastCheckoutProcessing = null;
+    if (activateReviewCart()) {
+      openLoadedOrderModal();
+      return;
+    }
+    void window.__venusOpenAcceptedStoreOrderFromFab?.();
   });
 
   document.addEventListener('store-order:cancelled', (event) => {
