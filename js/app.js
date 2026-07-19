@@ -1,8 +1,10 @@
 import { ensureGsap, wireFloatingNav } from './animations.js';
+import { wireAdminPanel } from './admin.js';
 import { wireDebugPanel } from './debug.js';
 import { initQuoteLabReminders } from './delivery-quote-lab.js';
 import { mountShell } from './layout.js';
 import { wireOrders } from './orders.js';
+import { startStoreOrdersRuntime } from './store-orders.js';
 import { registerServiceWorker } from './sw-register.js';
 import { wireSettleOverlay } from './settle-credit.js';
 import { wireConfirmDialog, wireEditOverlay } from './utils.js';
@@ -10,10 +12,12 @@ import { wireConfirmDialog, wireEditOverlay } from './utils.js';
 export function mountApp(page) {
   mountShell(page);
   wireDebugPanel();
+  wireAdminPanel();
   wireConfirmDialog();
   wireEditOverlay();
   wireSettleOverlay();
   wireOrders();
+  startStoreOrdersRuntime();
 }
 
 export async function finishAppInit() {

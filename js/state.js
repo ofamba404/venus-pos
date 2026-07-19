@@ -42,12 +42,25 @@ export function setCart(cart) {
   sessionStorage.setItem(CART_KEY, JSON.stringify(cart));
 }
 
+function defaultOrderMeta() {
+  return {
+    clientName: '',
+    clientId: '',
+    isCredit: false,
+    clientPhone: '',
+    deliveryTimeLabel: '',
+    deliveryTimeMode: '',
+    deliveryDeliverAt: '',
+    storeOrderId: '',
+  };
+}
+
 export function getOrderMeta() {
   try {
     const raw = sessionStorage.getItem(ORDER_META_KEY);
-    return raw ? JSON.parse(raw) : { clientName: '', clientId: '', isCredit: false };
+    return raw ? { ...defaultOrderMeta(), ...JSON.parse(raw) } : defaultOrderMeta();
   } catch {
-    return { clientName: '', clientId: '', isCredit: false };
+    return defaultOrderMeta();
   }
 }
 

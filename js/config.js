@@ -1,5 +1,8 @@
 export const SUPABASE_URL = 'https://xiangrykfxlnacthjcad.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_UAR75C14ePR5_mqOez4wjg_mqdlnt5X';
+/** Legacy anon JWT — required for Edge Function calls (store-auth admin). */
+export const SUPABASE_ANON_JWT =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpYW5ncnlrZnhsbmFjdGhqY2FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxMjI2MDIsImV4cCI6MjA5ODY5ODYwMn0.O4IQo4aGqcSzWhE9H1szByvoblo07e7Pm3EL3v182b8';
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyCrCkJGwRrloiRPW3x91dvWMeVKEecKL7Y';
 
 /** Web Push VAPID public key (private key lives in Netlify env `VAPID_PRIVATE_KEY`). */

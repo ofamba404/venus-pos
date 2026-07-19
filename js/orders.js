@@ -119,6 +119,32 @@ function getOrderIsCredit() {
   return !!getOrderMeta().isCredit;
 }
 
+function getOrderClientPhone() {
+  return getOrderMeta().clientPhone || '';
+}
+
+function getOrderDeliveryTimeLabel() {
+  return getOrderMeta().deliveryTimeLabel || '';
+}
+
+export function getActiveStoreOrderId() {
+  return getOrderMeta().storeOrderId || '';
+}
+
+function emptyOrderMeta(extra = {}) {
+  return {
+    clientName: '',
+    clientId: '',
+    isCredit: false,
+    clientPhone: '',
+    deliveryTimeLabel: '',
+    deliveryTimeMode: '',
+    deliveryDeliverAt: '',
+    storeOrderId: '',
+    ...extra,
+  };
+}
+
 function setOrderClient(client) {
   const meta = getOrderMeta();
   if (!client) {
@@ -135,6 +161,25 @@ function setOrderIsCredit(isCredit) {
   const meta = getOrderMeta();
   meta.isCredit = isCredit;
   setOrderMeta(meta);
+}
+
+function setOrderClientPhone(phone) {
+  const meta = getOrderMeta();
+  meta.clientPhone = String(phone || '').trim();
+  setOrderMeta(meta);
+}
+
+function setOrderDeliveryTimeLabel(label) {
+  const meta = getOrderMeta();
+  meta.deliveryTimeLabel = String(label || '').trim();
+  setOrderMeta(meta);
+}
+
+function adjustDraftForItem(item, direction) {
+  if (!item || item.stockDeferred) return;
+  Object.entries(item.breakdown || {}).forEach(([id, qty]) => {
+    draftStock[id] = (draftStock[id] || 0) + direction * qty;
+  });
 }
 
 function cartItemToConfigSelection(item) {
@@ -189,9 +234,7 @@ function closeOrderModal() {
   }
 
   if (editingCartItem) {
-    Object.entries(editingCartItem.breakdown).forEach(([id, qty]) => {
-      draftStock[id] -= qty;
-    });
+    adjustDraftForItem(editingCartItem, -1);
     const cart = getCart();
     cart.push(editingCartItem);
     setCart(cart);
@@ -669,9 +712,7 @@ function wireCartItemButtons(root) {
       configProduct = PRODUCTS.find((p) => p.id === item.productId);
       configSelection = cartItemToConfigSelection(item);
       clearManualQtyEdit();
-      Object.entries(item.breakdown).forEach(([id, qty]) => {
-        draftStock[id] += qty;
-      });
+      adjustDraftForItem(item, 1);
       currentCart.splice(idx, 1);
       setCart(currentCart);
       updateFabBadge();
@@ -686,9 +727,7 @@ function wireCartItemButtons(root) {
       const idx = currentCart.findIndex((i) => i.key === key);
       if (idx > -1) {
         const item = currentCart[idx];
-        Object.entries(item.breakdown).forEach(([id, qty]) => {
-          draftStock[id] += qty;
-        });
+        adjustDraftForItem(item, 1);
         currentCart.splice(idx, 1);
         setCart(currentCart);
       }
@@ -735,16 +774,30 @@ function renderCartView() {
 
   const cart = getCart();
   const orderClientName = getOrderClientName();
+  const orderClientPhone = getOrderClientPhone();
+  const orderDeliveryTime = getOrderDeliveryTimeLabel();
   const orderIsCredit = getOrderIsCredit();
+  const storeOrderId = getActiveStoreOrderId();
   const clientMissing = !orderClientName;
   const hasDelivery = Boolean(checkoutPickupText || checkoutDestText || checkoutFeeValue);
   const deliveryHint = checkoutDestText || checkoutPickupText || (checkoutFeeValue ? `${checkoutFeeValue} fee` : 'Optional');
+  let storeOrderCancelled = false;
+  if (storeOrderId) {
+    try {
+      // Lazy read avoids circular init issues; cache is filled by store-orders runtime.
+      const cached = window.__venusStoreOrderCacheGet?.(storeOrderId);
+      storeOrderCancelled = cached?.status === 'cancelled';
+    } catch {
+      storeOrderCancelled = false;
+    }
+  }
 
   orderModalBody.innerHTML = `
     <div class="modal-header">
-      <div class="modal-title" id="orderModalTitle">Current order</div>
+      <div class="modal-title" id="orderModalTitle">${storeOrderId ? 'Storefront order' : 'Current order'}</div>
       <button class="modal-close" id="orderClose" type="button" aria-label="Close order">✕</button>
     </div>
+    ${storeOrderCancelled ? '<div class="store-order-cancelled-banner" data-store-order-cancelled-banner>Customer cancelled this order</div>' : ''}
     <div class="cart-sheet">
       <section class="cart-section cart-section--items">
         <div class="cart-section__head">
@@ -783,6 +836,16 @@ function renderCartView() {
             placeholder: 'Search or type client name…',
           })}
           <div id="cartClientCreditHintSlot">${clientCreditHintHtml(getOrderClientId(), { creditOn: orderIsCredit })}</div>
+          <div class="cart-client-extra">
+            <label class="cart-extra-field">
+              <span>Phone</span>
+              <input type="tel" class="client-input" id="cartClientPhone" inputmode="tel" autocomplete="tel" placeholder="+256…" value="${escapeHtml(orderClientPhone)}" />
+            </label>
+            <label class="cart-extra-field">
+              <span>Delivery time</span>
+              <input type="text" class="client-input" id="cartDeliveryTime" autocomplete="off" placeholder="Right now, in 30 min…" value="${escapeHtml(orderDeliveryTime)}" />
+            </label>
+          </div>
         </div>
       </section>
 
@@ -847,6 +910,12 @@ function renderCartView() {
       updateCartCheckoutState();
     },
   });
+  document.getElementById('cartClientPhone')?.addEventListener('input', (e) => {
+    setOrderClientPhone(e.target.value);
+  });
+  document.getElementById('cartDeliveryTime')?.addEventListener('input', (e) => {
+    setOrderDeliveryTimeLabel(e.target.value);
+  });
   document.getElementById('creditToggle')?.addEventListener('click', () => {
     setOrderIsCredit(!getOrderIsCredit());
     updateCartCheckoutState();
@@ -868,7 +937,7 @@ function renderCartView() {
   });
   document.getElementById('cancelOrderBtn')?.addEventListener('click', () => {
     setCart([]);
-    setOrderMeta({ clientName: '', clientId: '', isCredit: false });
+    setOrderMeta(emptyOrderMeta());
     resetDraftStock();
     resetCheckoutDelivery();
     updateFabBadge();
@@ -963,9 +1032,7 @@ function wireConfigEvents() {
     onClose: closeOrderModal,
     onBack: () => {
       if (editingCartItem) {
-        Object.entries(editingCartItem.breakdown).forEach(([id, qty]) => {
-          draftStock[id] -= qty;
-        });
+        adjustDraftForItem(editingCartItem, -1);
         const currentCart = getCart();
         currentCart.push(editingCartItem);
         setCart(currentCart);
@@ -992,9 +1059,7 @@ function addConfiguredItemToCart() {
 
   const { breakdown, lineTotal, detail } = buildLineFromConfig(p, configSelection);
 
-  Object.entries(breakdown).forEach(([id, qty]) => {
-    draftStock[id] -= qty;
-  });
+  adjustDraftForItem({ breakdown, stockDeferred: false }, -1);
 
   const cart = getCart();
   cart.push({
@@ -1143,7 +1208,7 @@ function showCheckoutSuccess({
   };
 
   setCart([]);
-  setOrderMeta({ clientName: '', clientId: '', isCredit: false });
+  setOrderMeta(emptyOrderMeta());
   resetCheckoutDelivery();
   updateFabBadge();
   renderStockGlance();
@@ -1162,6 +1227,7 @@ async function checkout() {
   const orderClientName = getOrderClientName();
   const orderClientId = getOrderClientId();
   const orderIsCredit = getOrderIsCredit();
+  const storeOrderId = getActiveStoreOrderId();
 
   if (cart.length === 0) return;
   if (!orderClientName) {
@@ -1191,7 +1257,7 @@ async function checkout() {
 
   const mergedBreakdown = {};
   cart.forEach((item) => {
-    Object.entries(item.breakdown).forEach(([id, qty]) => {
+    Object.entries(item.breakdown || {}).forEach(([id, qty]) => {
       mergedBreakdown[id] = (mergedBreakdown[id] || 0) + qty;
     });
   });
@@ -1234,6 +1300,15 @@ async function checkout() {
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
     const saleRows = await res.json();
     if (saleRows?.[0]) void dataStore.appendSale(saleRows[0]);
+
+    if (storeOrderId) {
+      try {
+        const { markStoreOrderCheckedOut } = await import('./store-orders.js');
+        await markStoreOrderCheckedOut(storeOrderId, saleRows?.[0]?.id || null);
+      } catch (e) {
+        console.error('store order checkout mark failed', e);
+      }
+    }
 
     const feeVal = parseInt(checkoutFeeValue, 10);
     const deliveryAttempted =
@@ -1310,7 +1385,116 @@ export function wireOrders() {
     if (orderModal) openModal(orderModal);
   });
 
+  document.addEventListener('store-order:cancelled', (event) => {
+    const cancelledId = event.detail?.orderId;
+    if (!cancelledId || getActiveStoreOrderId() !== cancelledId) return;
+    if (modalMode === 'cart') {
+      const body = document.getElementById('orderModalBody');
+      if (body && !body.querySelector('[data-store-order-cancelled-banner]')) {
+        const banner = document.createElement('div');
+        banner.className = 'store-order-cancelled-banner';
+        banner.dataset.storeOrderCancelledBanner = '1';
+        banner.textContent = 'Customer cancelled this order';
+        body.querySelector('.modal-header')?.insertAdjacentElement('afterend', banner);
+      }
+    }
+    showToast('This storefront order was cancelled', true);
+  });
+
   updateFabBadge();
+}
+
+/**
+ * Load a storefront order into the active cart without reserving draft stock.
+ * Inventory only changes on Checkout.
+ */
+export function applyStorefrontOrderToCart({
+  storeOrderId,
+  customerName,
+  phoneE164,
+  deliveryEnabled = true,
+  delivery = {},
+  deliveryFeeUgx = null,
+  deliveryDistanceKm = null,
+  deliveryDurationMin = null,
+  locationLabel = '',
+  locationLat = null,
+  locationLng = null,
+  cartLines = [],
+} = {}) {
+  resetDraftStock();
+  setCart(Array.isArray(cartLines) ? cartLines : []);
+
+  const wantsDelivery = deliveryEnabled !== false;
+  const deliveryLabel = wantsDelivery ? String(delivery.label || '').trim() : '';
+  setOrderMeta(
+    emptyOrderMeta({
+      clientName: String(customerName || '').trim(),
+      clientId: '',
+      isCredit: false,
+      clientPhone: String(phoneE164 || '').trim(),
+      deliveryTimeLabel: deliveryLabel,
+      deliveryTimeMode: wantsDelivery ? String(delivery.mode || '') : '',
+      deliveryDeliverAt: wantsDelivery ? String(delivery.deliverAt || '') : '',
+      storeOrderId: String(storeOrderId || ''),
+    }),
+  );
+
+  resetCheckoutDelivery();
+
+  if (wantsDelivery) {
+    checkoutDestText = String(locationLabel || '').trim();
+    if (
+      locationLat != null &&
+      locationLng != null &&
+      !Number.isNaN(Number(locationLat)) &&
+      !Number.isNaN(Number(locationLng))
+    ) {
+      checkoutDest = { lat: Number(locationLat), lng: Number(locationLng) };
+    }
+    if (deliveryFeeUgx != null && !Number.isNaN(Number(deliveryFeeUgx))) {
+      checkoutFeeValue = String(Math.round(Number(deliveryFeeUgx)));
+      checkoutFeeManuallyEdited = true;
+    }
+    if (deliveryDistanceKm != null && !Number.isNaN(Number(deliveryDistanceKm))) {
+      checkoutDistanceKm = Number(deliveryDistanceKm);
+    }
+    if (deliveryDurationMin != null && !Number.isNaN(Number(deliveryDurationMin))) {
+      checkoutDurationMin = Number(deliveryDurationMin);
+    }
+    const at = delivery?.deliverAt ? new Date(delivery.deliverAt) : new Date();
+    if (checkoutPredictedFee == null && checkoutDistanceKm != null) {
+      checkoutPredictedFee = predictSafeBodaFee(checkoutDistanceKm, {
+        durationMin: checkoutDurationMin,
+        at: Number.isNaN(at.getTime()) ? new Date() : at,
+      });
+    }
+  }
+
+  pickupAutoRequested = false;
+  updateFabBadge();
+}
+
+export function openLoadedOrderModal() {
+  lastCheckoutReceipt = null;
+  lastCheckoutProcessing = null;
+  modalMode = getCart().length ? 'cart' : 'pick';
+  const orderModal = document.getElementById('orderModal');
+  renderOrderModal();
+  if (orderModal) openModal(orderModal);
+  // Ensure drop-off field shows after render, then compute route if coords exist.
+  if (checkoutDestText) setDeliveryFieldValue('deliveryDestInput', checkoutDestText);
+  if (checkoutFeeValue) {
+    const feeInput = document.getElementById('deliveryFeeInputCart');
+    if (feeInput) feeInput.value = checkoutFeeValue;
+  }
+  updateCartDeliveryHint();
+  if (checkoutDest && !checkoutOrigin) {
+    pickupAutoRequested = true;
+    autoFillPickupLocation();
+  } else if (checkoutOrigin && checkoutDest) {
+    computeCheckoutDistance();
+  }
 }
 
 export function renderProductList() {
