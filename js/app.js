@@ -23,8 +23,10 @@ export function mountApp(page) {
 export async function finishAppInit() {
   registerServiceWorker();
   initQuoteLabReminders();
-  await ensureGsap();
-  wireFloatingNav();
+  // GSAP is decorative — never block data hydration / first paint on it.
+  void ensureGsap().then((g) => {
+    if (g) wireFloatingNav();
+  });
 }
 
 export async function initApp(page) {

@@ -1,5 +1,5 @@
 /**
- * Incoming storefront order queue — poll Supabase, stack, load into POS cart.
+ * Incoming storefront order queue — Realtime + light fallback poll.
  * Cart lines from the store do not reserve draft stock; inventory deducts on Checkout only.
  */
 
@@ -11,10 +11,12 @@ import {
   openLoadedOrderModal,
   getActiveStoreOrderId,
 } from './orders.js';
+import { getRealtimeClient } from './realtime-client.js';
 import { getCart, getOrderMeta } from './state.js';
 import { escapeHtml, fmtUGX, showConfirm, showToast } from './utils.js';
 
-const POLL_MS = 4000;
+/** Safety-net poll when Realtime is down or a change was missed. */
+const FALLBACK_POLL_MS = 30_000;
 const ACTIVE_STATUSES = new Set(['pending', 'confirmed', 'accepted', 'cancelled']);
 
 /** @type {Map<string, object>} */
@@ -25,8 +27,11 @@ const seenIds = new Set();
 const notifiedIds = new Set();
 /** @type {ReturnType<typeof setInterval> | null} */
 let pollTimer = null;
+/** @type {{ unsubscribe?: () => void } | null} */
+let realtimeChannel = null;
 let panelOpen = false;
 let bootstrapped = false;
+let realtimeLive = false;
 
 function readDismissed() {
   try {
@@ -169,52 +174,121 @@ function dismissOrder(orderId) {
   renderStoreOrderUi();
 }
 
+/**
+ * Apply one order row (Realtime or poll). Does not wipe unrelated cache entries.
+ * @param {object} row
+ * @param {{ announce?: boolean }} [opts]
+ */
+function upsertOrder(row, { announce = true } = {}) {
+  if (!row?.id) return;
+  const prev = orderCache.get(row.id);
+
+  if (!ACTIVE_STATUSES.has(row.status)) {
+    orderCache.delete(row.id);
+    return;
+  }
+
+  orderCache.set(row.id, row);
+
+  if (!bootstrapped || !announce) {
+    seenIds.add(row.id);
+    return;
+  }
+
+  if (!seenIds.has(row.id) && row.status === 'pending') {
+    seenIds.add(row.id);
+    if (!notifiedIds.has(row.id)) {
+      notifiedIds.add(row.id);
+      void notifyStorefrontOrder({
+        orderId: row.id,
+        customerName: orderTitle(row),
+        totalLabel: fmtUGX(row.subtotal_ugx || 0),
+        url: `${location.pathname}${location.search}#store-orders`,
+      });
+    }
+  } else if (prev && prev.status !== 'cancelled' && row.status === 'cancelled') {
+    showToast(`${orderTitle(row)} cancelled the order`, true);
+    void showAppNotification({
+      type: NOTIF_TYPE.STOREFRONT_ORDER,
+      title: 'Order cancelled',
+      body: `${orderTitle(row)} cancelled their storefront order`,
+      url: `${location.pathname}${location.search}#store-orders`,
+      tag: `storefront-order-cancelled-${row.id}`,
+      requireInteraction: true,
+      inApp: true,
+    });
+    if (getActiveStoreOrderId() === row.id) {
+      document.dispatchEvent(
+        new CustomEvent('store-order:cancelled', { detail: { orderId: row.id } }),
+      );
+    }
+  } else {
+    seenIds.add(row.id);
+  }
+}
+
 function mergeOrders(rows) {
   const nextIds = new Set();
   for (const row of rows || []) {
     if (!row?.id) continue;
     nextIds.add(row.id);
-    const prev = orderCache.get(row.id);
-    orderCache.set(row.id, row);
-
-    if (!bootstrapped) {
-      seenIds.add(row.id);
-      continue;
-    }
-
-    if (!seenIds.has(row.id) && row.status === 'pending') {
-      seenIds.add(row.id);
-      if (!notifiedIds.has(row.id)) {
-        notifiedIds.add(row.id);
-        void notifyStorefrontOrder({
-          orderId: row.id,
-          customerName: orderTitle(row),
-          totalLabel: fmtUGX(row.subtotal_ugx || 0),
-          url: `${location.pathname}${location.search}#store-orders`,
-        });
-      }
-    } else if (prev && prev.status !== 'cancelled' && row.status === 'cancelled') {
-      showToast(`${orderTitle(row)} cancelled the order`, true);
-      void showAppNotification({
-        type: NOTIF_TYPE.STOREFRONT_ORDER,
-        title: 'Order cancelled',
-        body: `${orderTitle(row)} cancelled their storefront order`,
-        url: `${location.pathname}${location.search}#store-orders`,
-        tag: `storefront-order-cancelled-${row.id}`,
-        requireInteraction: true,
-        inApp: true,
-      });
-      if (getActiveStoreOrderId() === row.id) {
-        document.dispatchEvent(
-          new CustomEvent('store-order:cancelled', { detail: { orderId: row.id } }),
-        );
-      }
-    }
+    upsertOrder(row, { announce: bootstrapped });
   }
 
-  // Drop checked_out / gone rows from cache
   for (const id of [...orderCache.keys()]) {
     if (!nextIds.has(id)) orderCache.delete(id);
+  }
+}
+
+function handleRealtimePayload(payload) {
+  const eventType = payload?.eventType || payload?.event;
+  const row = payload?.new?.id ? payload.new : payload?.old;
+
+  if (eventType === 'DELETE') {
+    if (row?.id) orderCache.delete(row.id);
+    renderStoreOrderUi();
+    return;
+  }
+
+  if (row?.id) {
+    upsertOrder(row, { announce: true });
+    renderStoreOrderUi();
+  }
+}
+
+async function startStoreOrdersRealtime() {
+  if (realtimeChannel) return true;
+  try {
+    const client = await getRealtimeClient();
+    const channel = client
+      .channel('pos-store-orders')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'store_orders' },
+        (payload) => handleRealtimePayload(payload),
+      );
+
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('realtime subscribe timeout')), 8000);
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          clearTimeout(timeout);
+          realtimeLive = true;
+          resolve();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          clearTimeout(timeout);
+          reject(new Error(`realtime ${status}`));
+        }
+      });
+    });
+
+    realtimeChannel = channel;
+    return true;
+  } catch (err) {
+    console.warn('store orders realtime unavailable — using poll fallback', err);
+    realtimeLive = false;
+    realtimeChannel = null;
+    return false;
   }
 }
 
@@ -492,10 +566,17 @@ export async function loadStoreOrderIntoCart(orderId) {
 export function startStoreOrdersRuntime() {
   ensureDom();
   renderStoreOrderUi();
-  void refreshStoreOrders({ silent: true });
+  void refreshStoreOrders({ silent: true }).then(() => {
+    void startStoreOrdersRealtime();
+  });
 
-  if (pollTimer != null) return;
-  pollTimer = setInterval(() => void refreshStoreOrders({ silent: true }), POLL_MS);
+  if (pollTimer == null) {
+    pollTimer = setInterval(() => {
+      // Skip frequent work when Realtime is healthy and tab is hidden.
+      if (realtimeLive && document.visibilityState === 'hidden') return;
+      void refreshStoreOrders({ silent: true });
+    }, FALLBACK_POLL_MS);
+  }
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void refreshStoreOrders({ silent: true });

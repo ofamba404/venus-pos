@@ -13,8 +13,11 @@ export const STALE_MS = {
 const FETCHERS = {
   sales: fetchSalesMerged,
   inventory: () => sbFetch('inventory?select=category_id,stock'),
-  clients: () => sbFetch('clients?select=*&order=name.asc'),
-  deliveries: () => sbFetch('deliveries?select=*&order=created_at.desc&limit=500'),
+  clients: () => sbFetch('clients?select=id,name,created_at&order=name.asc'),
+  deliveries: () =>
+    sbFetch(
+      'deliveries?select=id,client_id,client_name,sale_id,origin_lat,origin_lng,origin_label,dest_lat,dest_lng,dest_label,distance_km,duration_min,fee_ugx,predicted_fee_ugx,fee_was_edited,created_at&order=created_at.desc&limit=500',
+    ),
 };
 
 /** Recent sales plus any outstanding credit outside the recent window. */
