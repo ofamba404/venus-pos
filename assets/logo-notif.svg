@@ -7,7 +7,7 @@
       <stop offset="100%" stop-color="#089c9c"/>
     </linearGradient>
   </defs>
-  <rect width="1414" height="1414" fill="url(#venus-bg)"/>
+  <circle cx="707" cy="707" r="707" fill="url(#venus-bg)"/>
   <style>
     #svg-layer-0 { display: none; }
     #svg-layer-1, #svg-layer-2 { fill: #ffffff; }
