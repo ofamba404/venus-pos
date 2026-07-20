@@ -207,7 +207,7 @@ export function wireClientAutocomplete({
     onChange('', null);
     clearBtn.setAttribute('hidden', '');
     hide();
-    input.focus();
+    input.focus({ preventScroll: true });
   });
 
   input.addEventListener('keydown', async (e) => {

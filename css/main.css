@@ -5812,14 +5812,11 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
-    scroll-padding-bottom: 24px;
-    scroll-padding-top: 12px;
   }
 
-  /* Compose: items lead; checkout fields sit under the list (store-like). */
+  /* Compose cart: client + delivery, then items. Sheet scrolls manually only. */
   .cart-sheet--compose {
     gap: 16px;
-    scroll-padding-bottom: 48px;
   }
 
   .cart-section--compose {
@@ -5827,8 +5824,6 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding-top: 4px;
-    border-top: 1px solid var(--panel-edge-subtle);
   }
 
   .cart-details--compose {
