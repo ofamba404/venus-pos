@@ -53,6 +53,18 @@ export function registerServiceWorker() {
           });
         });
 
+        // One-time wipe of Cache Storage so browsers stuck on an old shell recover
+        // after this deploy (does not unregister — preserves Web Push).
+        const PURGE_KEY = 'venus-sw-purge-v21';
+        if (!localStorage.getItem(PURGE_KEY)) {
+          localStorage.setItem(PURGE_KEY, '1');
+          void caches.keys().then(async (keys) => {
+            await Promise.all(keys.map((k) => caches.delete(k)));
+            location.reload();
+          });
+          return;
+        }
+
         pingUpdate();
         nudgeWaiting();
         document.addEventListener('visibilitychange', () => {

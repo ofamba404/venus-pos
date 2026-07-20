@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'venus-pos-v20';
+const CACHE_VERSION = 'venus-pos-v21';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -45,20 +45,68 @@ function isStaticAsset(pathname) {
   );
 }
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(SHELL_URLS))
-      .then(() => self.skipWaiting())
-      .catch(() => self.skipWaiting()),
+/** HTML / CSS / JS must revalidate — cache-first left old UI stuck after deploys. */
+function isVolatileShell(pathname) {
+  return (
+    pathname === '/' ||
+    pathname === '/manifest.webmanifest' ||
+    pathname.startsWith('/pages/') ||
+    pathname.startsWith('/js/') ||
+    pathname.startsWith('/css/') ||
+    /\.(?:html?|js|css|webmanifest)$/i.test(pathname)
   );
+}
+
+async function precacheShell() {
+  const cache = await caches.open(SHELL_CACHE);
+  await Promise.all(
+    SHELL_URLS.map(async (path) => {
+      try {
+        const response = await fetch(path, { cache: 'reload' });
+        if (response.ok) await cache.put(path, response);
+      } catch {
+        /* offline / missing — skip */
+      }
+    }),
+  );
+}
+
+async function networkFirst(request, cache) {
+  try {
+    // Bypass HTTP disk cache so week-old CDN copies cannot repopulate SW storage.
+    const response = await fetch(request, { cache: 'no-cache' });
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+  } catch {
+    const cached = (await cache.match(request)) || (await caches.match(request));
+    if (cached) return cached;
+    if (request.mode === 'navigate') {
+      return (await caches.match('/index.html')) || Response.error();
+    }
+    return Response.error();
+  }
+}
+
+async function cacheFirst(request, cache) {
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  try {
+    const response = await fetch(request);
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+  } catch {
+    return (await caches.match(request)) || Response.error();
+  }
+}
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(precacheShell().then(() => self.skipWaiting()).catch(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
-      // Drop previous deploy caches only — keep the new version for fast loads.
+      // Drop previous deploy caches only — keep the new version for offline fallback.
       const keys = await caches.keys();
       await Promise.all(keys.filter((k) => !k.startsWith(CACHE_VERSION)).map((k) => caches.delete(k)));
       await self.clients.claim();
@@ -86,22 +134,12 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) return;
   if (!isStaticAsset(url.pathname)) return;
 
-  // Cache-first for speed. Fresh assets arrive when ship bumps CACHE_VERSION.
   event.respondWith(
-    caches.open(RUNTIME_CACHE).then(async (cache) => {
-      const cached = await cache.match(request);
-      if (cached) return cached;
-
-      try {
-        const response = await fetch(request);
-        if (response.ok) cache.put(request, response.clone());
-        return response;
-      } catch {
-        if (request.mode === 'navigate') {
-          return (await caches.match('/index.html')) || Response.error();
-        }
-        return Response.error();
+    caches.open(RUNTIME_CACHE).then((cache) => {
+      if (isVolatileShell(url.pathname) || request.mode === 'navigate') {
+        return networkFirst(request, cache);
       }
+      return cacheFirst(request, cache);
     }),
   );
 });
