@@ -5751,7 +5751,7 @@
     max-height: calc(88dvh - var(--cart-keyboard-inset, 0px));
     overflow: hidden;
     padding: 0;
-    transition: max-height 0.18s ease;
+    /* Instant resize — animated max-height + keyboard = scroll thrash on mobile. */
   }
 
   .modal[data-mode="cart"] .modal-header,
@@ -5813,11 +5813,13 @@
     flex-direction: column;
     gap: 18px;
     scroll-padding-bottom: 24px;
+    scroll-padding-top: 12px;
   }
 
-  /* Compose: form fields first, whole sheet scrolls under the keyboard. */
+  /* Compose: items lead; checkout fields sit under the list (store-like). */
   .cart-sheet--compose {
     gap: 16px;
+    scroll-padding-bottom: 48px;
   }
 
   .cart-section--compose {
@@ -5825,6 +5827,8 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding-top: 4px;
+    border-top: 1px solid var(--panel-edge-subtle);
   }
 
   .cart-details--compose {

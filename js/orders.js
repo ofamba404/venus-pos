@@ -47,6 +47,13 @@ import {
   wireGsapAccordions,
 } from './animations.js';
 import {
+  blurOnOutsideTap,
+  ensureVisibleSoon,
+  isTextEntry,
+  reveal,
+  watchKeyboard,
+} from './form-viewport.js';
+import {
   cartTotal,
   clients,
   draftStock,
@@ -1454,70 +1461,84 @@ function wireCartCopyButtons(root) {
   });
 }
 
-/** Keep focused fields / open dropdowns above the soft keyboard on mobile. */
-function wireCartKeyboardAware(orderModalBody) {
-  const sheet =
-    orderModalBody?.querySelector('.cart-sheet--compose') ||
-    orderModalBody?.querySelector('.cart-sheet.is-active') ||
-    orderModalBody?.querySelector('.cart-review-deck') ||
-    orderModalBody?.querySelector('.cart-sheet');
-  const modal = orderModalBody?.closest('.modal') || document.getElementById('orderModal');
-  if (!sheet || !modal) return;
+/**
+ * Compose-cart mobile UX: shrink the sheet above the soft keyboard, then
+ * nudge only when the active field is actually occluded (store-style).
+ * Review cart has no text fields — skip entirely.
+ */
+function composeFieldAnchor(el) {
+  if (!el) return el;
+  // Never include suggestion lists — scrolling them centers the whole stack
+  // and throws the typing input off-screen.
+  if (el.classList?.contains('suggest-menu') || el.closest?.('.suggest-menu')) {
+    return (
+      el.closest?.('.delivery-place-input-row, .client-search-wrap, .delivery-input-wrap') || el
+    );
+  }
+  if (el.matches?.('#deliveryPickupInput, #deliveryDestInput') || el.closest?.('.delivery-place-field')) {
+    return el.closest?.('.delivery-place-input-row, .delivery-input-wrap') || el;
+  }
+  if (el.matches?.('#cartClientInput') || el.closest?.('.client-search-wrap')) {
+    return el.closest?.('.client-search-wrap') || el;
+  }
+  return el.closest?.('.delivery-input-wrap, .client-search-wrap') || el;
+}
 
-  const scrollTargetIntoView = (el) => {
-    if (!el || typeof el.scrollIntoView !== 'function') return;
-    requestAnimationFrame(() => {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-    });
-  };
+function wireCartKeyboardAware(orderModalBody) {
+  orderModalBody?._cartKeyboardCleanup?.();
+
+  const sheet = orderModalBody?.querySelector('.cart-sheet--compose');
+  const modal = orderModalBody?.closest('.modal') || document.getElementById('orderModal');
+  if (!sheet || !modal || orderModalBody?.dataset?.cartMode === 'review') return;
 
   const applyKeyboardInset = () => {
     const vv = window.visualViewport;
-    if (!vv) {
-      modal.style.setProperty('--cart-keyboard-inset', '0px');
-      return;
-    }
-    const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
-    modal.style.setProperty('--cart-keyboard-inset', `${inset}px`);
+    const inset = vv
+      ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
+      : 0;
+    const next = `${inset}px`;
+    if (modal.style.getPropertyValue('--cart-keyboard-inset') === next) return;
+    modal.style.setProperty('--cart-keyboard-inset', next);
   };
 
   const onFocusIn = (e) => {
     const t = e.target;
-    if (!(t instanceof HTMLElement)) return;
-    if (!t.matches('input, textarea, select')) return;
-    const anchor =
-      t.closest('.delivery-input-wrap, .client-search-wrap, .cart-compose-field, .cart-fact, label') || t;
+    if (!(t instanceof HTMLElement) || !isTextEntry(t)) return;
     applyKeyboardInset();
-    scrollTargetIntoView(anchor);
+    ensureVisibleSoon(composeFieldAnchor(t));
   };
 
   const onDropdownOpen = (e) => {
     const panel = e.target;
     if (!(panel instanceof HTMLElement) || !panel.classList.contains('suggest-menu')) return;
-    const anchor =
-      panel.closest('.delivery-input-wrap, .client-search-wrap, .cart-compose-field') || panel;
     applyKeyboardInset();
-    // Wait a beat so dropdown height is applied before scrolling.
-    setTimeout(() => scrollTargetIntoView(anchor), 60);
+    const field = composeFieldAnchor(panel);
+    // Reveal field + open menu without centering a tall union off-screen.
+    setTimeout(() => reveal(field, panel), 60);
   };
 
   applyKeyboardInset();
   sheet.addEventListener('focusin', onFocusIn);
   sheet.addEventListener('venus:dropdown-open', onDropdownOpen);
 
-  const vv = window.visualViewport;
-  if (vv) {
-    vv.addEventListener('resize', applyKeyboardInset);
-    vv.addEventListener('scroll', applyKeyboardInset);
-  }
+  const stopWatch = watchKeyboard(sheet, (active) => {
+    applyKeyboardInset();
+    return composeFieldAnchor(active);
+  });
+  const stopBlur = blurOnOutsideTap(modal);
 
-  // Clean previous listeners when cart re-renders by storing disposer on the body.
-  orderModalBody._cartKeyboardCleanup?.();
+  const vv = window.visualViewport;
+  const onViewportInset = () => applyKeyboardInset();
+  vv?.addEventListener('resize', onViewportInset);
+  vv?.addEventListener('scroll', onViewportInset);
+
   orderModalBody._cartKeyboardCleanup = () => {
     sheet.removeEventListener('focusin', onFocusIn);
     sheet.removeEventListener('venus:dropdown-open', onDropdownOpen);
-    vv?.removeEventListener('resize', applyKeyboardInset);
-    vv?.removeEventListener('scroll', applyKeyboardInset);
+    stopWatch?.();
+    stopBlur?.();
+    vv?.removeEventListener('resize', onViewportInset);
+    vv?.removeEventListener('scroll', onViewportInset);
     modal.style.removeProperty('--cart-keyboard-inset');
   };
 }
@@ -1608,9 +1629,24 @@ function renderComposeCartHtml({
   orderIsCredit,
   deliveryHint,
 }) {
+  // Items lead (logging job). Client + delivery sit under the list so the
+  // soft keyboard opens near the fields instead of yanking the sheet around.
   return `
     <div class="cart-sheet cart-sheet--compose" data-cart-mode="compose">
-      <section class="cart-section cart-section--compose">
+      <section class="cart-section cart-section--items">
+        <div class="cart-section__head">
+          <div class="cart-section__label">Items</div>
+          <div class="cart-section__count">${cart.length ? cart.length : ''}</div>
+        </div>
+        <div id="cartItemsList" class="cart-items${cart.length ? '' : ' is-empty'}">${cart.length ? cart.map((item) => cartItemHtml(item)).join('') : cartEmptyHtml()}</div>
+        <button class="add-item-btn" id="addItemBtn" type="button">
+          <span class="add-item-btn__icon" aria-hidden="true">+</span>
+          <span>Add item</span>
+        </button>
+        <div id="cartTotalSlot">${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}</div>
+      </section>
+
+      <section class="cart-section cart-section--compose" data-cart-checkout-fields>
         <div class="client-picker">
           <div class="client-picker__head">
             <label for="cartClientInput">Client</label>
@@ -1626,7 +1662,7 @@ function renderComposeCartHtml({
           <div id="cartClientCreditHintSlot">${clientCreditHintHtml(getOrderClientId(), { creditOn: orderIsCredit })}</div>
         </div>
 
-        <div class="cart-details cart-details--compose is-open" data-accordion data-accordion-id="cart-delivery" data-accordion-open="true">
+        <div class="cart-details cart-details--compose" data-accordion data-accordion-id="cart-delivery" data-accordion-open="false">
           <button type="button" class="cart-details__summary" data-accordion-trigger>
             <span class="cart-details__title">Delivery</span>
             <span class="cart-details__hint" data-cart-delivery-hint>${escapeHtml(deliveryHint)}</span>
@@ -1659,19 +1695,6 @@ function renderComposeCartHtml({
             </div>
           </div>
         </div>
-      </section>
-
-      <section class="cart-section cart-section--items">
-        <div class="cart-section__head">
-          <div class="cart-section__label">Items</div>
-          <div class="cart-section__count">${cart.length ? cart.length : ''}</div>
-        </div>
-        <div id="cartItemsList" class="cart-items${cart.length ? '' : ' is-empty'}">${cart.length ? cart.map((item) => cartItemHtml(item)).join('') : cartEmptyHtml()}</div>
-        <button class="add-item-btn" id="addItemBtn" type="button">
-          <span class="add-item-btn__icon" aria-hidden="true">+</span>
-          <span>Add item</span>
-        </button>
-        <div id="cartTotalSlot">${cart.length ? `<div class="cart-total-row"><div class="ct-label">Total</div><div class="ct-val">${fmtUGX(cartTotal(cart))}</div></div>` : ''}</div>
       </section>
     </div>`;
 }
@@ -1806,6 +1829,19 @@ function renderCartView() {
 
   if (!isReview) {
     wireGsapAccordions(orderModalBody);
+    const deliveryAccordion = orderModalBody.querySelector('[data-accordion-id="cart-delivery"]');
+    deliveryAccordion
+      ?.querySelector('[data-accordion-trigger]')
+      ?.addEventListener('click', () => {
+        // Accordion toggles first; only nudge when opening.
+        if (!deliveryAccordion.classList.contains('is-open')) return;
+        window.setTimeout(() => {
+          const firstField =
+            deliveryAccordion.querySelector('#deliveryPickupInput, .delivery-input-wrap input') ||
+            deliveryAccordion;
+          ensureVisibleSoon(firstField, { padding: 20 });
+        }, 280);
+      });
   }
   document.getElementById('orderClose')?.addEventListener('click', closeOrderModal);
   wireCartStoreOrderSwitcher(orderModalBody);
