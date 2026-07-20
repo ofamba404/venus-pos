@@ -663,7 +663,17 @@ function renderEditSaleMainView() {
   if (!body) return;
 
   const sale = salesCache.find((s) => s.id === editingSaleId);
-  const time = sale ? new Date(sale.created_at).toLocaleString() : '';
+  const time = sale
+    ? new Date(sale.created_at).toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      })
+    : '';
   const total = saleItemsTotal(editSaleItems);
 
   const itemRows =

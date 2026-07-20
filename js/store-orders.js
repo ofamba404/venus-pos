@@ -174,7 +174,11 @@ function orderTimeLabel(order) {
   if (!raw) return '';
   const t = new Date(raw);
   if (Number.isNaN(t.getTime())) return '';
-  return t.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return t.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
 }
 
 function orderTitle(order) {
@@ -329,6 +333,18 @@ async function dismissOrder(orderId) {
   if (!id) return;
 
   dismissingIds.add(id);
+
+  const panel = document.getElementById('storeOrdersPanel');
+  const listEl = panel?.querySelector('.store-orders-panel__list');
+  listEl?.querySelector(`[data-store-order-id="${CSS.escape(id)}"]`)?.remove();
+
+  const stacked = getStackedStoreOrders();
+  if (listEl) {
+    listEl.dataset.sig = stackListSignature(stacked);
+    if (!stacked.length) listEl.innerHTML = stackEmptyHtml();
+  }
+
+  // Badge + header only — list already matches after the row remove.
   renderStoreOrderUi();
 
   const now = new Date().toISOString();
@@ -354,6 +370,8 @@ async function dismissOrder(orderId) {
     console.error('dismiss store order failed', e);
     dismissingIds.delete(id);
     showToast('Could not dismiss order', true);
+    renderStoreOrderUi();
+    return;
   }
   renderStoreOrderUi();
 }
@@ -574,6 +592,32 @@ function ensureDom() {
     });
   }
 
+  if (panel && !panel.dataset.wiredActions) {
+    panel.dataset.wiredActions = '1';
+    panel.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('[data-close-store-orders]')) {
+        closeStoreOrdersPanel();
+        return;
+      }
+      const load = target.closest('[data-load-store-order]');
+      if (load) {
+        void loadStoreOrderIntoCart(load.getAttribute('data-load-store-order'));
+        return;
+      }
+      const cancel = target.closest('[data-cancel-store-order]');
+      if (cancel) {
+        void cancelStoreOrder(cancel.getAttribute('data-cancel-store-order'));
+        return;
+      }
+      const dismiss = target.closest('[data-dismiss-store-order]');
+      if (dismiss) {
+        void dismissOrder(dismiss.getAttribute('data-dismiss-store-order'));
+      }
+    });
+  }
+
   return { badge, btn, panel };
 }
 
@@ -583,48 +627,107 @@ function stackItemHtml(order) {
   const active = getActiveStoreOrderId() === order.id;
   const items = Array.isArray(order.items) ? order.items : [];
   const itemBits = items
-    .slice(0, 3)
+    .slice(0, 2)
     .map((line) => escapeHtml(line.product_name || 'Item'))
-    .join(', ');
-  const more = items.length > 3 ? ` +${items.length - 3}` : '';
-  const phone = String(order.phone_e164 || '').trim();
+    .join(' · ');
+  const more = items.length > 2 ? ` · +${items.length - 2}` : '';
   const when = deliveryLabel(order);
   const orderedAt = orderTimeLabel(order);
-  const statusLabel = cancelled
-    ? 'Cancelled'
+  const statusKey = cancelled
+    ? 'cancelled'
     : active
-      ? 'In cart'
+      ? 'active'
       : hasStoreOrderSession(order.id)
-        ? 'Loaded'
+        ? 'loaded'
         : confirmed
-          ? 'Confirmed'
+          ? 'confirmed'
           : order.status === 'accepted'
-            ? 'Opened'
-            : 'New';
+            ? 'opened'
+            : 'new';
+  const statusLabel =
+    {
+      cancelled: 'Cancelled',
+      active: 'In cart',
+      loaded: 'Loaded',
+      confirmed: 'Confirmed',
+      opened: 'Opened',
+      new: 'New',
+    }[statusKey] || 'New';
+
+  const primaryLabel = active
+    ? 'View cart'
+    : hasStoreOrderSession(order.id)
+      ? 'Switch'
+      : 'Load';
 
   const actions = cancelled
-    ? `<button type="button" class="store-order-card__btn" data-dismiss-store-order="${escapeHtml(order.id)}">Dismiss</button>`
-    : `<button type="button" class="store-order-card__btn store-order-card__btn--primary" data-load-store-order="${escapeHtml(order.id)}">${active ? 'View cart' : hasStoreOrderSession(order.id) ? 'Switch to cart' : 'Load into cart'}</button>
-               <button type="button" class="store-order-card__btn store-order-card__btn--danger" data-cancel-store-order="${escapeHtml(order.id)}">Cancel</button>`;
+    ? `<button type="button" class="store-order-card__btn store-order-card__btn--ghost" data-dismiss-store-order="${escapeHtml(order.id)}">Dismiss</button>`
+    : `<button type="button" class="store-order-card__btn store-order-card__btn--primary" data-load-store-order="${escapeHtml(order.id)}">${primaryLabel}</button>
+       <button type="button" class="store-order-card__btn store-order-card__btn--quiet" data-cancel-store-order="${escapeHtml(order.id)}">Cancel</button>`;
+
+  const metaParts = [];
+  if (orderedAt) metaParts.push(escapeHtml(orderedAt));
+  if (when) metaParts.push(escapeHtml(when));
+  if (itemBits) metaParts.push(`${itemBits}${more}`);
+  const meta = metaParts.join(' · ');
 
   return `
-    <article class="store-order-card${cancelled ? ' is-cancelled' : ''}${confirmed ? ' is-confirmed' : ''}${active ? ' is-active' : ''}" data-store-order-id="${escapeHtml(order.id)}">
-      <div class="store-order-card__top">
-        <div class="store-order-card__name">${escapeHtml(orderTitle(order))}</div>
-        <div class="store-order-card__status">${statusLabel}</div>
+    <article
+      class="store-order-card${cancelled ? ' is-cancelled' : ''}${confirmed && !cancelled ? ' is-confirmed' : ''}${active ? ' is-active' : ''}"
+      data-store-order-id="${escapeHtml(order.id)}"
+      data-status="${statusKey}"
+    >
+      <div class="store-order-card__main">
+        <div class="store-order-card__title-row">
+          <span class="store-order-card__name">${escapeHtml(orderTitle(order))}</span>
+          <span class="store-order-card__status">${statusLabel}</span>
+        </div>
+        <div class="store-order-card__meta">${meta || 'No items'}</div>
       </div>
-      <div class="store-order-card__meta">
-        ${orderedAt ? `<span>${escapeHtml(orderedAt)}</span>` : ''}
-        <span>${escapeHtml(when)}</span>
-        ${phone ? `<span>${escapeHtml(phone)}</span>` : ''}
-        <span>${fmtUGX(order.subtotal_ugx || 0)}</span>
-      </div>
-      <div class="store-order-card__items">${itemBits || 'No items'}${more}</div>
-      ${cancelled ? '<p class="store-order-card__cancel-note">Order cancelled</p>' : ''}
-      <div class="store-order-card__actions">
-        ${actions}
+      <div class="store-order-card__side">
+        <div class="store-order-card__total">${fmtUGX(order.subtotal_ugx || 0)}</div>
+        <div class="store-order-card__actions">${actions}</div>
       </div>
     </article>`;
+}
+
+function stackListSignature(stacked) {
+  return stacked
+    .map((order) => {
+      const cancelled = order.status === 'cancelled';
+      const confirmed = Boolean(order.confirmed_at) || order.status === 'confirmed';
+      const active = getActiveStoreOrderId() === order.id;
+      const session = hasStoreOrderSession(order.id) ? '1' : '0';
+      return `${order.id}:${order.status}:${cancelled ? 1 : 0}:${confirmed ? 1 : 0}:${active ? 1 : 0}:${session}:${order.subtotal_ugx || 0}`;
+    })
+    .join('|');
+}
+
+function stackEmptyHtml() {
+  return `<div class="store-orders-panel__empty">
+    <div class="store-orders-panel__empty-mark" aria-hidden="true"></div>
+    <div class="store-orders-panel__empty-title">Queue clear</div>
+    <div class="store-orders-panel__empty-body">New storefront orders land here.</div>
+  </div>`;
+}
+
+function ensurePanelShell(panel) {
+  if (panel.querySelector('.store-orders-panel__list')) return false;
+  panel.innerHTML = `
+    <div class="store-orders-panel__head">
+      <div class="store-orders-panel__head-copy">
+        <div class="store-orders-panel__eyebrow">Storefront</div>
+        <div class="store-orders-panel__title">Order stack</div>
+        <div class="store-orders-panel__sub" data-store-orders-sub></div>
+      </div>
+      <button type="button" class="store-orders-panel__close" data-close-store-orders aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="store-orders-panel__list"></div>`;
+  return true;
 }
 
 export function renderStoreOrderUi() {
@@ -663,67 +766,55 @@ export function renderStoreOrderUi() {
   window.__venusSyncReviewCartChrome?.();
 
   if (!panel) return;
-  panel.hidden = !panelOpen;
-  if (!panelOpen) return;
 
-  // Replacing innerHTML removes the focused control (Dismiss/Cancel/etc.), which
-  // browsers often scroll the document to top for. Keep both scrolls stable.
-  const listEl = panel.querySelector('.store-orders-panel__list');
-  const listScrollTop = listEl?.scrollTop ?? 0;
-  const pageX = window.scrollX;
-  const pageY = window.scrollY;
-  const active = document.activeElement;
-  if (active instanceof HTMLElement && panel.contains(active)) {
-    active.blur();
+  const wasHidden = panel.hidden;
+  panel.hidden = !panelOpen;
+  if (!panelOpen) {
+    panel.classList.remove('is-opening');
+    return;
   }
 
-  panel.innerHTML = `
-    <div class="store-orders-panel__head">
-      <div>
-        <div class="store-orders-panel__title">Order stack</div>
-        <div class="store-orders-panel__sub">${count} open${cancelled ? ` · ${cancelled} cancelled` : ''}</div>
-      </div>
-      <button type="button" class="store-orders-panel__close" data-close-store-orders aria-label="Close">✕</button>
-    </div>
-    <div class="store-orders-panel__list">
-      ${
-        stacked.length
-          ? stacked.map(stackItemHtml).join('')
-          : `<div class="store-orders-panel__empty">No storefront orders yet</div>`
-      }
-    </div>`;
+  ensurePanelShell(panel);
 
-  const nextList = panel.querySelector('.store-orders-panel__list');
-  if (nextList) nextList.scrollTop = listScrollTop;
-  const restorePageScroll = () => {
-    if (window.scrollX !== pageX || window.scrollY !== pageY) {
-      window.scrollTo(pageX, pageY);
+  const sub = panel.querySelector('[data-store-orders-sub]') || panel.querySelector('.store-orders-panel__sub');
+  if (sub) {
+    sub.textContent = `${count} open${cancelled ? ` · ${cancelled} cancelled` : ''}`;
+  }
+
+  const listEl = panel.querySelector('.store-orders-panel__list');
+  if (!listEl) return;
+
+  const signature = stackListSignature(stacked);
+  const listNeedsPaint = listEl.dataset.sig !== signature;
+  if (listNeedsPaint) {
+    const listScrollTop = listEl.scrollTop;
+    const pageX = window.scrollX;
+    const pageY = window.scrollY;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && listEl.contains(active)) {
+      active.blur();
     }
-  };
-  restorePageScroll();
-  requestAnimationFrame(restorePageScroll);
 
-  panel.querySelector('[data-close-store-orders]')?.addEventListener('click', () => {
-    closeStoreOrdersPanel();
-  });
+    listEl.dataset.sig = signature;
+    listEl.innerHTML = stacked.length ? stacked.map(stackItemHtml).join('') : stackEmptyHtml();
+    listEl.scrollTop = listScrollTop;
 
-  panel.querySelectorAll('[data-load-store-order]').forEach((el) => {
-    el.addEventListener('click', () => {
-      void loadStoreOrderIntoCart(el.getAttribute('data-load-store-order'));
-    });
-  });
+    const restorePageScroll = () => {
+      if (window.scrollX !== pageX || window.scrollY !== pageY) {
+        window.scrollTo(pageX, pageY);
+      }
+    };
+    restorePageScroll();
+    requestAnimationFrame(restorePageScroll);
+  }
 
-  panel.querySelectorAll('[data-cancel-store-order]').forEach((el) => {
-    el.addEventListener('click', () => {
-      void cancelStoreOrder(el.getAttribute('data-cancel-store-order'));
-    });
-  });
-
-  panel.querySelectorAll('[data-dismiss-store-order]').forEach((el) => {
-    el.addEventListener('click', () => {
-      void dismissOrder(el.getAttribute('data-dismiss-store-order'));
-    });
-  });
+  if (wasHidden) {
+    panel.classList.add('is-opening');
+    const clearOpening = () => panel.classList.remove('is-opening');
+    panel.addEventListener('animationend', clearOpening, { once: true });
+    // Fallback if animation is disabled.
+    setTimeout(clearOpening, 320);
+  }
 }
 
 function rowsToCartLines(items) {

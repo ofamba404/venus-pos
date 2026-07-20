@@ -172,7 +172,11 @@ export function buildOrderHistoryTree(sales, now = new Date()) {
 
 function renderOrderRow(s) {
   const t = new Date(s.created_at);
-  const time = t.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const time = t.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
   const itemLines = (s.items || [])
     .map((i) => `${escapeHtml(i.product_name)}${i.detail ? ` — ${escapeHtml(i.detail)}` : ''}`)
     .join('<br>');
