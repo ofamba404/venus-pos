@@ -12,7 +12,7 @@ import { fmtCompact, fmtUGX, isSameDay } from './utils.js';
 export const CHART_RANGES = [
   { id: '1w', label: 'This week', short: '1W', unit: 'week', count: 1 },
   { id: 'lw', label: 'Last week', short: 'LW', unit: 'week', count: 1, offset: 1 },
-  { id: '2w', label: 'Last 2 weeks', short: '2W', unit: 'week', count: 2 },
+  { id: '2w', label: 'Last 2 weeks', short: '2W', unit: 'week', count: 2, offset: 2 },
   { id: '1m', label: 'This month', short: '1M', unit: 'month', count: 1 },
   { id: '3m', label: 'Last 3 months', short: '3M', unit: 'month', count: 3 },
   { id: 'all', label: 'All time', short: 'All', unit: null, count: null },

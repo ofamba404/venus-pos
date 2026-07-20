@@ -197,7 +197,7 @@ function renderDayGroup(group, { expanded = false, id } = {}) {
           <span class="day-caret" aria-hidden="true">▸</span>
         </span>
       </button>
-      <div class="order-day-body" data-oh-day-body="${id}">
+      <div class="order-day-body" data-oh-day-body="${id}"${expanded ? '' : ' hidden'}>
         ${rows}
       </div>
     </div>`;
@@ -219,7 +219,7 @@ function renderWeekGroup(week, { id, useCustomLabel = false } = {}) {
           <span class="day-caret" aria-hidden="true">▸</span>
         </span>
       </button>
-      <div class="order-week-body" data-oh-week-body="${id}">
+      <div class="order-week-body" data-oh-week-body="${id}" hidden>
         ${days}
       </div>
     </div>`;
@@ -240,7 +240,7 @@ function renderMonthGroup(month, { id } = {}) {
           <span class="day-caret" aria-hidden="true">▸</span>
         </span>
       </button>
-      <div class="order-month-body" data-oh-month-body="${id}">
+      <div class="order-month-body" data-oh-month-body="${id}" hidden>
         ${weeks}
       </div>
     </div>`;

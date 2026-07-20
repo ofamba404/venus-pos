@@ -2487,27 +2487,28 @@
       0 0 0 3px var(--jade-dim);
   }
 
+  /* Idle Confirm stays gray — jade only after staff taps it. */
   button.credit-chip.credit-chip--confirm:not(.is-on) {
-    color: color-mix(in srgb, var(--jade) 85%, #0f172a);
-    background: color-mix(in srgb, var(--jade) 12%, var(--surface));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jade) 32%, transparent);
+    color: var(--text-dim);
+    background: color-mix(in srgb, var(--surface) 70%, var(--surface-overlay));
+    box-shadow: inset 0 0 0 1px var(--panel-edge-subtle);
   }
 
   button.credit-chip.credit-chip--confirm:not(.is-on) .credit-chip__dot {
-    background: var(--jade);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jade) 16%, transparent);
+    background: color-mix(in srgb, var(--text-dim) 45%, transparent);
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
   }
 
   button.credit-chip.credit-chip--confirm.is-on {
-    color: color-mix(in srgb, var(--jade) 75%, var(--text-dim));
-    background: color-mix(in srgb, var(--jade) 8%, var(--surface));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jade) 22%, transparent);
+    color: color-mix(in srgb, var(--jade) 85%, #0f172a);
+    background: color-mix(in srgb, var(--jade) 12%, var(--surface));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--jade) 32%, transparent);
     cursor: default;
   }
 
   button.credit-chip.credit-chip--confirm.is-on .credit-chip__dot {
     background: var(--jade);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jade) 12%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--jade) 16%, transparent);
   }
 
   button.credit-chip.credit-chip--confirm:disabled {
@@ -2880,6 +2881,12 @@
     will-change: height, opacity;
   }
 
+  /* Keep closed panels hidden if history painted before GSAP added has-gsap
+     (display:block above would otherwise override [hidden]). */
+  body.has-gsap .order-day-body[hidden] {
+    display: none;
+  }
+
   .order-header-right {
     display: flex;
     align-items: center;
@@ -2980,6 +2987,11 @@
     display: block;
     overflow: hidden;
     will-change: height, opacity;
+  }
+
+  body.has-gsap .order-week-body[hidden],
+  body.has-gsap .order-month-body[hidden] {
+    display: none;
   }
 
   .order-week-body .order-day-group,
@@ -6120,8 +6132,7 @@
     height: 6px;
   }
 
-  .cart-review-chips button.credit-chip.is-on .credit-chip__dot,
-  .cart-review-chips button.credit-chip.credit-chip--confirm .credit-chip__dot {
+  .cart-review-chips button.credit-chip.is-on .credit-chip__dot {
     box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 16%, transparent);
   }
 
@@ -7207,6 +7218,7 @@
     border: 1px solid var(--panel-edge);
     box-shadow: var(--shadow-lg);
     overflow: hidden;
+    font-family: var(--font-sans);
   }
 
   .store-orders-panel[hidden] {
@@ -7337,6 +7349,7 @@
     border-radius: 999px;
     background: transparent;
     color: inherit;
+    font-family: var(--font-sans);
     font-size: 12px;
     font-weight: 600;
     padding: 8px 10px;
