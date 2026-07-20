@@ -91,10 +91,25 @@ function Invoke-GitPush {
     if ($retry.ExitCode -ne 0) { throw "git push failed after GH007 fix: $($retry.Output)" }
 }
 
+function Update-ServiceWorkerCacheVersion {
+    # Bump CACHE_VERSION so clients install a new SW, drop old caches, and reload — only on deploy.
+    $swPath = Join-Path $Root "sw.js"
+    if (-not (Test-Path $swPath)) { return }
+    $content = [System.IO.File]::ReadAllText($swPath)
+    if ($content -notmatch "CACHE_VERSION = '([^']+)-v(\d+)'") { return }
+    $prefix = $Matches[1]
+    $next = [int]$Matches[2] + 1
+    $updated = $content -replace "CACHE_VERSION = '[^']+'", "CACHE_VERSION = '$prefix-v$next'"
+    [System.IO.File]::WriteAllText($swPath, $updated)
+    Write-Host "Bumped SW cache to $prefix-v$next (clients refresh on next visit)."
+}
+
 Set-CommitIdentity
 
 $branch = git branch --show-current
 if (-not $branch) { throw "Not on a git branch." }
+
+Update-ServiceWorkerCacheVersion
 
 git add -A
 $pending = git status --porcelain

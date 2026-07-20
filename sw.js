@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'venus-pos-v17';
+const CACHE_VERSION = 'venus-pos-v19';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -45,35 +45,6 @@ function isStaticAsset(pathname) {
   );
 }
 
-/** App shell + code — never serve stale after a deploy. */
-function isAppCode(pathname, request) {
-  if (request.mode === 'navigate') return true;
-  if (pathname === '/' || pathname.endsWith('.html')) return true;
-  if (pathname.endsWith('.js') || pathname.endsWith('.css') || pathname.endsWith('.webmanifest')) {
-    return true;
-  }
-  if (pathname.startsWith('/js/') || pathname.startsWith('/css/') || pathname.startsWith('/pages/')) {
-    return true;
-  }
-  return false;
-}
-
-async function fromCache(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
-  if (request.mode === 'navigate') {
-    return (await caches.match('/index.html')) || Response.error();
-  }
-  return Response.error();
-}
-
-/** Bypass HTTP cache so deploys are visible immediately. */
-async function networkThenCache(request, cache, { store = true } = {}) {
-  const response = await fetch(request, { cache: 'no-store' });
-  if (store && response.ok) cache.put(request, response.clone());
-  return response;
-}
-
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
@@ -87,16 +58,9 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
-      // Wipe every Cache Storage entry so old deploys cannot linger.
+      // Drop previous deploy caches only — keep the new version for fast loads.
       const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
-      // Re-seed a minimal shell for offline navigations.
-      try {
-        const shell = await caches.open(SHELL_CACHE);
-        await shell.addAll(SHELL_URLS);
-      } catch {
-        /* offline during activate — fine */
-      }
+      await Promise.all(keys.filter((k) => !k.startsWith(CACHE_VERSION)).map((k) => caches.delete(k)));
       await self.clients.claim();
       const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of clients) {
@@ -120,25 +84,23 @@ self.addEventListener('fetch', (event) => {
   if (!isSameOrigin(url)) return;
   if (url.pathname.includes('/rest/v1/')) return;
   if (url.pathname.startsWith('/api/')) return;
-
   if (!isStaticAsset(url.pathname)) return;
 
+  // Cache-first for speed. Fresh assets arrive when ship bumps CACHE_VERSION.
   event.respondWith(
     caches.open(RUNTIME_CACHE).then(async (cache) => {
-      // HTML / JS / CSS — network first; cache only as offline fallback.
-      if (isAppCode(url.pathname, request)) {
-        try {
-          return await networkThenCache(request, cache, { store: true });
-        } catch {
-          return fromCache(request);
-        }
-      }
+      const cached = await cache.match(request);
+      if (cached) return cached;
 
-      // Images / fonts — still network-first (no stale-while-revalidate).
       try {
-        return await networkThenCache(request, cache, { store: true });
+        const response = await fetch(request);
+        if (response.ok) cache.put(request, response.clone());
+        return response;
       } catch {
-        return fromCache(request);
+        if (request.mode === 'navigate') {
+          return (await caches.match('/index.html')) || Response.error();
+        }
+        return Response.error();
       }
     }),
   );
