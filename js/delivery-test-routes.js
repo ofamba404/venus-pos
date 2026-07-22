@@ -1,8 +1,9 @@
 /**
  * Manual SafeBoda quote testing — fixed pickup + curated drop-offs.
  *
- * Goal: balanced distance × time-of-day coverage so the OLS fee model
- * approaches a strong fit (R² ≥ 0.90). Real checkout logs count too.
+ * Goal: enough distance × time-of-day coverage that OLS + period premiums
+ * actually stabilize. SafeBoda noise (rain/demand) means a single pass of
+ * 9 quotes/period is nowhere near enough — treat that old target as wrong.
  */
 
 import { PERIODS, periodForDate } from './delivery-fee-model.js';
@@ -26,9 +27,8 @@ export const BASE_ORIGIN = {
  * Selection rules (from verified Prisca Honey origin):
  * 1. Real Google Places POIs that are easy to search in SafeBoda
  * 2. Road-distance ladder via Distance Matrix (~0.8 → ~11 km)
- * 3. Different corridors / jam patterns (campus, Kololo, CBD, Gayaza north,
- *    Bugolobi, Ntinda, Northern Bypass)
- * 4. Band mix: 2 short (<2.5) · 3 mid (<6) · 3 long (≥6)
+ * 3. Different corridors / jam patterns
+ * 4. Band mix: short (<2.5) · mid (<6) · long (≥6)
  *
  * approxKm = Google driving distance. SafeBoda km/fee can still differ slightly.
  */
@@ -42,7 +42,7 @@ export const TEST_DROPOFFS = [
     lng: 32.5733405,
     band: 'short',
     approxKm: 0.8,
-    why: 'Nearest market hop — anchors base fare',
+    why: 'Nearest market hop — anchors base fare / 3k floor',
   },
   {
     id: 'makerere-gate',
@@ -90,6 +90,18 @@ export const TEST_DROPOFFS = [
     why: 'North / Gayaza corridor — upper-mid jam pattern',
   },
   {
+    id: 'kisugu-south',
+    label: 'Kisugu South, Kampala',
+    shortLabel: 'Kisugu South',
+    searchAs: 'Kisugu South',
+    aliases: ['kisugu s', 'kisugu'],
+    lat: 0.3044859,
+    lng: 32.6060064,
+    band: 'long',
+    approxKm: 6.5,
+    why: 'SE / Kabalagala corridor — mid-long check (~5.5–6.5k SafeBoda)',
+  },
+  {
     id: 'bugolobi',
     label: 'Village Mall, Spring Road, Kampala',
     shortLabel: 'Village Mall',
@@ -115,8 +127,6 @@ export const TEST_DROPOFFS = [
   },
   {
     id: 'garden-city',
-    // Longest arm — Northern Bypass. SafeBoda lists several Metroplex hits;
-    // use the full "Shopping Centre" name (not bare "Metroplex").
     label: 'Metroplex Shopping Centre, Kampala - Northern Bypass Highway',
     shortLabel: 'Metroplex Shopping Centre',
     searchAs: 'Metroplex Shopping Centre',
@@ -130,23 +140,46 @@ export const TEST_DROPOFFS = [
 ];
 
 /**
- * Sample targets derived from the fee model:
- * - Period premiums shrink toward 0 with priorStrength=3 → need ~9/period
- *   for a usable (~75% weight) premium, ~12/period near-stable (~80%).
- * - Slowdown term needs ≥4 rows with duration (always collected).
- * - 8 routes × 4 periods = 32 covers the matrix once; 36 is the strong
- *   target; 48 is the stretch for near-max period stability.
+ * Named places to log via custom search (no fixed pin until you pick them).
+ * Use these when SafeBoda quotes disagree with the app — log the same POI
+ * across periods so the fit learns that corridor.
+ */
+export const CALIBRATION_SEARCHES = [
+  {
+    id: 'pine-valley',
+    searchAs: 'Pine Valley Apartments',
+    shortLabel: 'Pine Valley Apartments',
+    note: 'Near mid (~3.5k SafeBoda) — log day + evening at least',
+  },
+  {
+    id: 'meeting-point-ganda',
+    searchAs: 'Meeting Point Ganda Road',
+    shortLabel: 'Meeting Point · Ganda Rd',
+    note: 'Mid-long (~5.5k SafeBoda) — pair with Kisugu South',
+  },
+];
+
+/**
+ * Honest sample targets (the old 9/period target was too thin):
+ * - Period premiums shrink toward 0 with priorStrength=3 → need ~20/period
+ *   before the premium is mostly data-driven (~85% weight).
+ * - Each preset × period should be logged at least twice (minPerCell) so one
+ *   weird quote cannot own a cell.
+ * - 9 presets × 4 periods × 2 = 72; strong target 80 leaves room for customs.
+ * - Stretch 120 ≈ 3 fills of the matrix + custom calibration POIs.
  *
- * Real SafeBoda noise (rain/demand) means R²≈1.0 is unlikely — "almost
- * 100%" here means Strong fit (≥90%) with balanced coverage.
+ * Real SafeBoda noise means R²≈1.0 is unlikely — "strong" means ≥90% with
+ * balanced coverage, not "done after 36 logs".
  */
 export const FIT_TARGET = {
-  perPeriod: 9,
-  perPeriodStretch: 12,
-  totalStrong: 36,
-  totalNearPerfect: 48,
-  minForSlowdown: 4,
+  perPeriod: 20,
+  perPeriodStretch: 30,
+  minPerCell: 2,
+  totalStrong: 80,
+  totalNearPerfect: 120,
+  minForSlowdown: 8,
   strongR2: 0.9,
+  perBand: { short: 16, mid: 28, long: 28 },
 };
 
 const PERIOD_IDS = ['morning_peak', 'day', 'evening_peak', 'night'];
@@ -161,7 +194,7 @@ export const DELIVERY_TEST_REMINDERS = [
     minute: 30,
     period: 'morning_peak',
     title: 'SafeBoda quote check · morning peak',
-    body: 'Log 1–2 preset routes from Prisca Honey while SafeBoda shows morning prices.',
+    body: 'Log 2–3 routes (one short, one mid/long) from Prisca Honey while SafeBoda shows morning prices.',
     url: getPageHref('delivery') + '#quote-lab',
   },
   {
@@ -171,7 +204,7 @@ export const DELIVERY_TEST_REMINDERS = [
     minute: 0,
     period: 'day',
     title: 'SafeBoda quote check · daytime',
-    body: 'Midday prices — open Delivery → Quote lab and log the next priority drop-off.',
+    body: 'Midday — open Delivery → Quote lab. Prefer a red matrix cell or a calibration search (Pine Valley / Ganda).',
     url: getPageHref('delivery') + '#quote-lab',
   },
   {
@@ -181,7 +214,7 @@ export const DELIVERY_TEST_REMINDERS = [
     minute: 30,
     period: 'evening_peak',
     title: 'SafeBoda quote check · evening peak',
-    body: 'Evening peak — check SafeBoda and log a mid or long preset route.',
+    body: 'Evening peak — re-log a route you already did in daytime so the period premium learns the gap.',
     url: getPageHref('delivery') + '#quote-lab',
   },
   {
@@ -191,7 +224,7 @@ export const DELIVERY_TEST_REMINDERS = [
     minute: 0,
     period: 'night',
     title: 'SafeBoda quote check · night',
-    body: 'Night band — you already have many night quotes; still log a gap if the matrix shows red.',
+    body: 'Night band — same route as earlier today if possible; night premiums need paired data.',
     url: getPageHref('delivery') + '#quote-lab',
   },
 ];
@@ -284,21 +317,20 @@ export function analyzeCoverage(rows) {
     }
   });
 
-  // Prefer empty period×route cells; then periods furthest below target.
+  // Prefer cells under minPerCell; then periods furthest below target.
   const gaps = [];
   PERIOD_IDS.forEach((period) => {
     TEST_DROPOFFS.forEach((drop) => {
       const n = matrix[period][drop.id] || 0;
-      if (n < 1) {
+      if (n < FIT_TARGET.minPerCell) {
         gaps.push({
           period,
           drop,
           count: n,
-          // Soft priority: underfilled periods first, then longer routes (more informative).
           score:
             (FIT_TARGET.perPeriod - (byPeriod[period] || 0)) * 10 +
-            (drop.band === 'long' ? 3 : drop.band === 'mid' ? 2 : 1) -
-            n,
+            (FIT_TARGET.minPerCell - n) * 5 +
+            (drop.band === 'long' ? 3 : drop.band === 'mid' ? 2 : 1),
         });
       }
     });
@@ -313,9 +345,20 @@ export function analyzeCoverage(rows) {
     need: Math.max(0, FIT_TARGET.perPeriod - (byPeriod[id] || 0)),
   })).sort((a, b) => b.need - a.need);
 
+  const cellsFilled = PERIOD_IDS.reduce(
+    (sum, p) =>
+      sum +
+      TEST_DROPOFFS.filter((d) => (matrix[p][d.id] || 0) >= FIT_TARGET.minPerCell)
+        .length,
+    0
+  );
+  const cellsTotal = PERIOD_IDS.length * TEST_DROPOFFS.length;
+
   const total = list.length;
   const progressStrong = Math.min(1, total / FIT_TARGET.totalStrong);
-  const periodsMet = PERIOD_IDS.filter((id) => (byPeriod[id] || 0) >= FIT_TARGET.perPeriod).length;
+  const periodsMet = PERIOD_IDS.filter(
+    (id) => (byPeriod[id] || 0) >= FIT_TARGET.perPeriod
+  ).length;
   const next = gaps[0] || null;
 
   return {
@@ -328,6 +371,8 @@ export function analyzeCoverage(rows) {
     matrix,
     periodGaps,
     periodsMet,
+    cellsFilled,
+    cellsTotal,
     progressStrong,
     progressNearPerfect: Math.min(1, total / FIT_TARGET.totalNearPerfect),
     nextRecommended: next
@@ -335,6 +380,7 @@ export function analyzeCoverage(rows) {
           periodId: next.period,
           periodLabel: PERIODS[next.period].label,
           drop: next.drop,
+          cellCount: next.count,
         }
       : null,
     logsStillNeeded: Math.max(0, FIT_TARGET.totalStrong - total),

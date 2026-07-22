@@ -5,13 +5,13 @@
 
 import { sbFetch } from './api.js';
 import { dataStore } from './store/index.js';
-import { loadGoogleMaps } from './places-autocomplete.js';
 import { deliveries } from './state.js';
 import { escapeHtml, fmtUGX, showToast } from './utils.js';
 import {
   FIT_TARGET,
   TEST_CLIENT_NAME,
   TEST_DROPOFFS,
+  CALIBRATION_SEARCHES,
   BASE_ORIGIN,
   DELIVERY_TEST_REMINDERS,
   analyzeCoverage,
@@ -24,6 +24,11 @@ import {
   periodMeta,
   predictSafeBodaFee,
 } from './delivery-fee-model.js';
+import {
+  deliveryPlaceFieldMarkup,
+  loadGoogleMaps,
+  wireSinglePlaceAutocomplete,
+} from './places-autocomplete.js';
 import {
   ensureNotificationPermission,
   getNotificationPrefs,
@@ -44,6 +49,8 @@ function liveModel() {
 }
 
 let selectedDropId = null;
+/** Custom Places pick — used when selectedDropId is null / 'custom'. */
+let customDrop = null;
 /** @type {{ km: number, mins: number, dropId?: string } | null} */
 let routeMetrics = null;
 let feeDraft = '';
@@ -63,8 +70,14 @@ function setSaveButtonSaving(isSaving) {
 }
 
 function preferNextDrop(coverage) {
+  if (selectedDropId === 'custom') return 'custom';
   if (selectedDropId && getDropoffById(selectedDropId)) return selectedDropId;
   return coverage.nextRecommended?.drop?.id || TEST_DROPOFFS[0].id;
+}
+
+function activeDrop() {
+  if (selectedDropId === 'custom') return customDrop;
+  return getDropoffById(selectedDropId);
 }
 
 function metricsLineHtml(metrics) {
@@ -85,7 +98,7 @@ function predictLineText(metrics) {
 }
 
 function computeRouteMetrics(drop) {
-  if (!drop) {
+  if (!drop || drop.lat == null || drop.lng == null) {
     routeMetrics = null;
     updateMetricsReadout();
     return;
@@ -115,9 +128,10 @@ function computeRouteMetrics(drop) {
             dropId: drop.id,
           };
         } else {
+          const fallbackKm = drop.approxKm > 0 ? drop.approxKm : 3;
           routeMetrics = {
-            km: drop.approxKm,
-            mins: (drop.approxKm / 18) * 60,
+            km: fallbackKm,
+            mins: (fallbackKm / 18) * 60,
             dropId: drop.id,
           };
         }
@@ -183,13 +197,20 @@ function buildDropChips(coverage) {
   return TEST_DROPOFFS.map((d) => {
     const n = coverage.matrix[nowPeriod]?.[d.id] || 0;
     const selected = d.id === selectedDropId ? ' selected' : '';
-    const gap = n < 1 ? ' gap' : '';
+    const gap = n < FIT_TARGET.minPerCell ? ' gap' : '';
     return `<button type="button" class="ql-chip${selected}${gap}" data-drop="${d.id}" title="${escapeHtml(d.why)}">
       <span class="ql-chip-name">${escapeHtml(d.shortLabel)}</span>
       <span class="ql-chip-meta">~${d.approxKm} km · ${d.band}</span>
-      <span class="ql-chip-count">${n} this period</span>
+      <span class="ql-chip-count">${n}/${FIT_TARGET.minPerCell} this period</span>
     </button>`;
   }).join('');
+}
+
+function calibrationHintsHtml() {
+  return CALIBRATION_SEARCHES.map(
+    (c) =>
+      `<button type="button" class="ql-calib-chip" data-calib-search="${escapeHtml(c.searchAs)}" title="${escapeHtml(c.note)}">${escapeHtml(c.shortLabel)}</button>`
+  ).join('');
 }
 
 function reminderStatusHtml() {
@@ -246,14 +267,15 @@ export function renderQuoteLab() {
 
   const coverage = analyzeCoverage(deliveries);
   selectedDropId = preferNextDrop(coverage);
-  const drop = getDropoffById(selectedDropId);
+  const drop = activeDrop();
   const nowPeriod = periodMeta(periodForDate(new Date()));
   const progressPct = Math.round(coverage.progressStrong * 100);
   const next = coverage.nextRecommended;
+  const customSelected = selectedDropId === 'custom';
 
   // Seed metrics/predict on paint so a re-render never collapses those rows.
   let seedMetrics = routeMetrics;
-  if (drop && (!routeMetrics || routeMetrics.dropId !== drop.id)) {
+  if (drop && drop.approxKm != null && (!routeMetrics || routeMetrics.dropId !== drop.id)) {
     seedMetrics = {
       km: drop.approxKm,
       mins: (drop.approxKm / 18) * 60,
@@ -261,13 +283,17 @@ export function renderQuoteLab() {
     };
   }
 
+  const nextHtml = next
+    ? `<div class="ql-next">Next priority: <strong>${escapeHtml(next.periodLabel)}</strong> → ${escapeHtml(next.drop.shortLabel)} <span class="ql-muted">(${next.cellCount || 0}/${FIT_TARGET.minPerCell} · ~${next.drop.approxKm} km)</span></div>`
+    : `<div class="ql-next ok">Preset cells at ≥${FIT_TARGET.minPerCell} each — keep logging sparse periods, customs, or stretch to ${FIT_TARGET.totalNearPerfect}.</div>`;
+
   root.innerHTML = `
     <section class="ql-card" id="quote-lab">
       <div class="ql-head">
         <div>
           <div class="ql-eyebrow">Quote lab</div>
           <h2 class="ql-title">Manual SafeBoda logging</h2>
-          <p class="ql-sub">Fixed pickup: <strong>${escapeHtml(BASE_ORIGIN.shortLabel)}</strong>. Open SafeBoda, check the delivery fee for the selected drop-off, then log it here — compounds with real checkout quotes.</p>
+          <p class="ql-sub">Fixed pickup: <strong>${escapeHtml(BASE_ORIGIN.shortLabel)}</strong>. Open SafeBoda with the same pickup, read the fee, log it here. Real checkouts count too.</p>
         </div>
         <div class="ql-progress-ring" title="${coverage.total} of ${FIT_TARGET.totalStrong} quotes toward strong fit">
           <span class="ql-progress-num">${progressPct}%</span>
@@ -279,22 +305,25 @@ export function renderQuoteLab() {
         <div class="ql-stat"><span class="ql-stat-val">${coverage.total}</span><span class="ql-stat-lbl">All quotes</span></div>
         <div class="ql-stat"><span class="ql-stat-val">${coverage.testCount}</span><span class="ql-stat-lbl">Lab tests</span></div>
         <div class="ql-stat"><span class="ql-stat-val">${coverage.logsStillNeeded}</span><span class="ql-stat-lbl">Still needed</span></div>
-        <div class="ql-stat"><span class="ql-stat-val">${coverage.periodsMet}/4</span><span class="ql-stat-lbl">Periods filled</span></div>
+        <div class="ql-stat"><span class="ql-stat-val">${coverage.cellsFilled}/${coverage.cellsTotal}</span><span class="ql-stat-lbl">Cells ≥${FIT_TARGET.minPerCell}</span></div>
       </div>
 
       <p class="ql-target-note">
-        Target <strong>${FIT_TARGET.totalStrong}</strong> balanced quotes (~${FIT_TARGET.perPeriod} per time band) for ≥${Math.round(FIT_TARGET.strongR2 * 100)}% fit.
-        Stretch <strong>${FIT_TARGET.totalNearPerfect}</strong> for near-max period stability.
+        Honest target: <strong>${FIT_TARGET.totalStrong}</strong> quotes (~${FIT_TARGET.perPeriod}/period, each preset × period at least <strong>${FIT_TARGET.minPerCell}×</strong>).
+        Stretch <strong>${FIT_TARGET.totalNearPerfect}</strong>. The old “9 per period” bar was too thin for SafeBoda noise.
         Now: <strong>${escapeHtml(nowPeriod.label)}</strong> (${escapeHtml(nowPeriod.hint)}).
       </p>
 
+      <ol class="ql-howto">
+        <li>Same pickup every time: Prisca Honey / Aryan Hostel Nkinzi Rd.</li>
+        <li>Pick a red preset <em>or</em> search a custom place (Pine Valley, Ganda Rd, …).</li>
+        <li>In SafeBoda, set that exact drop-off and copy the fee here within this time band.</li>
+        <li>Best signal: log the <em>same</em> route again in a different period (day vs evening vs night).</li>
+      </ol>
+
       <div class="ql-periods">${buildPeriodBars(coverage)}</div>
 
-      ${
-        next
-          ? `<div class="ql-next">Next priority: <strong>${escapeHtml(next.periodLabel)}</strong> → ${escapeHtml(next.drop.shortLabel)} <span class="ql-muted">(~${next.drop.approxKm} km)</span></div>`
-          : `<div class="ql-next ok">Preset matrix filled once — keep logging sparse periods or stretch to ${FIT_TARGET.totalNearPerfect}.</div>`
-      }
+      ${nextHtml}
 
       <div class="ql-origin">
         <span class="ql-origin-label">Pickup (locked)</span>
@@ -304,25 +333,36 @@ export function renderQuoteLab() {
       <div class="ql-label">Drop-off presets</div>
       <div class="ql-chips" id="quoteLabChips">${buildDropChips(coverage)}</div>
 
+      <div class="ql-label">Custom / calibration search</div>
+      <div class="ql-calib-row">${calibrationHintsHtml()}</div>
+      <div class="ql-custom${customSelected ? ' is-active' : ''}" id="quoteLabCustomWrap">
+        ${deliveryPlaceFieldMarkup({
+          inputId: 'quoteLabCustomInput',
+          dropdownId: 'quoteLabCustomDropdown',
+          value: customDrop?.label || '',
+          placeholder: 'Search any SafeBoda drop-off…',
+        })}
+      </div>
+
       <div class="ql-metrics" id="quoteLabMetrics">${metricsLineHtml(seedMetrics)}</div>
       <div class="ql-predict" id="quoteLabPredict">${escapeHtml(predictLineText(seedMetrics))}</div>
 
       <label class="ql-fee-label" for="quoteLabFee">SafeBoda fee (UGX)</label>
       <div class="ql-fee-row">
         <span class="ql-fee-icon">${ICON_CASH}</span>
-        <input type="text" inputmode="numeric" pattern="[0-9]*" id="quoteLabFee" class="ql-fee-input" placeholder="e.g. 8000" autocomplete="off" value="${escapeHtml(feeDraft)}" />
+        <input type="text" inputmode="numeric" pattern="[0-9]*" id="quoteLabFee" class="ql-fee-input" placeholder="e.g. 5500" autocomplete="off" value="${escapeHtml(feeDraft)}" />
         <button type="button" class="ql-btn primary ql-save-btn${saving ? ' is-saving' : ''}" id="quoteLabSave" ${saving ? 'disabled' : ''} aria-busy="${saving ? 'true' : 'false'}">
           <span class="ql-save-idle">Log quote</span>
           <span class="ql-save-busy">Saving…</span>
         </button>
       </div>
-      <p class="ql-help">Tip: in SafeBoda, set pickup to Prisca Honey / Aryan Hostel Nkinzi Rd, then the selected drop-off. Log within this time band for the period to count correctly.</p>
+      <p class="ql-help">Log inside the current time band so the period counts. Re-logging the same place across periods teaches peak/night premiums better than new random drops.</p>
 
       ${reminderStatusHtml()}
     </section>`;
 
   wireQuoteLabDom();
-  if (drop) computeRouteMetrics(drop);
+  if (drop?.lat != null) computeRouteMetrics(drop);
 
   // Hash deep-link only — skip after save/re-render so mobile doesn't jump.
   if (location.hash === '#quote-lab' && !didScrollToLab) {
@@ -336,13 +376,61 @@ function wireQuoteLabDom() {
   chips?.querySelectorAll('[data-drop]').forEach((btn) => {
     btn.addEventListener('click', () => {
       selectedDropId = btn.dataset.drop;
+      customDrop = null;
       feeDraft = '';
       const feeInput = document.getElementById('quoteLabFee');
       if (feeInput) feeInput.value = '';
       chips.querySelectorAll('.ql-chip').forEach((c) => c.classList.remove('selected'));
       btn.classList.add('selected');
+      document.getElementById('quoteLabCustomWrap')?.classList.remove('is-active');
       computeRouteMetrics(getDropoffById(selectedDropId));
     });
+  });
+
+  document.querySelectorAll('[data-calib-search]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      selectedDropId = 'custom';
+      customDrop = null;
+      routeMetrics = null;
+      const input = document.getElementById('quoteLabCustomInput');
+      if (input) {
+        input.value = btn.dataset.calibSearch || '';
+        input.focus();
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      document.getElementById('quoteLabCustomWrap')?.classList.add('is-active');
+      chips?.querySelectorAll('.ql-chip').forEach((c) => c.classList.remove('selected'));
+      updateMetricsReadout();
+    });
+  });
+
+  wireSinglePlaceAutocomplete('quoteLabCustomInput', 'quoteLabCustomDropdown', {
+    onSelect: (place) => {
+      const lat = place?.lat ?? place?.geometry?.location?.lat?.();
+      const lng = place?.lng ?? place?.geometry?.location?.lng?.();
+      const label =
+        place?.label ||
+        place?.formattedAddress ||
+        place?.formatted_address ||
+        place?.name ||
+        document.getElementById('quoteLabCustomInput')?.value ||
+        'Custom drop';
+      if (lat == null || lng == null || Number.isNaN(Number(lat))) {
+        showToast('Could not pin that place — pick another suggestion', true);
+        return;
+      }
+      selectedDropId = 'custom';
+      customDrop = {
+        id: 'custom',
+        label: String(label),
+        shortLabel: String(label).split(',')[0].trim() || 'Custom',
+        lat: Number(lat),
+        lng: Number(lng),
+      };
+      chips?.querySelectorAll('.ql-chip').forEach((c) => c.classList.remove('selected'));
+      document.getElementById('quoteLabCustomWrap')?.classList.add('is-active');
+      computeRouteMetrics(customDrop);
+    },
   });
 
   document.getElementById('quoteLabFee')?.addEventListener('input', (e) => {
@@ -401,10 +489,10 @@ function wireQuoteLabDom() {
 }
 
 async function saveTestQuote() {
-  const drop = getDropoffById(selectedDropId);
+  const drop = activeDrop();
   const feeVal = parseInt(String(feeDraft).replace(/[^\d]/g, ''), 10);
-  if (!drop) {
-    showToast('Pick a drop-off first', true);
+  if (!drop || drop.lat == null) {
+    showToast('Pick a preset or search a custom drop-off first', true);
     return;
   }
   if (!routeMetrics) {
@@ -453,14 +541,15 @@ async function saveTestQuote() {
     const rows = await res.json();
 
     feeDraft = '';
-    selectedDropId = null; // pick next coverage gap on re-render
+    selectedDropId = null;
+    customDrop = null;
     // Clear before appendDelivery → notify → renderQuoteLab, or the button
     // paints stuck on "Saving…" with saving still true.
     saving = false;
     if (rows[0]) await dataStore.appendDelivery(rows[0]);
     else renderQuoteLab();
 
-    showToast(`Logged ${fmtUGX(feeVal)} · ${drop.shortLabel}`);
+    showToast(`Logged ${fmtUGX(feeVal)} · ${drop.shortLabel || drop.label}`);
   } catch (e) {
     console.error('quote lab save failed', e);
     showToast('Could not log quote', true);

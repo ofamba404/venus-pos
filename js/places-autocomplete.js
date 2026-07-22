@@ -1119,6 +1119,47 @@ function attachPlaceAutocomplete(
   };
 }
 
+/** @type {{ cleanup: () => void } | null} */
+let singlePlaceWidget = null;
+let singlePlaceGen = 0;
+
+/**
+ * Wire a single Places autocomplete (e.g. Quote Lab custom drop).
+ * Does not tear down other delivery place widgets on the page.
+ */
+export function wireSinglePlaceAutocomplete(
+  inputId,
+  dropdownId,
+  { onSelect, onInput, onFocus, regionCodes = ['ug'] } = {},
+) {
+  if (!inputId || !dropdownId) return;
+  const gen = ++singlePlaceGen;
+  loadGoogleMaps(() => {
+    if (gen !== singlePlaceGen) return;
+    prefetchPlacesLibrary();
+    if (singlePlaceWidget) {
+      singlePlaceWidget.cleanup();
+      singlePlaceWidget = null;
+    }
+
+    const input = resolveDeliveryInput(inputId);
+    const dropdown = document.getElementById(dropdownId);
+    if (!input || !dropdown) return;
+
+    const widget = attachPlaceAutocomplete(input, dropdown, {
+      onSelect,
+      onInput,
+      onFocus,
+      regionCodes,
+    });
+    if (gen !== singlePlaceGen) {
+      widget.cleanup();
+      return;
+    }
+    singlePlaceWidget = widget;
+  });
+}
+
 /**
  * Wire pickup + drop-off Places autocompletes. Resolves inputs inside the Maps
  * callback so re-renders cannot leave widgets bound to detached nodes.

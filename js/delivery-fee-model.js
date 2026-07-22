@@ -1,35 +1,23 @@
 /**
  * SafeBoda fee estimator — reverse-engineered from logged checkout quotes.
  *
- * Fare = max(MIN_FARE, round500( (intercept + kmRate·km) · surge[period] )).
+ * Public SafeBoda / ride-hailing sources describe fares as:
+ *   base + (distance × rate/km) + (time × rate/min) [+ minimum]
+ * with extra premiums by hour-of-day, demand, and weather.
  *
- * Calibrated from logged SafeBoda quotes with three guardrails learned from the data:
- *  1. A hard MIN_FARE floor (SafeBoda never quotes below it — confirmed by every
- *     short trip in the logs sitting at exactly 3,000).
- *  2. A floored, anchored regression so short trips stay on the floor and long trips
- *     match SafeBoda's real per-km rate (plain OLS on floored data flattens the slope
- *     and overshoots the intercept, undershooting long trips badly on extrapolation).
- *  3. A *multiplicative* time-of-day surge — the same-route logs show the peak/night
- *     premium grows with distance, i.e. it's a percentage, not a flat add-on.
- *
- * Venus does not get live API quotes, so we fit that shape from your own logged
- * SafeBoda quotes and adjust for Kampala time-of-day buckets.
+ * Venus does not get live API quotes, so we fit from your logged quotes.
+ * In-range: OLS + period premiums + MIN_FARE floor.
+ * Past farthest logged km: blend toward long-range SafeBoda anchors.
  */
 
 export const FEE_STEP_UGX = 500;
 
-/**
- * SafeBoda minimum fare (UGX). Every logged trip below ~2.5 km sits at this floor,
- * and same pickup/drop-off quotes at exactly this. Applied in all periods.
- */
+/** SafeBoda minimum fare (UGX). Applied after predict — never during the OLS fit. */
 export const MIN_FARE_UGX = 3000;
 
 /**
- * SafeBoda long-range reference points used to anchor the per-km slope.
- * All logged trips are < 12 km, so the slope past that is undetermined by data
- * alone; these keep extrapolation aligned with observed SafeBoda quotes
- * (e.g. ~31.6 km ≈ 28,500 UGX). Each is weighted like ANCHOR_WEIGHT real trips,
- * so real in-range data still dominates the middle of the curve.
+ * Long-range SafeBoda refs — used ONLY when quoting past the farthest logged km.
+ * They must not enter the in-range OLS fit (that pulled mid trips like Kisugu off).
  */
 const REFERENCE_ANCHORS = [
   { km: 20, fee: 17800 },
@@ -37,12 +25,7 @@ const REFERENCE_ANCHORS = [
   { km: 31.6, fee: 28500 },
   { km: 40, fee: 35000 },
 ];
-const ANCHOR_WEIGHT = 3;
 
-/** Surge is shrunk toward 1.0 and clamped so sparse/noisy buckets stay sane. */
-const SURGE_MIN = 0.85;
-const SURGE_MAX = 1.5;
-const SURGE_PRIOR = 4;
 
 /** Kampala local hour buckets aligned with SafeBoda peak announcements. */
 export const PERIODS = {
@@ -102,69 +85,93 @@ function mean(nums) {
   return nums.reduce((s, n) => s + n, 0) / nums.length;
 }
 
-function median(nums) {
-  if (!nums.length) return 0;
-  const s = [...nums].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
-
-function clamp(value, lo, hi) {
-  return Math.min(hi, Math.max(lo, value));
-}
-
-/** Weighted OLS for a single predictor: y = a + b·x. */
-function weightedLinearFit(points) {
-  let sw = 0;
-  let swx = 0;
-  let swy = 0;
-  points.forEach((p) => {
-    sw += p.w;
-    swx += p.w * p.x;
-    swy += p.w * p.y;
-  });
-  if (sw <= 0) return null;
-  const mx = swx / sw;
-  const my = swy / sw;
-  let num = 0;
-  let den = 0;
-  points.forEach((p) => {
-    num += p.w * (p.x - mx) * (p.y - my);
-    den += p.w * (p.x - mx) ** 2;
-  });
-  if (den <= 0) return null;
-  const b = num / den;
-  return { intercept: my - b * mx, kmRate: b };
+/** Solve Aβ = b via Gaussian elimination with partial pivoting. */
+function solveLinearSystem(matrix, vector) {
+  const n = vector.length;
+  const a = matrix.map((row, i) => [...row, vector[i]]);
+  for (let col = 0; col < n; col++) {
+    let pivot = col;
+    for (let row = col + 1; row < n; row++) {
+      if (Math.abs(a[row][col]) > Math.abs(a[pivot][col])) pivot = row;
+    }
+    if (Math.abs(a[pivot][col]) < 1e-9) return null;
+    if (pivot !== col) {
+      const tmp = a[col];
+      a[col] = a[pivot];
+      a[pivot] = tmp;
+    }
+    const div = a[col][col];
+    for (let j = col; j <= n; j++) a[col][j] /= div;
+    for (let row = 0; row < n; row++) {
+      if (row === col) continue;
+      const factor = a[row][col];
+      for (let j = col; j <= n; j++) a[row][j] -= factor * a[col][j];
+    }
+  }
+  return a.map((row) => row[n]);
 }
 
 /**
- * Fit `max(MIN_FARE, intercept + kmRate·km)` without letting the flat floor
- * region drag the slope down: iteratively refit only on points whose linear
- * value sits above the floor (the floor points only tell us "≥ MIN_FARE").
+ * Ordinary least squares with intercept.
+ * @param {{ y: number, xs: number[] }[]} samples
+ * @returns {{ intercept: number, coeffs: number[], r2: number, n: number } | null}
  */
-function fitFlooredLinear(points) {
-  let fit = { intercept: 1000, kmRate: 850 };
-  for (let iter = 0; iter < 60; iter += 1) {
-    const active = points.filter(
-      (p) => fit.intercept + fit.kmRate * p.x > MIN_FARE_UGX
-    );
-    if (active.reduce((s, p) => s + p.w, 0) < 1) break;
-    const next = weightedLinearFit(active);
-    if (!next || next.kmRate <= 0) break;
-    if (
-      Math.abs(next.intercept - fit.intercept) < 0.5 &&
-      Math.abs(next.kmRate - fit.kmRate) < 0.5
-    ) {
-      fit = next;
-      break;
+function multiLinearRegression(samples) {
+  const n = samples.length;
+  if (n < 2) return null;
+  const k = samples[0].xs.length;
+  if (samples.some((s) => s.xs.length !== k)) return null;
+  if (n < k + 1) return null;
+
+  const dim = k + 1;
+  const xtx = Array.from({ length: dim }, () => Array(dim).fill(0));
+  const xty = Array(dim).fill(0);
+
+  samples.forEach((s) => {
+    const row = [1, ...s.xs];
+    for (let i = 0; i < dim; i++) {
+      xty[i] += row[i] * s.y;
+      for (let j = 0; j < dim; j++) xtx[i][j] += row[i] * row[j];
     }
-    fit = next;
-  }
-  return fit;
+  });
+
+  const beta = solveLinearSystem(xtx, xty);
+  if (!beta) return null;
+
+  const intercept = beta[0];
+  const coeffs = beta.slice(1);
+  const yMean = mean(samples.map((s) => s.y));
+  let ssTot = 0;
+  let ssRes = 0;
+  samples.forEach((s) => {
+    let pred = intercept;
+    s.xs.forEach((x, i) => {
+      pred += coeffs[i] * x;
+    });
+    ssTot += (s.y - yMean) ** 2;
+    ssRes += (s.y - pred) ** 2;
+  });
+  const r2 = ssTot === 0 ? 1 : 1 - ssRes / ssTot;
+  return { intercept, coeffs, r2, n };
 }
 
-function flooredBase(km, core) {
-  return Math.max(MIN_FARE_UGX, core.intercept + core.kmRate * km);
+function expectedMinsForKm(km, avgSpeedKmh) {
+  const speed = avgSpeedKmh > 0 ? avgSpeedKmh : 18;
+  return (km / speed) * 60;
+}
+
+/** Extra minutes beyond typical pace — proxy for jam / slow routing. */
+function slowdownMins(km, mins, avgSpeedKmh) {
+  if (mins == null || Number.isNaN(mins) || mins <= 0) return 0;
+  return Math.max(0, mins - expectedMinsForKm(km, avgSpeedKmh));
+}
+
+function corePredict(km, mins, core) {
+  let fee = core.intercept + core.kmRate * km;
+  if (core.slowdownRate != null && core.slowdownRate > 0) {
+    fee += core.slowdownRate * slowdownMins(km, mins, core.avgSpeedKmh);
+  }
+  return fee;
 }
 
 function buildSamples(rows) {
@@ -186,7 +193,10 @@ function buildSamples(rows) {
     .filter(Boolean);
 }
 
-/** Floored, anchored per-km regression (self-calibrates as more trips log). */
+/**
+ * Fit fee model from delivery quote rows.
+ * @param {Array<Record<string, unknown>>} rows
+ */
 function fitCoreModel(samples) {
   const withDuration = samples.filter((s) => s.mins != null);
   const speeds = withDuration
@@ -194,53 +204,38 @@ function fitCoreModel(samples) {
     .filter((v) => v > 0 && Number.isFinite(v));
   const avgSpeedKmh = speeds.length ? mean(speeds) : 18;
 
-  const points = samples.map((s) => ({ x: s.km, y: s.fee, w: 1 }));
-  REFERENCE_ANCHORS.forEach((a) => {
-    points.push({ x: a.km, y: a.fee, w: ANCHOR_WEIGHT });
-  });
+  const kmOnly = multiLinearRegression(samples.map((s) => ({ y: s.fee, xs: [s.km] })));
+  if (!kmOnly || kmOnly.coeffs[0] <= 0) return null;
 
-  const fit = fitFlooredLinear(points);
-  if (!fit || fit.kmRate <= 0) return null;
-  return { intercept: fit.intercept, kmRate: fit.kmRate, slowdownRate: null, avgSpeedKmh };
+  // Google driving mins ≈ collinear with km, so use only *slowdown* above
+  // typical pace. Require a positive coefficient or ignore the term.
+  let slowdownRate = null;
+  if (withDuration.length >= 4) {
+    const withSlowdown = withDuration.map((s) => ({
+      y: s.fee,
+      xs: [s.km, slowdownMins(s.km, s.mins, avgSpeedKmh)],
+    }));
+    const dual = multiLinearRegression(withSlowdown);
+    if (dual && dual.coeffs[0] > 0 && dual.coeffs[1] > 0 && dual.r2 >= kmOnly.r2 - 0.01) {
+      return {
+        intercept: dual.intercept,
+        kmRate: dual.coeffs[0],
+        slowdownRate: dual.coeffs[1],
+        avgSpeedKmh,
+        usesSlowdown: true,
+      };
+    }
+  }
+
+  return {
+    intercept: kmOnly.intercept,
+    kmRate: kmOnly.coeffs[0],
+    slowdownRate,
+    avgSpeedKmh,
+    usesSlowdown: false,
+  };
 }
 
-/**
- * Learn a *multiplicative* time-of-day surge per period.
- * Ratio is measured against the floored base so floor trips (ratio ≈ 1) never
- * invent surge; sparse buckets are shrunk toward 1.0 and the result is clamped.
- */
-function fitSurge(samples, core) {
-  const surge = {};
-  const periodCounts = {};
-  const ratiosByPeriod = {};
-  PERIOD_ORDER.forEach((id) => {
-    surge[id] = 1;
-    periodCounts[id] = 0;
-  });
-
-  samples.forEach((s) => {
-    const base = flooredBase(s.km, core);
-    if (base <= 0) return;
-    if (!ratiosByPeriod[s.period]) ratiosByPeriod[s.period] = [];
-    ratiosByPeriod[s.period].push(s.fee / base);
-    periodCounts[s.period] = (periodCounts[s.period] || 0) + 1;
-  });
-
-  Object.entries(ratiosByPeriod).forEach(([period, ratios]) => {
-    if (!ratios.length) return;
-    const raw = median(ratios);
-    const n = ratios.length;
-    const shrunk = 1 + (raw - 1) * (n / (n + SURGE_PRIOR));
-    surge[period] = clamp(shrunk, SURGE_MIN, SURGE_MAX);
-  });
-
-  return { surge, periodCounts };
-}
-
-/**
- * Fit fee model from delivery quote rows.
- * @param {Array<Record<string, unknown>>} rows
- */
 export function fitDeliveryFeeModel(rows) {
   const samples = buildSamples(rows || []);
   if (samples.length < 2) return null;
@@ -248,29 +243,49 @@ export function fitDeliveryFeeModel(rows) {
   const core = fitCoreModel(samples);
   if (!core) return null;
 
-  const { surge, periodCounts } = fitSurge(samples, core);
-
-  // Additive premiums kept for the analytics UI; derived from surge at a
-  // representative distance so the "vs day" figures stay sane.
-  const refBase = flooredBase(6, core);
   const premiums = {};
+  const periodCounts = {};
   PERIOD_ORDER.forEach((id) => {
-    premiums[id] = Math.round(refBase * (surge[id] - 1));
+    premiums[id] = 0;
+    periodCounts[id] = 0;
   });
 
+  const residualsByPeriod = {};
+  samples.forEach((s) => {
+    const pred = corePredict(s.km, s.mins, core);
+    const residual = s.fee - pred;
+    if (!residualsByPeriod[s.period]) residualsByPeriod[s.period] = [];
+    residualsByPeriod[s.period].push(residual);
+    periodCounts[s.period] = (periodCounts[s.period] || 0) + 1;
+  });
+
+  Object.entries(residualsByPeriod).forEach(([period, residuals]) => {
+    // Need a few quotes in-bucket before trusting a premium.
+    // Shrink toward 0 so sparse buckets (e.g. 2 daytime quotes) don't dominate.
+    if (residuals.length >= 2) {
+      const raw = mean(residuals);
+      const n = residuals.length;
+      const priorStrength = 3;
+      premiums[period] = raw * (n / (n + priorStrength));
+    }
+  });
+
+  const predictions = samples.map((s) => {
+    const raw = corePredict(s.km, s.mins, core) + (premiums[s.period] || 0);
+    return { actual: s.fee, predicted: raw };
+  });
+  const yMean = mean(predictions.map((p) => p.actual));
   let ssTot = 0;
   let ssRes = 0;
-  const yMean = mean(samples.map((s) => s.fee));
-  samples.forEach((s) => {
-    const predicted = roundFeeToNearest500(
-      flooredBase(s.km, core) * (surge[s.period] || 1)
-    );
-    ssTot += (s.fee - yMean) ** 2;
-    ssRes += (s.fee - predicted) ** 2;
+  predictions.forEach((p) => {
+    ssTot += (p.actual - yMean) ** 2;
+    ssRes += (p.actual - p.predicted) ** 2;
   });
   const r2 = ssTot === 0 ? 1 : Math.max(0, Math.min(1, 1 - ssRes / ssTot));
 
-  // Back-compat aliases used by the scatter / analytics UI.
+  // Back-compat aliases used by older scatter / UI code.
+  const dataMaxKm = Math.max(...samples.map((s) => s.km));
+
   return {
     kind: 'dynamic',
     n: samples.length,
@@ -279,11 +294,11 @@ export function fitDeliveryFeeModel(rows) {
     intercept: core.intercept,
     slope: core.kmRate,
     core,
-    surge,
     premiums,
     periodCounts,
     avgSpeedKmh: core.avgSpeedKmh,
-    usesDuration: false,
+    usesDuration: core.usesSlowdown,
+    dataMaxKm,
     samples,
   };
 }
@@ -294,18 +309,35 @@ export function estimateDurationMin(km, model) {
   return (km / speed) * 60;
 }
 
-function surgeForPeriod(model, bucket) {
-  const value = model?.surge?.[bucket];
-  return value != null && Number.isFinite(value) && value > 0 ? value : 1;
+function anchoredLongFee(km) {
+  const pts = [{ km: 0, fee: MIN_FARE_UGX }, ...REFERENCE_ANCHORS];
+  for (let i = 1; i < pts.length; i++) {
+    if (km <= pts[i].km) {
+      const a = pts[i - 1];
+      const b = pts[i];
+      const t = (km - a.km) / (b.km - a.km);
+      return a.fee + t * (b.fee - a.fee);
+    }
+  }
+  const last = pts[pts.length - 1];
+  const prev = pts[pts.length - 2];
+  const slope = (last.fee - prev.fee) / (last.km - prev.km);
+  return last.fee + slope * (km - last.km);
 }
 
 /**
- * Unrounded raw estimate (before the MIN_FARE floor + 500 UGX snap).
+ * Unrounded raw estimate (before MIN_FARE floor + 500 UGX snap).
+ * Past dataMaxKm, blend OLS toward long-range anchors over the next ~8 km.
  */
-export function rawQuoteFee(km, model, { period = null, at = null } = {}) {
-  if (!model || !model.core || km == null || Number.isNaN(km)) return null;
+export function rawQuoteFee(km, model, { durationMin = null, period = null, at = null } = {}) {
+  if (!model || km == null || Number.isNaN(km)) return null;
   const bucket = period || (at ? periodForDate(at) : periodForDate(new Date()));
-  return flooredBase(km, model.core) * surgeForPeriod(model, bucket);
+  const mins = durationMin != null && !Number.isNaN(durationMin) ? durationMin : null;
+  const ols = corePredict(km, mins, model.core) + (model.premiums[bucket] || 0);
+  const horizon = model.dataMaxKm != null ? model.dataMaxKm : 12;
+  if (km <= horizon + 0.25) return ols;
+  const t = Math.min(1, (km - horizon) / 8);
+  return ols * (1 - t) + anchoredLongFee(km) * t;
 }
 
 export function quoteFee(km, model, opts = {}) {
