@@ -434,14 +434,15 @@ export function startNotificationRuntime(schedules = []) {
 }
 
 /**
- * New storefront order — title: "{name} placed an order!"
+ * New storefront order — title: "Order placed"
+ * Body: client name · N items · total
  * When push is subscribed, OS alert is left to Web Push (same tag) to avoid doubles.
  *
  * @param {{ orderId?: string, customerName?: string, totalLabel?: string, itemCount?: number, url?: string }} order
  */
 export async function notifyStorefrontOrder(order = {}) {
   const name = String(order.customerName || '').trim() || 'A customer';
-  const parts = [];
+  const parts = [name];
   if (order.itemCount) parts.push(`${order.itemCount} item${order.itemCount === 1 ? '' : 's'}`);
   if (order.totalLabel) parts.push(order.totalLabel);
   const body = parts.join(' · ');
@@ -451,7 +452,7 @@ export async function notifyStorefrontOrder(order = {}) {
 
   return showAppNotification({
     type: NOTIF_TYPE.STOREFRONT_ORDER,
-    title: `${name} placed an order!`,
+    title: 'Order placed',
     body,
     url,
     tag,
