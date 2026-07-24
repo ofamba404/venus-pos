@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "qa:export": "node scripts/qa-export-quotes.js",
+    "qa:score": "node scripts/qa-score-model.js"
+  },
   "dependencies": {
     "@netlify/blobs": "^10.7.9",
     "@netlify/functions": "^5.3.0",

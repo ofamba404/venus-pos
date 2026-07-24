@@ -1,0 +1,153 @@
+{
+  "_comment": "Eval mirror of js/delivery-test-routes.js — keep in sync. Runtime Quote Lab still reads the JS module.",
+  "testClientName": "SafeBoda test",
+  "baseOrigin": {
+    "id": "prisca-honey",
+    "label": "Prisca Honey Enterprises, Aryan Hostel, Nkinzi Road",
+    "shortLabel": "Prisca Honey · Nkinzi Rd",
+    "lat": 0.3351426,
+    "lng": 32.5737724
+  },
+  "testDropoffs": [
+    {
+      "id": "wandegeya",
+      "label": "Wandegeya Market, Kampala",
+      "shortLabel": "Wandegeya Market",
+      "searchAs": "Wandegeya Market",
+      "lat": 0.3305576,
+      "lng": 32.5733405,
+      "band": "short",
+      "approxKm": 0.8,
+      "why": "Nearest market hop — anchors base fare / 3k floor"
+    },
+    {
+      "id": "makerere-gate",
+      "label": "Makerere University Main Gate, Kampala",
+      "shortLabel": "Makerere University Main Gate",
+      "searchAs": "Makerere University Main Gate",
+      "lat": 0.329201,
+      "lng": 32.5710341,
+      "band": "short",
+      "approxKm": 1.2,
+      "why": "Campus corridor — SafeBoda-confirmed POI name"
+    },
+    {
+      "id": "acacia",
+      "label": "Acacia Mall, Cooper Road, Kampala",
+      "shortLabel": "Acacia Mall",
+      "searchAs": "Acacia Mall",
+      "lat": 0.3381812,
+      "lng": 32.5863218,
+      "band": "mid",
+      "approxKm": 2.9,
+      "why": "Kololo / Kisementi — mid student & office drops"
+    },
+    {
+      "id": "nakasero",
+      "label": "Nakasero Market, Kampala",
+      "shortLabel": "Nakasero Market",
+      "searchAs": "Nakasero Market",
+      "lat": 0.3117969,
+      "lng": 32.5800566,
+      "band": "mid",
+      "approxKm": 3.2,
+      "why": "CBD market corridor — daytime traffic pattern"
+    },
+    {
+      "id": "kawempe",
+      "label": "Mperwerwe Gayaza Stage, Gayaza-Kampala Road",
+      "shortLabel": "Mperwerwe Gayaza Stage",
+      "searchAs": "Mperwerwe Gayaza Stage",
+      "aliases": ["mpererwe", "gayaza stage", "kawempe taxi park", "mpererwe kasangati"],
+      "lat": 0.3822452,
+      "lng": 32.5767988,
+      "band": "mid",
+      "approxKm": 5.6,
+      "why": "North / Gayaza corridor — upper-mid jam pattern"
+    },
+    {
+      "id": "kisugu-south",
+      "label": "Kisugu South, Kampala",
+      "shortLabel": "Kisugu South",
+      "searchAs": "Kisugu South",
+      "aliases": ["kisugu s", "kisugu"],
+      "lat": 0.3044859,
+      "lng": 32.6060064,
+      "band": "long",
+      "approxKm": 6.5,
+      "why": "SE / Kabalagala corridor — mid-long check (~5.5–6.5k SafeBoda)"
+    },
+    {
+      "id": "bugolobi",
+      "label": "Village Mall, Spring Road, Kampala",
+      "shortLabel": "Village Mall",
+      "searchAs": "Village Mall",
+      "aliases": ["village mall bugolobi", "bugolobi"],
+      "lat": 0.320333,
+      "lng": 32.6179634,
+      "band": "long",
+      "approxKm": 6.8,
+      "why": "Bugolobi / Spring Rd — SafeBoda-confirmed long SE run"
+    },
+    {
+      "id": "ntinda",
+      "label": "Capital Shoppers, Ntinda Road, Kampala",
+      "shortLabel": "Capital Shoppers Ntinda",
+      "searchAs": "Capital Shoppers Ntinda",
+      "aliases": ["ntinda shopping complex", "ntinda shopping center", "ntinda"],
+      "lat": 0.3491591,
+      "lng": 32.6165672,
+      "band": "long",
+      "approxKm": 9.3,
+      "why": "Ntinda east — stretches the km rate (~9 km)"
+    },
+    {
+      "id": "garden-city",
+      "label": "Metroplex Shopping Centre, Kampala - Northern Bypass Highway",
+      "shortLabel": "Metroplex Shopping Centre",
+      "searchAs": "Metroplex Shopping Centre",
+      "aliases": ["metroplex shopping mall", "metroplex", "garden city"],
+      "lat": 0.3675,
+      "lng": 32.6330556,
+      "band": "long",
+      "approxKm": 11.3,
+      "why": "Northern Bypass long run — top of the distance ladder"
+    }
+  ],
+  "calibrationSearches": [
+    {
+      "id": "pine-valley",
+      "searchAs": "Pine Valley Apartments",
+      "shortLabel": "Pine Valley Apartments",
+      "note": "Near mid (~3.5k SafeBoda) — log day + evening at least",
+      "approxKm": 3.5,
+      "spotCheckFeeDay": 3500
+    },
+    {
+      "id": "meeting-point-ganda",
+      "searchAs": "Meeting Point Ganda Road",
+      "shortLabel": "Meeting Point · Ganda Rd",
+      "note": "Mid-long (~5.5k SafeBoda) — pair with Kisugu South",
+      "approxKm": 5.5,
+      "spotCheckFeeDay": 5500
+    }
+  ],
+  "fitTarget": {
+    "perPeriod": 20,
+    "perPeriodStretch": 30,
+    "minPerCell": 2,
+    "totalStrong": 80,
+    "totalNearPerfect": 120,
+    "minForSlowdown": 8,
+    "strongR2": 0.9,
+    "perBand": { "short": 16, "mid": 28, "long": 28 }
+  },
+  "periodIds": ["morning_peak", "day", "evening_peak", "night"],
+  "spotChecks": [
+    { "name": "Pine Valley Apartments", "km": 3.5, "safeboda": 3500, "note": "calibration mid" },
+    { "name": "Kisugu South", "km": 6.541, "safeboda": 5500, "note": "logged matrix ~6.5km" },
+    { "name": "Meeting Point Ganda Rd", "km": 5.5, "safeboda": 5500, "note": "mid-long estimate" },
+    { "name": "Short floor check", "km": 1.0, "safeboda": 3000, "note": "min fare" },
+    { "name": "Long anchor 31.6km", "km": 31.6, "safeboda": 28500, "note": "far extrapolation" }
+  ]
+}

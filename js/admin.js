@@ -380,6 +380,95 @@ function toolsHtml() {
     </div>`;
 }
 
+const DIAL_MINUTE_STEP = 5;
+const DIAL_ITEM_H = 40;
+/** @type {WeakMap<HTMLElement, DialColController>} */
+const dialColControllers = new WeakMap();
+
+/**
+ * @typedef {object} DialColController
+ * @property {(value: string, opts?: { animate?: boolean }) => void} setValue
+ * @property {() => void} destroy
+ */
+
+/** @param {Date} d */
+function snapDialMinutes(d) {
+  const next = new Date(d.getTime());
+  const snapped = Math.round(next.getMinutes() / DIAL_MINUTE_STEP) * DIAL_MINUTE_STEP;
+  next.setSeconds(0, 0);
+  if (snapped >= 60) {
+    next.setHours(next.getHours() + 1, 0, 0, 0);
+  } else {
+    next.setMinutes(snapped, 0, 0);
+  }
+  return next;
+}
+
+/** Seed dialer from active busy time, else ~30 min from now. */
+function dialerSeedDate(status = getFulfillmentStatus()) {
+  if (isBusyActive(status) && status.busyUntil) {
+    return snapDialMinutes(new Date(status.busyUntil));
+  }
+  const d = new Date();
+  d.setMinutes(d.getMinutes() + 30);
+  return snapDialMinutes(d);
+}
+
+/** @param {Date} d */
+function toDialParts(d) {
+  const h24 = d.getHours();
+  const minute = d.getMinutes();
+  const ampm = h24 >= 12 ? 'pm' : 'am';
+  let hour12 = h24 % 12;
+  if (hour12 === 0) hour12 = 12;
+  return { hour12, minute, ampm, h24 };
+}
+
+/** @param {{ hour12: number, minute: number, ampm: string }} parts */
+function dialPartsToDate(parts, now = new Date()) {
+  let h24 = Number(parts.hour12) % 12;
+  if (parts.ampm === 'pm') h24 += 12;
+  const d = new Date(now);
+  d.setSeconds(0, 0);
+  d.setHours(h24, Number(parts.minute) || 0, 0, 0);
+  // If chosen clock time is not after now, roll to tomorrow.
+  if (d.getTime() <= now.getTime() + 30_000) {
+    d.setDate(d.getDate() + 1);
+  }
+  return d;
+}
+
+function formatDialClock(d) {
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatDialDayLabel(d, now = new Date()) {
+  const startToday = new Date(now);
+  startToday.setHours(0, 0, 0, 0);
+  const startTomorrow = new Date(startToday);
+  startTomorrow.setDate(startTomorrow.getDate() + 1);
+  const startDayAfter = new Date(startTomorrow);
+  startDayAfter.setDate(startDayAfter.getDate() + 1);
+  if (d >= startTomorrow && d < startDayAfter) return 'Tomorrow';
+  if (d >= startToday && d < startTomorrow) return 'Today';
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function dialWheelHtml(kind, values, selected, formatLabel = (v) => String(v)) {
+  const items = values
+    .map((v) => {
+      const sel = String(v) === String(selected) ? ' is-selected' : '';
+      return `<button type="button" class="hours-dial__item${sel}" data-hours-dial-item="${escapeHtml(String(v))}" tabindex="-1">${escapeHtml(formatLabel(v))}</button>`;
+    })
+    .join('');
+  return `
+    <div class="hours-dial__col" data-hours-dial-col="${kind}" role="listbox" aria-label="${kind}">
+      <div class="hours-dial__track">
+        ${items}
+      </div>
+    </div>`;
+}
+
 function hoursStatusCopy() {
   const status = getFulfillmentStatus();
   if (!hoursLoaded) return 'Loading…';
@@ -396,13 +485,13 @@ function hoursStatusCopy() {
           : 'Delivery & pickup';
     parts.push(`${who} blocked until ${until || 'later'}`);
   } else if (hasBusyUntil(status)) {
-    parts.push('Busy window expired — clear or set a new time');
+    parts.push('Busy window expired — set a new free time or clear');
   }
 
   if (!isWithinOpenHours(new Date(), status)) {
     parts.push(`Closed now — opens ${formatUntilClock(nextOpenAt(new Date(), status))}`);
   } else {
-    parts.push(`Open hours ${formatOpenHoursLabel(status)}`);
+    parts.push(`Open ${formatOpenHoursLabel(status)}`);
   }
 
   return parts.join(' · ');
@@ -413,13 +502,19 @@ function hoursHtml() {
   const busy = isBusyActive(status);
   const hasBusy = hasBusyUntil(status);
   const suggestLabel = formatSuggestRangeLabel(status);
-  const untilLocal = hasBusy ? toDatetimeLocalValue(status.busyUntil) : '';
   const busyFor = status.busyFor || 'both';
   const suggestStart = status.suggestStart || '';
   const suggestEnd = status.suggestEnd || '';
   const openTime = status.openTime || '07:00';
   const closeTime = status.closeTime || '22:00';
-  const statusBusy = busy || !isWithinOpenHours(new Date(), status);
+  const withinOpen = isWithinOpenHours(new Date(), status);
+  const statusBusy = busy || !withinOpen;
+  const seed = dialerSeedDate(status);
+  const parts = toDialParts(seed);
+  const untilLocal = toDatetimeLocalValue(seed);
+  const hours = Array.from({ length: 12 }, (_, i) => i + 1);
+  const minutes = Array.from({ length: 60 / DIAL_MINUTE_STEP }, (_, i) => i * DIAL_MINUTE_STEP);
+  const padMin = (n) => String(n).padStart(2, '0');
 
   if (!hoursLoaded && !hoursError) {
     return `<div class="admin-empty">Loading hours…</div>`;
@@ -428,101 +523,132 @@ function hoursHtml() {
   return `
     <div class="admin-hours">
       <div class="admin-hours__status ${statusBusy ? 'is-busy' : 'is-open'}">
-        <div class="admin-hours__status-label">${busy ? 'Busy' : statusBusy ? 'Closed' : 'Available'}</div>
+        <div class="admin-hours__status-row">
+          <div class="admin-hours__status-label">${busy ? 'Busy' : !withinOpen ? 'Closed' : 'Available'}</div>
+          ${
+            busy
+              ? `<div class="admin-hours__status-until">Free ${escapeHtml(formatBusyUntilLabel(status) || '')}</div>`
+              : ''
+          }
+        </div>
         <div class="admin-hours__status-copy">${escapeHtml(hoursStatusCopy())}</div>
         ${
           suggestLabel
             ? `<div class="admin-hours__status-suggest">Suggesting ${escapeHtml(suggestLabel)}</div>`
             : ''
         }
-        ${
-          hasBusy
-            ? `<button type="button" class="admin-tool-btn admin-hours__clear-busy" data-hours-action="clear-busy" ${hoursSaving ? 'disabled' : ''}>
-                ${busy ? 'End busy period' : 'Remove expired busy time'}
-              </button>`
-            : ''
-        }
       </div>
 
-      <div class="admin-hours__block">
-        <div class="admin-hours__block-title">Daily open hours</div>
-        <div class="admin-hours__block-sub">Storefront blocks any time outside this window (default closed 10:00 PM – 7:00 AM).</div>
-        <div class="admin-hours__range">
-          <label class="admin-hours__field">
-            <span class="admin-hours__field-label">Opens</span>
-            <input type="time" class="admin-hours__input" data-hours-open-time value="${escapeHtml(openTime)}" step="300" ${hoursSaving ? 'disabled' : ''} />
-          </label>
-          <label class="admin-hours__field">
-            <span class="admin-hours__field-label">Closes</span>
-            <input type="time" class="admin-hours__input" data-hours-close-time value="${escapeHtml(closeTime)}" step="300" ${hoursSaving ? 'disabled' : ''} />
-          </label>
+      <section class="admin-hours__hero" aria-label="Busy period">
+        <div class="admin-hours__hero-head">
+          <div class="admin-hours__hero-title">${busy ? 'Adjust free time' : 'Set when you’re free'}</div>
+          <div class="admin-hours__hero-sub">Busy until this time — customers can’t pick earlier slots.</div>
         </div>
-        <div class="admin-hours__actions">
-          <button type="button" class="admin-tool-btn" data-hours-action="save-open-hours" ${hoursSaving ? 'disabled' : ''}>
-            Save open hours
-          </button>
-        </div>
-      </div>
 
-      <div class="admin-hours__block">
-        <div class="admin-hours__block-title">Mark busy</div>
-        <div class="admin-hours__block-sub">Hides Right now / In 30 min / In 1 hour when they fall inside this window. Customers can only pick a later time.</div>
+        <div
+          class="hours-dial"
+          data-hours-dial
+          data-hour="${parts.hour12}"
+          data-minute="${parts.minute}"
+          data-ampm="${parts.ampm}"
+        >
+          <div class="hours-dial__preview">
+            <span class="hours-dial__preview-label">Free again</span>
+            <span class="hours-dial__preview-time" data-hours-dial-preview>${escapeHtml(formatDialClock(seed))}</span>
+            <span class="hours-dial__preview-day" data-hours-dial-day>${escapeHtml(formatDialDayLabel(seed))}</span>
+          </div>
+
+          <div class="hours-dial__frame" aria-hidden="false">
+            <div class="hours-dial__highlight" aria-hidden="true"></div>
+            <div class="hours-dial__wheels">
+              ${dialWheelHtml('hour', hours, parts.hour12)}
+              <div class="hours-dial__colon" aria-hidden="true">:</div>
+              ${dialWheelHtml('minute', minutes, parts.minute, padMin)}
+              ${dialWheelHtml('ampm', ['am', 'pm'], parts.ampm, (v) => String(v).toUpperCase())}
+            </div>
+          </div>
+
+          <input type="hidden" data-hours-busy-until value="${escapeHtml(untilLocal)}" />
+        </div>
+
         <div class="admin-hours__presets" role="group" aria-label="Busy presets">
           <button type="button" class="admin-hours__chip" data-hours-busy-mins="30" ${hoursSaving ? 'disabled' : ''}>30 min</button>
           <button type="button" class="admin-hours__chip" data-hours-busy-mins="60" ${hoursSaving ? 'disabled' : ''}>1 hour</button>
           <button type="button" class="admin-hours__chip" data-hours-busy-mins="120" ${hoursSaving ? 'disabled' : ''}>2 hours</button>
           <button type="button" class="admin-hours__chip" data-hours-busy-mins="180" ${hoursSaving ? 'disabled' : ''}>3 hours</button>
         </div>
-        <label class="admin-hours__field">
-          <span class="admin-hours__field-label">Busy until</span>
-          <input
-            type="datetime-local"
-            class="admin-hours__input"
-            data-hours-busy-until
-            value="${escapeHtml(untilLocal)}"
-            ${hoursSaving ? 'disabled' : ''}
-          />
-        </label>
-        <label class="admin-hours__field">
-          <span class="admin-hours__field-label">Applies to</span>
-          <select class="admin-hours__input" data-hours-busy-for ${hoursSaving ? 'disabled' : ''}>
-            <option value="both" ${busyFor === 'both' ? 'selected' : ''}>Delivery &amp; pickup</option>
-            <option value="delivery" ${busyFor === 'delivery' ? 'selected' : ''}>Delivery only</option>
-            <option value="pickup" ${busyFor === 'pickup' ? 'selected' : ''}>Pickup only</option>
-          </select>
-        </label>
-        <div class="admin-hours__actions">
-          <button type="button" class="admin-tool-btn" data-hours-action="save-busy" ${hoursSaving ? 'disabled' : ''}>
-            ${hoursSaving ? 'Saving…' : hasBusy ? 'Update busy window' : 'Save busy window'}
-          </button>
-          <button type="button" class="admin-tool-btn admin-tool-btn--muted" data-hours-action="clear-busy" ${hoursSaving || !hasBusy ? 'disabled' : ''}>
-            End busy period
-          </button>
-        </div>
-      </div>
 
-      <div class="admin-hours__block">
-        <div class="admin-hours__block-title">Suggested available range</div>
-        <div class="admin-hours__block-sub">Optional hint when a chosen time is unavailable — e.g. “Try 4:00 – 7:00 PM”.</div>
-        <div class="admin-hours__range">
-          <label class="admin-hours__field">
-            <span class="admin-hours__field-label">From</span>
-            <input type="time" class="admin-hours__input" data-hours-suggest-start value="${escapeHtml(suggestStart)}" step="300" ${hoursSaving ? 'disabled' : ''} />
-          </label>
-          <label class="admin-hours__field">
-            <span class="admin-hours__field-label">To</span>
-            <input type="time" class="admin-hours__input" data-hours-suggest-end value="${escapeHtml(suggestEnd)}" step="300" ${hoursSaving ? 'disabled' : ''} />
-          </label>
+        <div class="admin-hours__busy-for" role="group" aria-label="Applies to">
+          <button type="button" class="admin-hours__seg ${busyFor === 'both' ? 'is-on' : ''}" data-hours-busy-for-set="both" ${hoursSaving ? 'disabled' : ''}>Both</button>
+          <button type="button" class="admin-hours__seg ${busyFor === 'delivery' ? 'is-on' : ''}" data-hours-busy-for-set="delivery" ${hoursSaving ? 'disabled' : ''}>Delivery</button>
+          <button type="button" class="admin-hours__seg ${busyFor === 'pickup' ? 'is-on' : ''}" data-hours-busy-for-set="pickup" ${hoursSaving ? 'disabled' : ''}>Pickup</button>
+          <input type="hidden" data-hours-busy-for value="${escapeHtml(busyFor)}" />
         </div>
-        <div class="admin-hours__actions">
-          <button type="button" class="admin-tool-btn" data-hours-action="save-suggest" ${hoursSaving ? 'disabled' : ''}>
-            Save suggested range
+
+        <div class="admin-hours__hero-actions">
+          <button type="button" class="admin-hours__primary" data-hours-action="save-busy" ${hoursSaving ? 'disabled' : ''}>
+            ${hoursSaving ? 'Saving…' : busy ? 'Update free time' : 'Set busy until then'}
           </button>
-          <button type="button" class="admin-tool-btn admin-tool-btn--muted" data-hours-action="clear-suggest" ${hoursSaving || (!suggestStart && !suggestEnd) ? 'disabled' : ''}>
-            Clear suggestion
-          </button>
+          ${
+            hasBusy
+              ? `<button type="button" class="admin-hours__secondary" data-hours-action="clear-busy" ${hoursSaving ? 'disabled' : ''}>
+                  ${busy ? 'End busy now' : 'Clear expired busy'}
+                </button>`
+              : ''
+          }
         </div>
-      </div>
+      </section>
+
+      <details class="admin-hours__more">
+        <summary class="admin-hours__more-sum">
+          <span>Open hours &amp; suggestions</span>
+          <span class="admin-hours__more-meta">${escapeHtml(formatOpenHoursLabel(status))}</span>
+        </summary>
+        <div class="admin-hours__more-body">
+          <div class="admin-hours__block">
+            <div class="admin-hours__block-title">Daily open hours</div>
+            <div class="admin-hours__block-sub">Storefront blocks times outside this window.</div>
+            <div class="admin-hours__range">
+              <label class="admin-hours__field">
+                <span class="admin-hours__field-label">Opens</span>
+                <input type="time" class="admin-hours__input" data-hours-open-time value="${escapeHtml(openTime)}" step="300" ${hoursSaving ? 'disabled' : ''} />
+              </label>
+              <label class="admin-hours__field">
+                <span class="admin-hours__field-label">Closes</span>
+                <input type="time" class="admin-hours__input" data-hours-close-time value="${escapeHtml(closeTime)}" step="300" ${hoursSaving ? 'disabled' : ''} />
+              </label>
+            </div>
+            <div class="admin-hours__actions">
+              <button type="button" class="admin-tool-btn" data-hours-action="save-open-hours" ${hoursSaving ? 'disabled' : ''}>
+                Save open hours
+              </button>
+            </div>
+          </div>
+
+          <div class="admin-hours__block">
+            <div class="admin-hours__block-title">Suggested available range</div>
+            <div class="admin-hours__block-sub">Optional hint when a chosen time is unavailable.</div>
+            <div class="admin-hours__range">
+              <label class="admin-hours__field">
+                <span class="admin-hours__field-label">From</span>
+                <input type="time" class="admin-hours__input" data-hours-suggest-start value="${escapeHtml(suggestStart)}" step="300" ${hoursSaving ? 'disabled' : ''} />
+              </label>
+              <label class="admin-hours__field">
+                <span class="admin-hours__field-label">To</span>
+                <input type="time" class="admin-hours__input" data-hours-suggest-end value="${escapeHtml(suggestEnd)}" step="300" ${hoursSaving ? 'disabled' : ''} />
+              </label>
+            </div>
+            <div class="admin-hours__actions">
+              <button type="button" class="admin-tool-btn" data-hours-action="save-suggest" ${hoursSaving ? 'disabled' : ''}>
+                Save suggested range
+              </button>
+              <button type="button" class="admin-tool-btn admin-tool-btn--muted" data-hours-action="clear-suggest" ${hoursSaving || (!suggestStart && !suggestEnd) ? 'disabled' : ''}>
+                Clear suggestion
+              </button>
+            </div>
+          </div>
+        </div>
+      </details>
     </div>`;
 }
 
@@ -589,8 +715,8 @@ export function renderAdminPage() {
   if (activeTab === 'hours') {
     body.innerHTML = `
       <div class="admin-section-head">
-        <div class="admin-section-title">Pickup &amp; delivery</div>
-        <div class="admin-section-sub">Busy times for the storefront</div>
+        <div class="admin-section-title">Hours</div>
+        <div class="admin-section-sub">Set when you’re free again</div>
       </div>
       ${hoursHtml()}`;
     wireHoursActions(body);
@@ -607,6 +733,7 @@ export function renderAdminPage() {
 }
 
 function readHoursForm(root) {
+  syncHoursDialer(root);
   const untilEl = root.querySelector('[data-hours-busy-until]');
   const forEl = root.querySelector('[data-hours-busy-for]');
   const startEl = root.querySelector('[data-hours-suggest-start]');
@@ -639,20 +766,428 @@ function setHoursSavingUi(root, saving) {
       delete el.dataset.wasEnabled;
     }
   });
+  const busy = isBusyActive();
   root.querySelectorAll('[data-hours-action="save-busy"]').forEach((btn) => {
-    btn.textContent = saving ? 'Saving…' : hasBusyUntil() ? 'Update busy window' : 'Save busy window';
+    btn.textContent = saving ? 'Saving…' : busy ? 'Update free time' : 'Set busy until then';
   });
 }
 
+/** @param {HTMLElement} root */
+function syncHoursDialer(root) {
+  const dial = root.querySelector('[data-hours-dial]');
+  if (!dial) return null;
+  const hour12 = Number(dial.getAttribute('data-hour') || 12);
+  const minute = Number(dial.getAttribute('data-minute') || 0);
+  const ampm = dial.getAttribute('data-ampm') === 'pm' ? 'pm' : 'am';
+  const date = dialPartsToDate({ hour12, minute, ampm });
+  const untilEl = root.querySelector('[data-hours-busy-until]');
+  if (untilEl) untilEl.value = toDatetimeLocalValue(date);
+  const preview = root.querySelector('[data-hours-dial-preview]');
+  const dayEl = root.querySelector('[data-hours-dial-day]');
+  if (preview) preview.textContent = formatDialClock(date);
+  if (dayEl) dayEl.textContent = formatDialDayLabel(date);
+  return date;
+}
+
+/** @param {HTMLElement} root @param {Date} date */
+function applyDialerDate(root, date, { scroll = true } = {}) {
+  const dial = root.querySelector('[data-hours-dial]');
+  if (!dial) return;
+  const snapped = snapDialMinutes(date);
+  const parts = toDialParts(snapped);
+  dial.setAttribute('data-hour', String(parts.hour12));
+  dial.setAttribute('data-minute', String(parts.minute));
+  dial.setAttribute('data-ampm', parts.ampm);
+  dial.querySelectorAll('[data-hours-dial-col]').forEach((col) => {
+    const kind = col.getAttribute('data-hours-dial-col');
+    const want =
+      kind === 'hour' ? String(parts.hour12) : kind === 'minute' ? String(parts.minute) : parts.ampm;
+    const ctrl = dialColControllers.get(/** @type {HTMLElement} */ (col));
+    if (ctrl && scroll) {
+      ctrl.setValue(want, { animate: true });
+    } else {
+      col.querySelectorAll('[data-hours-dial-item]').forEach((item) => {
+        item.classList.toggle('is-selected', item.getAttribute('data-hours-dial-item') === want);
+      });
+    }
+  });
+  syncHoursDialer(root);
+}
+
+/**
+ * Transform-based wheel with momentum + spring lock to item centers.
+ * @param {HTMLElement} col
+ * @param {(value: string) => void} onCommit
+ * @param {{ wrap?: boolean, onWrap?: (dir: 1|-1) => void }} [opts]
+ * @returns {DialColController}
+ */
+function createDialColController(col, onCommit, opts = {}) {
+  const track = /** @type {HTMLElement|null} */ (col.querySelector('.hours-dial__track'));
+  const items = [...col.querySelectorAll('[data-hours-dial-item]')];
+  if (!track || !items.length) {
+    return { setValue() {}, destroy() {} };
+  }
+
+  const wrap = Boolean(opts.wrap);
+  const onWrap = opts.onWrap;
+  const maxIndex = items.length - 1;
+  const cycle = (maxIndex + 1) * DIAL_ITEM_H;
+  let index = items.findIndex((el) => el.classList.contains('is-selected'));
+  if (index < 0) index = 0;
+
+  let y = 0;
+  let v = 0;
+  let dragging = false;
+  let locked = true;
+  let raf = 0;
+  let lastT = 0;
+  let pointerId = /** @type {number|null} */ (null);
+  let lastPointerY = 0;
+  let lastMoveT = 0;
+  let moved = false;
+  let lastCommitted = '';
+
+  // Snappy spring with a short bounce into the lock slot
+  const STIFFNESS = 380;
+  const DAMPING = 34;
+  const FRICTION = 0.952;
+  const MIN_FLING = 90;
+  const SETTLE_V = 12;
+  const SETTLE_X = 0.35;
+
+  const indexToY = (i) => -i * DIAL_ITEM_H;
+  const clampIndex = (i) => Math.max(0, Math.min(maxIndex, Math.round(i)));
+  const yToIndex = (pos) => clampIndex(-pos / DIAL_ITEM_H);
+  const minY = indexToY(maxIndex);
+  const maxY = indexToY(0);
+
+  const applyY = () => {
+    track.style.transform = `translate3d(0, ${y}px, 0)`;
+  };
+
+  const paintSelection = (i) => {
+    items.forEach((el, n) => {
+      el.classList.toggle('is-selected', n === i);
+    });
+  };
+
+  const notify = (i) => {
+    const value = items[i]?.getAttribute('data-hours-dial-item');
+    if (value == null || value === lastCommitted) return;
+    lastCommitted = value;
+    onCommit(value);
+  };
+
+  /** Cross 12→1 or 1→12 and flip AM/PM via onWrap. */
+  const applyWrap = () => {
+    if (!wrap) return;
+    let guard = 0;
+    while (y < minY - DIAL_ITEM_H * 0.5 && guard < 4) {
+      y += cycle;
+      onWrap?.(1);
+      guard += 1;
+    }
+    while (y > maxY + DIAL_ITEM_H * 0.5 && guard < 4) {
+      y -= cycle;
+      onWrap?.(-1);
+      guard += 1;
+    }
+  };
+
+  const stopRaf = () => {
+    if (!raf) return;
+    cancelAnimationFrame(raf);
+    raf = 0;
+  };
+
+  const tick = (now) => {
+    const dt = Math.min(0.033, Math.max(0.008, (now - lastT) / 1000));
+    lastT = now;
+
+    if (dragging) {
+      raf = 0;
+      return;
+    }
+
+    if (!locked) {
+      v *= Math.pow(FRICTION, dt * 60);
+      y += v * dt;
+
+      if (wrap) {
+        applyWrap();
+      } else if (y > maxY) {
+        y = maxY + (y - maxY) * 0.28;
+        v *= 0.5;
+      } else if (y < minY) {
+        y = minY + (y - minY) * 0.28;
+        v *= 0.5;
+      }
+
+      const live = yToIndex(y);
+      paintSelection(live);
+      notify(live);
+
+      if (Math.abs(v) < MIN_FLING) {
+        index = live;
+        locked = true;
+      }
+    }
+
+    if (locked) {
+      const targetY = indexToY(index);
+      const spring = -STIFFNESS * (y - targetY) - DAMPING * v;
+      v += spring * dt;
+      y += v * dt;
+      paintSelection(index);
+
+      if (Math.abs(v) < SETTLE_V && Math.abs(y - targetY) < SETTLE_X) {
+        y = targetY;
+        v = 0;
+        applyY();
+        notify(index);
+        raf = 0;
+        return;
+      }
+    }
+
+    applyY();
+    raf = requestAnimationFrame(tick);
+  };
+
+  const startRaf = () => {
+    if (raf) return;
+    lastT = performance.now();
+    raf = requestAnimationFrame(tick);
+  };
+
+  const snapTo = (i, { animate = true } = {}) => {
+    if (wrap) {
+      // Allow stepping past ends (wheel / programmatic) with AM/PM flip
+      let next = i;
+      let flips = 0;
+      while (next > maxIndex && flips < 4) {
+        next -= maxIndex + 1;
+        onWrap?.(1);
+        flips += 1;
+      }
+      while (next < 0 && flips < 4) {
+        next += maxIndex + 1;
+        onWrap?.(-1);
+        flips += 1;
+      }
+      index = clampIndex(next);
+    } else {
+      index = clampIndex(i);
+    }
+    locked = true;
+    paintSelection(index);
+    notify(index);
+    if (!animate) {
+      stopRaf();
+      v = 0;
+      y = indexToY(index);
+      applyY();
+      return;
+    }
+    startRaf();
+  };
+
+  const onPointerDown = (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    pointerId = e.pointerId;
+    dragging = true;
+    locked = false;
+    moved = false;
+    v = 0;
+    stopRaf();
+    lastPointerY = e.clientY;
+    lastMoveT = performance.now();
+    col.classList.add('is-dragging');
+    try {
+      col.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const onPointerMove = (e) => {
+    if (pointerId == null || e.pointerId !== pointerId || !dragging) return;
+    const now = performance.now();
+    const dy = e.clientY - lastPointerY;
+    if (Math.abs(dy) > 1.5) moved = true;
+    y += dy;
+
+    if (wrap) {
+      applyWrap();
+    } else if (y > maxY) {
+      y = maxY + (y - maxY) * 0.4;
+    } else if (y < minY) {
+      y = minY + (y - minY) * 0.4;
+    }
+
+    const dt = Math.max(1, now - lastMoveT) / 1000;
+    const instant = dy / dt;
+    v = v * 0.35 + instant * 0.65;
+    lastPointerY = e.clientY;
+    lastMoveT = now;
+    applyY();
+    const live = yToIndex(y);
+    paintSelection(live);
+    notify(live);
+  };
+
+  const finishGesture = (e) => {
+    if (pointerId == null || e.pointerId !== pointerId) return;
+    pointerId = null;
+    dragging = false;
+    col.classList.remove('is-dragging');
+
+    if (!moved && e.type === 'pointerup') {
+      const t = /** @type {Element|null} */ (e.target);
+      const btn = t?.closest?.('[data-hours-dial-item]');
+      if (btn && col.contains(btn)) {
+        const i = items.indexOf(/** @type {HTMLElement} */ (btn));
+        if (i >= 0) {
+          snapTo(i, { animate: true });
+          return;
+        }
+      }
+    }
+
+    if (wrap) applyWrap();
+    const coast = Math.max(-2.6, Math.min(2.6, v / -520));
+    let next = yToIndex(y) + coast;
+    if (wrap) {
+      snapTo(next, { animate: true });
+      return;
+    }
+    index = clampIndex(next);
+    locked = true;
+    paintSelection(index);
+    startRaf();
+  };
+
+  const onWheel = (e) => {
+    e.preventDefault();
+    const dir = e.deltaY > 0 ? 1 : -1;
+    snapTo(index + dir, { animate: true });
+  };
+
+  col.addEventListener('pointerdown', onPointerDown);
+  col.addEventListener('pointermove', onPointerMove);
+  col.addEventListener('pointerup', finishGesture);
+  col.addEventListener('pointercancel', finishGesture);
+  col.addEventListener('wheel', onWheel, { passive: false });
+
+  y = indexToY(index);
+  applyY();
+  paintSelection(index);
+  lastCommitted = items[index].getAttribute('data-hours-dial-item') || '';
+
+  return {
+    setValue(value, { animate = true } = {}) {
+      const i = items.findIndex((el) => el.getAttribute('data-hours-dial-item') === String(value));
+      if (i < 0) return;
+      // Direct set — do not wrap/flip (presets & sync already know AM/PM)
+      index = clampIndex(i);
+      locked = true;
+      paintSelection(index);
+      lastCommitted = String(value);
+      onCommit(String(value));
+      if (!animate) {
+        stopRaf();
+        v = 0;
+        y = indexToY(index);
+        applyY();
+        return;
+      }
+      startRaf();
+    },
+    destroy() {
+      stopRaf();
+      col.removeEventListener('pointerdown', onPointerDown);
+      col.removeEventListener('pointermove', onPointerMove);
+      col.removeEventListener('pointerup', finishGesture);
+      col.removeEventListener('pointercancel', finishGesture);
+      col.removeEventListener('wheel', onWheel);
+      dialColControllers.delete(col);
+    },
+  };
+}
+
+/** @param {HTMLElement} root */
+function wireHoursDialer(root) {
+  const dial = root.querySelector('[data-hours-dial]');
+  if (!dial) return;
+
+  const commitValue = (col, value) => {
+    const kind = col.getAttribute('data-hours-dial-col');
+    if (!kind || value == null) return;
+    if (kind === 'hour') dial.setAttribute('data-hour', value);
+    else if (kind === 'minute') dial.setAttribute('data-minute', value);
+    else if (kind === 'ampm') dial.setAttribute('data-ampm', value);
+    syncHoursDialer(root);
+  };
+
+  const flipAmPm = () => {
+    const next = dial.getAttribute('data-ampm') === 'pm' ? 'am' : 'pm';
+    dial.setAttribute('data-ampm', next);
+    const ampmCol = /** @type {HTMLElement|null} */ (root.querySelector('[data-hours-dial-col="ampm"]'));
+    const ctrl = ampmCol ? dialColControllers.get(ampmCol) : null;
+    if (ctrl) ctrl.setValue(next, { animate: true });
+    else commitValue(ampmCol || dial, next);
+    syncHoursDialer(root);
+  };
+
+  dial.querySelectorAll('[data-hours-dial-col]').forEach((colEl) => {
+    const col = /** @type {HTMLElement} */ (colEl);
+    const kind = col.getAttribute('data-hours-dial-col');
+    const existing = dialColControllers.get(col);
+    if (existing) existing.destroy();
+    const ctrl = createDialColController(
+      col,
+      (value) => commitValue(col, value),
+      kind === 'hour'
+        ? {
+            wrap: true,
+            onWrap: () => {
+              flipAmPm();
+            },
+          }
+        : {},
+    );
+    dialColControllers.set(col, ctrl);
+  });
+
+  syncHoursDialer(root);
+}
+
 function wireHoursActions(root) {
+  wireHoursDialer(root);
+
+  root.querySelectorAll('[data-hours-busy-for-set]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const value = btn.getAttribute('data-hours-busy-for-set');
+      if (value !== 'both' && value !== 'delivery' && value !== 'pickup') return;
+      const hidden = root.querySelector('[data-hours-busy-for]');
+      if (hidden) hidden.value = value;
+      root.querySelectorAll('[data-hours-busy-for-set]').forEach((el) => {
+        el.classList.toggle('is-on', el.getAttribute('data-hours-busy-for-set') === value);
+      });
+    });
+  });
+
   root.querySelectorAll('[data-hours-busy-mins]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const mins = Number(btn.getAttribute('data-hours-busy-mins') || 0);
+      const until = new Date(busyUntilFromNow(mins));
+      applyDialerDate(root, until);
       const form = readHoursForm(root);
       setHoursSavingUi(root, true);
       try {
         await saveFulfillmentStatus({
-          busyUntil: busyUntilFromNow(mins),
+          busyUntil: until.toISOString(),
           busyFor: form.busyFor,
         });
         hoursSaving = false;
@@ -673,16 +1208,16 @@ function wireHoursActions(root) {
       try {
         if (action === 'save-busy') {
           if (!form.busyUntil || !Number.isFinite(new Date(form.busyUntil).getTime())) {
-            throw new Error('Pick a busy-until time');
+            throw new Error('Pick a free-again time');
           }
           if (new Date(form.busyUntil).getTime() <= Date.now()) {
-            throw new Error('Busy until must be in the future');
+            throw new Error('Free time must be in the future');
           }
           await saveFulfillmentStatus({
             busyUntil: form.busyUntil,
             busyFor: form.busyFor,
           });
-          showToast('Busy window saved — blocked slots hide on storefront');
+          showToast(`Busy until ${formatDialClock(new Date(form.busyUntil))}`);
         } else if (action === 'clear-busy') {
           await saveFulfillmentStatus({ busyUntil: null });
           showToast('Busy period ended — open for orders');

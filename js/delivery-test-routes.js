@@ -4,6 +4,9 @@
  * Goal: enough distance × time-of-day coverage that OLS + period premiums
  * actually stabilize. SafeBoda noise (rain/demand) means a single pass of
  * 9 quotes/period is nowhere near enough — treat that old target as wrong.
+ *
+ * Eval mirror + CLI: venus-pos/qa/fixtures/routes.json · npm run qa:score
+ * (venus-store only consumes the refined model — no quote logs there.)
  */
 
 import { PERIODS, periodForDate } from './delivery-fee-model.js';

@@ -429,6 +429,9 @@ function reviewPropsFromSession(orderId, session) {
     orderDeliveryLocation:
       String(meta.deliveryLocationLabel || checkout.destText || '').trim(),
     orderDeliveryEnabled: meta.deliveryEnabled !== false,
+    deliveryFeeValue: String(checkout.feeValue || ''),
+    deliveryDistanceKm: checkout.distanceKm ?? null,
+    deliveryDurationMin: checkout.durationMin ?? null,
   };
 }
 
@@ -443,6 +446,9 @@ function reviewPropsFromLiveState(orderId = getActiveStoreOrderId()) {
     orderDeliveryTime: getOrderDeliveryTimeLabel(),
     orderDeliveryLocation: getOrderDeliveryLocationLabel(),
     orderDeliveryEnabled: getOrderDeliveryEnabled(),
+    deliveryFeeValue: checkoutFeeValue,
+    deliveryDistanceKm: checkoutDistanceKm,
+    deliveryDurationMin: checkoutDurationMin,
   };
 }
 
@@ -504,7 +510,10 @@ function syncReviewCartChrome(orderModalBody = document.getElementById('orderMod
   updateCartCheckoutState();
   wireReviewCreditToggles(orderModalBody);
   wireReviewConfirmPills(orderModalBody);
+  wireReviewDeliveryFee(orderModalBody);
   syncReviewConfirmPills(orderModalBody);
+  syncReviewDeliveryEstimateUi(orderModalBody);
+  ensureReviewDeliveryRoute();
 }
 
 function wireReviewCreditToggles(root) {
@@ -576,6 +585,8 @@ function softUpdateOpenReviewDeck() {
     if (panel) {
       wireCartCopyButtons(panel);
       wireReviewCreditToggles(panel);
+      wireReviewConfirmPills(panel);
+      wireReviewDeliveryFee(panel);
     }
   }
 
@@ -959,24 +970,33 @@ export function openOrderModal(productId) {
   if (orderModal) openModal(orderModal);
 }
 
+function deliveryDistanceReadoutHtml(distanceKm, durationMin) {
+  if (distanceKm == null || Number.isNaN(Number(distanceKm))) return '';
+  const mins = Math.round(Number(durationMin) || 0);
+  return `${ICON_ROUTE} ${Number(distanceKm).toFixed(1)} km · ~${mins} min`;
+}
+
 function updateCheckoutDistanceReadout() {
   const fields = document.querySelector('#orderModalBody .delivery-mini');
-  if (!fields) return;
-  let readout = fields.querySelector('.delivery-mini-readout');
-  if (checkoutDistanceKm != null) {
-    const html = `${ICON_ROUTE} ${checkoutDistanceKm.toFixed(1)} km · ~${Math.round(checkoutDurationMin)} min`;
-    if (readout) readout.innerHTML = html;
-    else {
-      readout = document.createElement('div');
-      readout.className = 'delivery-mini-readout';
-      readout.innerHTML = html;
-      const feeWrap = fields.querySelector('.delivery-input-wrap.fee');
-      if (feeWrap) feeWrap.insertAdjacentElement('afterend', readout);
-      else fields.appendChild(readout);
+  if (fields) {
+    let readout = fields.querySelector('.delivery-mini-readout');
+    if (checkoutDistanceKm != null) {
+      const html = deliveryDistanceReadoutHtml(checkoutDistanceKm, checkoutDurationMin);
+      if (readout) readout.innerHTML = html;
+      else {
+        readout = document.createElement('div');
+        readout.className = 'delivery-mini-readout';
+        readout.innerHTML = html;
+        const feeWrap = fields.querySelector('.delivery-input-wrap.fee');
+        if (feeWrap) feeWrap.insertAdjacentElement('afterend', readout);
+        else fields.appendChild(readout);
+      }
+    } else if (readout) {
+      readout.remove();
     }
-  } else if (readout) {
-    readout.remove();
   }
+  syncReviewDeliveryEstimateUi();
+  if (getActiveStoreOrderId()) captureStoreOrderSession();
 }
 
 function applyPredictedFee() {
@@ -993,7 +1013,87 @@ function applyPredictedFee() {
   checkoutFeeValue = String(predicted);
   const feeInput = document.getElementById('deliveryFeeInputCart');
   if (feeInput) feeInput.value = checkoutFeeValue;
+  syncReviewDeliveryEstimateUi();
   updateCartDeliveryHint();
+  if (getActiveStoreOrderId()) captureStoreOrderSession();
+}
+
+/** Keep the active review panel's fee + km readout in sync with live checkout state. */
+function syncReviewDeliveryEstimateUi(
+  orderModalBody = document.getElementById('orderModalBody'),
+) {
+  const activeId = getActiveStoreOrderId();
+  if (!orderModalBody || !activeId) return;
+  const panel = orderModalBody.querySelector(
+    `[data-store-order-panel="${CSS.escape(activeId)}"]`,
+  );
+  if (!panel) return;
+
+  const feeInput = panel.querySelector('[data-review-delivery-fee]');
+  if (feeInput && document.activeElement !== feeInput) {
+    feeInput.value = checkoutFeeValue;
+  }
+
+  let readout = panel.querySelector('[data-review-delivery-readout]');
+  const html = deliveryDistanceReadoutHtml(checkoutDistanceKm, checkoutDurationMin);
+  if (html) {
+    if (readout) {
+      readout.innerHTML = html;
+      readout.hidden = false;
+    } else {
+      const feeFact = panel.querySelector('[data-review-delivery-fee-fact]');
+      if (feeFact) {
+        readout = document.createElement('div');
+        readout.className = 'cart-fact__readout';
+        readout.setAttribute('data-review-delivery-readout', '');
+        readout.innerHTML = html;
+        feeFact.appendChild(readout);
+      }
+    }
+  } else if (readout) {
+    readout.remove();
+  }
+}
+
+/**
+ * Resolve pickup + route for storefront review so checkout can log a delivery quote.
+ */
+function ensureReviewDeliveryRoute() {
+  if (!getActiveStoreOrderId() || !getOrderDeliveryEnabled()) return;
+  if (!checkoutDest) {
+    syncReviewDeliveryEstimateUi();
+    return;
+  }
+  if (!checkoutOrigin) {
+    if (!pickupAutoRequested) {
+      pickupAutoRequested = true;
+      autoFillPickupLocation();
+    }
+    return;
+  }
+  if (checkoutDistanceKm == null) {
+    computeCheckoutDistance();
+    return;
+  }
+  if (!checkoutFeeValue && !checkoutFeeManuallyEdited) {
+    applyPredictedFee();
+  }
+  syncReviewDeliveryEstimateUi();
+}
+
+function wireReviewDeliveryFee(root) {
+  root?.querySelectorAll('[data-review-delivery-fee]').forEach((input) => {
+    if (input.dataset.wired === '1') return;
+    input.dataset.wired = '1';
+    input.addEventListener('input', () => {
+      const panel = input.closest('[data-store-order-panel]');
+      const panelId = panel?.getAttribute('data-store-order-panel') || '';
+      if (panelId && panelId !== getActiveStoreOrderId()) return;
+      checkoutFeeValue = input.value;
+      checkoutFeeManuallyEdited = true;
+      if (getActiveStoreOrderId()) captureStoreOrderSession();
+    });
+  });
 }
 
 function computeCheckoutDistance() {
@@ -1295,10 +1395,15 @@ function cartItemHtml(item, { readonly = false } = {}) {
   const qty = cartLineQty(item);
   const priceHtml = `<div class="ci-price">${fmtUGX(item.lineTotal)}</div>`;
 
+  const qtyHtml =
+    qty > 0 ? `<div class="ci-qty" aria-label="Quantity ${qty}">${qty}</div>` : '';
+
   if (readonly) {
     // Name + price on one row; swatches get the full width below so they never collide.
+    // Qty chip matches compose cart so staff can scan counts at a glance.
     return `
     <div class="cart-item cart-item--readonly">
+      ${qtyHtml}
       <div class="ci-main">
         <div class="ci-head">
           <div class="ci-name">${escapeHtml(item.name)}</div>
@@ -1309,8 +1414,6 @@ function cartItemHtml(item, { readonly = false } = {}) {
     </div>`;
   }
 
-  const qtyHtml =
-    qty > 0 ? `<div class="ci-qty" aria-label="Quantity ${qty}">${qty}</div>` : '';
   const toolsHtml = `<div class="cart-item-tools">
           <button class="cart-tool cart-edit" data-edit="${item.key}" type="button" title="Edit item" aria-label="Edit ${escapeHtml(item.name)}">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1631,9 +1734,37 @@ function renderReviewCartHtml({
   orderDeliveryLocation = '',
   orderDeliveryEnabled = true,
   storeOrderId = '',
+  deliveryFeeValue = '',
+  deliveryDistanceKm = null,
+  deliveryDurationMin = null,
 }) {
   // Delivery orders always carry time + location + phone; pickup is name + items only.
   const phoneDisplay = phoneNineDigits(orderClientPhone);
+  const distanceHtml = deliveryDistanceReadoutHtml(deliveryDistanceKm, deliveryDurationMin);
+  const feeFactHtml = orderDeliveryEnabled
+    ? `<div class="cart-fact cart-fact--fee" data-review-delivery-fee-fact>
+        <div class="cart-fact__label">Delivery fee</div>
+        <div class="cart-fact__row cart-fact__row--fee">
+          <span class="cart-fact__fee-icon" aria-hidden="true">${ICON_CASH}</span>
+          <input
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            class="cart-fact__fee-input"
+            data-review-delivery-fee
+            placeholder="SafeBoda fee (UGX)"
+            autocomplete="off"
+            aria-label="SafeBoda delivery fee in UGX"
+            value="${escapeHtml(deliveryFeeValue)}"
+          />
+        </div>
+        ${
+          distanceHtml
+            ? `<div class="cart-fact__readout" data-review-delivery-readout>${distanceHtml}</div>`
+            : ''
+        }
+      </div>`
+    : '';
   const factsHtml = orderDeliveryEnabled
     ? [
         cartFactRowHtml({
@@ -1653,6 +1784,7 @@ function renderReviewCartHtml({
           copyValue: phoneDisplay,
           copyLabel: 'Copy phone number',
         }),
+        feeFactHtml,
       ]
         .filter(Boolean)
         .join('')
@@ -1806,6 +1938,8 @@ function renderCartView() {
     });
   } else {
     wireCartCopyButtons(orderModalBody);
+    wireReviewDeliveryFee(orderModalBody);
+    ensureReviewDeliveryRoute();
   }
 
   document.getElementById('cancelOrderBtn')?.addEventListener('click', () => {
@@ -2424,6 +2558,7 @@ export function openLoadedOrderModal() {
   // Keep the review shell mounted: slide or append instead of replacing the cart.
   if (getActiveStoreOrderId() && softUpdateOpenReviewDeck()) {
     if (orderModal) openModal(orderModal);
+    ensureReviewDeliveryRoute();
     return;
   }
 
@@ -2436,7 +2571,9 @@ export function openLoadedOrderModal() {
     if (feeInput) feeInput.value = checkoutFeeValue;
   }
   updateCartDeliveryHint();
-  if (checkoutDest && !checkoutOrigin) {
+  if (getActiveStoreOrderId()) {
+    ensureReviewDeliveryRoute();
+  } else if (checkoutDest && !checkoutOrigin) {
     pickupAutoRequested = true;
     autoFillPickupLocation();
   } else if (checkoutOrigin && checkoutDest) {

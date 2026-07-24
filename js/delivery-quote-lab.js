@@ -1,6 +1,7 @@
 /**
  * Quote lab — manual SafeBoda fee logging against preset routes.
  * Rows land in `deliveries` with sale_id null and compound the fee model.
+ * After logging: `npm run qa:export` then `npm run qa:score` (see qa/README.md).
  */
 
 import { sbFetch } from './api.js';
@@ -312,6 +313,7 @@ export function renderQuoteLab() {
         Honest target: <strong>${FIT_TARGET.totalStrong}</strong> quotes (~${FIT_TARGET.perPeriod}/period, each preset × period at least <strong>${FIT_TARGET.minPerCell}×</strong>).
         Stretch <strong>${FIT_TARGET.totalNearPerfect}</strong>. The old “9 per period” bar was too thin for SafeBoda noise.
         Now: <strong>${escapeHtml(nowPeriod.label)}</strong> (${escapeHtml(nowPeriod.hint)}).
+        After a session: in <code>venus-pos</code> run <code>npm run qa:export</code> then <code>npm run qa:score</code>.
       </p>
 
       <ol class="ql-howto">
