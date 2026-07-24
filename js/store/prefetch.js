@@ -44,6 +44,7 @@ export function wireNavPrefetch(root = document) {
     delivery: 'deliveries',
     history: 'sales',
     analytics: 'sales',
+    admin: 'clients',
     home: null,
   };
 

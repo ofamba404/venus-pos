@@ -83,6 +83,32 @@ let bootstrapped = false;
 let realtimeLive = false;
 /** Ignore the bag-button click that follows an outside-dismiss pointerdown. */
 let ignoreNextBagToggle = false;
+/** @type {Array<() => void>} */
+const storeOrdersChangeListeners = [];
+
+/**
+ * Notify when the storefront order queue / waiting counts may have changed.
+ * @param {() => void} fn
+ * @returns {() => void} unsubscribe
+ */
+export function onStoreOrdersChange(fn) {
+  if (typeof fn !== 'function') return () => {};
+  storeOrdersChangeListeners.push(fn);
+  return () => {
+    const i = storeOrdersChangeListeners.indexOf(fn);
+    if (i >= 0) storeOrdersChangeListeners.splice(i, 1);
+  };
+}
+
+function notifyStoreOrdersChange() {
+  storeOrdersChangeListeners.forEach((fn) => {
+    try {
+      fn();
+    } catch {
+      /* ignore */
+    }
+  });
+}
 
 function storeOrdersHashActive() {
   return location.hash === '#store-orders';
@@ -764,6 +790,7 @@ export function renderStoreOrderUi() {
   updateFabBadge();
   window.__venusRefreshStoreOrderCartSwitcher?.();
   window.__venusSyncReviewCartChrome?.();
+  notifyStoreOrdersChange();
 
   if (!panel) return;
 

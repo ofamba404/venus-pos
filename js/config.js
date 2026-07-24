@@ -72,6 +72,7 @@ export function getPageHref(pageId, hash = '') {
     delivery: root ? 'delivery.html' : 'pages/delivery.html',
     history: root ? 'history.html' : 'pages/history.html',
     analytics: root ? 'analytics.html' : 'pages/analytics.html',
+    admin: root ? 'admin.html' : 'pages/admin.html',
   };
   return (paths[pageId] || paths.home) + hash;
 }

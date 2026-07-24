@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Admin · Venus POS</title>
+  <meta name="description" content="Venus POS admin — storefront users, hours, clients, and maintenance tools.">
+  <meta name="theme-color" content="#000000">
+  <link rel="canonical" href="https://posvenus.netlify.app/pages/admin.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Venus POS">
+  <meta property="og:title" content="Admin · Venus POS">
+  <meta property="og:description" content="Venus POS admin — storefront users, hours, clients, and maintenance tools.">
+  <meta property="og:url" content="https://posvenus.netlify.app/pages/admin.html">
+  <meta property="og:image" content="https://posvenus.netlify.app/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Venus POS">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Admin · Venus POS">
+  <meta name="twitter:description" content="Venus POS admin — storefront users, hours, clients, and maintenance tools.">
+  <meta name="twitter:image" content="https://posvenus.netlify.app/assets/og-image.png">
+  <link rel="icon" href="../assets/logo-browser.svg?v=5" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png?v=4" sizes="180x180">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Venus POS">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://xiangrykfxlnacthjcad.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css">
+</head>
+<body data-page="admin">
+  <div id="app-root">
+    <p class="page-hint">Storefront accounts, pickup &amp; delivery hours, and maintenance</p>
+    <div class="admin-page">
+      <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+        <button type="button" class="admin-tab is-active" data-admin-tab="overview" role="tab" aria-selected="true">Overview</button>
+        <button type="button" class="admin-tab" data-admin-tab="users" role="tab" aria-selected="false">Users</button>
+        <button type="button" class="admin-tab" data-admin-tab="clients" role="tab" aria-selected="false">Clients</button>
+        <button type="button" class="admin-tab" data-admin-tab="hours" role="tab" aria-selected="false">Hours</button>
+        <button type="button" class="admin-tab" data-admin-tab="tools" role="tab" aria-selected="false">Tools</button>
+      </div>
+      <div class="admin-body" id="adminBody"></div>
+    </div>
+  </div>
+  <script type="module" src="../js/pages/admin.js"></script>
+</body>
+</html>
