@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'venus-pos-v36';
+const CACHE_VERSION = 'venus-pos-v37';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
