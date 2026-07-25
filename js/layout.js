@@ -1,9 +1,10 @@
-import { PAGES, getAssetHref, getPageHref } from './config.js';
+import { getNavPages, getAssetHref, getPageHref } from './config.js';
 
 const PAGE_ICONS = {
   home: '<path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-7H10v7H5a1 1 0 0 1-1-1V10.5z"/>',
   inventory: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   clients: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3.1-6.5 7-6.5s7 3 7 6.5"/>',
+  reviews: '<path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.9 7.2 17.9l.9-5.4L4.2 8.7l5.4-.8L12 3z"/>',
   delivery: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7V10z"/><circle cx="7.5" cy="18" r="1.5"/><circle cx="17.5" cy="18" r="1.5"/>',
   history: '<circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/>',
   analytics: '<path d="M5 19V11"/><path d="M12 19V5"/><path d="M19 19v-8"/>',
@@ -22,7 +23,10 @@ function navLink(page, currentPage, mobile = false) {
 }
 
 export function renderShell(currentPage) {
-  const desktopTabs = PAGES.map((p) => navLink(p, currentPage)).join('');
+  const pages = getNavPages();
+  const desktopTabs = pages.map((p) => navLink(p, currentPage)).join('');
+  const isAdmin = window.VenusPosAuth?.isAdmin?.() === true;
+  const roleLabel = isAdmin ? 'Admin' : 'Staff';
 
   return `
     <a class="skip-link" href="#page-content">Skip to content</a>
@@ -33,11 +37,13 @@ export function renderShell(currentPage) {
         </a>
         <div>
           <h1>POS</h1>
-          <div class="sub">Inventory &amp; register</div>
+          <div class="sub">${roleLabel} · Inventory &amp; register</div>
         </div>
       </div>
       <div class="header-actions">
-        <a class="icon-btn${currentPage === 'admin' ? ' active' : ''}" id="adminBtn" href="${getPageHref('admin')}" aria-label="Admin" title="Admin" aria-current="${currentPage === 'admin' ? 'page' : 'false'}">
+        ${
+          isAdmin
+            ? `<a class="icon-btn${currentPage === 'admin' ? ' active' : ''}" id="adminBtn" href="${getPageHref('admin')}" aria-label="Admin" title="Admin" aria-current="${currentPage === 'admin' ? 'page' : 'false'}">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/>
             <path d="M9.5 12l1.8 1.8L15 10"/>
@@ -48,6 +54,15 @@ export function renderShell(currentPage) {
             <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
           </svg>
           <span class="fab-badge" id="debugBadge" style="display:none;">0</span>
+        </button>`
+            : ''
+        }
+        <button class="icon-btn" id="signOutBtn" aria-label="Sign out" title="Sign out" type="button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <path d="M16 17l5-5-5-5"/>
+            <path d="M21 12H9"/>
+          </svg>
         </button>
       </div>
     </div>
@@ -59,7 +74,9 @@ export function renderShell(currentPage) {
 }
 
 export function renderModals(currentPage = 'home') {
-  const bottomNav = PAGES.map((p) => navLink(p, currentPage, true)).join('');
+  const bottomNav = getNavPages()
+    .map((p) => navLink(p, currentPage, true))
+    .join('');
 
   return `
     <div class="bottom-dock" id="bottomDock">
@@ -150,6 +167,28 @@ export function renderModals(currentPage = 'home') {
   `;
 }
 
+function wireSignOut() {
+  const btn = document.getElementById('signOutBtn');
+  if (!btn || btn.dataset.wired === '1') return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      const { resetRealtimeClient } = await import('./realtime-client.js');
+      resetRealtimeClient();
+    } catch {
+      /* ignore */
+    }
+    try {
+      await window.VenusPosAuth?.signOut?.();
+    } catch {
+      /* still leave */
+    }
+    const href = window.VenusPosAuth?.authPageHref?.() || 'auth.html';
+    window.location.replace(href);
+  });
+}
+
 export function mountShell(currentPage) {
   const root = document.getElementById('app-root');
   if (!root) return;
@@ -157,4 +196,5 @@ export function mountShell(currentPage) {
   document.body.dataset.page = currentPage;
   const content = root.innerHTML;
   root.innerHTML = renderShell(currentPage) + `<main id="page-content" class="page-view">${content}</main>` + renderModals(currentPage);
+  wireSignOut();
 }

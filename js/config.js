@@ -44,13 +44,21 @@ export const PRODUCTS = [
 ];
 
 export const PAGES = [
-  { id: 'home', label: 'Home' },
-  { id: 'inventory', label: 'Inventory' },
-  { id: 'clients', label: 'Clients' },
-  { id: 'delivery', label: 'Delivery' },
-  { id: 'history', label: 'History' },
-  { id: 'analytics', label: 'Analytics' },
+  { id: 'home', label: 'Home', minRole: 'staff' },
+  { id: 'inventory', label: 'Inventory', minRole: 'staff' },
+  { id: 'clients', label: 'Clients', minRole: 'admin' },
+  { id: 'reviews', label: 'Reviews', minRole: 'admin' },
+  { id: 'delivery', label: 'Delivery', minRole: 'admin' },
+  { id: 'history', label: 'History', minRole: 'admin' },
+  { id: 'analytics', label: 'Analytics', minRole: 'admin' },
 ];
+
+/** Pages the signed-in user may open (admin sees all). */
+export function getNavPages() {
+  const auth = typeof window !== 'undefined' ? window.VenusPosAuth : null;
+  if (!auth?.getRole) return PAGES;
+  return PAGES.filter((p) => auth.canAccessPage(p.id));
+}
 
 function inPagesDir() {
   return /\/pages(?:\/|$)/.test(location.pathname);
@@ -69,10 +77,12 @@ export function getPageHref(pageId, hash = '') {
     home: root ? '../index.html' : 'index.html',
     inventory: root ? 'inventory.html' : 'pages/inventory.html',
     clients: root ? 'clients.html' : 'pages/clients.html',
+    reviews: root ? 'reviews.html' : 'pages/reviews.html',
     delivery: root ? 'delivery.html' : 'pages/delivery.html',
     history: root ? 'history.html' : 'pages/history.html',
     analytics: root ? 'analytics.html' : 'pages/analytics.html',
     admin: root ? 'admin.html' : 'pages/admin.html',
+    auth: root ? '../auth.html' : 'auth.html',
   };
   return (paths[pageId] || paths.home) + hash;
 }

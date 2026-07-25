@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <script src="../js/auth/config.js"></script>
+  <script src="../js/auth/gate-boot.js"></script>
+  <style>html.auth-checking body{opacity:0!important;pointer-events:none!important}</style>
   <title>Clients · Venus POS</title>
   <meta name="description" content="Manage Venus POS client list for orders and credit tracking.">
   <meta name="theme-color" content="#000000">
@@ -47,6 +50,8 @@
     <div class="client-list-meta" id="clientListMeta"></div>
     <div class="client-list" id="clientList"></div>
   </div>
+  <script src="../js/auth/client.js"></script>
+  <script src="../js/auth/gate.js"></script>
   <script type="module" src="../js/pages/clients.js"></script>
 </body>
 </html>

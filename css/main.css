@@ -65,6 +65,11 @@
 
   * { box-sizing: border-box; }
 
+  html.auth-checking body {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
   body {
     margin: 0;
     background:
@@ -8472,3 +8477,120 @@
       font-size: 24px;
     }
   }
+
+/* —— Storefront reviews inbox —— */
+.reviews-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: 96px;
+}
+
+.reviews-hero {
+  margin-bottom: var(--space-1);
+}
+
+.reviews-hero__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.reviews-hero__title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.reviews-hero__meta {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: var(--muted, #888);
+}
+
+.reviews-hero__meta strong {
+  color: var(--text, #fff);
+  font-weight: 700;
+}
+
+.reviews-refresh {
+  flex: 0 0 auto;
+  padding: 0 16px;
+  min-height: 36px;
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--list-gap, 10px);
+}
+
+.reviews-card {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--card-bg, #141414);
+  border: 1px solid var(--border, #222);
+}
+
+.reviews-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.reviews-stars {
+  display: inline-flex;
+  gap: 2px;
+  letter-spacing: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.reviews-star {
+  color: #444;
+}
+
+.reviews-star.is-on {
+  color: #f5c542;
+}
+
+.reviews-card__when {
+  font-size: 0.75rem;
+  color: var(--muted, #888);
+  white-space: nowrap;
+}
+
+.reviews-card__body {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.reviews-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 0.78rem;
+  color: var(--muted, #888);
+}
+
+.reviews-card__name {
+  font-weight: 600;
+  color: var(--text, #ddd);
+}
+
+.reviews-card__path {
+  opacity: 0.8;
+}
+
+.reviews-empty {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--muted, #888);
+  font-size: 0.95rem;
+}

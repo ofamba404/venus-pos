@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sign in · Venus POS</title>
+  <meta name="description" content="Staff sign-in for Venus POS.">
+  <meta name="theme-color" content="#059669">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="https://posvenus.netlify.app/auth.html">
+  <link rel="icon" href="assets/logo-browser.svg?v=5" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=4" sizes="180x180">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Venus POS">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://xiangrykfxlnacthjcad.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/auth.css">
+  <script src="js/auth/config.js"></script>
+  <script src="js/auth/client.js"></script>
+  <script src="js/auth/auth-page.js" defer></script>
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <header class="auth-brand">
+      <img class="auth-brand__logo" src="assets/logo.svg" alt="" width="48" height="48" decoding="async">
+      <h1 class="auth-brand__title">Venus POS</h1>
+      <p class="auth-brand__sub">Staff sign-in</p>
+    </header>
+
+    <p class="auth-status" data-auth-status hidden></p>
+
+    <section class="auth-panel" aria-label="Sign in">
+      <form class="auth-form" data-auth-form="login" autocomplete="on">
+        <div class="auth-field">
+          <label class="auth-field__label" for="login-email">Email</label>
+          <input
+            class="auth-field__input"
+            id="login-email"
+            name="email"
+            type="email"
+            required
+            autocomplete="username"
+            inputmode="email"
+            placeholder="you@example.com"
+          >
+        </div>
+        <div class="auth-field">
+          <label class="auth-field__label" for="login-pass">Password</label>
+          <input
+            class="auth-field__input"
+            id="login-pass"
+            name="password"
+            type="password"
+            required
+            minlength="6"
+            autocomplete="current-password"
+            placeholder="Your password"
+          >
+        </div>
+        <button class="auth-submit" type="submit">Sign in</button>
+      </form>
+      <p class="auth-hint">Admin and staff accounts only. Different roles, same sign-in.</p>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,18 +1,21 @@
-const CACHE_VERSION = 'venus-pos-v37';
+const CACHE_VERSION = 'venus-pos-v40';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
 const SHELL_URLS = [
   '/',
   '/index.html',
+  '/auth.html',
   '/manifest.webmanifest',
   '/pages/inventory.html',
   '/pages/clients.html',
+  '/pages/reviews.html',
   '/pages/delivery.html',
   '/pages/history.html',
   '/pages/analytics.html',
   '/pages/admin.html',
   '/css/main.css',
+  '/css/auth.css',
   '/assets/logo.svg',
   '/assets/logo-browser.svg',
   '/assets/logo.png',
@@ -23,6 +26,11 @@ const SHELL_URLS = [
   '/assets/icons/icon-512.png',
   '/js/app.js',
   '/js/bootstrap.js',
+  '/js/auth/config.js',
+  '/js/auth/gate-boot.js',
+  '/js/auth/client.js',
+  '/js/auth/gate.js',
+  '/js/auth/auth-page.js',
   '/js/pwa.js',
   '/js/notifications.js',
   '/js/store/data-store.js',

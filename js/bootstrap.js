@@ -37,6 +37,21 @@ export async function runPageBoot({
   entities,
   slices,
 }) {
+  // POS session must be valid before any network writes/reads.
+  if (window.VenusPosAuth?.ensureStaffSession) {
+    const session = await window.VenusPosAuth.ensureStaffSession().catch(() => null);
+    if (!session) {
+      const href = window.VenusPosAuth.authPageHref?.() || 'auth.html';
+      window.location.replace(href);
+      return;
+    }
+    // Staff hitting an admin-only URL → bounce home.
+    if (!window.VenusPosAuth.canAccessPage?.(page)) {
+      window.location.replace(window.VenusPosAuth.homeHref?.() || 'index.html');
+      return;
+    }
+  }
+
   resetPageDataSettled();
   const hydrated = await hydrateFromCache();
   applyPendingFlags(hydrated);

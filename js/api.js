@@ -1,11 +1,26 @@
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 
+function authBearer() {
+  const token = window.VenusPosAuth?.peekAccessToken?.() || '';
+  return token || SUPABASE_KEY;
+}
+
 export async function sbFetch(path, options = {}) {
+  let bearer = authBearer();
+  if (window.VenusPosAuth?.getAccessToken && bearer === SUPABASE_KEY) {
+    try {
+      const fresh = await window.VenusPosAuth.getAccessToken();
+      if (fresh) bearer = fresh;
+    } catch {
+      /* fall through with publishable key — RLS will reject */
+    }
+  }
+
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
       apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
+      Authorization: `Bearer ${bearer}`,
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     },

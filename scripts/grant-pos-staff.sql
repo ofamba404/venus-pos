@@ -1,0 +1,15 @@
+-- Grant POS roles to Auth users (run in Supabase SQL editor).
+--
+-- 1) Dashboard → Authentication → Users → Add user (email + password, auto-confirm)
+-- 2) Run ONE of:
+--      select public.grant_pos_admin('you@example.com');   -- full access (you)
+--      select public.grant_pos_staff('helper@example.com'); -- orders + inventory only
+-- 3) Sign in at /auth.html
+--
+-- Roles live in app_metadata.role (not user_metadata — that would be spoofable).
+--
+-- You = pos_admin  → every page, hours, analytics, deletes, storefront users
+-- Staff = pos_staff → Home + Inventory only (can still log sales & adjust stock)
+
+-- select public.grant_pos_admin('REPLACE_WITH_ADMIN_EMAIL');
+-- select public.grant_pos_staff('REPLACE_WITH_STAFF_EMAIL');
