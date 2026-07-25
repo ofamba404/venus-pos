@@ -642,9 +642,151 @@ function ensureDom() {
         void dismissOrder(dismiss.getAttribute('data-dismiss-store-order'));
       }
     });
+    wireStackSwipeDismiss(panel);
   }
 
   return { badge, btn, panel };
+}
+
+/**
+ * Swipe left or right on a cancelled stack card to dismiss it.
+ * Active orders keep Load / Cancel — only cancelled cards dismiss via swipe.
+ */
+function wireStackSwipeDismiss(panel) {
+  if (panel.dataset.wiredSwipe === '1') return;
+  panel.dataset.wiredSwipe = '1';
+
+  const SWIPE_THRESHOLD_PX = 72;
+  const SWIPE_LOCK_PX = 12;
+
+  /** @type {{
+   *   card: HTMLElement,
+   *   orderId: string,
+   *   pointerId: number,
+   *   startX: number,
+   *   startY: number,
+   *   dx: number,
+   *   axis: 'undecided' | 'x' | 'y',
+   *   swiping: boolean,
+   * } | null} */
+  let gesture = null;
+
+  function resetCardTransform(card) {
+    card.style.transition = '';
+    card.style.transform = '';
+    card.style.opacity = '';
+    card.classList.remove('is-swiping');
+  }
+
+  function finishSwipeDismiss(card, orderId, dx) {
+    const dir = dx < 0 ? -1 : 1;
+    card.classList.add('is-swiping-out');
+    card.style.transition = 'transform 0.22s ease-out, opacity 0.22s ease-out';
+    card.style.transform = `translateX(${dir * (card.offsetWidth + 40)}px)`;
+    card.style.opacity = '0';
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      card.removeEventListener('transitionend', done);
+      void dismissOrder(orderId);
+    };
+    card.addEventListener('transitionend', done);
+    setTimeout(done, 280);
+  }
+
+  panel.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      // Don't steal button taps.
+      if (target.closest('button, a, input, textarea, select, label')) return;
+      const card = target.closest('.store-order-card.is-cancelled');
+      if (!(card instanceof HTMLElement)) return;
+      const orderId = card.getAttribute('data-store-order-id') || '';
+      if (!orderId) return;
+
+      gesture = {
+        card,
+        orderId,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        dx: 0,
+        axis: 'undecided',
+        swiping: false,
+      };
+      try {
+        card.setPointerCapture(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+    },
+    { passive: true },
+  );
+
+  panel.addEventListener(
+    'pointermove',
+    (event) => {
+      if (!gesture || event.pointerId !== gesture.pointerId) return;
+      const dx = event.clientX - gesture.startX;
+      const dy = event.clientY - gesture.startY;
+      gesture.dx = dx;
+
+      if (gesture.axis === 'undecided') {
+        if (Math.abs(dx) < SWIPE_LOCK_PX && Math.abs(dy) < SWIPE_LOCK_PX) return;
+        if (Math.abs(dy) > Math.abs(dx)) {
+          gesture.axis = 'y';
+          return;
+        }
+        gesture.axis = 'x';
+        gesture.swiping = true;
+        gesture.card.classList.add('is-swiping');
+        gesture.card.style.transition = 'none';
+      }
+      if (gesture.axis !== 'x') return;
+
+      event.preventDefault();
+      const resisted = dx * 0.92;
+      gesture.card.style.transform = `translateX(${resisted}px)`;
+      const fade = Math.min(0.45, Math.abs(dx) / (SWIPE_THRESHOLD_PX * 2.2));
+      gesture.card.style.opacity = String(1 - fade);
+    },
+    { passive: false },
+  );
+
+  const endGesture = (event) => {
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const { card, orderId, dx, swiping } = gesture;
+    gesture = null;
+    try {
+      card.releasePointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (!swiping) {
+      resetCardTransform(card);
+      return;
+    }
+    if (Math.abs(dx) >= SWIPE_THRESHOLD_PX) {
+      finishSwipeDismiss(card, orderId, dx);
+      return;
+    }
+    card.style.transition = 'transform 0.18s ease-out, opacity 0.18s ease-out';
+    card.style.transform = 'translateX(0)';
+    card.style.opacity = '1';
+    const clear = () => {
+      card.removeEventListener('transitionend', clear);
+      resetCardTransform(card);
+    };
+    card.addEventListener('transitionend', clear, { once: true });
+    setTimeout(clear, 220);
+  };
+
+  panel.addEventListener('pointerup', endGesture);
+  panel.addEventListener('pointercancel', endGesture);
 }
 
 function stackItemHtml(order) {

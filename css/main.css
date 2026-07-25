@@ -7459,6 +7459,17 @@
     border: 1px solid var(--panel-edge-subtle);
     border-radius: 12px;
     background: var(--btn-bg);
+    touch-action: pan-y;
+    will-change: transform;
+  }
+
+  .store-order-card.is-swiping {
+    z-index: 2;
+    user-select: none;
+  }
+
+  .store-order-card.is-swiping-out {
+    pointer-events: none;
   }
 
   .store-order-card.is-active {
