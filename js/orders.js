@@ -418,12 +418,6 @@ function setReviewDeckIndex(track, orderId, { instant = false } = {}) {
 function reviewPropsFromSession(orderId, session) {
   const meta = { ...emptyOrderMeta(), ...(session?.meta || {}) };
   const checkout = session?.checkout || {};
-  let orderCreatedAt = '';
-  try {
-    orderCreatedAt = String(window.__venusStoreOrderCacheGet?.(orderId)?.created_at || '');
-  } catch {
-    orderCreatedAt = '';
-  }
   return {
     storeOrderId: orderId,
     cart: Array.isArray(session?.cart) ? session.cart : [],
@@ -438,17 +432,10 @@ function reviewPropsFromSession(orderId, session) {
     deliveryFeeValue: String(checkout.feeValue || ''),
     deliveryDistanceKm: checkout.distanceKm ?? null,
     deliveryDurationMin: checkout.durationMin ?? null,
-    orderCreatedAt,
   };
 }
 
 function reviewPropsFromLiveState(orderId = getActiveStoreOrderId()) {
-  let orderCreatedAt = '';
-  try {
-    orderCreatedAt = String(window.__venusStoreOrderCacheGet?.(orderId)?.created_at || '');
-  } catch {
-    orderCreatedAt = '';
-  }
   return {
     storeOrderId: orderId,
     cart: getCart(),
@@ -462,7 +449,6 @@ function reviewPropsFromLiveState(orderId = getActiveStoreOrderId()) {
     deliveryFeeValue: checkoutFeeValue,
     deliveryDistanceKm: checkoutDistanceKm,
     deliveryDurationMin: checkoutDurationMin,
-    orderCreatedAt,
   };
 }
 
@@ -1481,23 +1467,6 @@ function cartFactRowHtml({
     </div>`;
 }
 
-/** Relative wait since order was placed — e.g. "just now", "12m", "1h 5m". */
-function orderUpTimeLabel(createdAt) {
-  const raw = createdAt;
-  if (!raw) return '';
-  const t = new Date(raw);
-  if (Number.isNaN(t.getTime())) return '';
-  const secs = Math.max(0, Math.floor((Date.now() - t.getTime()) / 1000));
-  if (secs < 45) return 'just now';
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  const rem = mins % 60;
-  if (hours < 24) return rem ? `${hours}h ${rem}m` : `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return days === 1 ? '1d' : `${days}d`;
-}
-
 function creditToggleHtml(orderIsCredit, { withId = true } = {}) {
   const idAttr = withId ? 'id="creditToggle"' : 'data-credit-toggle';
   return `
@@ -1768,9 +1737,8 @@ function renderReviewCartHtml({
   deliveryFeeValue = '',
   deliveryDistanceKm = null,
   deliveryDurationMin = null,
-  orderCreatedAt = '',
 }) {
-  // Delivery orders always carry time + location + phone; pickup shows wait (up) time.
+  // Delivery: time + location + phone + fee. Pickup: client's chosen pick-up time only.
   const phoneDisplay = phoneNineDigits(orderClientPhone);
   const distanceHtml = deliveryDistanceReadoutHtml(deliveryDistanceKm, deliveryDurationMin);
   const feeFactHtml = orderDeliveryEnabled
@@ -1797,7 +1765,6 @@ function renderReviewCartHtml({
         }
       </div>`
     : '';
-  const upTime = orderUpTimeLabel(orderCreatedAt);
   const factsHtml = orderDeliveryEnabled
     ? [
         cartFactRowHtml({
@@ -1822,8 +1789,8 @@ function renderReviewCartHtml({
         .filter(Boolean)
         .join('')
     : cartFactRowHtml({
-        label: 'Up',
-        value: upTime,
+        label: 'Time',
+        value: orderDeliveryTime,
       });
   const clientName = String(orderClientName || '').trim();
   const clientTextHtml = clientName
@@ -2530,7 +2497,8 @@ export function applyStorefrontOrderToCart({
   setCart(Array.isArray(cartLines) ? cartLines : []);
 
   const wantsDelivery = deliveryEnabled !== false;
-  const deliveryLabel = wantsDelivery ? String(delivery.label || '').trim() : '';
+  // Pickup still carries the client's chosen time (Right now / In 30 min / 3:27 PM).
+  const deliveryLabel = String(delivery.label || '').trim();
   const locationText = wantsDelivery ? String(locationLabel || '').trim() : '';
   setOrderMeta(
     emptyOrderMeta({
@@ -2541,8 +2509,8 @@ export function applyStorefrontOrderToCart({
       deliveryEnabled: wantsDelivery,
       deliveryTimeLabel: deliveryLabel,
       deliveryLocationLabel: locationText,
-      deliveryTimeMode: wantsDelivery ? String(delivery.mode || '') : '',
-      deliveryDeliverAt: wantsDelivery ? String(delivery.deliverAt || '') : '',
+      deliveryTimeMode: String(delivery.mode || ''),
+      deliveryDeliverAt: String(delivery.deliverAt || ''),
       storeOrderId: String(storeOrderId || ''),
     }),
   );
