@@ -1,10 +1,29 @@
 import { sbFetch } from './api.js';
+import { getPageHref } from './config.js';
+import { notifyStoreReview } from './notifications.js';
+import { getRealtimeClient } from './realtime-client.js';
 import { escapeHtml, showToast } from './utils.js';
 
 /** @type {Array<{ id: string, created_at: string, rating: number, body: string, customer_name?: string | null, page_path?: string | null }>} */
 let reviews = [];
 let loading = false;
 let loadError = '';
+/** @type {Set<string>} */
+const notifiedReviewIds = new Set();
+/** @type {{ unsubscribe?: () => void } | null} */
+let reviewsRealtimeChannel = null;
+
+function announceReview(row) {
+  if (!row?.id || notifiedReviewIds.has(row.id)) return;
+  notifiedReviewIds.add(row.id);
+  void notifyStoreReview({
+    reviewId: row.id,
+    customerName: row.customer_name,
+    rating: row.rating,
+    body: row.body,
+    url: getPageHref('reviews'),
+  });
+}
 
 function starsHtml(rating) {
   const n = Math.max(0, Math.min(5, Number(rating) || 0));
@@ -130,4 +149,52 @@ export function wireReviewsPage() {
     if (!btn) return;
     void loadReviews();
   });
+}
+
+async function startReviewsRealtime() {
+  if (reviewsRealtimeChannel) return true;
+  try {
+    const client = await getRealtimeClient();
+    const channel = client
+      .channel('pos-store-reviews')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'store_reviews' },
+        (payload) => {
+          const row = payload?.new;
+          if (!row?.id) return;
+          // Keep inbox fresh if staff are already on the reviews page.
+          if (document.getElementById('reviewsList')) {
+            reviews = [row, ...reviews.filter((r) => r.id !== row.id)].slice(0, 100);
+            renderReviews();
+          }
+          announceReview(row);
+        },
+      );
+
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('reviews realtime timeout')), 8000);
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          clearTimeout(timeout);
+          resolve();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          clearTimeout(timeout);
+          reject(new Error(`reviews realtime ${status}`));
+        }
+      });
+    });
+
+    reviewsRealtimeChannel = channel;
+    return true;
+  } catch (err) {
+    console.warn('store reviews realtime unavailable', err);
+    reviewsRealtimeChannel = null;
+    return false;
+  }
+}
+
+/** Open-tab review alerts (Web Push covers closed browser from the storefront). */
+export function startReviewsRuntime() {
+  void startReviewsRealtime();
 }

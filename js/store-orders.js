@@ -35,7 +35,14 @@ const staffCancelledIds = new Set();
  */
 async function notifyStoreCustomerPush(order, kind) {
   const customerKey = String(order?.customer_name || '').trim().toLowerCase();
-  if (!customerKey || !order?.id) return;
+  if (!customerKey || !order?.id) {
+    console.warn('store customer push skipped — missing customerKey or order id', {
+      kind,
+      orderId: order?.id,
+      hasName: Boolean(customerKey),
+    });
+    return;
+  }
   const payloads = {
     confirmed: {
       type: 'order-confirmed',
@@ -53,7 +60,7 @@ async function notifyStoreCustomerPush(order, kind) {
   const payload = payloads[kind];
   if (!payload) return;
   try {
-    await fetch(STORE_PUSH_NOTIFY_URL, {
+    const res = await fetch(STORE_PUSH_NOTIFY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -63,6 +70,10 @@ async function notifyStoreCustomerPush(order, kind) {
         tag: `${payload.type}-${order.id}`,
       }),
     });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      console.warn('store customer push failed', res.status, detail);
+    }
   } catch (err) {
     console.warn('store customer push failed', err);
   }

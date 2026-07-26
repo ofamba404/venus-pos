@@ -14,6 +14,7 @@ export const NOTIF_TYPE = {
   DELIVERY_TEST: 'delivery-test',
   STOREFRONT_ORDER: 'storefront-order',
   ORDER_CANCELLED: 'order-cancelled',
+  STORE_REVIEW: 'store-review',
   STOCK_LOW: 'stock-low',
   STOCK_OUT: 'stock-out',
   CREDIT: 'credit',
@@ -476,6 +477,33 @@ export async function notifyOrderCancelled(order = {}) {
     body: `${name} cancelled their order`,
     url: order.url || `${getPageHref('home')}#store-orders`,
     tag: order.orderId ? `storefront-order-cancelled-${order.orderId}` : `order-cancelled-${Date.now()}`,
+    requireInteraction: true,
+    inApp: true,
+    silentOs: pushOn,
+  });
+}
+
+/**
+ * New storefront review — title: "New review"
+ * Body: ★N · name · snippet
+ * @param {{ reviewId?: string, customerName?: string, rating?: number, body?: string, url?: string }} review
+ */
+export async function notifyStoreReview(review = {}) {
+  const name = String(review.customerName || '').trim() || 'A customer';
+  const rating = Math.max(0, Math.min(5, Number(review.rating) || 0));
+  const stars = rating ? `${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}` : '';
+  const snippet = String(review.body || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, 80);
+  const parts = [stars, name, snippet].filter(Boolean);
+  const pushOn = getNotificationPrefs().pushSubscribed;
+  return showAppNotification({
+    type: NOTIF_TYPE.STORE_REVIEW,
+    title: 'New review',
+    body: parts.join(' · ') || 'Someone left a review',
+    url: review.url || getPageHref('reviews'),
+    tag: review.reviewId ? `store-review-${review.reviewId}` : `store-review-${Date.now()}`,
     requireInteraction: true,
     inApp: true,
     silentOs: pushOn,

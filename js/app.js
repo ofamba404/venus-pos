@@ -4,6 +4,7 @@ import { wireDebugPanel } from './debug.js';
 import { mountShell } from './layout.js';
 import { wireOrders } from './orders.js';
 import { bootPwa } from './pwa.js';
+import { startReviewsRuntime } from './reviews.js';
 import { startStoreOrdersRuntime } from './store-orders.js';
 import { registerServiceWorker } from './sw-register.js';
 import { wireSettleOverlay } from './settle-credit.js';
@@ -18,6 +19,7 @@ export function mountApp(page) {
   wireSettleOverlay();
   wireOrders();
   startStoreOrdersRuntime();
+  startReviewsRuntime();
 }
 
 export async function finishAppInit() {
