@@ -4,7 +4,7 @@ import { notifyStoreReview } from './notifications.js';
 import { getRealtimeClient } from './realtime-client.js';
 import { escapeHtml, showToast } from './utils.js';
 
-/** @type {Array<{ id: string, created_at: string, rating: number, body: string, customer_name?: string | null, page_path?: string | null }>} */
+/** @type {Array<{ id: string, created_at: string, rating: number, body: string, customer_name?: string | null }>} */
 let reviews = [];
 let loading = false;
 let loadError = '';
@@ -103,7 +103,6 @@ export function renderReviews() {
       const name = String(row.customer_name || '').trim() || 'Guest';
       const body = String(row.body || '').trim();
       const when = relativeTime(row.created_at);
-      const path = String(row.page_path || '').trim();
       return `
         <article class="reviews-card">
           <div class="reviews-card__top">
@@ -113,7 +112,6 @@ export function renderReviews() {
           <p class="reviews-card__body">${escapeHtml(body)}</p>
           <div class="reviews-card__foot">
             <span class="reviews-card__name">${escapeHtml(name)}</span>
-            ${path ? `<span class="reviews-card__path">${escapeHtml(path)}</span>` : ''}
           </div>
         </article>
       `;
@@ -128,7 +126,7 @@ export async function loadReviews() {
   renderReviews();
   try {
     const res = await sbFetch(
-      'store_reviews?select=id,created_at,rating,body,customer_name,page_path&order=created_at.desc&limit=100',
+      'store_reviews?select=id,created_at,rating,body,customer_name&order=created_at.desc&limit=100',
     );
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
     const rows = await res.json();

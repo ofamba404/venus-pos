@@ -736,9 +736,10 @@ export function parseUGX(str) {
 }
 
 let lastFabCount = 0;
+let lastFabCartCount = 0;
 
 export function pulseFabBadge(count) {
-  const fab = document.getElementById('fabReviewOrders') || document.getElementById('fabNewOrder');
+  const fab = document.getElementById('fabReviewOrders');
   const badge = document.getElementById('fabBadge');
 
   if (count > lastFabCount && count > 0) {
@@ -765,6 +766,36 @@ export function pulseFabBadge(count) {
     }
   }
   lastFabCount = count;
+}
+
+export function pulseFabCartBadge(count) {
+  const fab = document.getElementById('fabNewOrder');
+  const badge = document.getElementById('fabCartBadge');
+
+  if (count > lastFabCartCount && count > 0) {
+    if (hasGsap() && !prefersReducedMotion()) {
+      if (fab) {
+        gsap().fromTo(fab, { scale: 1 }, {
+          scale: 1.05,
+          duration: 0.1,
+          yoyo: true,
+          repeat: 1,
+          ease: EASE.out,
+          clearProps: 'transform',
+        });
+      }
+      if (badge) {
+        gsap().fromTo(badge, { scale: 0.4, opacity: 0 }, {
+          scale: 1,
+          opacity: 1,
+          duration: 0.35,
+          ease: EASE.bounce,
+          clearProps: 'transform,opacity',
+        });
+      }
+    }
+  }
+  lastFabCartCount = count;
 }
 
 export function bumpElement(el) {
@@ -1062,51 +1093,46 @@ export function wireGsapAccordions(root) {
 let floatingNavOpen = false;
 let floatingNavTween = null;
 
-function resetNavClosed(nav, track, links) {
+function fabMenuItems(nav) {
+  return nav.querySelectorAll('.fab-menu-item');
+}
+
+function resetFabMenuClosed(host, nav, items) {
+  host?.classList.remove('is-open');
   nav.hidden = true;
   nav.setAttribute('aria-hidden', 'true');
   if (hasGsap()) {
-    gsap().set(track, { scaleX: 0, opacity: 0, transformOrigin: '100% 50%' });
-    gsap().set(links, { opacity: 0, y: 0, clearProps: 'transform' });
+    gsap().set(items, { opacity: 0, scale: 0.7, y: -4, clearProps: 'transform' });
   } else {
-    track.style.transform = 'scaleX(0)';
-    track.style.opacity = '0';
-    links.forEach((link) => {
-      link.style.opacity = '0';
-      link.style.transform = '';
+    items.forEach((item) => {
+      item.style.opacity = '0';
+      item.style.transform = '';
     });
   }
 }
 
 export function wireFloatingNav() {
-  const dock = document.getElementById('bottomDock');
+  const host = document.getElementById('headerFab');
   const toggle = document.getElementById('fabNavToggle');
   const nav = document.getElementById('floatingNav');
-  const track = document.getElementById('bottomNavTrack');
-  if (!dock || !toggle || !nav || !track) return;
+  if (!host || !toggle || !nav) return;
 
-  const items = () => nav.querySelectorAll('.bottom-nav-item');
-
-  dock.classList.remove('is-open');
   toggle.classList.remove('is-open');
   toggle.setAttribute('aria-expanded', 'false');
-  resetNavClosed(nav, track, items());
+  resetFabMenuClosed(host, nav, fabMenuItems(nav));
 
   const close = ({ animate = true } = {}) => {
     if (!floatingNavOpen) return;
 
     floatingNavOpen = false;
     toggle.setAttribute('aria-expanded', 'false');
-    toggle.setAttribute('aria-label', 'Open navigation');
+    toggle.setAttribute('aria-label', 'Open menu');
     toggle.classList.remove('is-open');
 
     floatingNavTween?.kill();
-    const links = items();
+    const items = fabMenuItems(nav);
 
-    const finish = () => {
-      dock.classList.remove('is-open');
-      resetNavClosed(nav, track, links);
-    };
+    const finish = () => resetFabMenuClosed(host, nav, items);
 
     if (!animate || !hasGsap() || prefersReducedMotion()) {
       finish();
@@ -1115,14 +1141,15 @@ export function wireFloatingNav() {
 
     floatingNavTween = gsap()
       .timeline({ onComplete: finish })
-      .to(links, {
+      .to(items, {
         opacity: 0,
-        y: 5,
-        duration: 0.14,
-        stagger: { each: 0.02, from: 'start' },
-        ease: EASE.in,
-      })
-      .to(track, { scaleX: 0, opacity: 0, duration: 0.26, ease: 'power2.in' }, '-=0.04');
+        scale: 0.75,
+        y: -3,
+        duration: 0.07,
+        stagger: { each: 0.008, from: 'end' },
+        ease: 'power3.in',
+        transformOrigin: '100% 0%',
+      });
   };
 
   const open = () => {
@@ -1130,42 +1157,39 @@ export function wireFloatingNav() {
 
     floatingNavOpen = true;
     toggle.setAttribute('aria-expanded', 'true');
-    toggle.setAttribute('aria-label', 'Close navigation');
+    toggle.setAttribute('aria-label', 'Close menu');
     toggle.classList.add('is-open');
-    dock.classList.add('is-open');
+    host.classList.add('is-open');
     nav.hidden = false;
     nav.setAttribute('aria-hidden', 'false');
 
     floatingNavTween?.kill();
-    const links = items();
+    const items = fabMenuItems(nav);
 
     if (!hasGsap() || prefersReducedMotion()) {
-      track.style.transform = 'scaleX(1)';
-      track.style.opacity = '1';
-      links.forEach((link) => {
-        link.style.opacity = '1';
-        link.style.transform = 'none';
+      items.forEach((item) => {
+        item.style.opacity = '1';
+        item.style.transform = 'none';
       });
       return;
     }
 
-    gsap().set(track, { scaleX: 0, opacity: 0, transformOrigin: '100% 50%' });
-    gsap().set(links, { opacity: 0, y: 8 });
+    gsap().set(items, {
+      opacity: 0,
+      scale: 0.7,
+      y: -4,
+      transformOrigin: '100% 0%',
+    });
 
-    floatingNavTween = gsap()
-      .timeline()
-      .to(track, { scaleX: 1, opacity: 1, duration: 0.42, ease: 'power3.out' })
-      .to(
-        links,
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.24,
-          stagger: { each: 0.04, from: 'end' },
-          ease: EASE.out,
-        },
-        '-=0.24',
-      );
+    floatingNavTween = gsap().timeline().to(items, {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      duration: 0.18,
+      stagger: { each: 0.018, from: 'start' },
+      ease: 'back.out(1.2)',
+      transformOrigin: '100% 0%',
+    });
   };
 
   toggle.addEventListener('click', (e) => {
@@ -1175,12 +1199,12 @@ export function wireFloatingNav() {
   });
 
   nav.addEventListener('click', (e) => {
-    if (e.target.closest('.bottom-nav-item')) close();
+    if (e.target.closest('.fab-menu-item')) close({ animate: true });
   });
 
   document.addEventListener('click', (e) => {
     if (!floatingNavOpen) return;
-    if (e.target.closest('#bottomDock')) return;
+    if (e.target.closest('#headerFab')) return;
     close();
   });
 

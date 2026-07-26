@@ -43,6 +43,7 @@ import {
   openModal,
   pressButton,
   pulseFabBadge,
+  pulseFabCartBadge,
   readFlavorMeterScale,
   wireGsapAccordions,
 } from './animations.js';
@@ -701,19 +702,24 @@ export function updateFabBadge() {
   const fabBadge = document.getElementById('fabBadge');
   const fabReview = document.getElementById('fabReviewOrders');
   const fabStack = document.getElementById('fabStack');
+  const fabNew = document.getElementById('fabNewOrder');
+  const fabCartBadge = document.getElementById('fabCartBadge');
   // DB `accepted` status is the source of truth (survives refresh).
-  const count =
+  const reviewCount =
     typeof window.__venusLoadedStoreOrderCount === 'function'
       ? window.__venusLoadedStoreOrderCount()
       : 0;
-  const showReview = count > 0;
+  const showReview = reviewCount > 0;
+  const cartCount = getActiveStoreOrderId()
+    ? composeDraft?.cart?.length || 0
+    : getCart().length;
 
   if (fabReview) {
     fabReview.hidden = !showReview;
     fabReview.setAttribute(
       'aria-label',
       showReview
-        ? `Review storefront orders, ${count} in cart`
+        ? `Review storefront orders, ${reviewCount} in cart`
         : 'Review storefront orders',
     );
   }
@@ -722,12 +728,29 @@ export function updateFabBadge() {
   if (fabBadge) {
     if (showReview) {
       fabBadge.style.display = 'flex';
-      fabBadge.textContent = String(count);
+      fabBadge.textContent = String(reviewCount);
     } else {
       fabBadge.style.display = 'none';
     }
   }
-  pulseFabBadge(count);
+
+  if (fabCartBadge) {
+    if (cartCount > 0) {
+      fabCartBadge.style.display = 'flex';
+      fabCartBadge.textContent = String(cartCount);
+    } else {
+      fabCartBadge.style.display = 'none';
+    }
+  }
+  if (fabNew) {
+    fabNew.setAttribute(
+      'aria-label',
+      cartCount > 0 ? `New order, ${cartCount} in cart` : 'New order',
+    );
+  }
+
+  pulseFabBadge(reviewCount);
+  pulseFabCartBadge(cartCount);
 }
 
 function closeOrderModal() {

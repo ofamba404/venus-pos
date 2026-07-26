@@ -560,13 +560,13 @@ function ensureDom() {
     const actions = document.querySelector('.header-actions');
     if (actions) {
       btn = document.createElement('button');
-      btn.className = 'icon-btn store-orders-btn';
+      btn.className = 'fab fab-header store-orders-btn';
       btn.id = 'storeOrdersBtn';
       btn.type = 'button';
       btn.setAttribute('aria-label', 'Storefront orders');
       btn.title = 'Storefront orders';
       btn.innerHTML = `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <svg class="fab-header-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path fill-rule="evenodd" clip-rule="evenodd" d="M8.8999 7.5C8.8999 6.28498 9.88488 5.3 11.0999 5.3H12.8999C14.1149 5.3 15.0999 6.28498 15.0999 7.5C15.0999 7.77615 15.3238 8 15.5999 8C15.876 8 16.0999 7.77615 16.0999 7.5C16.0999 5.73269 14.6672 4.3 12.8999 4.3H11.0999C9.33259 4.3 7.8999 5.73269 7.8999 7.5C7.8999 7.77615 8.12376 8 8.3999 8C8.67604 8 8.8999 7.77615 8.8999 7.5ZM5.7998 15.6V9.39999H18.1998V15.6C18.1998 17.0359 17.0357 18.2 15.5998 18.2H8.39981C6.96387 18.2 5.7998 17.0359 5.7998 15.6ZM4.7998 9.29999C4.7998 8.80294 5.20275 8.39999 5.6998 8.39999H18.2998C18.7969 8.39999 19.1998 8.80294 19.1998 9.29999V15.6C19.1998 17.5882 17.588 19.2 15.5998 19.2H8.39981C6.41158 19.2 4.7998 17.5882 4.7998 15.6V9.29999Z" fill="currentColor"/>
         </svg>
         <span class="fab-badge" id="storeOrdersBadge" style="display:none;">0</span>`;
@@ -933,6 +933,7 @@ export function renderStoreOrderUi() {
   if (btn) {
     btn.classList.toggle('has-orders', badgeCount > 0);
     btn.classList.toggle('has-cancelled', cancelled > 0);
+    btn.classList.toggle('is-open', panelOpen);
     btn.setAttribute('aria-expanded', panelOpen ? 'true' : 'false');
     btn.setAttribute(
       'aria-label',

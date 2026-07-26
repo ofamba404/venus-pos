@@ -5,21 +5,64 @@ const PAGE_ICONS = {
   inventory: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   clients: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3.1-6.5 7-6.5s7 3 7 6.5"/>',
   reviews: '<path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.9 7.2 17.9l.9-5.4L4.2 8.7l5.4-.8L12 3z"/>',
-  delivery: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7V10z"/><circle cx="7.5" cy="18" r="1.5"/><circle cx="17.5" cy="18" r="1.5"/>',
+  delivery:
+    '<circle cx="19.5" cy="16.5" r="2.5"/><circle cx="4.5" cy="16.5" r="2.5"/><path d="M20.235 7.87c1.281 1.559 1.727 3.042 1.764 3.826a5.3 5.3 0 0 0-2.217-.479c-2.445 0-4.64 1.626-5.164 3.792c-.126.518-.188.777-.324.884s-.356.107-.795.107h-2.878c-.443 0-.664 0-.8-.108c-.137-.11-.197-.367-.316-.883c-.496-2.138-2.508-3.997-4.603-3.84c-.211.017-.317.025-.39.008c-.071-.016-.144-.057-.29-.14c-.421-.237-.851-.463-1.264-.714A2 2 0 0 1 2 8.683c-.013-.384.207-.764.652-.66l6.42 1.511c.483.114.724.17.931.132s.462-.212.97-.56c1.288-.88 3.33-1.713 5.365-.978c.557.201.836.302.994.307c.16.005.392-.063.857-.198a9.5 9.5 0 0 1 2.045-.367m0 0c-.802-.978-1.934-1.985-3.5-2.87"/>',
   history: '<circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/>',
   analytics: '<path d="M5 19V11"/><path d="M12 19V5"/><path d="M19 19v-8"/>',
 };
 
-function navLink(page, currentPage, mobile = false) {
+const ACTION_ICONS = {
+  admin:
+    '<path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9.5 12l1.8 1.8L15 10"/>',
+  debug:
+    '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  signOut:
+    '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+};
+
+/** Closest to the toggle first: day-to-day work → oversight → system → leave. */
+const FAB_NAV_ORDER = ['home', 'inventory', 'clients', 'delivery', 'history', 'analytics', 'reviews'];
+
+function iconSvg(paths) {
+  return `<svg class="fab-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+}
+
+function navLink(page, currentPage) {
   const active = page.id === currentPage ? ' active' : '';
-  const cls = mobile ? 'bottom-nav-item' : 'tab-btn';
-  const icon = PAGE_ICONS[page.id] || '';
-  if (mobile) {
-    return `<a class="${cls}${active}" href="${getPageHref(page.id)}" aria-label="${page.label}" aria-current="${active ? 'page' : 'false'}">
-      <svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>
-    </a>`;
+  return `<a class="tab-btn${active}" href="${getPageHref(page.id)}" aria-current="${active ? 'page' : 'false'}">${page.label}</a>`;
+}
+
+function fabMenuNavItem(page, currentPage) {
+  const active = page.id === currentPage;
+  return `<a class="fab-menu-item fab-menu-item--nav${active ? ' is-active' : ''}" href="${getPageHref(page.id)}" aria-label="${page.label}" aria-current="${active ? 'page' : 'false'}">
+    ${iconSvg(PAGE_ICONS[page.id] || '')}
+    <span class="fab-menu-item-label">${page.label}</span>
+  </a>`;
+}
+
+function sortFabNavPages(pages) {
+  const rank = new Map(FAB_NAV_ORDER.map((id, i) => [id, i]));
+  return [...pages].sort((a, b) => (rank.get(a.id) ?? 99) - (rank.get(b.id) ?? 99));
+}
+
+function fabMenuActionItems(currentPage, isAdmin) {
+  const items = [];
+  if (isAdmin) {
+    items.push(`<a class="fab-menu-item fab-menu-item--action${currentPage === 'admin' ? ' is-active' : ''}" id="adminBtn" href="${getPageHref('admin')}" aria-label="Admin" title="Admin" aria-current="${currentPage === 'admin' ? 'page' : 'false'}">
+      ${iconSvg(ACTION_ICONS.admin)}
+      <span class="fab-menu-item-label">Admin</span>
+    </a>`);
+    items.push(`<button class="fab-menu-item fab-menu-item--action" id="debugBtn" aria-label="Debug log" title="Debug log" type="button">
+      ${iconSvg(ACTION_ICONS.debug)}
+      <span class="fab-menu-item-label">Debug</span>
+      <span class="fab-badge" id="debugBadge" style="display:none;">0</span>
+    </button>`);
   }
-  return `<a class="${cls}${active}" href="${getPageHref(page.id)}" aria-current="${active ? 'page' : 'false'}">${page.label}</a>`;
+  items.push(`<button class="fab-menu-item fab-menu-item--action fab-menu-item--danger" id="signOutBtn" aria-label="Sign out" title="Sign out" type="button">
+    ${iconSvg(ACTION_ICONS.signOut)}
+    <span class="fab-menu-item-label">Sign out</span>
+  </button>`);
+  return items.join('');
 }
 
 export function renderShell(currentPage) {
@@ -27,6 +70,10 @@ export function renderShell(currentPage) {
   const desktopTabs = pages.map((p) => navLink(p, currentPage)).join('');
   const isAdmin = window.VenusPosAuth?.isAdmin?.() === true;
   const roleLabel = isAdmin ? 'Admin' : 'Staff';
+  const fabNavItems = sortFabNavPages(pages)
+    .map((p) => fabMenuNavItem(p, currentPage))
+    .join('');
+  const fabActionItems = fabMenuActionItems(currentPage, isAdmin);
 
   return `
     <a class="skip-link" href="#page-content">Skip to content</a>
@@ -41,29 +88,20 @@ export function renderShell(currentPage) {
         </div>
       </div>
       <div class="header-actions">
-        ${
-          isAdmin
-            ? `<a class="icon-btn${currentPage === 'admin' ? ' active' : ''}" id="adminBtn" href="${getPageHref('admin')}" aria-label="Admin" title="Admin" aria-current="${currentPage === 'admin' ? 'page' : 'false'}">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/>
-            <path d="M9.5 12l1.8 1.8L15 10"/>
-          </svg>
-        </a>
-        <button class="icon-btn" id="debugBtn" aria-label="Debug log" title="Debug log" type="button">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-          </svg>
-          <span class="fab-badge" id="debugBadge" style="display:none;">0</span>
-        </button>`
-            : ''
-        }
-        <button class="icon-btn" id="signOutBtn" aria-label="Sign out" title="Sign out" type="button">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <path d="M16 17l5-5-5-5"/>
-            <path d="M21 12H9"/>
-          </svg>
-        </button>
+        <div class="header-fab" id="headerFab">
+          <button class="fab fab-nav" id="fabNavToggle" aria-label="Open menu" aria-expanded="false" aria-controls="floatingNav" type="button">
+            <svg class="fab-nav-icon fab-nav-icon--menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16"/>
+            </svg>
+            <svg class="fab-nav-icon fab-nav-icon--close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18"/>
+            </svg>
+          </button>
+          <nav class="fab-menu" id="floatingNav" aria-label="App menu" aria-hidden="true" hidden>
+            ${fabNavItems}
+            ${fabActionItems}
+          </nav>
+        </div>
       </div>
     </div>
 
@@ -74,17 +112,8 @@ export function renderShell(currentPage) {
 }
 
 export function renderModals(currentPage = 'home') {
-  const bottomNav = getNavPages()
-    .map((p) => navLink(p, currentPage, true))
-    .join('');
-
   return `
     <div class="bottom-dock" id="bottomDock">
-      <nav class="bottom-nav-drawer" id="floatingNav" aria-label="Primary navigation" aria-hidden="true" hidden>
-        <div class="bottom-nav-track" id="bottomNavTrack">
-          ${bottomNav}
-        </div>
-      </nav>
       <div class="fab-stack" id="fabStack">
         <button class="fab fab-review" id="fabReviewOrders" aria-label="Review storefront orders" type="button" hidden>
           <svg class="fab-review-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -99,14 +128,7 @@ export function renderModals(currentPage = 'home') {
             <circle class="fab-cart-wheel" cx="8" cy="21" r="1.5"/>
             <circle class="fab-cart-wheel" cx="19" cy="21" r="1.5"/>
           </svg>
-        </button>
-        <button class="fab fab-nav" id="fabNavToggle" aria-label="Open navigation" aria-expanded="false" aria-controls="floatingNav" type="button">
-          <svg class="fab-nav-icon fab-nav-icon--menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <path d="M4 7h16M4 12h16M4 17h16"/>
-          </svg>
-          <svg class="fab-nav-icon fab-nav-icon--close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <path d="M6 6l12 12M18 6L6 18"/>
-          </svg>
+          <span class="fab-badge" id="fabCartBadge" style="display:none;">0</span>
         </button>
       </div>
     </div>
