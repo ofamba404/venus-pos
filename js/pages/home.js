@@ -14,6 +14,7 @@ runPageBoot({
   wire: wireHomePage,
   paint: paintHome,
   prefetch: true,
+  entities: ['sales', 'inventory'],
   slices: {
     sales: updateTodayStrip,
     inventory: renderStockGlance,

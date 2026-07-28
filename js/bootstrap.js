@@ -25,9 +25,9 @@ function defaultSlices(paint) {
 }
 
 /**
- * Unified page boot: hydrate → paint → parallel background refresh.
- * Slice map limits re-renders to affected UI regions.
- * Subscriptions stay alive for the page lifetime.
+ * Unified page boot: hydrate → paint → settle → background refresh.
+ * Only awaits network for entities with no IndexedDB snapshot.
+ * Stale snapshots refresh quietly after first paint (SWR).
  */
 export async function runPageBoot({
   page,
@@ -55,7 +55,6 @@ export async function runPageBoot({
   resetPageDataSettled();
   const hydrated = await hydrateFromCache();
   applyPendingFlags(hydrated);
-  setPageLoading(true);
 
   const activeSlices = slices ?? defaultSlices(paint);
   wireSliceUpdates(activeSlices, { onEntityReady: clearPendingForEntity });
@@ -67,18 +66,31 @@ export async function runPageBoot({
     paint();
 
     const refreshEntities = entities ?? dataStore.ENTITIES;
-    await Promise.all([finishAppInit(), dataStore.fetchAll(refreshEntities, { silent: false })]);
+    const cold = refreshEntities.filter((e) => !dataStore.hasSnapshot(e));
+    const staleWarm = refreshEntities.filter(
+      (e) => dataStore.hasSnapshot(e) && !dataStore.isFresh(e),
+    );
 
-    const missing = refreshEntities.filter((e) => !dataStore.hasData(e));
-    if (missing.length) {
-      await dataStore.fetchAll(missing, { force: true, silent: false });
+    // Shell + SW are decorative — never block first paint settle.
+    void finishAppInit();
+    wireNavPrefetch();
+
+    // Only block when we have nothing cached for a required entity.
+    if (cold.length) {
+      setPageLoading(true);
+      await dataStore.fetchAll(cold, { silent: false });
+      paint();
     }
 
     setPageDataSettled();
     clearPendingFlags();
     paint();
 
-    wireNavPrefetch();
+    // Stale-while-revalidate: refresh in background; slice listeners re-paint.
+    if (staleWarm.length) {
+      void dataStore.fetchAll(staleWarm, { silent: true });
+    }
+
     if (prefetch) scheduleIdlePrefetch();
   } finally {
     setPageLoading(false);

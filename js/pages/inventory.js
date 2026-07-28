@@ -8,6 +8,7 @@ runPageBoot({
     renderInventoryGrid();
     syncInventoryToDom();
   },
+  entities: ['inventory'],
   slices: {
     inventory: syncInventoryToDom,
   },

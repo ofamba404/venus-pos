@@ -276,6 +276,8 @@ export async function showAppNotification(opts) {
     tag,
     renotify: true,
     requireInteraction,
+    vibrate: [220, 80, 220, 80, 400],
+    silent: false,
     data: { type, url: absoluteUrl },
   };
 
@@ -449,7 +451,6 @@ export async function notifyStorefrontOrder(order = {}) {
   const body = parts.join(' · ');
   const tag = order.orderId ? `storefront-order-${order.orderId}` : `storefront-order-${Date.now()}`;
   const url = order.url || `${getPageHref('home')}#store-orders`;
-  const pushOn = getNotificationPrefs().pushSubscribed;
 
   return showAppNotification({
     type: NOTIF_TYPE.STOREFRONT_ORDER,
@@ -459,8 +460,8 @@ export async function notifyStorefrontOrder(order = {}) {
     tag,
     requireInteraction: true,
     inApp: true,
-    // Prefer server Web Push for the OS alert when subscribed (same tag).
-    silentOs: pushOn,
+    // Always fire a local OS alert too — push may lag or miss when the tab is open.
+    silentOs: false,
   });
 }
 

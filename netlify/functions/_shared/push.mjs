@@ -67,7 +67,9 @@ export async function sendToAllStaff(payload) {
     body: payload.body || '',
     url: payload.url || '/',
     tag: payload.tag || `venus-pos-${Date.now()}`,
-    requireInteraction: Boolean(payload.requireInteraction),
+    requireInteraction: payload.requireInteraction !== false,
+    vibrate: [220, 80, 220, 80, 400],
+    renotify: true,
   });
 
   let sent = 0;
@@ -93,7 +95,11 @@ export async function sendToAllStaff(payload) {
       await configured.webpush.sendNotification(
         { endpoint: record.endpoint, keys: record.keys },
         body,
-        { TTL: 60 * 60 * 12, urgency: 'high' },
+        {
+          // Keep trying to deliver for a full day if the device was offline.
+          TTL: 60 * 60 * 24,
+          urgency: 'high',
+        },
       );
       sent += 1;
     } catch (err) {

@@ -4,10 +4,10 @@ import { CATEGORIES } from '../config.js';
 export const ENTITIES = ['sales', 'inventory', 'clients', 'deliveries'];
 
 export const STALE_MS = {
-  sales: 5 * 60_000,
+  sales: 15 * 60_000,
   inventory: 30 * 60_000,
   clients: 30 * 60_000,
-  deliveries: 10 * 60_000,
+  deliveries: 15 * 60_000,
 };
 
 const FETCHERS = {

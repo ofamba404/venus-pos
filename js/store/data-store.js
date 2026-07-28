@@ -101,6 +101,12 @@ export function hasData(entity) {
   return hasEntityData(entity, stateRef());
 }
 
+/** True when IndexedDB/network has written a successful snapshot (even if empty). */
+export function hasSnapshot(entity) {
+  const m = meta.get(entity);
+  return !!m && m.ts > 0;
+}
+
 export function subscribe(entity, listener) {
   if (!listeners.has(entity)) listeners.set(entity, new Set());
   listeners.get(entity).add(listener);
@@ -250,6 +256,7 @@ export const dataStore = {
   getStatus,
   isFresh,
   hasData,
+  hasSnapshot,
   subscribe,
   hydrate,
   persist,

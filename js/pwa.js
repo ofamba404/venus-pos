@@ -52,19 +52,17 @@ export function updateInstallUi() {
 }
 
 async function ensurePushSubscription() {
-  const prefs = getNotificationPrefs();
-  if (notificationPermission() !== 'granted') return { ok: false, reason: 'permission' };
+  // Always (re)register with orders on — closed-browser alerts depend on this.
   return subscribeWebPush({
-    schedulesEnabled: prefs.schedulesEnabled,
-    ordersEnabled: prefs.ordersEnabled,
+    schedulesEnabled: getNotificationPrefs().schedulesEnabled !== false,
+    ordersEnabled: true,
   });
 }
 
 function showEnablePromptIfNeeded() {
-  if (isStandalonePwa()) return;
-  if (notificationPermission() === 'granted') return;
   if (notificationPermission() === 'unsupported') return;
-  if (getNotificationPrefs().installHintDismissed) return;
+  if (notificationPermission() === 'denied') return;
+  if (getNotificationPrefs().pushSubscribed && notificationPermission() === 'granted') return;
   if (document.getElementById('pwaEnableBanner')) return;
 
   const el = document.createElement('div');
@@ -73,27 +71,33 @@ function showEnablePromptIfNeeded() {
   el.setAttribute('role', 'dialog');
   el.innerHTML = `
     <div class="pwa-enable-banner__copy">
-      <div class="pwa-enable-banner__title">Get order alerts</div>
-      <div class="pwa-enable-banner__body">Enable notifications so new storefront orders reach you even when POS is closed.</div>
+      <div class="pwa-enable-banner__title">Turn on order alerts</div>
+      <div class="pwa-enable-banner__body">Required for new storefront orders when POS is closed or the phone is locked. Install the app on Android for the most reliable alerts.</div>
     </div>
     <div class="pwa-enable-banner__actions">
-      <button type="button" class="pwa-enable-banner__btn primary" data-pwa-enable>Enable</button>
-      <button type="button" class="pwa-enable-banner__btn" data-pwa-enable-dismiss>Not now</button>
+      <button type="button" class="pwa-enable-banner__btn primary" data-pwa-enable>Enable alerts</button>
+      <button type="button" class="pwa-enable-banner__btn" data-pwa-enable-dismiss>Later</button>
     </div>`;
   document.body.appendChild(el);
 
   el.querySelector('[data-pwa-enable]')?.addEventListener('click', async () => {
     el.remove();
-    setNotificationPrefs({ installHintDismissed: true });
     const result = await subscribeWebPush({ ordersEnabled: true, schedulesEnabled: true });
     if (result.ok) {
+      setNotificationPrefs({ installHintDismissed: true, ordersEnabled: true });
       const { showToast } = await import('./utils.js');
       showToast('Push on — orders alert even when closed');
+      if (!isStandalonePwa()) {
+        void promptPwaInstall();
+      }
+    } else if (result.reason === 'denied') {
+      const { showToast } = await import('./utils.js');
+      showToast('Notifications blocked — enable in browser settings', true);
     }
   });
   el.querySelector('[data-pwa-enable-dismiss]')?.addEventListener('click', () => {
     el.remove();
-    setNotificationPrefs({ installHintDismissed: true });
+    // Soft dismiss only — prompt again next cold boot until they enable.
   });
 }
 
@@ -134,13 +138,13 @@ export function bootPwa() {
   });
   updateInstallUi();
 
-  // Quietly refresh push registration when already granted.
+  // Refresh / create push registration aggressively on every boot.
   if (notificationPermission() === 'granted') {
     void ensurePushSubscription().then((r) => {
       if (r.ok) console.info('Venus POS push ready');
+      else setTimeout(showEnablePromptIfNeeded, 800);
     });
   } else {
-    // Soft prompt after first paint — don't block checkout.
-    setTimeout(showEnablePromptIfNeeded, 2500);
+    setTimeout(showEnablePromptIfNeeded, 800);
   }
 }

@@ -3,6 +3,18 @@ import { dataStore } from './data-store.js';
 const PREFETCH_ORDER = ['inventory', 'clients', 'deliveries', 'sales'];
 const IDLE_TIMEOUT_MS = 2500;
 
+/** Entities each route needs — keep in sync with js/pages/*.js runPageBoot. */
+const ROUTE_ENTITIES = {
+  home: ['sales', 'inventory'],
+  inventory: ['inventory'],
+  clients: ['clients', 'sales'],
+  delivery: ['deliveries'],
+  history: ['sales', 'clients', 'inventory'],
+  analytics: ['sales', 'inventory', 'clients'],
+  admin: ['clients', 'inventory', 'sales'],
+  reviews: [],
+};
+
 let prefetchScheduled = false;
 let navWired = false;
 
@@ -34,35 +46,21 @@ export function prefetchEntity(entity) {
   dataStore.fetch(entity, { silent: true });
 }
 
+function pageIdFromHref(href) {
+  if (!href) return null;
+  if (href.includes('index.html')) return 'home';
+  return Object.keys(ROUTE_ENTITIES).find((id) => href.includes(`${id}.html`)) || null;
+}
+
 export function wireNavPrefetch(root = document) {
   if (navWired) return;
   navWired = true;
 
-  const routeEntity = {
-    inventory: 'inventory',
-    clients: 'clients',
-    delivery: 'deliveries',
-    history: 'sales',
-    analytics: 'sales',
-    admin: 'clients',
-    home: null,
-  };
-
   const triggerPrefetch = (href) => {
-    if (!href) return;
-    const page = Object.keys(routeEntity).find((id) => href.includes(`${id}.html`) || (id === 'home' && href.includes('index.html')));
-    const entity = page ? routeEntity[page] : null;
-    if (entity) prefetchEntity(entity);
-    if (page === 'analytics') {
-      prefetchEntity('inventory');
-      prefetchEntity('clients');
-    }
-    if (page === 'history') {
-      prefetchEntity('clients');
-    }
-    if (page === 'delivery') {
-      prefetchEntity('clients');
-    }
+    const page = pageIdFromHref(href);
+    const entities = page ? ROUTE_ENTITIES[page] : null;
+    if (!entities?.length) return;
+    entities.forEach((entity) => prefetchEntity(entity));
   };
 
   root.querySelectorAll('a[href]').forEach((link) => {

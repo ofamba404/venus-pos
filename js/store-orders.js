@@ -22,6 +22,9 @@ import { escapeHtml, fmtUGX, showConfirm, showToast } from './utils.js';
 
 /** Safety-net poll when Realtime is down or a change was missed. */
 const FALLBACK_POLL_MS = 30_000;
+/** Survive MPA navigations — skip network if snapshot is still fresh. */
+const SESSION_CACHE_KEY = 'venus-pos-store-orders-v1';
+const SESSION_CACHE_FRESH_MS = 90_000;
 const ACTIVE_STATUSES = new Set(['pending', 'confirmed', 'accepted', 'cancelled']);
 /** Storefront PWA push endpoint — notifies the customer when staff confirms. */
 const STORE_PUSH_NOTIFY_URL = 'https://venus-store.netlify.app/api/push/notify';
@@ -94,6 +97,38 @@ let bootstrapped = false;
 let realtimeLive = false;
 /** Ignore the bag-button click that follows an outside-dismiss pointerdown. */
 let ignoreNextBagToggle = false;
+let lastSessionWriteTs = 0;
+
+function readSessionOrdersCache() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.rows) || typeof parsed.ts !== 'number') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionOrdersCache(rows) {
+  try {
+    const ts = Date.now();
+    lastSessionWriteTs = ts;
+    sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ ts, rows }));
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function hydrateOrdersFromSession() {
+  const cached = readSessionOrdersCache();
+  if (!cached) return false;
+  mergeOrders(cached.rows);
+  bootstrapped = true;
+  lastSessionWriteTs = cached.ts;
+  return Date.now() - cached.ts < SESSION_CACHE_FRESH_MS;
+}
 /** @type {Array<() => void>} */
 const storeOrdersChangeListeners = [];
 
@@ -539,11 +574,22 @@ async function startStoreOrdersRealtime() {
   }
 }
 
-export async function refreshStoreOrders({ silent = true } = {}) {
+export async function refreshStoreOrders({ silent = true, force = false } = {}) {
+  if (
+    !force &&
+    bootstrapped &&
+    lastSessionWriteTs > 0 &&
+    Date.now() - lastSessionWriteTs < SESSION_CACHE_FRESH_MS
+  ) {
+    renderStoreOrderUi();
+    return [...orderCache.values()];
+  }
+
   try {
     const rows = await fetchOpenOrders();
     mergeOrders(rows);
     if (!bootstrapped) bootstrapped = true;
+    writeSessionOrdersCache(Array.isArray(rows) ? rows : []);
     renderStoreOrderUi();
     return rows;
   } catch (e) {
@@ -1181,10 +1227,15 @@ export function startStoreOrdersRuntime() {
   window.__venusReleaseStoreOrderFromCart = (id) => releaseStoreOrderFromCart(id);
   window.__venusConfirmStoreOrder = (id) => confirmStoreOrder(id);
 
+  const sessionFresh = hydrateOrdersFromSession();
   renderStoreOrderUi();
-  void refreshStoreOrders({ silent: true }).then(() => {
+  if (sessionFresh) {
     void startStoreOrdersRealtime();
-  });
+  } else {
+    void refreshStoreOrders({ silent: true, force: true }).then(() => {
+      void startStoreOrdersRealtime();
+    });
+  }
 
   if (pollTimer == null) {
     pollTimer = setInterval(() => {

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'venus-pos-v42';
+const CACHE_VERSION = 'venus-pos-v43';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -163,9 +163,10 @@ self.addEventListener('push', (event) => {
     data = { body: event.data ? event.data.text() : '' };
   }
 
-  const title = data.title || 'Venus POS';
+  const title = data.title || 'Order placed';
   const targetPath = data.url || '/#store-orders';
   const absoluteUrl = new URL(targetPath, self.registration.scope).href;
+  const vibrate = Array.isArray(data.vibrate) ? data.vibrate : [220, 80, 220, 80, 400];
 
   event.waitUntil(
     (async () => {
@@ -175,13 +176,19 @@ self.addEventListener('push', (event) => {
         /* ignore */
       }
       await self.registration.showNotification(title, {
-        body: data.body || '',
+        body: data.body || 'Open Venus POS to review the order',
         icon: '/assets/logo-notif.png',
         badge: '/assets/logo-badge.png',
         tag: data.tag || `venus-push-${Date.now()}`,
         renotify: true,
         requireInteraction: data.requireInteraction !== false,
+        vibrate,
+        silent: false,
         data: { type: data.type || 'storefront-order', url: absoluteUrl },
+        actions: [
+          { action: 'open', title: 'Open orders' },
+          { action: 'dismiss', title: 'Dismiss' },
+        ],
       });
     })(),
   );
@@ -189,7 +196,10 @@ self.addEventListener('push', (event) => {
 
 /** Focus an open client or open the URL from notification data. */
 self.addEventListener('notificationclick', (event) => {
+  const action = event.action;
   event.notification.close();
+  if (action === 'dismiss') return;
+
   const targetUrl =
     event.notification.data?.url || new URL('/#store-orders', self.registration.scope).href;
 

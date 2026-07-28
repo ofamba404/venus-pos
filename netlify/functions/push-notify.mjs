@@ -1,3 +1,4 @@
+import { getStore } from '@netlify/blobs';
 import { env, json, sendToAllStaff } from './_shared/push.mjs';
 
 /**
@@ -30,14 +31,33 @@ export default async (req) => {
     return json({ error: 'title required' }, 400);
   }
 
+  const type = body.type || 'storefront-order';
+  const tag = body.tag || `venus-pos-${Date.now()}`;
+
   const result = await sendToAllStaff({
-    type: body.type || 'storefront-order',
+    type,
     title: body.title,
     body: body.body || '',
     url: body.url || '/#store-orders',
-    tag: body.tag,
+    tag,
     requireInteraction: body.requireInteraction !== false,
   });
+
+  // Mark order as alerted so the minute poller does not double-push.
+  const orderMatch = String(tag).match(/^storefront-order-(.+)$/);
+  if (orderMatch?.[1] && type === 'storefront-order') {
+    try {
+      const store = getStore({ name: 'venus-push-order-alerts', consistency: 'strong' });
+      await store.setJSON(`order:${orderMatch[1]}`, {
+        orderId: orderMatch[1],
+        pushedAt: new Date().toISOString(),
+        sent: result.sent || 0,
+        via: 'notify',
+      });
+    } catch (err) {
+      console.warn('order alert dedupe write failed', err);
+    }
+  }
 
   if (!result.ok && result.error) return json(result, 500);
   return json(result);

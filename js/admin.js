@@ -227,11 +227,15 @@ function usersListHtml() {
             : referredByCode
               ? `Referred by ${referredByCode}`
               : '';
+          const isVerified = Boolean(user.verified);
           return `
             <li class="admin-user-row" data-user-id="${escapeHtml(String(user.id || ''))}">
               <div class="admin-user-row__index">${index + 1}</div>
               <div class="admin-user-row__main">
-                <div class="admin-user-row__name">${escapeHtml(name)}</div>
+                <div class="admin-user-row__name">
+                  ${escapeHtml(name)}
+                  ${isVerified ? '<span class="admin-user-row__badge">Verified</span>' : ''}
+                </div>
                 <div class="admin-user-row__meta">
                   ${created ? `<span>${escapeHtml(created)}</span>` : ''}
                   ${phone ? `<span>${escapeHtml(phone)}</span>` : ''}
@@ -240,7 +244,10 @@ function usersListHtml() {
                   ${referredBy ? `<span class="admin-user-row__referred">${escapeHtml(referredBy)}</span>` : ''}
                 </div>
               </div>
-              <button type="button" class="admin-user-row__delete" data-delete-store-user="${escapeHtml(String(user.id || ''))}" title="Delete account">Delete</button>
+              <div class="admin-user-row__actions">
+                <button type="button" class="admin-user-row__verify ${isVerified ? 'is-verified' : ''}" data-verify-store-user="${escapeHtml(String(user.id || ''))}" data-verified="${isVerified ? '1' : '0'}" title="${isVerified ? 'Remove verification' : 'Verify account'}">${isVerified ? 'Unverify' : 'Verify'}</button>
+                <button type="button" class="admin-user-row__delete" data-delete-store-user="${escapeHtml(String(user.id || ''))}" title="Delete account">Delete</button>
+              </div>
             </li>`;
         })
         .join('')}
@@ -1257,6 +1264,44 @@ function wireHoursActions(root) {
 }
 
 function wireUserActions(root) {
+  root.querySelectorAll('[data-verify-store-user]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-verify-store-user');
+      if (!id) return;
+      const user = storeUsers.find((u) => String(u.id) === id);
+      const currentlyVerified = user
+        ? Boolean(user.verified)
+        : btn.getAttribute('data-verified') === '1';
+      const nextVerified = !currentlyVerified;
+      const label = user?.snapchat_name ? user.snapchat_name : 'this account';
+      const ok = await showConfirm(
+        nextVerified
+          ? `Verify storefront account ${label}?`
+          : `Remove verification from ${label}?`,
+      );
+      if (!ok) return;
+      try {
+        const data = await storeAuth('admin_set_verified', {
+          user_id: id,
+          verified: nextVerified,
+        });
+        usersLoadEpoch += 1;
+        const idx = storeUsers.findIndex((u) => String(u.id) === id);
+        if (idx > -1) {
+          storeUsers[idx] = {
+            ...storeUsers[idx],
+            verified: Boolean(data?.verified ?? nextVerified),
+            verified_at: data?.verified_at ?? (nextVerified ? new Date().toISOString() : null),
+          };
+        }
+        showToast(nextVerified ? 'Account verified' : 'Verification removed');
+        renderAdminPage();
+      } catch (e) {
+        showToast(e?.message || 'Could not update verification', true);
+      }
+    });
+  });
+
   root.querySelectorAll('[data-delete-store-user]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-delete-store-user');

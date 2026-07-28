@@ -7908,8 +7908,24 @@
   }
 
   .admin-user-row__name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
     font-size: 13px;
     font-weight: 700;
+  }
+
+  .admin-user-row__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: color-mix(in srgb, var(--jade) 18%, transparent);
+    color: var(--jade);
   }
 
   .admin-user-row__meta {
@@ -7927,15 +7943,38 @@
     color: var(--jade);
   }
 
+  .admin-user-row__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+
+  .admin-user-row__verify,
   .admin-user-row__delete {
-    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--panel-edge));
-    background: var(--danger-dim);
-    color: var(--danger);
     border-radius: 999px;
     font-size: 11px;
     font-weight: 700;
     padding: 7px 10px;
     cursor: pointer;
+  }
+
+  .admin-user-row__verify {
+    border: 1px solid color-mix(in srgb, var(--jade) 35%, var(--panel-edge));
+    background: color-mix(in srgb, var(--jade) 12%, transparent);
+    color: var(--jade);
+  }
+
+  .admin-user-row__verify.is-verified {
+    border-color: color-mix(in srgb, var(--text-dim) 35%, var(--panel-edge));
+    background: color-mix(in srgb, var(--btn-bg) 70%, transparent);
+    color: var(--text-dim);
+  }
+
+  .admin-user-row__delete {
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--panel-edge));
+    background: var(--danger-dim);
+    color: var(--danger);
   }
 
   .admin-tools,
