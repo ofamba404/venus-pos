@@ -10,19 +10,38 @@ import { registerServiceWorker } from './sw-register.js';
 import { wireSettleOverlay } from './settle-credit.js';
 import { wireConfirmDialog, wireEditOverlay } from './utils.js';
 
+let shellMounted = false;
+let runtimesStarted = false;
+
+/**
+ * Mount chrome once for the session. Page content is swapped by the view cache.
+ */
+export function mountAppOnce(page) {
+  if (!shellMounted) {
+    mountShell(page);
+    shellMounted = true;
+  }
+  if (!runtimesStarted) {
+    wireDebugPanel();
+    wireAdminPanel();
+    wireConfirmDialog();
+    wireEditOverlay();
+    wireSettleOverlay();
+    wireOrders();
+    startStoreOrdersRuntime();
+    startReviewsRuntime();
+    runtimesStarted = true;
+  }
+}
+
+/** @deprecated Use mountAppOnce — shell must not remount on tab changes. */
 export function mountApp(page) {
-  mountShell(page);
-  wireDebugPanel();
-  wireAdminPanel();
-  wireConfirmDialog();
-  wireEditOverlay();
-  wireSettleOverlay();
-  wireOrders();
-  startStoreOrdersRuntime();
-  startReviewsRuntime();
+  mountAppOnce(page);
 }
 
 export async function finishAppInit() {
+  if (finishAppInit._done) return;
+  finishAppInit._done = true;
   registerServiceWorker();
   bootPwa();
   wireFloatingNav();
@@ -31,7 +50,7 @@ export async function finishAppInit() {
 }
 
 export async function initApp(page) {
-  mountApp(page);
+  mountAppOnce(page);
   await finishAppInit();
 }
 

@@ -1,11 +1,3 @@
-import { runPageBoot } from '../bootstrap.js';
-import { renderDeliveryAnalysis } from '../delivery.js';
+import { bootApp } from '../bootstrap.js';
 
-runPageBoot({
-  page: 'delivery',
-  paint: renderDeliveryAnalysis,
-  entities: ['deliveries'],
-  slices: {
-    deliveries: renderDeliveryAnalysis,
-  },
-});
+bootApp('delivery');

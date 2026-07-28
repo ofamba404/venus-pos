@@ -142,7 +142,10 @@ export async function loadReviews() {
 }
 
 export function wireReviewsPage() {
-  document.getElementById('app-root')?.addEventListener('click', (event) => {
+  const root = document.getElementById('app-root');
+  if (!root || root.dataset.reviewsWired === '1') return;
+  root.dataset.reviewsWired = '1';
+  root.addEventListener('click', (event) => {
     const btn = event.target?.closest?.('#reviewsRefreshBtn');
     if (!btn) return;
     void loadReviews();

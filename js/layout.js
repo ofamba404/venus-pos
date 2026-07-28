@@ -29,12 +29,12 @@ function iconSvg(paths) {
 
 function navLink(page, currentPage) {
   const active = page.id === currentPage ? ' active' : '';
-  return `<a class="tab-btn${active}" href="${getPageHref(page.id)}" aria-current="${active ? 'page' : 'false'}">${page.label}</a>`;
+  return `<a class="tab-btn${active}" href="${getPageHref(page.id)}" data-spa-page="${page.id}" aria-current="${active ? 'page' : 'false'}">${page.label}</a>`;
 }
 
 function fabMenuNavItem(page, currentPage) {
   const active = page.id === currentPage;
-  return `<a class="fab-menu-item fab-menu-item--nav${active ? ' is-active' : ''}" href="${getPageHref(page.id)}" aria-label="${page.label}" aria-current="${active ? 'page' : 'false'}">
+  return `<a class="fab-menu-item fab-menu-item--nav${active ? ' is-active' : ''}" href="${getPageHref(page.id)}" data-spa-page="${page.id}" aria-label="${page.label}" aria-current="${active ? 'page' : 'false'}">
     ${iconSvg(PAGE_ICONS[page.id] || '')}
     <span class="fab-menu-item-label">${page.label}</span>
   </a>`;
@@ -48,7 +48,7 @@ function sortFabNavPages(pages) {
 function fabMenuActionItems(currentPage, isAdmin) {
   const items = [];
   if (isAdmin) {
-    items.push(`<a class="fab-menu-item fab-menu-item--action${currentPage === 'admin' ? ' is-active' : ''}" id="adminBtn" href="${getPageHref('admin')}" aria-label="Admin" title="Admin" aria-current="${currentPage === 'admin' ? 'page' : 'false'}">
+    items.push(`<a class="fab-menu-item fab-menu-item--action${currentPage === 'admin' ? ' is-active' : ''}" id="adminBtn" href="${getPageHref('admin')}" data-spa-page="admin" aria-label="Admin" title="Admin" aria-current="${currentPage === 'admin' ? 'page' : 'false'}">
       ${iconSvg(ACTION_ICONS.admin)}
       <span class="fab-menu-item-label">Admin</span>
     </a>`);
@@ -79,7 +79,7 @@ export function renderShell(currentPage) {
     <a class="skip-link" href="#page-content">Skip to content</a>
     <div class="header">
       <div class="header-left">
-        <a class="brand-logo" href="${getPageHref('home')}" aria-label="Venus POS home">
+        <a class="brand-logo" href="${getPageHref('home')}" data-spa-page="home" aria-label="Venus POS home">
           <img src="${getAssetHref('logo.svg')}" alt="" width="40" height="40" decoding="async" />
         </a>
         <div>
@@ -211,12 +211,42 @@ function wireSignOut() {
   });
 }
 
+/** Update tab / FAB active states without remounting the shell. */
+export function setActiveNav(currentPage) {
+  document.body.dataset.page = currentPage;
+
+  document.querySelectorAll('.tabs .tab-btn').forEach((el) => {
+    const id = el.getAttribute('data-spa-page');
+    const active = id === currentPage;
+    el.classList.toggle('active', active);
+    el.setAttribute('aria-current', active ? 'page' : 'false');
+  });
+
+  document.querySelectorAll('.fab-menu-item[data-spa-page]').forEach((el) => {
+    const id = el.getAttribute('data-spa-page');
+    const active = id === currentPage;
+    el.classList.toggle('is-active', active);
+    el.setAttribute('aria-current', active ? 'page' : 'false');
+  });
+}
+
+/**
+ * Mount chrome once. Page bodies are injected by the view cache into #page-content.
+ * Initial HTML inside #app-root is discarded — templates own page markup.
+ */
 export function mountShell(currentPage) {
   const root = document.getElementById('app-root');
   if (!root) return;
+  if (root.dataset.shellMounted === '1') {
+    setActiveNav(currentPage);
+    return;
+  }
 
   document.body.dataset.page = currentPage;
-  const content = root.innerHTML;
-  root.innerHTML = renderShell(currentPage) + `<main id="page-content" class="page-view">${content}</main>` + renderModals(currentPage);
+  root.innerHTML =
+    renderShell(currentPage) +
+    `<main id="page-content" class="page-view" tabindex="-1"></main>` +
+    renderModals(currentPage);
+  root.dataset.shellMounted = '1';
   wireSignOut();
 }

@@ -1,14 +1,3 @@
-import { runPageBoot } from '../bootstrap.js';
-import { renderAdminPage, wireAdminPage } from '../admin.js';
+import { bootApp } from '../bootstrap.js';
 
-runPageBoot({
-  page: 'admin',
-  wire: wireAdminPage,
-  paint: renderAdminPage,
-  entities: ['clients', 'inventory', 'sales'],
-  slices: {
-    clients: renderAdminPage,
-    inventory: renderAdminPage,
-    sales: renderAdminPage,
-  },
-});
+bootApp('admin');

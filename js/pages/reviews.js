@@ -1,13 +1,3 @@
-import { runPageBoot } from '../bootstrap.js';
-import { loadReviews, renderReviews, wireReviewsPage } from '../reviews.js';
+import { bootApp } from '../bootstrap.js';
 
-runPageBoot({
-  page: 'reviews',
-  wire: () => {
-    wireReviewsPage();
-    void loadReviews();
-  },
-  paint: renderReviews,
-  entities: [],
-  slices: {},
-});
+bootApp('reviews');

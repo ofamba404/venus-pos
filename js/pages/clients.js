@@ -1,13 +1,3 @@
-import { runPageBoot } from '../bootstrap.js';
-import { renderClientsTab, wireClientsPage } from '../clients.js';
+import { bootApp } from '../bootstrap.js';
 
-runPageBoot({
-  page: 'clients',
-  wire: wireClientsPage,
-  paint: renderClientsTab,
-  entities: ['clients', 'sales'],
-  slices: {
-    clients: renderClientsTab,
-    sales: renderClientsTab,
-  },
-});
+bootApp('clients');

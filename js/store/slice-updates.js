@@ -2,7 +2,7 @@ import { dataStore } from './data-store.js';
 
 /**
  * Subscribe to specific entity slices — only re-run affected renderers.
- * Subscriptions stay alive for the page lifetime (MPA unloads on navigate).
+ * Caller unsubscribes when leaving a page (SPA soft-nav).
  */
 export function wireSliceUpdates(slices = {}, { onEntityReady } = {}) {
   const unsubs = [];

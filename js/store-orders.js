@@ -22,7 +22,7 @@ import { escapeHtml, fmtUGX, showConfirm, showToast } from './utils.js';
 
 /** Safety-net poll when Realtime is down or a change was missed. */
 const FALLBACK_POLL_MS = 30_000;
-/** Survive MPA navigations — skip network if snapshot is still fresh. */
+/** Survive soft-nav and hard reloads — skip network if snapshot is still fresh. */
 const SESSION_CACHE_KEY = 'venus-pos-store-orders-v1';
 const SESSION_CACHE_FRESH_MS = 90_000;
 const ACTIVE_STATUSES = new Set(['pending', 'confirmed', 'accepted', 'cancelled']);
@@ -1226,6 +1226,12 @@ export function startStoreOrdersRuntime() {
   window.__venusLoadedStoreOrderCount = loadedStoreOrderCount;
   window.__venusReleaseStoreOrderFromCart = (id) => releaseStoreOrderFromCart(id);
   window.__venusConfirmStoreOrder = (id) => confirmStoreOrder(id);
+
+  if (bootstrapped) {
+    renderStoreOrderUi();
+    return;
+  }
+  bootstrapped = true;
 
   const sessionFresh = hydrateOrdersFromSession();
   renderStoreOrderUi();

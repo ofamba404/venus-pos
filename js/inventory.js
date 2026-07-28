@@ -7,8 +7,8 @@ import {
   COOKIE_LOW_PCT,
   COOKIE_STOCK_CAPACITY,
   LOW_STOCK_THRESHOLD,
-  getPageHref,
 } from './config.js';
+import { navigate } from './router.js';
 import { inventory, draftStock } from './state.js';
 import { notifyStockCrossing } from './notifications.js';
 import { showToast } from './utils.js';
@@ -277,7 +277,7 @@ export function renderStockGlance() {
       e.stopPropagation();
       const status = chip.classList.contains('ds-low') ? 'low' : chip.classList.contains('ds-out') ? 'out' : 'ok';
       setActiveStatusHighlight(status);
-      window.location.href = getPageHref('analytics', '#stock');
+      void navigate('analytics', { hash: '#stock' });
     });
   });
 }

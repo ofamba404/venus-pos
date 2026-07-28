@@ -34,33 +34,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://xiangrykfxlnacthjcad.supabase.co" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="modulepreload" href="../js/pages/analytics.js">
+  <link rel="modulepreload" href="../js/bootstrap.js">
+  <link rel="modulepreload" href="../js/router.js">
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/main.css">
 </head>
 <body data-page="analytics">
-  <div id="app-root">
-    <div class="analytics-overview" id="statCards"></div>
-
-    <div class="analytics-block" id="revenueChart"></div>
-
-    <div class="section-title">Sales patterns</div>
-    <div id="salesPatterns"></div>
-
-    <div class="section-title" id="stockLevelsLabel">Stock levels</div>
-    <div id="stockBars"></div>
-
-    <div class="section-title-row">
-      <div class="section-title" id="productRevenueLabel">Revenue by product</div>
-      <div class="insight-period-pills" id="productRevenuePeriod" role="group" aria-label="Revenue by product period"></div>
-    </div>
-    <div id="productRevenue"></div>
-
-    <div class="section-title-row">
-      <div class="section-title" id="topClientsLabel">Top clients</div>
-      <div class="insight-period-pills" id="topClientsPeriod" role="group" aria-label="Top clients period"></div>
-    </div>
-    <div id="topClients"></div>
-  </div>
+  <div id="app-root"></div>
   <script src="../js/auth/client.js"></script>
   <script src="../js/auth/gate.js"></script>
   <script type="module" src="../js/pages/analytics.js"></script>

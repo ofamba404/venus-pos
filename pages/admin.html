@@ -34,23 +34,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://xiangrykfxlnacthjcad.supabase.co" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="modulepreload" href="../js/pages/admin.js">
+  <link rel="modulepreload" href="../js/bootstrap.js">
+  <link rel="modulepreload" href="../js/router.js">
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/main.css">
 </head>
 <body data-page="admin">
-  <div id="app-root">
-    <p class="page-hint">Storefront accounts, pickup &amp; delivery hours, and maintenance</p>
-    <div class="admin-page">
-      <div class="admin-tabs" role="tablist" aria-label="Admin sections">
-        <button type="button" class="admin-tab is-active" data-admin-tab="overview" role="tab" aria-selected="true">Overview</button>
-        <button type="button" class="admin-tab" data-admin-tab="users" role="tab" aria-selected="false">Users</button>
-        <button type="button" class="admin-tab" data-admin-tab="clients" role="tab" aria-selected="false">Clients</button>
-        <button type="button" class="admin-tab" data-admin-tab="hours" role="tab" aria-selected="false">Hours</button>
-        <button type="button" class="admin-tab" data-admin-tab="tools" role="tab" aria-selected="false">Tools</button>
-      </div>
-      <div class="admin-body" id="adminBody"></div>
-    </div>
-  </div>
+  <div id="app-root"></div>
   <script src="../js/auth/client.js"></script>
   <script src="../js/auth/gate.js"></script>
   <script type="module" src="../js/pages/admin.js"></script>

@@ -2442,7 +2442,12 @@ async function checkout() {
   }
 }
 
+let ordersWired = false;
+
 export function wireOrders() {
+  if (ordersWired) return;
+  ordersWired = true;
+
   const orderModal = document.getElementById('orderModal');
   window.__venusRefreshStoreOrderCartSwitcher = refreshStoreOrderCartSwitcher;
   window.__venusSyncReviewCartChrome = () => {

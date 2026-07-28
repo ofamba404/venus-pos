@@ -1501,6 +1501,21 @@ function wireToolActions(root) {
 }
 
 /**
+ * Soft-nav return / popstate — align in-memory tab with the URL hash.
+ * Paint is handled by activatePage after this hook.
+ */
+export function onAdminActivate() {
+  const next = tabFromHash();
+  if (next !== activeTab) {
+    activeTab = next;
+  }
+  // Keep URL hash in sync when returning via a bare admin.html link.
+  if (!location.hash) {
+    history.replaceState(null, '', `${location.pathname}${location.search}#${activeTab}`);
+  }
+}
+
+/**
  * Boot the dedicated admin page (tabs + body live in pages/admin.html).
  */
 export function wireAdminPage() {

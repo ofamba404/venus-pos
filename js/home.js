@@ -1,5 +1,5 @@
-import { getPageHref } from './config.js';
 import { isDataPending, revealLoaded } from './pending.js';
+import { navigate } from './router.js';
 import { sumOwnerRevenue } from './revenue.js';
 import { salesCache } from './state.js';
 import { fmtUGX, isToday } from './utils.js';
@@ -42,7 +42,7 @@ export function updateTodayStrip() {
 export function wireHomePage() {
   const stockSplit = document.querySelector('.stock-split');
   const goInventory = () => {
-    window.location.href = getPageHref('inventory');
+    void navigate('inventory');
   };
   stockSplit?.addEventListener('click', goInventory);
   stockSplit?.addEventListener('keydown', (e) => {
@@ -53,9 +53,9 @@ export function wireHomePage() {
   });
 
   document.getElementById('todayRevenueStat')?.addEventListener('click', () => {
-    window.location.href = getPageHref('analytics');
+    void navigate('analytics');
   });
   document.getElementById('todayUnitsStat')?.addEventListener('click', () => {
-    window.location.href = getPageHref('history');
+    void navigate('history');
   });
 }

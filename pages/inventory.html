@@ -34,14 +34,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://xiangrykfxlnacthjcad.supabase.co" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="modulepreload" href="../js/pages/inventory.js">
+  <link rel="modulepreload" href="../js/bootstrap.js">
+  <link rel="modulepreload" href="../js/router.js">
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/main.css">
 </head>
 <body data-page="inventory">
-  <div id="app-root">
-    <p class="page-hint">Tap +/− to adjust stock · double-tap for bulk · tap count to edit directly</p>
-    <div class="grid" id="invGrid"></div>
-  </div>
+  <div id="app-root"></div>
   <script src="../js/auth/client.js"></script>
   <script src="../js/auth/gate.js"></script>
   <script type="module" src="../js/pages/inventory.js"></script>

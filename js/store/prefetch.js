@@ -1,19 +1,9 @@
 import { dataStore } from './data-store.js';
+import { ROUTE_ENTITIES } from '../pages/registry.js';
+import { pageIdFromHref } from '../router.js';
 
 const PREFETCH_ORDER = ['inventory', 'clients', 'deliveries', 'sales'];
 const IDLE_TIMEOUT_MS = 2500;
-
-/** Entities each route needs — keep in sync with js/pages/*.js runPageBoot. */
-const ROUTE_ENTITIES = {
-  home: ['sales', 'inventory'],
-  inventory: ['inventory'],
-  clients: ['clients', 'sales'],
-  delivery: ['deliveries'],
-  history: ['sales', 'clients', 'inventory'],
-  analytics: ['sales', 'inventory', 'clients'],
-  admin: ['clients', 'inventory', 'sales'],
-  reviews: [],
-};
 
 let prefetchScheduled = false;
 let navWired = false;
@@ -46,12 +36,6 @@ export function prefetchEntity(entity) {
   dataStore.fetch(entity, { silent: true });
 }
 
-function pageIdFromHref(href) {
-  if (!href) return null;
-  if (href.includes('index.html')) return 'home';
-  return Object.keys(ROUTE_ENTITIES).find((id) => href.includes(`${id}.html`)) || null;
-}
-
 export function wireNavPrefetch(root = document) {
   if (navWired) return;
   navWired = true;
@@ -63,11 +47,17 @@ export function wireNavPrefetch(root = document) {
     entities.forEach((entity) => prefetchEntity(entity));
   };
 
-  root.querySelectorAll('a[href]').forEach((link) => {
-    const href = link.getAttribute('href');
-    if (!href?.includes('.html')) return;
-    link.addEventListener('mouseenter', () => triggerPrefetch(href), { passive: true });
-    link.addEventListener('focus', () => triggerPrefetch(href), { passive: true });
-    link.addEventListener('touchstart', () => triggerPrefetch(href), { passive: true });
-  });
+  const onIntent = (event) => {
+    const link = event.target?.closest?.('a[href]');
+    if (!link) return;
+    triggerPrefetch(link.getAttribute('href'));
+  };
+
+  // Delegate so soft-nav re-renders of the FAB still prefetch.
+  // pointerover bubbles; pointerenter does not.
+  root.addEventListener('pointerover', onIntent, true);
+  root.addEventListener('focusin', onIntent, true);
+  root.addEventListener('touchstart', onIntent, { capture: true, passive: true });
 }
+
+export { ROUTE_ENTITIES };

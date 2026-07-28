@@ -124,7 +124,19 @@ export function bootPwa() {
     navigator.serviceWorker.addEventListener('message', (event) => {
       const url = event.data?.url;
       if (event.data?.type === 'venus-notif-click' && url) {
-        location.href = url;
+        void import('./router.js')
+          .then(({ pageIdFromHref, navigate }) => {
+            const pageId = pageIdFromHref(url);
+            if (!pageId) {
+              location.href = url;
+              return;
+            }
+            const parsed = new URL(url, location.href);
+            return navigate(pageId, { hash: parsed.hash || '' });
+          })
+          .catch(() => {
+            location.href = url;
+          });
       }
     });
   }
