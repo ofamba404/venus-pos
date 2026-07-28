@@ -303,9 +303,12 @@ export function wireInventoryPage() {
   const amountModalTitle = document.getElementById('amountModalTitle');
   const amountInput = document.getElementById('amountInput');
   let amountContext = null;
-  let amountKeyboardCleanup = null;
 
-  /** Pale flavor swatches need a warmer solid for buttons / focus chrome. */
+  /**
+   * Button/focus solid from a flavor swatch.
+   * Near-white → warm husk. Pastels (watermelon, mint, grape) → same hue, darkened
+   * for white text. Saturated colors stay as-is.
+   */
   function accentActionColor(color) {
     const hex = String(color || '').replace('#', '');
     const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
@@ -314,64 +317,55 @@ export function wireInventoryPage() {
     const g = parseInt(full.slice(2, 4), 16);
     const b = parseInt(full.slice(4, 6), 16);
     const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-    if (luma < 0.72) return `#${full}`;
-    const mix = (channel, toward) => Math.round(channel * 0.28 + toward * 0.72);
-    return `#${[mix(r, 194), mix(g, 152), mix(b, 108)]
-      .map((n) => n.toString(16).padStart(2, '0'))
-      .join('')}`;
+    const toHex = (channels) =>
+      `#${channels.map((n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0')).join('')}`;
+
+    if (luma >= 0.86) {
+      const mix = (channel, toward) => Math.round(channel * 0.28 + toward * 0.72);
+      return toHex([mix(r, 194), mix(g, 152), mix(b, 108)]);
+    }
+    if (luma >= 0.55) {
+      // Keep hue; darken enough for readable white label text.
+      const factor = Math.min(0.78, 0.52 / luma);
+      return toHex([Math.round(r * factor), Math.round(g * factor), Math.round(b * factor)]);
+    }
+    return `#${full}`;
   }
 
-  function syncAmountKeyboardInset() {
-    const vv = window.visualViewport;
-    if (!amountModal) return;
-    const inset = vv
-      ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-      : 0;
-    amountModal.style.setProperty('--keyboard-inset', `${inset}px`);
-    amountModal.classList.toggle('is-keyboard-open', inset > 60);
+  function applyAmountTheme(color) {
+    const accent = color || '#059669';
+    const action = accentActionColor(accent);
+    for (const el of [amountModal, amountModalPanel]) {
+      if (!el) continue;
+      el.style.setProperty('--accent', accent);
+      el.style.setProperty('--accent-action', action);
+    }
   }
 
-  function wireAmountKeyboard() {
-    amountKeyboardCleanup?.();
-    const sync = () => syncAmountKeyboardInset();
-    window.visualViewport?.addEventListener('resize', sync);
-    window.visualViewport?.addEventListener('scroll', sync);
-    window.addEventListener('resize', sync);
-    sync();
-    amountKeyboardCleanup = () => {
-      window.visualViewport?.removeEventListener('resize', sync);
-      window.visualViewport?.removeEventListener('scroll', sync);
-      window.removeEventListener('resize', sync);
-      amountModal?.style.removeProperty('--keyboard-inset');
-      amountModal?.classList.remove('is-keyboard-open');
-      amountKeyboardCleanup = null;
-    };
+  function clearAmountTheme() {
+    for (const el of [amountModal, amountModalPanel]) {
+      if (!el) continue;
+      el.style.removeProperty('--accent');
+      el.style.removeProperty('--accent-action');
+    }
   }
 
   function openAmountModal(id, dir) {
     const cat = CAT_MAP[id];
     const label = cat.sub ? `${cat.name} ${cat.sub}` : cat.name;
-    const accent = cat?.color || '#059669';
     amountModalTitle.textContent = dir > 0 ? `Add stock — ${label}` : `Remove stock — ${label}`;
     amountContext = { id, dir };
     amountInput.value = '';
-    amountModal?.style.setProperty('--accent', accent);
-    amountModal?.style.setProperty('--accent-action', accentActionColor(accent));
-    amountModalPanel?.style.setProperty('--accent', accent);
-    amountModalPanel?.style.setProperty('--accent-action', accentActionColor(accent));
+    applyAmountTheme(cat?.color);
     openModal(amountModal);
-    wireAmountKeyboard();
-    setTimeout(() => amountInput.focus(), 50);
+    // preventScroll avoids iOS yanking the page when the keyboard opens
+    setTimeout(() => amountInput.focus({ preventScroll: true }), 50);
   }
 
   function closeAmountModal() {
-    amountKeyboardCleanup?.();
     closeModal(amountModal);
     amountContext = null;
-    amountModal?.style.removeProperty('--accent');
-    amountModal?.style.removeProperty('--accent-action');
-    amountModalPanel?.style.removeProperty('--accent');
-    amountModalPanel?.style.removeProperty('--accent-action');
+    clearAmountTheme();
   }
 
   function applyAmountModal() {

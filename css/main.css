@@ -3376,29 +3376,24 @@
 
   .modal-overlay[hidden] { display: none; }
 
-  /* Stock amount modal: sit above soft keyboard; themed to flavor card accent */
+  /* Stock amount modal: top-docked so the soft keyboard never covers actions.
+     No visualViewport chasing — that caused open → jump → settle. */
   #amountModal.amount-modal {
-    --keyboard-inset: 0px;
-    align-items: center;
-    padding-top: 16px;
-    padding-bottom: max(20px, calc(var(--keyboard-inset) + 12px));
-    transition: padding-bottom 0.12s ease;
-  }
-
-  #amountModal.amount-modal.is-keyboard-open {
-    align-items: flex-end;
-  }
-
-  #amountModal.amount-modal.is-keyboard-open .amount-modal__panel {
-    max-height: calc(100dvh - var(--keyboard-inset) - 32px);
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+    padding-bottom: 12px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   #amountModal .amount-modal__panel {
-    background: color-mix(in srgb, var(--accent, transparent) 10%, var(--surface-raised));
-    border-color: color-mix(in srgb, var(--accent, var(--panel-edge)) 36%, var(--panel-edge));
+    margin-top: 0;
+    background: color-mix(in srgb, var(--accent, transparent) 16%, var(--surface-raised));
+    border-color: color-mix(in srgb, var(--accent, var(--panel-edge)) 48%, var(--panel-edge));
     box-shadow:
       var(--shadow-lg),
-      0 0 0 1px color-mix(in srgb, var(--accent, transparent) 14%, transparent);
+      0 0 0 1px color-mix(in srgb, var(--accent, transparent) 18%, transparent);
   }
 
   #amountModal .amount-modal__panel .modal-title {
