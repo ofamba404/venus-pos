@@ -2,6 +2,15 @@
  * POS staff login — jade register theme.
  */
 
+button,
+input,
+select,
+textarea,
+optgroup {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
 html.auth-checking body {
   opacity: 0 !important;
   pointer-events: none !important;

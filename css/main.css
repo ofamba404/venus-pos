@@ -65,6 +65,20 @@
 
   * { box-sizing: border-box; }
 
+  /* Form controls use the UA system font unless forced to inherit */
+  button,
+  input,
+  select,
+  textarea,
+  optgroup {
+    font: inherit;
+    letter-spacing: inherit;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   html.auth-checking body {
     opacity: 0 !important;
     pointer-events: none !important;
@@ -87,6 +101,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    -webkit-tap-highlight-color: transparent;
   }
 
   @media (min-width: 768px) {
@@ -909,6 +924,8 @@
     overflow: hidden;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
     box-shadow: var(--shadow-sm);
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
   }
 
   .card.pulse {
@@ -964,6 +981,8 @@
     color: var(--text);
     line-height: var(--leading-tight);
     letter-spacing: -0.02em;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
   }
 
   .count-edit-input {
@@ -984,6 +1003,7 @@
     margin: 0;
     border-radius: 4px;
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, var(--jade)) 65%, var(--panel-edge));
+    user-select: text;
   }
 
   .count-edit-input:focus {
@@ -3355,6 +3375,62 @@
   }
 
   .modal-overlay[hidden] { display: none; }
+
+  /* Stock amount modal: sit above soft keyboard; themed to flavor card accent */
+  #amountModal.amount-modal {
+    --keyboard-inset: 0px;
+    align-items: center;
+    padding-top: 16px;
+    padding-bottom: max(20px, calc(var(--keyboard-inset) + 12px));
+    transition: padding-bottom 0.12s ease;
+  }
+
+  #amountModal.amount-modal.is-keyboard-open {
+    align-items: flex-end;
+  }
+
+  #amountModal.amount-modal.is-keyboard-open .amount-modal__panel {
+    max-height: calc(100dvh - var(--keyboard-inset) - 32px);
+  }
+
+  #amountModal .amount-modal__panel {
+    background: color-mix(in srgb, var(--accent, transparent) 10%, var(--surface-raised));
+    border-color: color-mix(in srgb, var(--accent, var(--panel-edge)) 36%, var(--panel-edge));
+    box-shadow:
+      var(--shadow-lg),
+      0 0 0 1px color-mix(in srgb, var(--accent, transparent) 14%, transparent);
+  }
+
+  #amountModal .amount-modal__panel .modal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #amountModal .amount-modal__panel .modal-title::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--accent, var(--jade));
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  }
+
+  #amountModal .qty-input:focus {
+    border-color: color-mix(in srgb, var(--accent-action, var(--accent, var(--jade))) 85%, var(--panel-edge));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-action, var(--accent, var(--jade))) 22%, transparent);
+  }
+
+  #amountModal .modal-btn.confirm {
+    background: var(--accent-action, var(--accent, var(--jade)));
+    color: #fff;
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--accent-action, var(--accent, var(--jade))) 28%, transparent);
+  }
+
+  #amountModal .modal-btn.confirm:active:not(:disabled) {
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-action, var(--accent, var(--jade))) 24%, transparent);
+  }
 
   .modal {
     background: var(--surface-raised);
@@ -7918,18 +7994,37 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    overflow: hidden;
   }
 
   .admin-user-row {
     display: grid;
-    grid-template-columns: 28px 1fr auto;
-    gap: 10px;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    gap: 8px 10px;
     align-items: center;
-    padding: 10px 10px;
-    border: 1px solid var(--panel-edge);
-    border-radius: var(--radius-md);
-    background: color-mix(in srgb, var(--btn-bg) 50%, transparent);
+    padding: 10px 12px;
+    border: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--panel-edge) 70%, transparent);
+    background: transparent;
+  }
+
+  .admin-user-row:last-child {
+    border-bottom: none;
+  }
+
+  .admin-user-row.is-verified {
+    background: color-mix(in srgb, var(--jade) 5%, transparent);
+  }
+
+  .admin-user-row.is-open {
+    background: color-mix(in srgb, var(--btn-bg) 55%, transparent);
+  }
+
+  .admin-user-row.is-verified.is-open {
+    background: color-mix(in srgb, var(--jade) 8%, transparent);
   }
 
   .admin-user-row__index {
@@ -7940,72 +8035,136 @@
     text-align: center;
   }
 
-  .admin-user-row__name {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 700;
+  .admin-user-row__main {
+    min-width: 0;
   }
 
-  .admin-user-row__badge {
-    display: inline-flex;
+  .admin-user-row__toggle {
+    display: flex;
     align-items: center;
-    padding: 2px 7px;
-    border-radius: 999px;
-    font-size: 10px;
+    gap: 6px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .admin-user-row__toggle:disabled {
+    cursor: default;
+  }
+
+  .admin-user-row__name {
+    min-width: 0;
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.02em;
-    background: color-mix(in srgb, var(--jade) 18%, transparent);
-    color: var(--jade);
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-user-row__chevron {
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    border-right: 1.5px solid var(--text-dim);
+    border-bottom: 1.5px solid var(--text-dim);
+    transform: rotate(45deg);
+    opacity: 0.7;
+    transition: transform 0.15s ease;
+  }
+
+  .admin-user-row.is-open .admin-user-row__chevron {
+    transform: rotate(225deg);
+    margin-top: 3px;
+  }
+
+  .admin-user-row__extra {
+    grid-column: 2 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 0 2px;
+    min-width: 0;
+  }
+
+  .admin-user-row__extra[hidden] {
+    display: none;
   }
 
   .admin-user-row__meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px 10px;
-    margin-top: 3px;
+    align-items: baseline;
+    gap: 0;
     font-size: 11px;
+    line-height: 1.35;
     color: var(--text-dim);
   }
 
+  .admin-user-row__meta span + span::before {
+    content: '·';
+    margin: 0 0.4em;
+    opacity: 0.55;
+  }
+
   .admin-user-row__referred {
-    font-weight: 700;
     font-size: 12px;
+    font-weight: 700;
     color: var(--jade);
+    line-height: 1.3;
   }
 
   .admin-user-row__actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
   }
 
   .admin-user-row__verify,
   .admin-user-row__delete {
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 7px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border-radius: var(--radius-md);
     cursor: pointer;
   }
 
-  .admin-user-row__verify {
-    border: 1px solid color-mix(in srgb, var(--jade) 35%, var(--panel-edge));
-    background: color-mix(in srgb, var(--jade) 12%, transparent);
-    color: var(--jade);
+  .admin-user-row__icon {
+    width: 15px;
+    height: 15px;
+    display: block;
   }
 
-  .admin-user-row__verify.is-verified {
-    border-color: color-mix(in srgb, var(--text-dim) 35%, var(--panel-edge));
-    background: color-mix(in srgb, var(--btn-bg) 70%, transparent);
+  .admin-user-row__verify {
+    border: 1px solid color-mix(in srgb, var(--panel-edge) 80%, transparent);
+    background: transparent;
     color: var(--text-dim);
   }
 
+  .admin-user-row__verify.is-verified {
+    border-color: color-mix(in srgb, var(--jade) 40%, var(--panel-edge));
+    background: color-mix(in srgb, var(--jade) 14%, transparent);
+    color: var(--jade);
+  }
+
   .admin-user-row__delete {
-    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--panel-edge));
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-dim);
+  }
+
+  .admin-user-row__delete:active,
+  .admin-user-row__delete:focus-visible {
+    border-color: color-mix(in srgb, var(--danger) 30%, var(--panel-edge));
     background: var(--danger-dim);
     color: var(--danger);
   }

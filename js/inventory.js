@@ -53,8 +53,6 @@ export function refreshInvCard(id) {
   if (!el) return;
   el.textContent = inventory[id];
   bumpElement(el);
-  const card = el.closest('.card');
-  if (card) bumpElement(card);
 }
 
 export function adjustStock(id, delta) {
@@ -301,23 +299,79 @@ export function wireInventoryPage() {
   let singleTapTimer = null;
 
   const amountModal = document.getElementById('amountModal');
+  const amountModalPanel = amountModal?.querySelector('.modal');
   const amountModalTitle = document.getElementById('amountModalTitle');
   const amountInput = document.getElementById('amountInput');
   let amountContext = null;
+  let amountKeyboardCleanup = null;
+
+  /** Pale flavor swatches need a warmer solid for buttons / focus chrome. */
+  function accentActionColor(color) {
+    const hex = String(color || '').replace('#', '');
+    const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
+    if (full.length !== 6) return color || '#059669';
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    if (luma < 0.72) return `#${full}`;
+    const mix = (channel, toward) => Math.round(channel * 0.28 + toward * 0.72);
+    return `#${[mix(r, 194), mix(g, 152), mix(b, 108)]
+      .map((n) => n.toString(16).padStart(2, '0'))
+      .join('')}`;
+  }
+
+  function syncAmountKeyboardInset() {
+    const vv = window.visualViewport;
+    if (!amountModal) return;
+    const inset = vv
+      ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      : 0;
+    amountModal.style.setProperty('--keyboard-inset', `${inset}px`);
+    amountModal.classList.toggle('is-keyboard-open', inset > 60);
+  }
+
+  function wireAmountKeyboard() {
+    amountKeyboardCleanup?.();
+    const sync = () => syncAmountKeyboardInset();
+    window.visualViewport?.addEventListener('resize', sync);
+    window.visualViewport?.addEventListener('scroll', sync);
+    window.addEventListener('resize', sync);
+    sync();
+    amountKeyboardCleanup = () => {
+      window.visualViewport?.removeEventListener('resize', sync);
+      window.visualViewport?.removeEventListener('scroll', sync);
+      window.removeEventListener('resize', sync);
+      amountModal?.style.removeProperty('--keyboard-inset');
+      amountModal?.classList.remove('is-keyboard-open');
+      amountKeyboardCleanup = null;
+    };
+  }
 
   function openAmountModal(id, dir) {
     const cat = CAT_MAP[id];
     const label = cat.sub ? `${cat.name} ${cat.sub}` : cat.name;
+    const accent = cat?.color || '#059669';
     amountModalTitle.textContent = dir > 0 ? `Add stock — ${label}` : `Remove stock — ${label}`;
     amountContext = { id, dir };
     amountInput.value = '';
+    amountModal?.style.setProperty('--accent', accent);
+    amountModal?.style.setProperty('--accent-action', accentActionColor(accent));
+    amountModalPanel?.style.setProperty('--accent', accent);
+    amountModalPanel?.style.setProperty('--accent-action', accentActionColor(accent));
     openModal(amountModal);
+    wireAmountKeyboard();
     setTimeout(() => amountInput.focus(), 50);
   }
 
   function closeAmountModal() {
+    amountKeyboardCleanup?.();
     closeModal(amountModal);
     amountContext = null;
+    amountModal?.style.removeProperty('--accent');
+    amountModal?.style.removeProperty('--accent-action');
+    amountModalPanel?.style.removeProperty('--accent');
+    amountModalPanel?.style.removeProperty('--accent-action');
   }
 
   function applyAmountModal() {

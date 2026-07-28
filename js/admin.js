@@ -59,6 +59,9 @@ let pageWired = false;
 /** Invalidates in-flight user list fetches after local mutations (e.g. delete). */
 let usersLoadEpoch = 0;
 
+const ADMIN_ICON_VERIFY = `<svg class="admin-user-row__icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.4 11.6 2.8 8l1.2-1.2 2.4 2.4 5.2-5.2L12.8 5.2z"/></svg>`;
+const ADMIN_ICON_DELETE = `<svg class="admin-user-row__icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.2 2.5h3.6l.4 1H13V5H3V3.5h2.8l.4-1zM4.5 6h7l-.5 7.2a1 1 0 0 1-1 .8H6a1 1 0 0 1-1-.8L4.5 6zm2 1.5V12h1.2V7.5H6.5zm2.8 0V12H10.5V7.5H9.3z"/></svg>`;
+
 function formatPhone(user) {
   const cc = String(user.phone_country_code || '').replace(/\D/g, '');
   const national = String(user.phone_national || '').replace(/\D/g, '');
@@ -196,6 +199,13 @@ function filteredClients() {
   return list.filter((c) => String(c.name || '').toLowerCase().includes(q));
 }
 
+function metaJoin(parts) {
+  return parts
+    .filter(Boolean)
+    .map((part) => `<span>${escapeHtml(part)}</span>`)
+    .join('');
+}
+
 function usersListHtml() {
   if (!usersLoaded) {
     return `<div class="admin-empty">Loading storefront users…</div>`;
@@ -228,26 +238,28 @@ function usersListHtml() {
               ? `Referred by ${referredByCode}`
               : '';
           const isVerified = Boolean(user.verified);
+          const extra = metaJoin([created, phone, location, referral]);
+          const verifyLabel = isVerified ? 'Remove verification' : 'Verify account';
+          const hasExtra = Boolean(extra || referredBy);
           return `
-            <li class="admin-user-row" data-user-id="${escapeHtml(String(user.id || ''))}">
+            <li class="admin-user-row${isVerified ? ' is-verified' : ''}" data-user-id="${escapeHtml(String(user.id || ''))}">
               <div class="admin-user-row__index">${index + 1}</div>
-              <div class="admin-user-row__main">
-                <div class="admin-user-row__name">
-                  ${escapeHtml(name)}
-                  ${isVerified ? '<span class="admin-user-row__badge">Verified</span>' : ''}
-                </div>
-                <div class="admin-user-row__meta">
-                  ${created ? `<span>${escapeHtml(created)}</span>` : ''}
-                  ${phone ? `<span>${escapeHtml(phone)}</span>` : ''}
-                  ${location ? `<span>${escapeHtml(location)}</span>` : ''}
-                  ${referral ? `<span>${escapeHtml(referral)}</span>` : ''}
-                  ${referredBy ? `<span class="admin-user-row__referred">${escapeHtml(referredBy)}</span>` : ''}
-                </div>
-              </div>
+              <button type="button" class="admin-user-row__toggle" data-user-expand ${hasExtra ? '' : 'disabled'} aria-expanded="false">
+                <span class="admin-user-row__name">${escapeHtml(name)}</span>
+                ${hasExtra ? '<span class="admin-user-row__chevron" aria-hidden="true"></span>' : ''}
+              </button>
               <div class="admin-user-row__actions">
-                <button type="button" class="admin-user-row__verify ${isVerified ? 'is-verified' : ''}" data-verify-store-user="${escapeHtml(String(user.id || ''))}" data-verified="${isVerified ? '1' : '0'}" title="${isVerified ? 'Remove verification' : 'Verify account'}">${isVerified ? 'Unverify' : 'Verify'}</button>
-                <button type="button" class="admin-user-row__delete" data-delete-store-user="${escapeHtml(String(user.id || ''))}" title="Delete account">Delete</button>
+                <button type="button" class="admin-user-row__verify ${isVerified ? 'is-verified' : ''}" data-verify-store-user="${escapeHtml(String(user.id || ''))}" data-verified="${isVerified ? '1' : '0'}" title="${verifyLabel}" aria-label="${verifyLabel}" aria-pressed="${isVerified ? 'true' : 'false'}">${ADMIN_ICON_VERIFY}</button>
+                <button type="button" class="admin-user-row__delete" data-delete-store-user="${escapeHtml(String(user.id || ''))}" title="Delete account" aria-label="Delete account">${ADMIN_ICON_DELETE}</button>
               </div>
+              ${
+                hasExtra
+                  ? `<div class="admin-user-row__extra" hidden>
+                      ${extra ? `<div class="admin-user-row__meta">${extra}</div>` : ''}
+                      ${referredBy ? `<div class="admin-user-row__referred">${escapeHtml(referredBy)}</div>` : ''}
+                    </div>`
+                  : ''
+              }
             </li>`;
         })
         .join('')}
@@ -271,11 +283,15 @@ function clientsListHtml() {
           <div class="admin-user-row__index">${index + 1}</div>
           <div class="admin-user-row__main">
             <div class="admin-user-row__name">${escapeHtml(client.name || 'Client')}</div>
-            <div class="admin-user-row__meta">
-              ${client.created_at ? `<span>${escapeHtml(formatDate(client.created_at))}</span>` : ''}
-            </div>
+            ${
+              client.created_at
+                ? `<div class="admin-user-row__meta"><span>${escapeHtml(formatDate(client.created_at))}</span></div>`
+                : ''
+            }
           </div>
-          <button type="button" class="admin-user-row__delete" data-delete-client="${escapeHtml(client.id)}" title="Delete client">Delete</button>
+          <div class="admin-user-row__actions">
+            <button type="button" class="admin-user-row__delete" data-delete-client="${escapeHtml(client.id)}" title="Delete client" aria-label="Delete client">${ADMIN_ICON_DELETE}</button>
+          </div>
         </li>`,
         )
         .join('')}
@@ -1264,6 +1280,17 @@ function wireHoursActions(root) {
 }
 
 function wireUserActions(root) {
+  root.querySelectorAll('[data-user-expand]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('.admin-user-row');
+      const extra = row?.querySelector('.admin-user-row__extra');
+      if (!row || !extra) return;
+      const open = row.classList.toggle('is-open');
+      extra.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  });
+
   root.querySelectorAll('[data-verify-store-user]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-verify-store-user');
