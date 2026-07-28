@@ -3376,19 +3376,21 @@
 
   .modal-overlay[hidden] { display: none; }
 
-  /* Stock amount modal: top-docked so the soft keyboard never covers actions.
-     No visualViewport chasing — that caused open → jump → settle. */
+  /* Stock amount modal: always bottom-docked; --keyboard-inset lifts it
+     so the panel bottom sits just above the soft keyboard (no center→bottom flip). */
   #amountModal.amount-modal {
-    align-items: flex-start;
+    --keyboard-inset: 0px;
+    align-items: flex-end;
     justify-content: center;
-    padding-top: max(12px, env(safe-area-inset-top, 0px));
-    padding-bottom: 12px;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    padding: 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
   }
 
   #amountModal .amount-modal__panel {
     margin-top: 0;
+    margin-bottom: var(--keyboard-inset);
+    max-height: calc(100dvh - var(--keyboard-inset) - 24px - env(safe-area-inset-bottom, 0px));
     background: color-mix(in srgb, var(--accent, transparent) 16%, var(--surface-raised));
     border-color: color-mix(in srgb, var(--accent, var(--panel-edge)) 48%, var(--panel-edge));
     box-shadow:

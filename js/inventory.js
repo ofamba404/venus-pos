@@ -306,30 +306,66 @@ export function wireInventoryPage() {
 
   /**
    * Button/focus solid from a flavor swatch.
-   * Near-white → warm husk. Pastels (watermelon, mint, grape) → same hue, darkened
-   * for white text. Saturated colors stay as-is.
+   * Pale / pastel colors → richer same-hue tint (HSL) so white Apply text has real contrast.
+   * Saturated colors stay as-is.
    */
   function accentActionColor(color) {
     const hex = String(color || '').replace('#', '');
     const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
     if (full.length !== 6) return color || '#059669';
-    const r = parseInt(full.slice(0, 2), 16);
-    const g = parseInt(full.slice(2, 4), 16);
-    const b = parseInt(full.slice(4, 6), 16);
+    let r = parseInt(full.slice(0, 2), 16);
+    let g = parseInt(full.slice(2, 4), 16);
+    let b = parseInt(full.slice(4, 6), 16);
     const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-    const toHex = (channels) =>
-      `#${channels.map((n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0')).join('')}`;
+    if (luma < 0.55) return `#${full}`;
 
-    if (luma >= 0.86) {
-      const mix = (channel, toward) => Math.round(channel * 0.28 + toward * 0.72);
-      return toHex([mix(r, 194), mix(g, 152), mix(b, 108)]);
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r:
+          h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+          break;
+        case g:
+          h = ((b - r) / d + 2) / 6;
+          break;
+        default:
+          h = ((r - g) / d + 4) / 6;
+      }
     }
-    if (luma >= 0.55) {
-      // Keep hue; darken enough for readable white label text.
-      const factor = Math.min(0.78, 0.52 / luma);
-      return toHex([Math.round(r * factor), Math.round(g * factor), Math.round(b * factor)]);
+
+    // Near-white / gray swatches have no usable hue — warm coconut husk.
+    if (s < 0.08) {
+      h = 32 / 360;
+      s = 0.42;
+    } else {
+      s = Math.min(0.78, Math.max(s * 1.45, 0.48));
     }
-    return `#${full}`;
+    const targetL = 0.36;
+
+    const hue2rgb = (p, q, t) => {
+      let tt = t;
+      if (tt < 0) tt += 1;
+      if (tt > 1) tt -= 1;
+      if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+      if (tt < 1 / 2) return q;
+      if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+      return p;
+    };
+    const q = targetL < 0.5 ? targetL * (1 + s) : targetL + s - targetL * s;
+    const p = 2 * targetL - q;
+    const toByte = (v) => Math.round(Math.max(0, Math.min(1, v)) * 255)
+      .toString(16)
+      .padStart(2, '0');
+    return `#${toByte(hue2rgb(p, q, h + 1 / 3))}${toByte(hue2rgb(p, q, h))}${toByte(hue2rgb(p, q, h - 1 / 3))}`;
   }
 
   function applyAmountTheme(color) {
@@ -350,6 +386,41 @@ export function wireInventoryPage() {
     }
   }
 
+  let amountKeyboardCleanup = null;
+  let amountFocusTimer = null;
+
+  function syncAmountKeyboardInset() {
+    if (!amountModal) return;
+    const vv = window.visualViewport;
+    const inset = vv
+      ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
+      : 0;
+    const prev = Number.parseFloat(amountModal.style.getPropertyValue('--keyboard-inset')) || 0;
+    if (Math.abs(prev - inset) < 1) return;
+    amountModal.style.setProperty('--keyboard-inset', `${inset}px`);
+  }
+
+  function wireAmountKeyboard() {
+    amountKeyboardCleanup?.();
+    let raf = 0;
+    const onViewport = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(syncAmountKeyboardInset);
+    };
+    window.visualViewport?.addEventListener('resize', onViewport);
+    window.visualViewport?.addEventListener('scroll', onViewport);
+    window.addEventListener('resize', onViewport);
+    syncAmountKeyboardInset();
+    amountKeyboardCleanup = () => {
+      cancelAnimationFrame(raf);
+      window.visualViewport?.removeEventListener('resize', onViewport);
+      window.visualViewport?.removeEventListener('scroll', onViewport);
+      window.removeEventListener('resize', onViewport);
+      amountModal?.style.removeProperty('--keyboard-inset');
+      amountKeyboardCleanup = null;
+    };
+  }
+
   function openAmountModal(id, dir) {
     const cat = CAT_MAP[id];
     const label = cat.sub ? `${cat.name} ${cat.sub}` : cat.name;
@@ -357,12 +428,20 @@ export function wireInventoryPage() {
     amountContext = { id, dir };
     amountInput.value = '';
     applyAmountTheme(cat?.color);
+    clearTimeout(amountFocusTimer);
     openModal(amountModal);
-    // preventScroll avoids iOS yanking the page when the keyboard opens
-    setTimeout(() => amountInput.focus({ preventScroll: true }), 50);
+    wireAmountKeyboard();
+    // Let the bottom sheet finish opening, then focus — keyboard lift is the only move.
+    amountFocusTimer = setTimeout(() => {
+      amountInput?.focus({ preventScroll: true });
+      syncAmountKeyboardInset();
+    }, 340);
   }
 
   function closeAmountModal() {
+    clearTimeout(amountFocusTimer);
+    amountKeyboardCleanup?.();
+    amountInput?.blur();
     closeModal(amountModal);
     amountContext = null;
     clearAmountTheme();
