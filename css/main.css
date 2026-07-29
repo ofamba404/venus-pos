@@ -3376,29 +3376,13 @@
 
   .modal-overlay[hidden] { display: none; }
 
-  /* Stock amount modal: fixed slot — panel bottom at 45% of the viewport.
-     Never repositions for the keyboard (no jump / chase). */
+  /* Stock amount modal: normal centered overlay; flavor-themed panel. */
   #amountModal.amount-modal {
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
-    padding: 12px;
-    overflow: hidden;
-  }
-
-  #amountModal .amount-modal__slot {
-    width: 100%;
-    max-width: 380px;
-    margin-top: 45dvh;
-    transform: translateY(-100%);
   }
 
   #amountModal .amount-modal__panel {
-    margin: 0;
-    width: 100%;
-    max-height: calc(45dvh - 12px);
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
     background: color-mix(in srgb, var(--accent, transparent) 16%, var(--surface-raised));
     border-color: color-mix(in srgb, var(--accent, var(--panel-edge)) 48%, var(--panel-edge));
     box-shadow:

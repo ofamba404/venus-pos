@@ -162,14 +162,12 @@ export function renderModals(currentPage = 'home') {
     </div>
 
     <div class="modal-overlay amount-modal" id="amountModal" hidden>
-      <div class="amount-modal__slot">
-        <div class="modal amount-modal__panel">
-          <div class="modal-title" id="amountModalTitle">Add amount</div>
-          <input type="text" inputmode="numeric" pattern="[0-9]*" id="amountInput" class="qty-input" placeholder="0" autocomplete="off" style="margin-top:12px;" />
-          <div class="modal-btns">
-            <button id="amountCancel" class="modal-btn cancel" type="button">Cancel</button>
-            <button id="amountConfirm" class="modal-btn confirm" type="button">Apply</button>
-          </div>
+      <div class="modal amount-modal__panel">
+        <div class="modal-title" id="amountModalTitle">Add amount</div>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" id="amountInput" class="qty-input" placeholder="0" autocomplete="off" style="margin-top:12px;" />
+        <div class="modal-btns">
+          <button id="amountCancel" class="modal-btn cancel" type="button">Cancel</button>
+          <button id="amountConfirm" class="modal-btn confirm" type="button">Apply</button>
         </div>
       </div>
     </div>
