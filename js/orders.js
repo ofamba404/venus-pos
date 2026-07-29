@@ -581,9 +581,13 @@ function softUpdateOpenReviewDeck() {
   captureStoreOrderSession();
   let panel = track.querySelector(`[data-store-order-panel="${CSS.escape(activeId)}"]`);
   if (!panel) {
+    // Keep the new panel off-screen (aria-hidden) until the deck index advances —
+    // avoids a one-frame peek when appending into an already-open cart.
     track.insertAdjacentHTML('beforeend', renderReviewCartHtml(reviewPropsFromLiveState(activeId)));
     panel = track.querySelector(`[data-store-order-panel="${CSS.escape(activeId)}"]`);
     if (panel) {
+      panel.setAttribute('aria-hidden', 'true');
+      panel.classList.remove('is-active');
       wireCartCopyButtons(panel);
       wireReviewCreditToggles(panel);
       wireReviewConfirmPills(panel);

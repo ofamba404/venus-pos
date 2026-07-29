@@ -293,6 +293,18 @@ export async function markStoreOrderConfirmed(orderId) {
   void notifyStoreCustomerPush(cached || { id: orderId }, 'confirmed');
 }
 
+/** Mark accepted in the local cache immediately so the open cart can slide without waiting on PATCH. */
+function optimisticallyAcceptStoreOrder(orderId) {
+  const cached = orderCache.get(orderId);
+  if (!cached || cached.status === 'cancelled' || cached.status === 'accepted') return false;
+  const now = new Date().toISOString();
+  cached.status = 'accepted';
+  cached.accepted_at = now;
+  cached.updated_at = now;
+  orderCache.set(orderId, cached);
+  return true;
+}
+
 export async function markStoreOrderAccepted(orderId) {
   if (!orderId) return;
   const now = new Date().toISOString();
@@ -302,6 +314,7 @@ export async function markStoreOrderAccepted(orderId) {
     updated_at: now,
   };
   const cached = orderCache.get(orderId);
+  const alreadyAccepted = cached?.status === 'accepted';
   // Confirmation is explicit in the review cart — loading does not notify the customer.
   const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(orderId)}`, {
     method: 'PATCH',
@@ -311,11 +324,12 @@ export async function markStoreOrderAccepted(orderId) {
   if (!res.ok) throw new Error(`Supabase ${res.status}`);
   if (cached && cached.status !== 'cancelled') {
     cached.status = 'accepted';
-    cached.accepted_at = now;
+    cached.accepted_at = cached.accepted_at || now;
     cached.updated_at = now;
     orderCache.set(orderId, cached);
   }
-  renderStoreOrderUi();
+  // Skip remount when the UI already treated this as accepted (optimistic load).
+  if (!alreadyAccepted) renderStoreOrderUi();
 }
 
 /**
@@ -1164,16 +1178,17 @@ export async function loadStoreOrderIntoCart(orderId) {
 
   // Restore a previously loaded session (keeps credit toggle, etc.).
   if (hasStoreOrderSession(orderId) && restoreStoreOrderSession(orderId)) {
-    try {
-      if (order.status === 'pending' || order.status === 'confirmed') {
-        await markStoreOrderAccepted(order.id);
-      }
-    } catch (e) {
-      console.error('mark accepted failed', e);
-    }
+    const needsAccept = order.status === 'pending' || order.status === 'confirmed';
+    if (needsAccept) optimisticallyAcceptStoreOrder(order.id);
+    // Slide/open first so an already-open cart never waits on the network.
     closeStoreOrdersPanel();
     openLoadedOrderModal();
     renderStoreOrderUi();
+    if (needsAccept) {
+      void markStoreOrderAccepted(order.id).catch((e) => {
+        console.error('mark accepted failed', e);
+      });
+    }
     return;
   }
 
@@ -1192,17 +1207,18 @@ export async function loadStoreOrderIntoCart(orderId) {
     cartLines: rowsToCartLines(order.items),
   });
 
-  try {
-    if (order.status === 'pending' || order.status === 'confirmed') {
-      await markStoreOrderAccepted(order.id);
-    }
-  } catch (e) {
-    console.error('mark accepted failed', e);
-  }
-
+  const needsAccept = order.status === 'pending' || order.status === 'confirmed';
+  if (needsAccept) optimisticallyAcceptStoreOrder(order.id);
+  // Soft-append + slide the new panel before awaiting accept — avoids a blank
+  // wait (and openModal opacity flash) when the review cart is already open.
   closeStoreOrdersPanel();
   openLoadedOrderModal();
   renderStoreOrderUi();
+  if (needsAccept) {
+    void markStoreOrderAccepted(order.id).catch((e) => {
+      console.error('mark accepted failed', e);
+    });
+  }
 }
 
 /** FAB review button: reopen an accepted storefront order after refresh / empty live cart. */

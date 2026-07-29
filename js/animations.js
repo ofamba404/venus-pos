@@ -170,6 +170,10 @@ export function openModal(overlay, { instant = false } = {}) {
     overlay._closeTween?.kill?.();
     overlay._closeTween = null;
     if (hasGsap()) gsap().killTweensOf([overlay, modal].filter(Boolean));
+  } else if (!overlay.hidden) {
+    // Already open — do not replay the enter animation (avoids opacity flash
+    // when soft-switching review orders inside an open cart).
+    return;
   }
 
   if (instant || !hasGsap() || prefersReducedMotion()) {

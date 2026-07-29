@@ -386,41 +386,6 @@ export function wireInventoryPage() {
     }
   }
 
-  let amountKeyboardCleanup = null;
-  let amountFocusTimer = null;
-
-  function syncAmountKeyboardInset() {
-    if (!amountModal) return;
-    const vv = window.visualViewport;
-    const inset = vv
-      ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
-      : 0;
-    const prev = Number.parseFloat(amountModal.style.getPropertyValue('--keyboard-inset')) || 0;
-    if (Math.abs(prev - inset) < 1) return;
-    amountModal.style.setProperty('--keyboard-inset', `${inset}px`);
-  }
-
-  function wireAmountKeyboard() {
-    amountKeyboardCleanup?.();
-    let raf = 0;
-    const onViewport = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(syncAmountKeyboardInset);
-    };
-    window.visualViewport?.addEventListener('resize', onViewport);
-    window.visualViewport?.addEventListener('scroll', onViewport);
-    window.addEventListener('resize', onViewport);
-    syncAmountKeyboardInset();
-    amountKeyboardCleanup = () => {
-      cancelAnimationFrame(raf);
-      window.visualViewport?.removeEventListener('resize', onViewport);
-      window.visualViewport?.removeEventListener('scroll', onViewport);
-      window.removeEventListener('resize', onViewport);
-      amountModal?.style.removeProperty('--keyboard-inset');
-      amountKeyboardCleanup = null;
-    };
-  }
-
   function openAmountModal(id, dir) {
     const cat = CAT_MAP[id];
     const label = cat.sub ? `${cat.name} ${cat.sub}` : cat.name;
@@ -428,20 +393,11 @@ export function wireInventoryPage() {
     amountContext = { id, dir };
     amountInput.value = '';
     applyAmountTheme(cat?.color);
-    clearTimeout(amountFocusTimer);
     openModal(amountModal);
-    wireAmountKeyboard();
-    // Let the bottom sheet finish opening, then focus — keyboard lift is the only move.
-    amountFocusTimer = setTimeout(() => {
-      amountInput?.focus({ preventScroll: true });
-      syncAmountKeyboardInset();
-    }, 340);
+    setTimeout(() => amountInput?.focus({ preventScroll: true }), 50);
   }
 
   function closeAmountModal() {
-    clearTimeout(amountFocusTimer);
-    amountKeyboardCleanup?.();
-    amountInput?.blur();
     closeModal(amountModal);
     amountContext = null;
     clearAmountTheme();

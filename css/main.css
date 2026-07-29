@@ -3376,21 +3376,29 @@
 
   .modal-overlay[hidden] { display: none; }
 
-  /* Stock amount modal: always bottom-docked; --keyboard-inset lifts it
-     so the panel bottom sits just above the soft keyboard (no center→bottom flip). */
+  /* Stock amount modal: fixed slot — panel bottom at 45% of the viewport.
+     Never repositions for the keyboard (no jump / chase). */
   #amountModal.amount-modal {
-    --keyboard-inset: 0px;
-    align-items: flex-end;
+    align-items: flex-start;
     justify-content: center;
     padding: 12px;
-    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
     overflow: hidden;
   }
 
+  #amountModal .amount-modal__slot {
+    width: 100%;
+    max-width: 380px;
+    margin-top: 45dvh;
+    transform: translateY(-100%);
+  }
+
   #amountModal .amount-modal__panel {
-    margin-top: 0;
-    margin-bottom: var(--keyboard-inset);
-    max-height: calc(100dvh - var(--keyboard-inset) - 24px - env(safe-area-inset-bottom, 0px));
+    margin: 0;
+    width: 100%;
+    max-height: calc(45dvh - 12px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     background: color-mix(in srgb, var(--accent, transparent) 16%, var(--surface-raised));
     border-color: color-mix(in srgb, var(--accent, var(--panel-edge)) 48%, var(--panel-edge));
     box-shadow:
