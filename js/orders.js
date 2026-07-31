@@ -928,7 +928,11 @@ function renderSuccessView({ animate = true } = {}) {
               <div class="ci-name">${escapeHtml(item.name)}</div>
               ${cartDetailHtml(item.detail)}
             </div>
-            <div class="ci-price checkout-receipt-item-price">${fmtUGX(item.lineTotal)}</div>
+            <div class="ci-price checkout-receipt-item-price${item.isReward ? ' ci-price--reward' : ''}">${
+              item.isReward
+                ? `Freebie${item.pointsCost ? ` · ${Math.round(Number(item.pointsCost) || 0).toLocaleString('en-US')} pts` : ''}`
+                : fmtUGX(item.lineTotal)
+            }</div>
           </div>`,
           )
           .join('')}
@@ -1420,7 +1424,16 @@ function cartItemHtml(item, { readonly = false } = {}) {
   const detailText = String(item.detail || '').trim();
   const detailHtml = swatchesHtml ? swatchesHtml : cartDetailHtml(detailText);
   const qty = cartLineQty(item);
-  const priceHtml = `<div class="ci-price">${fmtUGX(item.lineTotal)}</div>`;
+  const isReward = Boolean(item.isReward);
+  const pointsCost = Math.max(0, Math.round(Number(item.pointsCost) || 0));
+  const priceHtml = isReward
+    ? `<div class="ci-price ci-price--reward" title="${pointsCost ? `${pointsCost} reward points` : 'Rewards freebie'}">Freebie${
+        pointsCost ? ` · ${pointsCost.toLocaleString('en-US')} pts` : ''
+      }</div>`
+    : `<div class="ci-price">${fmtUGX(item.lineTotal)}</div>`;
+  const nameHtml = isReward
+    ? `<div class="ci-name">${escapeHtml(item.name)} <span class="ci-freebie-tag">Freebie</span></div>`
+    : `<div class="ci-name">${escapeHtml(item.name)}</div>`;
 
   const qtyHtml =
     qty > 0 ? `<div class="ci-qty" aria-label="Quantity ${qty}">${qty}</div>` : '';
@@ -1429,11 +1442,11 @@ function cartItemHtml(item, { readonly = false } = {}) {
     // Name + price on one row; swatches get the full width below so they never collide.
     // Qty chip matches compose cart so staff can scan counts at a glance.
     return `
-    <div class="cart-item cart-item--readonly">
+    <div class="cart-item cart-item--readonly${isReward ? ' cart-item--reward' : ''}">
       ${qtyHtml}
       <div class="ci-main">
         <div class="ci-head">
-          <div class="ci-name">${escapeHtml(item.name)}</div>
+          ${nameHtml}
           ${priceHtml}
         </div>
         ${detailHtml}
@@ -1455,10 +1468,10 @@ function cartItemHtml(item, { readonly = false } = {}) {
         </div>`;
 
   return `
-    <div class="cart-item">
+    <div class="cart-item${isReward ? ' cart-item--reward' : ''}">
       ${qtyHtml}
       <div class="ci-main">
-        <div class="ci-name">${escapeHtml(item.name)}</div>
+        ${nameHtml}
         ${detailHtml}
       </div>
       <div class="cart-item-actions">

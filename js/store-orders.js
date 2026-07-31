@@ -909,7 +909,10 @@ function stackItemHtml(order) {
   const items = Array.isArray(order.items) ? order.items : [];
   const itemBits = items
     .slice(0, 2)
-    .map((line) => escapeHtml(line.product_name || 'Item'))
+    .map((line) => {
+      const name = escapeHtml(line.product_name || 'Item');
+      return line.is_reward || line.reward_key ? `${name} (freebie)` : name;
+    })
     .join(' · ');
   const more = items.length > 2 ? ` · +${items.length - 2}` : '';
   const when = deliveryLabel(order);
@@ -1104,6 +1107,7 @@ function rowsToCartLines(items) {
   return (Array.isArray(items) ? items : []).map((line, index) => {
     const productId = String(line.product_id || '');
     const product = PRODUCTS.find((p) => p.id === productId);
+    const isReward = Boolean(line.is_reward) || Boolean(line.reward_key);
     return {
       key: `store-${productId}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
       productId,
@@ -1112,6 +1116,9 @@ function rowsToCartLines(items) {
       breakdown: line.breakdown && typeof line.breakdown === 'object' ? { ...line.breakdown } : {},
       lineTotal: Math.round(Number(line.line_total) || 0),
       stockDeferred: true,
+      isReward,
+      rewardKey: isReward ? String(line.reward_key || '') : '',
+      pointsCost: isReward ? Math.max(0, Math.round(Number(line.points_cost) || 0)) : 0,
     };
   });
 }

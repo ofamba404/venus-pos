@@ -5870,6 +5870,29 @@
     text-align: right;
   }
 
+  .cart-item .ci-price--reward {
+    color: var(--jade, #2f6f5e);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .ci-freebie-tag {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    vertical-align: middle;
+    color: var(--jade, #2f6f5e);
+    background: color-mix(in srgb, var(--jade, #2f6f5e) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--jade, #2f6f5e) 30%, transparent);
+  }
+
   .cart-tool {
     width: 34px;
     height: 34px;
@@ -6819,6 +6842,18 @@
     -webkit-backdrop-filter: blur(18px);
     border: 1px solid color-mix(in srgb, var(--jade) 28%, var(--panel-edge));
     box-shadow: var(--shadow-lg);
+    touch-action: pan-y;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .in-app-banner.is-swiping {
+    cursor: grabbing;
+  }
+
+  .in-app-banner.is-swiping-out {
+    pointer-events: none;
   }
 
   .in-app-banner[hidden] {

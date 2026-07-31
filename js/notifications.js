@@ -310,6 +310,7 @@ export async function showAppNotification(opts) {
 
 /**
  * In-app banner — works even when Notification permission is denied.
+ * Swipe left/right to dismiss (same idea as cancelled store-order cards).
  */
 export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body = '', url = null, actions = null }) {
   let el = document.getElementById('inAppBanner');
@@ -320,6 +321,7 @@ export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body =
     el.setAttribute('role', 'status');
     el.hidden = true;
     document.body.appendChild(el);
+    wireInAppBannerSwipe(el);
   }
 
   const logo = getAssetHref('logo.svg');
@@ -331,6 +333,10 @@ export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body =
 
   el.dataset.type = type;
   el.hidden = false;
+  el.classList.remove('is-swiping', 'is-swiping-out');
+  el.style.transition = '';
+  el.style.transform = 'translateX(-50%)';
+  el.style.opacity = '';
   el.innerHTML = `
     <span class="in-app-banner-logo-wrap" aria-hidden="true">
       <img class="in-app-banner-logo" src="${logo}" alt="" width="32" height="32" decoding="async" />
@@ -341,14 +347,147 @@ export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body =
     </div>
     <div class="in-app-banner-actions">${actionHtml}</div>`;
 
-  el.querySelector('[data-banner-dismiss]')?.addEventListener('click', () => {
-    el.hidden = true;
-  });
+  const dismiss = () => dismissInAppBanner(el);
+  el.querySelector('[data-banner-dismiss]')?.addEventListener('click', dismiss);
 
   clearTimeout(showInAppBanner._t);
   showInAppBanner._t = setTimeout(() => {
-    if (el && !el.hidden) el.hidden = true;
+    if (el && !el.hidden) dismiss();
   }, 14_000);
+}
+
+function dismissInAppBanner(el, { animate = false, dx = 0 } = {}) {
+  if (!el || el.hidden) return;
+  clearTimeout(showInAppBanner._t);
+  if (!animate) {
+    el.hidden = true;
+    el.classList.remove('is-swiping', 'is-swiping-out');
+    el.style.transition = '';
+    el.style.transform = 'translateX(-50%)';
+    el.style.opacity = '';
+    return;
+  }
+  const dir = dx < 0 ? -1 : 1;
+  el.classList.add('is-swiping-out');
+  el.style.transition = 'transform 0.22s ease-out, opacity 0.22s ease-out';
+  el.style.transform = `translateX(calc(-50% + ${dir * (el.offsetWidth + 48)}px))`;
+  el.style.opacity = '0';
+  let settled = false;
+  const done = () => {
+    if (settled) return;
+    settled = true;
+    el.removeEventListener('transitionend', done);
+    el.hidden = true;
+    el.classList.remove('is-swiping', 'is-swiping-out');
+    el.style.transition = '';
+    el.style.transform = 'translateX(-50%)';
+    el.style.opacity = '';
+  };
+  el.addEventListener('transitionend', done);
+  setTimeout(done, 280);
+}
+
+function wireInAppBannerSwipe(el) {
+  if (el.dataset.wiredSwipe === '1') return;
+  el.dataset.wiredSwipe = '1';
+
+  const SWIPE_THRESHOLD_PX = 72;
+  const SWIPE_LOCK_PX = 12;
+
+  /** @type {{
+   *   pointerId: number,
+   *   startX: number,
+   *   startY: number,
+   *   dx: number,
+   *   axis: 'undecided' | 'x' | 'y',
+   *   swiping: boolean,
+   * } | null} */
+  let gesture = null;
+
+  el.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('button, a, input, textarea, select, label')) return;
+      if (el.hidden) return;
+
+      gesture = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        dx: 0,
+        axis: 'undecided',
+        swiping: false,
+      };
+      try {
+        el.setPointerCapture(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+    },
+    { passive: true },
+  );
+
+  el.addEventListener(
+    'pointermove',
+    (event) => {
+      if (!gesture || event.pointerId !== gesture.pointerId) return;
+      const dx = event.clientX - gesture.startX;
+      const dy = event.clientY - gesture.startY;
+      gesture.dx = dx;
+
+      if (gesture.axis === 'undecided') {
+        if (Math.abs(dx) < SWIPE_LOCK_PX && Math.abs(dy) < SWIPE_LOCK_PX) return;
+        if (Math.abs(dy) > Math.abs(dx)) {
+          gesture.axis = 'y';
+          return;
+        }
+        gesture.axis = 'x';
+        gesture.swiping = true;
+        el.classList.add('is-swiping');
+        el.style.transition = 'none';
+      }
+      if (gesture.axis !== 'x') return;
+
+      event.preventDefault();
+      const resisted = dx * 0.92;
+      el.style.transform = `translateX(calc(-50% + ${resisted}px))`;
+      const fade = Math.min(0.45, Math.abs(dx) / (SWIPE_THRESHOLD_PX * 2.2));
+      el.style.opacity = String(1 - fade);
+    },
+    { passive: false },
+  );
+
+  const endGesture = (event) => {
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const { dx, axis, swiping } = gesture;
+    gesture = null;
+    try {
+      el.releasePointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (!swiping || axis !== 'x') {
+      el.classList.remove('is-swiping');
+      el.style.transition = '';
+      el.style.transform = 'translateX(-50%)';
+      el.style.opacity = '';
+      return;
+    }
+    if (Math.abs(dx) >= SWIPE_THRESHOLD_PX) {
+      dismissInAppBanner(el, { animate: true, dx });
+      return;
+    }
+    el.classList.remove('is-swiping');
+    el.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out';
+    el.style.transform = 'translateX(-50%)';
+    el.style.opacity = '1';
+  };
+
+  el.addEventListener('pointerup', endGesture);
+  el.addEventListener('pointercancel', endGesture);
 }
 
 function escapeBanner(str) {
