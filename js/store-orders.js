@@ -17,12 +17,16 @@ import {
   dropStoreOrderSession,
   updateFabBadge,
 } from './orders.js';
-import { getRealtimeClient } from './realtime-client.js';
+import { refreshRealtimeAuth } from './realtime-client.js';
 import { escapeHtml, fmtUGX, showConfirm, showToast } from './utils.js';
 
-/** Safety-net poll when Realtime is down or a change was missed. */
-const FALLBACK_POLL_MS = 30_000;
-/** Survive soft-nav and hard reloads — skip network if snapshot is still fresh. */
+/**
+ * Safety-net poll when Realtime is down or a change was missed.
+ * Keep short — staff need new stack cards without a hard refresh.
+ */
+const FALLBACK_POLL_MS = 4_000;
+const REALTIME_RECONNECT_MS = 4_000;
+/** Survive soft-nav / hard reload for instant paint only — never blocks live polls. */
 const SESSION_CACHE_KEY = 'venus-pos-store-orders-v1';
 const SESSION_CACHE_FRESH_MS = 90_000;
 const ACTIVE_STATUSES = new Set(['pending', 'confirmed', 'accepted', 'cancelled']);
@@ -90,11 +94,15 @@ const seenIds = new Set();
 const notifiedIds = new Set();
 /** @type {ReturnType<typeof setInterval> | null} */
 let pollTimer = null;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let realtimeReconnectTimer = null;
 /** @type {{ unsubscribe?: () => void } | null} */
 let realtimeChannel = null;
 let panelOpen = false;
 let bootstrapped = false;
 let realtimeLive = false;
+let realtimeStarting = false;
+let realtimeGen = 0;
 /** Ignore the bag-button click that follows an outside-dismiss pointerdown. */
 let ignoreNextBagToggle = false;
 let lastSessionWriteTs = 0;
@@ -173,11 +181,19 @@ export function setStoreOrdersPanelOpen(open) {
     const panel = document.getElementById('storeOrdersPanel');
     if (next && panel?.hidden) renderStoreOrderUi();
     if (!next) clearStoreOrdersHash();
+    if (next) {
+      void refreshStoreOrders({ silent: true, force: true });
+      if (!realtimeLive) void startStoreOrdersRealtime();
+    }
     return;
   }
   panelOpen = next;
   if (!next) clearStoreOrdersHash();
   renderStoreOrderUi();
+  if (next) {
+    void refreshStoreOrders({ silent: true, force: true });
+    if (!realtimeLive) void startStoreOrdersRealtime();
+  }
 }
 
 export function openStoreOrdersPanel() {
@@ -552,12 +568,24 @@ function handleRealtimePayload(payload) {
   }
 }
 
+function scheduleRealtimeReconnect() {
+  if (realtimeReconnectTimer != null) return;
+  realtimeReconnectTimer = setTimeout(() => {
+    realtimeReconnectTimer = null;
+    void startStoreOrdersRealtime();
+  }, REALTIME_RECONNECT_MS);
+}
+
 async function startStoreOrdersRealtime() {
-  if (realtimeChannel) return true;
+  if (realtimeChannel || realtimeStarting) return realtimeLive;
+  realtimeStarting = true;
+  const gen = ++realtimeGen;
   try {
-    const client = await getRealtimeClient();
+    const client = await refreshRealtimeAuth();
+    if (gen !== realtimeGen) return false;
+
     const channel = client
-      .channel('pos-store-orders')
+      .channel(`pos-store-orders:${gen}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'store_orders' },
@@ -567,38 +595,52 @@ async function startStoreOrdersRealtime() {
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('realtime subscribe timeout')), 8000);
       channel.subscribe((status) => {
+        if (gen !== realtimeGen) {
+          clearTimeout(timeout);
+          reject(new Error('realtime superseded'));
+          return;
+        }
         if (status === 'SUBSCRIBED') {
           clearTimeout(timeout);
           realtimeLive = true;
           resolve();
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           clearTimeout(timeout);
+          if (realtimeChannel === channel || realtimeLive) {
+            realtimeLive = false;
+            if (realtimeChannel === channel) realtimeChannel = null;
+            scheduleRealtimeReconnect();
+          }
           reject(new Error(`realtime ${status}`));
         }
       });
     });
 
+    if (gen !== realtimeGen) {
+      try {
+        await channel.unsubscribe?.();
+      } catch {
+        /* ignore */
+      }
+      return false;
+    }
+
     realtimeChannel = channel;
     return true;
   } catch (err) {
-    console.warn('store orders realtime unavailable — using poll fallback', err);
-    realtimeLive = false;
-    realtimeChannel = null;
+    if (gen === realtimeGen) {
+      console.warn('store orders realtime unavailable — using poll fallback', err);
+      realtimeLive = false;
+      realtimeChannel = null;
+      scheduleRealtimeReconnect();
+    }
     return false;
+  } finally {
+    if (gen === realtimeGen) realtimeStarting = false;
   }
 }
 
-export async function refreshStoreOrders({ silent = true, force = false } = {}) {
-  if (
-    !force &&
-    bootstrapped &&
-    lastSessionWriteTs > 0 &&
-    Date.now() - lastSessionWriteTs < SESSION_CACHE_FRESH_MS
-  ) {
-    renderStoreOrderUi();
-    return [...orderCache.values()];
-  }
-
+export async function refreshStoreOrders({ silent = true, force: _force = false } = {}) {
   try {
     const rows = await fetchOpenOrders();
     mergeOrders(rows);
@@ -1245,30 +1287,33 @@ export function startStoreOrdersRuntime() {
 
   if (bootstrapped) {
     renderStoreOrderUi();
+    void refreshStoreOrders({ silent: true, force: true });
+    if (!realtimeLive) void startStoreOrdersRealtime();
     return;
   }
   bootstrapped = true;
 
-  const sessionFresh = hydrateOrdersFromSession();
+  hydrateOrdersFromSession();
   renderStoreOrderUi();
-  if (sessionFresh) {
-    void startStoreOrdersRealtime();
-  } else {
-    void refreshStoreOrders({ silent: true, force: true }).then(() => {
-      void startStoreOrdersRealtime();
-    });
-  }
+  // Always re-fetch — session cache is paint-only. Skipping the network when
+  // "fresh" previously left the stack stale for up to 90s without Realtime.
+  void refreshStoreOrders({ silent: true, force: true });
+  void startStoreOrdersRealtime();
 
   if (pollTimer == null) {
     pollTimer = setInterval(() => {
-      // Skip frequent work when Realtime is healthy and tab is hidden.
+      // Skip background work when Realtime looks healthy; still poll when visible
+      // so a silently dead socket cannot hide new orders for minutes.
       if (realtimeLive && document.visibilityState === 'hidden') return;
-      void refreshStoreOrders({ silent: true });
+      void refreshStoreOrders({ silent: true, force: true });
     }, FALLBACK_POLL_MS);
   }
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void refreshStoreOrders({ silent: true });
+    if (document.visibilityState !== 'visible') return;
+    void refreshStoreOrders({ silent: true, force: true });
+    if (!realtimeLive) void startStoreOrdersRealtime();
+    else void refreshRealtimeAuth().catch(() => {});
   });
 
   // Older builds wrote `#store-orders` while the panel was open; strip it on boot

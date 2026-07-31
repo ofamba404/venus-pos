@@ -7,6 +7,22 @@ import { SUPABASE_URL, SUPABASE_ANON_JWT } from './config.js';
 /** @type {Promise<import('@supabase/supabase-js').SupabaseClient> | null} */
 let clientPromise = null;
 
+async function resolveAccessToken() {
+  return (
+    (await window.VenusPosAuth?.getAccessToken?.().catch(() => '')) ||
+    window.VenusPosAuth?.peekAccessToken?.() ||
+    ''
+  );
+}
+
+/** Keep Realtime RLS in sync with the auth client's refreshed JWT. */
+export async function refreshRealtimeAuth() {
+  const client = await getRealtimeClient();
+  const token = await resolveAccessToken();
+  if (token) client.realtime.setAuth(token);
+  return client;
+}
+
 export function getRealtimeClient() {
   if (!clientPromise) {
     clientPromise = import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.8/+esm')
@@ -22,10 +38,7 @@ export function getRealtimeClient() {
           },
         });
 
-        const token =
-          (await window.VenusPosAuth?.getAccessToken?.().catch(() => '')) ||
-          window.VenusPosAuth?.peekAccessToken?.() ||
-          '';
+        const token = await resolveAccessToken();
         if (token) {
           client.realtime.setAuth(token);
         }
