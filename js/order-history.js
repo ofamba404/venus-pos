@@ -178,12 +178,25 @@ function renderOrderRow(s) {
     hour12: true,
   });
   const itemLines = (s.items || [])
-    .map((i) => `${escapeHtml(i.product_name)}${i.detail ? ` — ${escapeHtml(i.detail)}` : ''}`)
+    .map((i) => {
+      const free = Boolean(i.is_reward);
+      return `${escapeHtml(i.product_name)}${free ? ' (freebie)' : ''}${i.detail ? ` — ${escapeHtml(i.detail)}` : ''}`;
+    })
     .join('<br>');
   const client = s.client_id ? clients.find((c) => c.id === s.client_id) : null;
   const clientLine = client ? `<div class="r-client">${escapeHtml(client.name)}</div>` : '';
+  const items = Array.isArray(s.items) ? s.items : [];
+  const allFreebie =
+    items.length > 0 && items.every((i) => Boolean(i.is_reward) || Number(i.line_total) === 0);
+  const hasFreebie = items.some((i) => Boolean(i.is_reward));
+  const amtLabel =
+    allFreebie || (Number(s.total_ugx) === 0 && hasFreebie)
+      ? 'Freebie'
+      : fmtUGX(s.total_ugx);
   return `<button class="receipt-order" type="button" data-edit-sale="${s.id}">
-    <div class="r-head"><span class="r-time">${time}</span><span class="r-amt">${fmtUGX(s.total_ugx)}${s.is_credit && !s.credit_cleared ? '<span class="credit-tag">credit</span>' : ''}</span></div>
+    <div class="r-head"><span class="r-time">${time}</span><span class="r-amt">${amtLabel}${
+      hasFreebie && !allFreebie ? '<span class="freebie-tag">freebie</span>' : ''
+    }${s.is_credit && !s.credit_cleared ? '<span class="credit-tag">credit</span>' : ''}</span></div>
     ${clientLine}
     <div class="r-items">${itemLines}</div>
   </button>`;

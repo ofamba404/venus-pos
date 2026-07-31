@@ -321,8 +321,9 @@ export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body =
     el.setAttribute('role', 'status');
     el.hidden = true;
     document.body.appendChild(el);
-    wireInAppBannerSwipe(el);
   }
+  // Banner may already exist in layout HTML — always wire swipe once found.
+  wireInAppBannerSwipe(el);
 
   const logo = getAssetHref('logo.svg');
   const primaryUrl = url || getPageHref('home');
@@ -335,7 +336,7 @@ export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body =
   el.hidden = false;
   el.classList.remove('is-swiping', 'is-swiping-out');
   el.style.transition = '';
-  el.style.transform = 'translateX(-50%)';
+  el.style.transform = '';
   el.style.opacity = '';
   el.innerHTML = `
     <span class="in-app-banner-logo-wrap" aria-hidden="true">
@@ -353,7 +354,7 @@ export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body =
   clearTimeout(showInAppBanner._t);
   showInAppBanner._t = setTimeout(() => {
     if (el && !el.hidden) dismiss();
-  }, 14_000);
+  }, 5_500);
 }
 
 function dismissInAppBanner(el, { animate = false, dx = 0 } = {}) {
@@ -363,14 +364,14 @@ function dismissInAppBanner(el, { animate = false, dx = 0 } = {}) {
     el.hidden = true;
     el.classList.remove('is-swiping', 'is-swiping-out');
     el.style.transition = '';
-    el.style.transform = 'translateX(-50%)';
+    el.style.transform = '';
     el.style.opacity = '';
     return;
   }
   const dir = dx < 0 ? -1 : 1;
   el.classList.add('is-swiping-out');
-  el.style.transition = 'transform 0.22s ease-out, opacity 0.22s ease-out';
-  el.style.transform = `translateX(calc(-50% + ${dir * (el.offsetWidth + 48)}px))`;
+  el.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out';
+  el.style.transform = `translateX(${dir * (el.offsetWidth + 48)}px)`;
   el.style.opacity = '0';
   let settled = false;
   const done = () => {
@@ -380,19 +381,19 @@ function dismissInAppBanner(el, { animate = false, dx = 0 } = {}) {
     el.hidden = true;
     el.classList.remove('is-swiping', 'is-swiping-out');
     el.style.transition = '';
-    el.style.transform = 'translateX(-50%)';
+    el.style.transform = '';
     el.style.opacity = '';
   };
   el.addEventListener('transitionend', done);
-  setTimeout(done, 280);
+  setTimeout(done, 260);
 }
 
 function wireInAppBannerSwipe(el) {
-  if (el.dataset.wiredSwipe === '1') return;
+  if (!el || el.dataset.wiredSwipe === '1') return;
   el.dataset.wiredSwipe = '1';
 
-  const SWIPE_THRESHOLD_PX = 72;
-  const SWIPE_LOCK_PX = 12;
+  const SWIPE_THRESHOLD_PX = 56;
+  const SWIPE_LOCK_PX = 10;
 
   /** @type {{
    *   pointerId: number,
@@ -453,8 +454,8 @@ function wireInAppBannerSwipe(el) {
 
       event.preventDefault();
       const resisted = dx * 0.92;
-      el.style.transform = `translateX(calc(-50% + ${resisted}px))`;
-      const fade = Math.min(0.45, Math.abs(dx) / (SWIPE_THRESHOLD_PX * 2.2));
+      el.style.transform = `translateX(${resisted}px)`;
+      const fade = Math.min(0.4, Math.abs(dx) / (SWIPE_THRESHOLD_PX * 2.2));
       el.style.opacity = String(1 - fade);
     },
     { passive: false },
@@ -472,7 +473,7 @@ function wireInAppBannerSwipe(el) {
     if (!swiping || axis !== 'x') {
       el.classList.remove('is-swiping');
       el.style.transition = '';
-      el.style.transform = 'translateX(-50%)';
+      el.style.transform = '';
       el.style.opacity = '';
       return;
     }
@@ -481,8 +482,8 @@ function wireInAppBannerSwipe(el) {
       return;
     }
     el.classList.remove('is-swiping');
-    el.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out';
-    el.style.transform = 'translateX(-50%)';
+    el.style.transition = 'transform 0.18s ease-out, opacity 0.18s ease-out';
+    el.style.transform = 'translateX(0)';
     el.style.opacity = '1';
   };
 

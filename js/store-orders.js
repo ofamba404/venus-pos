@@ -28,6 +28,18 @@ const FALLBACK_POLL_MS = 4_000;
 const REALTIME_RECONNECT_MS = 4_000;
 /** Survive soft-nav / hard reload for instant paint only — never blocks live polls. */
 const SESSION_CACHE_KEY = 'venus-pos-store-orders-v1';
+
+/** Cash revenue only — reward freebies never count toward UGX totals. */
+function orderCashTotalUgx(order) {
+  const items = Array.isArray(order?.items) ? order.items : [];
+  if (items.length) {
+    return items.reduce((sum, line) => {
+      if (line.is_reward || line.reward_key) return sum;
+      return sum + Math.round(Number(line.line_total) || 0);
+    }, 0);
+  }
+  return Math.round(Number(order?.subtotal_ugx) || 0);
+}
 const SESSION_CACHE_FRESH_MS = 90_000;
 const ACTIVE_STATUSES = new Set(['pending', 'confirmed', 'accepted', 'cancelled']);
 /** Storefront PWA push endpoint — notifies the customer when staff confirms. */
@@ -508,7 +520,7 @@ function upsertOrder(row, { announce = true } = {}) {
       void notifyStorefrontOrder({
         orderId: row.id,
         customerName: orderTitle(row),
-        totalLabel: fmtUGX(row.subtotal_ugx || 0),
+        totalLabel: fmtUGX(orderCashTotalUgx(row)),
         itemCount: row.item_count || (Array.isArray(row.items) ? row.items.length : 0),
         url: `${location.pathname}${location.search}#store-orders`,
       });
@@ -969,7 +981,7 @@ function stackItemHtml(order) {
         <div class="store-order-card__meta">${meta || 'No items'}</div>
       </div>
       <div class="store-order-card__side">
-        <div class="store-order-card__total">${fmtUGX(order.subtotal_ugx || 0)}</div>
+        <div class="store-order-card__total">${fmtUGX(orderCashTotalUgx(order))}</div>
         <div class="store-order-card__actions">${actions}</div>
       </div>
     </article>`;
@@ -1114,7 +1126,8 @@ function rowsToCartLines(items) {
       name: product?.name || String(line.product_name || 'Item'),
       detail: String(line.detail || ''),
       breakdown: line.breakdown && typeof line.breakdown === 'object' ? { ...line.breakdown } : {},
-      lineTotal: Math.round(Number(line.line_total) || 0),
+      // Always zero cash for rewards — never inherit a catalog unit price.
+      lineTotal: isReward ? 0 : Math.round(Number(line.line_total) || 0),
       stockDeferred: true,
       isReward,
       rewardKey: isReward ? String(line.reward_key || '') : '',

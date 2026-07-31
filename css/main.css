@@ -2066,6 +2066,21 @@
     font-weight: 600;
   }
 
+  .freebie-tag {
+    display: inline-block;
+    font-size: 9px;
+    font-family: var(--font-mono);
+    color: var(--gold);
+    border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent);
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    vertical-align: middle;
+    font-weight: 600;
+  }
+
   /* ---------- Clients ---------- */
   .client-add-row { display: flex; gap: var(--space-3); margin-bottom: var(--space-3); }
 
@@ -5871,26 +5886,15 @@
   }
 
   .cart-item .ci-price--reward {
-    color: var(--jade, #2f6f5e);
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.02em;
+    color: var(--gold);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
 
   .ci-freebie-tag {
-    display: inline-block;
-    margin-left: 0.35rem;
-    padding: 0.1rem 0.4rem;
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    vertical-align: middle;
-    color: var(--jade, #2f6f5e);
-    background: color-mix(in srgb, var(--jade, #2f6f5e) 16%, transparent);
-    border: 1px solid color-mix(in srgb, var(--jade, #2f6f5e) 30%, transparent);
+    display: none;
   }
 
   .cart-tool {
@@ -6821,27 +6825,22 @@
   /* ---------- In-app notification banner (reusable) ---------- */
   .in-app-banner {
     position: fixed;
-    top: calc(12px + env(safe-area-inset-top, 0px));
-    left: 50%;
-    transform: translateX(-50%);
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    left: 0;
+    right: 0;
+    margin-inline: auto;
     z-index: 220;
     display: flex;
     align-items: center;
-    gap: 12px;
-    width: min(94vw, 420px);
-    padding: 12px 14px;
-    border-radius: var(--radius-lg);
-    background:
-      linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--jade) 12%, transparent),
-        transparent 55%
-      ),
-      color-mix(in srgb, var(--surface) 96%, transparent);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid color-mix(in srgb, var(--jade) 28%, var(--panel-edge));
-    box-shadow: var(--shadow-lg);
+    gap: 10px;
+    width: min(92vw, 380px);
+    padding: 10px 12px;
+    border-radius: var(--radius-md, 10px);
+    background: color-mix(in srgb, var(--surface) 97%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-edge);
+    box-shadow: var(--shadow-md, 0 8px 24px rgb(0 0 0 / 18%));
     touch-action: pan-y;
     cursor: grab;
     user-select: none;
@@ -6862,11 +6861,10 @@
 
   .in-app-banner-logo-wrap {
     flex-shrink: 0;
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     overflow: hidden;
-    box-shadow: 0 2px 10px var(--jade-glow);
   }
 
   .in-app-banner-logo {
@@ -6996,24 +6994,18 @@
     left: 0;
     right: 0;
     margin-inline: auto;
-    transform: translateY(14px) scale(0.96);
+    transform: translateY(14px) scale(0.98);
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     width: max-content;
-    max-width: min(92vw, 360px);
-    padding: 12px 16px 12px 12px;
-    border-radius: var(--radius-lg);
-    background:
-      linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--jade) 10%, transparent),
-        transparent 55%
-      ),
-      color-mix(in srgb, var(--surface) 94%, transparent);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid color-mix(in srgb, var(--jade) 22%, var(--panel-edge));
+    max-width: min(90vw, 320px);
+    padding: 10px 14px 10px 10px;
+    border-radius: var(--radius-md, 10px);
+    background: color-mix(in srgb, var(--surface) 97%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-edge);
     color: var(--text);
     font-size: var(--text-sm);
     font-weight: 600;
@@ -7022,13 +7014,10 @@
     opacity: 0;
     pointer-events: none;
     transition:
-      opacity 0.28s ease,
-      transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+      opacity 0.22s ease,
+      transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
     z-index: 200;
-    box-shadow:
-      var(--shadow-lg),
-      0 0 0 1px rgb(255 255 255 / 45%) inset,
-      0 8px 28px color-mix(in srgb, var(--jade) 12%, transparent);
+    box-shadow: var(--shadow-md, 0 8px 24px rgb(0 0 0 / 16%));
   }
 
   .toast[hidden] {
@@ -7049,12 +7038,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    background: var(--jade-dim);
+    background: color-mix(in srgb, var(--jade) 14%, transparent);
     color: var(--jade);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--jade) 18%, transparent);
   }
 
   .toast-msg {
@@ -7064,24 +7052,14 @@
   }
 
   .toast.error {
-    background:
-      linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--danger) 10%, transparent),
-        transparent 55%
-      ),
-      color-mix(in srgb, var(--surface) 94%, transparent);
-    border-color: color-mix(in srgb, var(--danger) 22%, var(--panel-edge));
-    box-shadow:
-      var(--shadow-lg),
-      0 0 0 1px rgb(255 255 255 / 45%) inset,
-      0 8px 28px color-mix(in srgb, var(--danger) 12%, transparent);
+    background: color-mix(in srgb, var(--surface) 97%, transparent);
+    border-color: color-mix(in srgb, var(--danger) 28%, var(--panel-edge));
+    box-shadow: var(--shadow-md, 0 8px 24px rgb(0 0 0 / 16%));
   }
 
   .toast.error .toast-icon {
-    background: var(--danger-dim);
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
     color: var(--danger);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 18%, transparent);
   }
 
   @media (max-width: 480px) {

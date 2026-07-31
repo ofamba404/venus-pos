@@ -929,9 +929,7 @@ function renderSuccessView({ animate = true } = {}) {
               ${cartDetailHtml(item.detail)}
             </div>
             <div class="ci-price checkout-receipt-item-price${item.isReward ? ' ci-price--reward' : ''}">${
-              item.isReward
-                ? `Freebie${item.pointsCost ? ` · ${Math.round(Number(item.pointsCost) || 0).toLocaleString('en-US')} pts` : ''}`
-                : fmtUGX(item.lineTotal)
+              item.isReward ? 'Freebie' : fmtUGX(item.lineTotal)
             }</div>
           </div>`,
           )
@@ -1425,15 +1423,10 @@ function cartItemHtml(item, { readonly = false } = {}) {
   const detailHtml = swatchesHtml ? swatchesHtml : cartDetailHtml(detailText);
   const qty = cartLineQty(item);
   const isReward = Boolean(item.isReward);
-  const pointsCost = Math.max(0, Math.round(Number(item.pointsCost) || 0));
   const priceHtml = isReward
-    ? `<div class="ci-price ci-price--reward" title="${pointsCost ? `${pointsCost} reward points` : 'Rewards freebie'}">Freebie${
-        pointsCost ? ` · ${pointsCost.toLocaleString('en-US')} pts` : ''
-      }</div>`
+    ? `<div class="ci-price ci-price--reward">Freebie</div>`
     : `<div class="ci-price">${fmtUGX(item.lineTotal)}</div>`;
-  const nameHtml = isReward
-    ? `<div class="ci-name">${escapeHtml(item.name)} <span class="ci-freebie-tag">Freebie</span></div>`
-    : `<div class="ci-name">${escapeHtml(item.name)}</div>`;
+  const nameHtml = `<div class="ci-name">${escapeHtml(item.name)}</div>`;
 
   const qtyHtml =
     qty > 0 ? `<div class="ci-qty" aria-label="Quantity ${qty}">${qty}</div>` : '';
@@ -2361,8 +2354,15 @@ async function checkout() {
       product_id: i.productId,
       product_name: i.name,
       detail: i.detail,
-      line_total: i.lineTotal,
+      line_total: Boolean(i.isReward) ? 0 : i.lineTotal,
       breakdown: i.breakdown,
+      ...(Boolean(i.isReward)
+        ? {
+            is_reward: true,
+            reward_key: String(i.rewardKey || ''),
+            points_cost: Math.max(0, Math.round(Number(i.pointsCost) || 0)),
+          }
+        : {}),
     }));
 
     const res = await sbFetch('sales', {

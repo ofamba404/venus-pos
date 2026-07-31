@@ -71,7 +71,7 @@ export function setOrderMeta(meta) {
 }
 
 export function cartTotal(cart) {
-  return cart.reduce((s, i) => s + i.lineTotal, 0);
+  return cart.reduce((s, i) => s + (i.isReward ? 0 : Number(i.lineTotal) || 0), 0);
 }
 
 export function resetDraftStock() {

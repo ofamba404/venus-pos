@@ -61,7 +61,7 @@ export function showToast(msg, isError = false) {
 
   animateToastIn(t);
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => animateToastOut(t), isError ? 3200 : 2600);
+  showToast._t = setTimeout(() => animateToastOut(t), isError ? 2400 : 1800);
 }
 
 /** Copy text to clipboard and toast. Returns whether the write succeeded. */
