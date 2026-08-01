@@ -224,8 +224,22 @@ function getOrderClientPhone() {
   return getOrderMeta().clientPhone || '';
 }
 
+/** Absolute clock from deliverAt (e.g. 3:10 PM); empty if missing/invalid. */
+function formatOrderClockTime(isoOrDate) {
+  if (!isoOrDate) return '';
+  const t = new Date(isoOrDate);
+  if (Number.isNaN(t.getTime())) return '';
+  return t.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+/** Prefer absolute deliverAt over relative labels like "In 30 min". */
 function getOrderDeliveryTimeLabel() {
-  return getOrderMeta().deliveryTimeLabel || '';
+  const meta = getOrderMeta();
+  return formatOrderClockTime(meta.deliveryDeliverAt) || meta.deliveryTimeLabel || '';
 }
 
 function getOrderDeliveryLocationLabel() {
@@ -426,7 +440,8 @@ function reviewPropsFromSession(orderId, session) {
     orderClientId: meta.clientId || '',
     orderIsCredit: !!meta.isCredit,
     orderClientPhone: meta.clientPhone || '',
-    orderDeliveryTime: meta.deliveryTimeLabel || '',
+    orderDeliveryTime:
+      formatOrderClockTime(meta.deliveryDeliverAt) || meta.deliveryTimeLabel || '',
     orderDeliveryLocation:
       String(meta.deliveryLocationLabel || checkout.destText || '').trim(),
     orderDeliveryEnabled: meta.deliveryEnabled !== false,
@@ -1798,10 +1813,11 @@ function renderReviewCartHtml({
         }
       </div>`
     : '';
+  const timeFactLabel = orderDeliveryEnabled ? 'Delivery time' : 'Pickup time';
   const factsHtml = orderDeliveryEnabled
     ? [
         cartFactRowHtml({
-          label: 'Time',
+          label: timeFactLabel,
           value: orderDeliveryTime,
         }),
         cartFactRowHtml({
@@ -1822,7 +1838,7 @@ function renderReviewCartHtml({
         .filter(Boolean)
         .join('')
     : cartFactRowHtml({
-        label: 'Time',
+        label: timeFactLabel,
         value: orderDeliveryTime,
       });
   const clientName = String(orderClientName || '').trim();

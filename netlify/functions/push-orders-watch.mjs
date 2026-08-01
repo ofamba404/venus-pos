@@ -41,7 +41,7 @@ async function fetchRecentPending() {
     );
   }
   const since = new Date(Date.now() - LOOKBACK_MS).toISOString();
-  const path = `${url}/rest/v1/store_orders?select=id,customer_name,item_count,subtotal_ugx,created_at,status&status=eq.pending&created_at=gte.${encodeURIComponent(since)}&order=created_at.desc&limit=20`;
+  const path = `${url}/rest/v1/store_orders?select=id,customer_name,account_id,item_count,subtotal_ugx,created_at,status,store_accounts(pos_display_name)&status=eq.pending&created_at=gte.${encodeURIComponent(since)}&order=created_at.desc&limit=20`;
   const res = await fetch(path, {
     headers: {
       apikey: key,
@@ -58,7 +58,8 @@ async function fetchRecentPending() {
 }
 
 function formatBody(row) {
-  const name = String(row.customer_name || '').trim() || 'A customer';
+  const alias = String(row?.store_accounts?.pos_display_name || '').trim();
+  const name = alias || String(row.customer_name || '').trim() || 'A customer';
   const parts = [name];
   const n = Number(row.item_count) || 0;
   if (n) parts.push(`${n} item${n === 1 ? '' : 's'}`);

@@ -18,6 +18,7 @@ import {
   updateFabBadge,
 } from './orders.js';
 import { refreshRealtimeAuth } from './realtime-client.js';
+import { ensurePosLabels, posCustomerLabel } from './pos-labels.js';
 import { escapeHtml, fmtUGX, showConfirm, showToast } from './utils.js';
 
 /**
@@ -282,7 +283,7 @@ function orderTimeLabel(order) {
 }
 
 function orderTitle(order) {
-  return String(order.customer_name || '').trim() || 'Storefront order';
+  return posCustomerLabel(order, 'Storefront order');
 }
 
 async function fetchOpenOrders() {
@@ -654,6 +655,7 @@ async function startStoreOrdersRealtime() {
 
 export async function refreshStoreOrders({ silent = true, force: _force = false } = {}) {
   try {
+    await ensurePosLabels();
     const rows = await fetchOpenOrders();
     mergeOrders(rows);
     if (!bootstrapped) bootstrapped = true;
@@ -994,7 +996,7 @@ function stackListSignature(stacked) {
       const confirmed = Boolean(order.confirmed_at) || order.status === 'confirmed';
       const active = getActiveStoreOrderId() === order.id;
       const session = hasStoreOrderSession(order.id) ? '1' : '0';
-      return `${order.id}:${order.status}:${cancelled ? 1 : 0}:${confirmed ? 1 : 0}:${active ? 1 : 0}:${session}:${order.subtotal_ugx || 0}`;
+      return `${order.id}:${order.status}:${cancelled ? 1 : 0}:${confirmed ? 1 : 0}:${active ? 1 : 0}:${session}:${order.subtotal_ugx || 0}:${orderTitle(order)}`;
     })
     .join('|');
 }
@@ -1256,7 +1258,7 @@ export async function loadStoreOrderIntoCart(orderId) {
 
   applyStorefrontOrderToCart({
     storeOrderId: order.id,
-    customerName: order.customer_name || '',
+    customerName: orderTitle(order),
     phoneE164: order.phone_e164 || '',
     deliveryEnabled: order.delivery_enabled !== false,
     delivery: order.delivery || {},
@@ -1315,6 +1317,7 @@ export function startStoreOrdersRuntime() {
 
   hydrateOrdersFromSession();
   renderStoreOrderUi();
+  void ensurePosLabels().then(() => renderStoreOrderUi());
   // Always re-fetch — session cache is paint-only. Skipping the network when
   // "fresh" previously left the stack stale for up to 90s without Realtime.
   void refreshStoreOrders({ silent: true, force: true });

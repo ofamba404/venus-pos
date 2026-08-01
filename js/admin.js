@@ -20,6 +20,7 @@ import {
   setOrderMeta,
 } from './state.js';
 import { escapeHtml, showConfirm, showToast } from './utils.js';
+import { applyPosLabels, upsertPosLabel } from './pos-labels.js';
 import { dataStore } from './store/index.js';
 import { getStackedStoreOrders, onStoreOrdersChange, openStoreOrdersPanel } from './store-orders.js';
 import {
@@ -60,7 +61,14 @@ let pageWired = false;
 let usersLoadEpoch = 0;
 
 const ADMIN_ICON_VERIFY = `<svg class="admin-user-row__icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.4 11.6 2.8 8l1.2-1.2 2.4 2.4 5.2-5.2L12.8 5.2z"/></svg>`;
+const ADMIN_ICON_RENAME = `<svg class="admin-user-row__icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M11.7 2.3a1 1 0 0 1 1.4 1.4L6.4 10.4 3.5 11l.6-2.9 6.7-6.8zM2.5 13h11v1.5h-11z"/></svg>`;
 const ADMIN_ICON_DELETE = `<svg class="admin-user-row__icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.2 2.5h3.6l.4 1H13V5H3V3.5h2.8l.4-1zM4.5 6h7l-.5 7.2a1 1 0 0 1-1 .8H6a1 1 0 0 1-1-.8L4.5 6zm2 1.5V12h1.2V7.5H6.5zm2.8 0V12H10.5V7.5H9.3z"/></svg>`;
+
+function userPosLabel(user) {
+  const alias = String(user?.pos_display_name || '').trim();
+  if (alias) return alias;
+  return String(user?.snapchat_name || 'User').trim() || 'User';
+}
 
 function formatPhone(user) {
   const cc = String(user.phone_country_code || '').replace(/\D/g, '');
@@ -128,6 +136,7 @@ async function loadStoreUsers() {
     const data = await storeAuth('admin_list_users');
     if (epoch !== usersLoadEpoch) return;
     storeUsers = Array.isArray(data.users) ? data.users : [];
+    applyPosLabels(storeUsers);
     usersLoaded = true;
   } catch (e) {
     if (epoch !== usersLoadEpoch) return;
@@ -178,12 +187,14 @@ function filteredUsers() {
   if (!q) return storeUsers;
   return storeUsers.filter((user) => {
     const name = String(user.snapchat_name || '').toLowerCase();
+    const posName = String(user.pos_display_name || '').toLowerCase();
     const phone = formatPhone(user).toLowerCase();
     const referral = String(user.referral_code || '').toLowerCase();
     const location = String(user.location_label || '').toLowerCase();
     const referred = String(user.referred_by_name || user.referred_by_code || '').toLowerCase();
     return (
       name.includes(q) ||
+      posName.includes(q) ||
       phone.includes(q) ||
       referral.includes(q) ||
       location.includes(q) ||
@@ -225,7 +236,9 @@ function usersListHtml() {
     <ol class="admin-user-list">
       ${list
         .map((user, index) => {
-          const name = String(user.snapchat_name || 'User').trim() || 'User';
+          const snapName = String(user.snapchat_name || 'User').trim() || 'User';
+          const posName = String(user.pos_display_name || '').trim();
+          const displayName = posName || snapName;
           const created = formatDate(user.created_at);
           const referral = String(user.referral_code || '').trim();
           const phone = formatPhone(user);
@@ -238,17 +251,19 @@ function usersListHtml() {
               ? `Referred by ${referredByCode}`
               : '';
           const isVerified = Boolean(user.verified);
-          const extra = metaJoin([created, phone, location, referral]);
+          const accountHint = posName ? `Account · ${snapName}` : '';
+          const extra = metaJoin([accountHint, created, phone, location, referral]);
           const verifyLabel = isVerified ? 'Remove verification' : 'Verify account';
           const hasExtra = Boolean(extra || referredBy);
           return `
             <li class="admin-user-row${isVerified ? ' is-verified' : ''}" data-user-id="${escapeHtml(String(user.id || ''))}">
               <div class="admin-user-row__index">${index + 1}</div>
               <button type="button" class="admin-user-row__toggle" data-user-expand ${hasExtra ? '' : 'disabled'} aria-expanded="false">
-                <span class="admin-user-row__name">${escapeHtml(name)}</span>
+                <span class="admin-user-row__name">${escapeHtml(displayName)}</span>
                 ${hasExtra ? '<span class="admin-user-row__chevron" aria-hidden="true"></span>' : ''}
               </button>
               <div class="admin-user-row__actions">
+                <button type="button" class="admin-user-row__rename" data-rename-store-user="${escapeHtml(String(user.id || ''))}" title="Set POS name" aria-label="Set POS name">${ADMIN_ICON_RENAME}</button>
                 <button type="button" class="admin-user-row__verify ${isVerified ? 'is-verified' : ''}" data-verify-store-user="${escapeHtml(String(user.id || ''))}" data-verified="${isVerified ? '1' : '0'}" title="${verifyLabel}" aria-label="${verifyLabel}" aria-pressed="${isVerified ? 'true' : 'false'}">${ADMIN_ICON_VERIFY}</button>
                 <button type="button" class="admin-user-row__delete" data-delete-store-user="${escapeHtml(String(user.id || ''))}" title="Delete account" aria-label="Delete account">${ADMIN_ICON_DELETE}</button>
               </div>
@@ -712,7 +727,7 @@ export function renderAdminPage() {
     body.innerHTML = `
       <div class="admin-section-head">
         <div class="admin-section-title">Storefront users</div>
-        <div class="admin-section-sub">${storeUsers.length} account${storeUsers.length === 1 ? '' : 's'}</div>
+        <div class="admin-section-sub">${storeUsers.length} account${storeUsers.length === 1 ? '' : 's'} · pencil sets a POS-only name</div>
       </div>
       ${searchFieldHtml(usersQuery, 'Search name, phone, code…', 'data-admin-users-search')}
       ${usersListHtml()}`;
@@ -1279,6 +1294,85 @@ function wireHoursActions(root) {
   });
 }
 
+function startRenameStoreUser(id) {
+  const user = storeUsers.find((u) => String(u.id) === id);
+  const row = document.querySelector(`.admin-user-row[data-user-id="${CSS.escape(id)}"]`);
+  if (!user || !row) return;
+
+  const toggle = row.querySelector('.admin-user-row__toggle');
+  const nameEl = row.querySelector('.admin-user-row__name');
+  if (!toggle || !nameEl) return;
+
+  const current = String(user.pos_display_name || '').trim();
+  const snap = String(user.snapchat_name || '').trim();
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'admin-user-row__name-input';
+  input.value = current;
+  input.placeholder = snap || 'POS display name';
+  input.setAttribute('aria-label', 'POS display name');
+  input.maxLength = 64;
+
+  nameEl.replaceWith(input);
+  toggle.disabled = true;
+  input.focus();
+  input.select();
+
+  let done = false;
+  const finish = async (commit) => {
+    if (done) return;
+    done = true;
+    if (!commit) {
+      renderAdminPage();
+      return;
+    }
+    const next = input.value.trim();
+    const prev = String(user.pos_display_name || '').trim();
+    if (next === prev) {
+      renderAdminPage();
+      return;
+    }
+    try {
+      const data = await storeAuth('admin_set_pos_display_name', {
+        user_id: id,
+        pos_display_name: next,
+      });
+      usersLoadEpoch += 1;
+      const idx = storeUsers.findIndex((u) => String(u.id) === id);
+      if (idx > -1) {
+        storeUsers[idx] = {
+          ...storeUsers[idx],
+          pos_display_name: data?.pos_display_name || null,
+        };
+      }
+      upsertPosLabel(
+        id,
+        data?.snapchat_name || user.snapchat_name,
+        data?.pos_display_name || null,
+      );
+      showToast(next ? 'POS name updated' : 'POS name cleared');
+      renderAdminPage();
+    } catch (e) {
+      showToast(e?.message || 'Could not save POS name', true);
+      renderAdminPage();
+    }
+  };
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      void finish(true);
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      void finish(false);
+    }
+  });
+  input.addEventListener('blur', () => {
+    void finish(true);
+  });
+}
+
 function wireUserActions(root) {
   root.querySelectorAll('[data-user-expand]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1291,6 +1385,14 @@ function wireUserActions(root) {
     });
   });
 
+  root.querySelectorAll('[data-rename-store-user]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-rename-store-user');
+      if (!id) return;
+      startRenameStoreUser(id);
+    });
+  });
+
   root.querySelectorAll('[data-verify-store-user]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-verify-store-user');
@@ -1300,7 +1402,7 @@ function wireUserActions(root) {
         ? Boolean(user.verified)
         : btn.getAttribute('data-verified') === '1';
       const nextVerified = !currentlyVerified;
-      const label = user?.snapchat_name ? user.snapchat_name : 'this account';
+      const label = userPosLabel(user);
       const ok = await showConfirm(
         nextVerified
           ? `Verify storefront account ${label}?`
@@ -1334,7 +1436,7 @@ function wireUserActions(root) {
       const id = btn.getAttribute('data-delete-store-user');
       if (!id) return;
       const user = storeUsers.find((u) => String(u.id) === id);
-      const label = user?.snapchat_name ? user.snapchat_name : 'this account';
+      const label = userPosLabel(user);
       const ok = await showConfirm(`Delete storefront account ${label}? This cannot be undone.`);
       if (!ok) return;
       try {
@@ -1467,10 +1569,13 @@ function wireToolActions(root) {
       if (action === 'copy-users') {
         const lines = storeUsers.map((u, i) => {
           const phone = formatPhone(u);
+          const pos = String(u.pos_display_name || '').trim();
+          const snap = u.snapchat_name || 'user';
+          const label = pos ? `${pos} (${snap})` : snap;
           const referredBy = u.referred_by_name
             ? ` · referred by ${u.referred_by_name}`
             : '';
-          return `${i + 1}. ${u.snapchat_name || 'user'}${phone ? ` · ${phone}` : ''}${u.location_label ? ` · ${u.location_label}` : ''}${u.referral_code ? ` · ${u.referral_code}` : ''}${referredBy}`;
+          return `${i + 1}. ${label}${phone ? ` · ${phone}` : ''}${u.location_label ? ` · ${u.location_label}` : ''}${u.referral_code ? ` · ${u.referral_code}` : ''}${referredBy}`;
         });
         await copyText(lines.join('\n') || 'No users', 'Users copied');
         return;

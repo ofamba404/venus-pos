@@ -8129,6 +8129,7 @@
   }
 
   .admin-user-row__verify,
+  .admin-user-row__rename,
   .admin-user-row__delete {
     display: inline-flex;
     align-items: center;
@@ -8144,6 +8145,26 @@
     width: 15px;
     height: 15px;
     display: block;
+  }
+
+  .admin-user-row__rename {
+    border: 1px solid color-mix(in srgb, var(--panel-edge) 80%, transparent);
+    background: transparent;
+    color: var(--text-dim);
+  }
+
+  .admin-user-row__name-input {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 4px 8px;
+    border: 1px solid color-mix(in srgb, var(--jade) 40%, var(--panel-edge));
+    border-radius: var(--radius-sm);
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.3;
   }
 
   .admin-user-row__verify {

@@ -152,7 +152,7 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await admin
         .from("store_accounts")
         .select(
-          "id, snapchat_name, referral_code, referred_by, phone_country_code, phone_national, location_label, location_lat, location_lng, verified, verified_at, created_at, updated_at",
+          "id, snapchat_name, pos_display_name, referral_code, referred_by, phone_country_code, phone_national, location_label, location_lat, location_lng, verified, verified_at, created_at, updated_at",
         )
         .order("created_at", { ascending: true });
       if (error) return json({ error: error.message }, 500);
@@ -230,6 +230,50 @@ Deno.serve(async (req: Request) => {
       if (error) return json({ error: error.message }, 500);
       if (!data) return json({ error: "Account not found." }, 404);
       return json({ ok: true, verified: Boolean(data.verified), verified_at: data.verified_at });
+    }
+
+    if (action === "admin_set_pos_display_name") {
+      const userId = typeof payload?.user_id === "string" ? payload.user_id.trim() : "";
+      if (!userId) return json({ error: "user_id is required." }, 400);
+      const raw =
+        typeof payload?.pos_display_name === "string" ? payload.pos_display_name.trim() : "";
+      if (raw.length > 64) {
+        return json({ error: "POS name must be 64 characters or fewer." }, 400);
+      }
+      const posDisplayName = raw || null;
+      const now = new Date().toISOString();
+      const { data, error } = await admin
+        .from("store_accounts")
+        .update({
+          pos_display_name: posDisplayName,
+          updated_at: now,
+        })
+        .eq("id", userId)
+        .select("id, snapchat_name, pos_display_name")
+        .maybeSingle();
+      if (error) return json({ error: error.message }, 500);
+      if (!data) return json({ error: "Account not found." }, 404);
+      return json({
+        ok: true,
+        id: data.id,
+        snapchat_name: data.snapchat_name || "",
+        pos_display_name: data.pos_display_name || null,
+      });
+    }
+
+    if (action === "admin_list_pos_labels") {
+      const { data, error } = await admin
+        .from("store_accounts")
+        .select("id, snapchat_name, pos_display_name")
+        .order("created_at", { ascending: true });
+      if (error) return json({ error: error.message }, 500);
+      return json({
+        labels: (data || []).map((row: Record<string, unknown>) => ({
+          id: row.id,
+          snapchat_name: row.snapchat_name || "",
+          pos_display_name: row.pos_display_name || null,
+        })),
+      });
     }
 
     if (action === "get_profile" || action === "update_profile" || action === "delete_account") {

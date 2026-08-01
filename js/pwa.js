@@ -101,6 +101,36 @@ function showEnablePromptIfNeeded() {
   });
 }
 
+function tellSwPwaInstalled() {
+  if (!('serviceWorker' in navigator)) return;
+  const send = (reg) => {
+    try {
+      reg?.active?.postMessage({ type: 'venus-pwa-installed' });
+    } catch {
+      /* ignore */
+    }
+  };
+  void navigator.serviceWorker.ready.then(send).catch(() => {});
+  if (navigator.serviceWorker.controller) {
+    try {
+      navigator.serviceWorker.controller.postMessage({ type: 'venus-pwa-installed' });
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function replyDisplayModePing(event) {
+  if (event.data?.type !== 'venus-display-mode-ping') return;
+  const standalone = isStandalonePwa();
+  if (standalone) tellSwPwaInstalled();
+  try {
+    event.ports?.[0]?.postMessage({ standalone });
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Call once after shell mount — idempotent. */
 export function bootPwa() {
   if (booted) return;
@@ -117,11 +147,17 @@ export function bootPwa() {
   window.addEventListener('appinstalled', () => {
     deferredInstall = null;
     updateInstallUi();
+    tellSwPwaInstalled();
     void ensurePushSubscription();
   });
 
+  if (isStandalonePwa()) {
+    tellSwPwaInstalled();
+  }
+
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', (event) => {
+      replyDisplayModePing(event);
       const url = event.data?.url;
       if (event.data?.type === 'venus-notif-click' && url) {
         void import('./router.js')

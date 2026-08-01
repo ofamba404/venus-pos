@@ -1,6 +1,9 @@
-const CACHE_VERSION = 'venus-pos-v52';
+const CACHE_VERSION = 'venus-pos-v53';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
+/** Survives CACHE_VERSION bumps — records that Venus POS was installed as a PWA. */
+const META_CACHE = 'venus-pos-meta';
+const PWA_INSTALLED_URL = '/__venus_pwa_installed';
 
 const SHELL_URLS = [
   '/',
@@ -116,9 +119,13 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
-      // Drop previous deploy caches only — keep the new version for offline fallback.
+      // Drop previous deploy caches only — keep meta + the new version for offline fallback.
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => !k.startsWith(CACHE_VERSION)).map((k) => caches.delete(k)));
+      await Promise.all(
+        keys
+          .filter((k) => k !== META_CACHE && !k.startsWith(CACHE_VERSION))
+          .map((k) => caches.delete(k)),
+      );
       await self.clients.claim();
       const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of clients) {
@@ -128,9 +135,70 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+async function markPwaInstalled() {
+  try {
+    const cache = await caches.open(META_CACHE);
+    await cache.put(PWA_INSTALLED_URL, new Response('1', { status: 200 }));
+  } catch {
+    /* ignore */
+  }
+}
+
+async function isPwaInstalled() {
+  try {
+    const cache = await caches.open(META_CACHE);
+    return Boolean(await cache.match(PWA_INSTALLED_URL));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ask an open page whether it is running as the installed standalone app.
+ * Times out fast so notification clicks stay snappy.
+ */
+function probeStandalone(client, timeoutMs = 120) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (standalone) => {
+      if (settled) return;
+      settled = true;
+      resolve(Boolean(standalone));
+    };
+    try {
+      const channel = new MessageChannel();
+      const timer = setTimeout(() => finish(false), timeoutMs);
+      channel.port1.onmessage = (event) => {
+        clearTimeout(timer);
+        finish(event.data?.standalone);
+      };
+      client.postMessage({ type: 'venus-display-mode-ping' }, [channel.port2]);
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+async function focusAndNavigate(client, targetUrl) {
+  if ('focus' in client) await client.focus();
+  if ('navigate' in client) {
+    try {
+      await client.navigate(targetUrl);
+      return;
+    } catch {
+      /* uncontrolled / SPA — fall through to postMessage */
+    }
+  }
+  client.postMessage({ type: 'venus-notif-click', url: targetUrl });
+}
+
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'venus-skip-waiting') {
     self.skipWaiting();
+    return;
+  }
+  if (event.data?.type === 'venus-pwa-installed') {
+    event.waitUntil(markPwaInstalled());
   }
 });
 
@@ -175,6 +243,13 @@ self.addEventListener('push', (event) => {
       } catch {
         /* ignore */
       }
+      const notifType = data.type || 'storefront-order';
+      const openLabel =
+        notifType === 'store-signup'
+          ? 'Open users'
+          : notifType === 'store-review'
+            ? 'Open reviews'
+            : 'Open orders';
       await self.registration.showNotification(title, {
         body: data.body || 'Open Venus POS to review the order',
         icon: '/assets/logo-notif.png',
@@ -184,9 +259,9 @@ self.addEventListener('push', (event) => {
         requireInteraction: data.requireInteraction !== false,
         vibrate,
         silent: false,
-        data: { type: data.type || 'storefront-order', url: absoluteUrl },
+        data: { type: notifType, url: absoluteUrl },
         actions: [
-          { action: 'open', title: 'Open orders' },
+          { action: 'open', title: openLabel },
           { action: 'dismiss', title: 'Dismiss' },
         ],
       });
@@ -194,7 +269,10 @@ self.addEventListener('push', (event) => {
   );
 });
 
-/** Focus an open client or open the URL from notification data. */
+/**
+ * Open the installed PWA when possible; only fall back to a normal browser tab
+ * when the app is not installed (or openWindow cannot launch it).
+ */
 self.addEventListener('notificationclick', (event) => {
   const action = event.action;
   event.notification.close();
@@ -212,20 +290,31 @@ self.addEventListener('notificationclick', (event) => {
       }
 
       const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      for (const client of clientList) {
-        if (!('focus' in client)) continue;
-        await client.focus();
-        if ('navigate' in client) {
-          try {
-            await client.navigate(targetUrl);
-          } catch {
-            client.postMessage({ type: 'venus-notif-click', url: targetUrl });
-          }
-        } else {
-          client.postMessage({ type: 'venus-notif-click', url: targetUrl });
-        }
+      const focusable = clientList.filter((client) => 'focus' in client);
+
+      // Prefer an already-open standalone / installed-app window.
+      const standaloneFlags = await Promise.all(focusable.map((client) => probeStandalone(client)));
+      const standaloneIdx = standaloneFlags.findIndex(Boolean);
+      if (standaloneIdx >= 0) {
+        await focusAndNavigate(focusable[standaloneIdx], targetUrl);
         return;
       }
+
+      const installed = await isPwaInstalled();
+
+      // Installed PWA but not running: openWindow launches the standalone app on
+      // Chrome Android/Windows — do not steal focus to a plain browser tab first.
+      if (installed && self.clients.openWindow) {
+        const opened = await self.clients.openWindow(targetUrl);
+        if (opened) return;
+      }
+
+      // Not installed (or openWindow failed): reuse any open browser tab.
+      if (focusable.length) {
+        await focusAndNavigate(focusable[0], targetUrl);
+        return;
+      }
+
       if (self.clients.openWindow) await self.clients.openWindow(targetUrl);
     })(),
   );
