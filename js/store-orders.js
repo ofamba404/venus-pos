@@ -225,6 +225,44 @@ function consumeStoreOrdersHash() {
   renderStoreOrderUi();
 }
 
+function loadStoreOrderHashId() {
+  const m = String(location.hash || '').match(/^#load-store-order=(.+)$/);
+  if (!m?.[1]) return '';
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return m[1];
+  }
+}
+
+function clearLoadStoreOrderHash() {
+  if (!loadStoreOrderHashId()) return;
+  history.replaceState(null, '', `${location.pathname}${location.search}`);
+}
+
+/** Refresh cache if needed, then load into cart (notification / deep-link entry). */
+export async function loadStoreOrderFromNotification(orderId) {
+  const id = String(orderId || '').trim();
+  if (!id) return;
+  clearLoadStoreOrderHash();
+  if (!orderCache.has(id)) {
+    await refreshStoreOrders({ silent: true, force: true });
+  }
+  if (!orderCache.has(id)) {
+    openStoreOrdersPanel();
+    showToast('Order not found', true);
+    return;
+  }
+  await loadStoreOrderIntoCart(id);
+}
+
+function consumeLoadStoreOrderHash() {
+  const id = loadStoreOrderHashId();
+  if (!id) return;
+  clearLoadStoreOrderHash();
+  void loadStoreOrderFromNotification(id);
+}
+
 /** In-flight / optimistic dismissals — survives poll races until DB confirms dismissed_at. */
 const dismissingIds = new Set();
 
@@ -523,7 +561,6 @@ function upsertOrder(row, { announce = true } = {}) {
         customerName: orderTitle(row),
         totalLabel: fmtUGX(orderCashTotalUgx(row)),
         itemCount: row.item_count || (Array.isArray(row.items) ? row.items.length : 0),
-        url: `${location.pathname}${location.search}#store-orders`,
       });
     }
   } else if (prev && prev.status !== 'cancelled' && row.status === 'cancelled') {
@@ -1301,6 +1338,7 @@ export function startStoreOrdersRuntime() {
   window.__venusGetSwitchableStoreOrders = () =>
     getStackedStoreOrders().filter((o) => o.status !== 'cancelled');
   window.__venusLoadStoreOrderIntoCart = (id) => loadStoreOrderIntoCart(id);
+  window.__venusLoadStoreOrderFromNotification = (id) => loadStoreOrderFromNotification(id);
   window.__venusOpenAcceptedStoreOrderFromFab = () => openAcceptedStoreOrderFromFab();
   window.__venusRenderStoreOrderUi = renderStoreOrderUi;
   window.__venusLoadedStoreOrderCount = loadedStoreOrderCount;
@@ -1309,7 +1347,9 @@ export function startStoreOrdersRuntime() {
 
   if (bootstrapped) {
     renderStoreOrderUi();
-    void refreshStoreOrders({ silent: true, force: true });
+    void refreshStoreOrders({ silent: true, force: true }).then(() => {
+      if (loadStoreOrderHashId()) consumeLoadStoreOrderHash();
+    });
     if (!realtimeLive) void startStoreOrdersRealtime();
     return;
   }
@@ -1320,7 +1360,9 @@ export function startStoreOrdersRuntime() {
   void ensurePosLabels().then(() => renderStoreOrderUi());
   // Always re-fetch — session cache is paint-only. Skipping the network when
   // "fresh" previously left the stack stale for up to 90s without Realtime.
-  void refreshStoreOrders({ silent: true, force: true });
+  void refreshStoreOrders({ silent: true, force: true }).then(() => {
+    if (loadStoreOrderHashId()) consumeLoadStoreOrderHash();
+  });
   void startStoreOrdersRealtime();
 
   if (pollTimer == null) {
@@ -1341,9 +1383,14 @@ export function startStoreOrdersRuntime() {
 
   // Older builds wrote `#store-orders` while the panel was open; strip it on boot
   // so refresh never leaves the stack stuck open. In-app deep links still open via hashchange.
-  clearStoreOrdersHash();
+  // Keep `#load-store-order=` until refresh finishes so cold-start Load works.
+  if (!loadStoreOrderHashId()) clearStoreOrdersHash();
 
   window.addEventListener('hashchange', () => {
+    if (loadStoreOrderHashId()) {
+      consumeLoadStoreOrderHash();
+      return;
+    }
     if (storeOrdersHashActive()) consumeStoreOrdersHash();
   });
 }

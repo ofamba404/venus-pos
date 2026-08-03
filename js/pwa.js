@@ -160,15 +160,24 @@ export function bootPwa() {
       replyDisplayModePing(event);
       const url = event.data?.url;
       if (event.data?.type === 'venus-notif-click' && url) {
+        const orderId = event.data.orderId ? String(event.data.orderId) : '';
+        const intent = event.data.intent || '';
         void import('./router.js')
-          .then(({ pageIdFromHref, navigate }) => {
+          .then(async ({ pageIdFromHref, navigate }) => {
             const pageId = pageIdFromHref(url);
             if (!pageId) {
               location.href = url;
               return;
             }
             const parsed = new URL(url, location.href);
-            return navigate(pageId, { hash: parsed.hash || '' });
+            // Load intent is handled below — avoid opening the stack via hash.
+            const hash =
+              intent === 'load' && orderId ? '' : parsed.hash || '';
+            await navigate(pageId, { hash });
+            if (intent === 'load' && orderId) {
+              const { loadStoreOrderFromNotification } = await import('./store-orders.js');
+              await loadStoreOrderFromNotification(orderId);
+            }
           })
           .catch(() => {
             location.href = url;

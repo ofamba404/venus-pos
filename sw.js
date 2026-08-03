@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'venus-pos-v53';
+const CACHE_VERSION = 'venus-pos-v55';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 /** Survives CACHE_VERSION bumps — records that Venus POS was installed as a PWA. */
@@ -179,8 +179,19 @@ function probeStandalone(client, timeoutMs = 120) {
   });
 }
 
-async function focusAndNavigate(client, targetUrl) {
+async function focusAndNavigate(client, targetUrl, extra = {}) {
   if ('focus' in client) await client.focus();
+  // Load-into-cart must hit the SPA via postMessage — client.navigate would
+  // skip the handler and only change the hash.
+  if (extra.intent === 'load' && extra.orderId) {
+    client.postMessage({
+      type: 'venus-notif-click',
+      url: targetUrl,
+      orderId: extra.orderId,
+      intent: 'load',
+    });
+    return;
+  }
   if ('navigate' in client) {
     try {
       await client.navigate(targetUrl);
@@ -190,6 +201,23 @@ async function focusAndNavigate(client, targetUrl) {
     }
   }
   client.postMessage({ type: 'venus-notif-click', url: targetUrl });
+}
+
+function orderIdFromNotifData(data = {}) {
+  if (data.orderId) return String(data.orderId);
+  const tag = String(data.tag || '');
+  const fromTag = tag.match(/^storefront-order-(.+)$/);
+  if (fromTag?.[1]) return fromTag[1];
+  const url = String(data.url || '');
+  const fromUrl = url.match(/#load-store-order=([^&]+)/);
+  if (fromUrl?.[1]) {
+    try {
+      return decodeURIComponent(fromUrl[1]);
+    } catch {
+      return fromUrl[1];
+    }
+  }
+  return '';
 }
 
 self.addEventListener('message', (event) => {
@@ -244,12 +272,19 @@ self.addEventListener('push', (event) => {
         /* ignore */
       }
       const notifType = data.type || 'storefront-order';
-      const openLabel =
+      const orderId = orderIdFromNotifData({ ...data, url: absoluteUrl });
+      const isOrderLoad = notifType === 'storefront-order' && !!orderId;
+      const actionLabel =
         notifType === 'store-signup'
           ? 'Open users'
           : notifType === 'store-review'
             ? 'Open reviews'
-            : 'Open orders';
+            : isOrderLoad
+              ? 'Load'
+              : 'Open orders';
+      const notifUrl = isOrderLoad
+        ? new URL(`/#load-store-order=${encodeURIComponent(orderId)}`, self.registration.scope).href
+        : absoluteUrl;
       await self.registration.showNotification(title, {
         body: data.body || 'Open Venus POS to review the order',
         icon: '/assets/logo-notif.png',
@@ -259,9 +294,14 @@ self.addEventListener('push', (event) => {
         requireInteraction: data.requireInteraction !== false,
         vibrate,
         silent: false,
-        data: { type: notifType, url: absoluteUrl },
+        data: {
+          type: notifType,
+          url: notifUrl,
+          tag: data.tag || '',
+          ...(orderId ? { orderId, intent: 'load' } : {}),
+        },
         actions: [
-          { action: 'open', title: openLabel },
+          { action: isOrderLoad ? 'load' : 'open', title: actionLabel },
           { action: 'dismiss', title: 'Dismiss' },
         ],
       });
@@ -278,8 +318,18 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   if (action === 'dismiss') return;
 
+  const notifData = event.notification.data || {};
+  const orderId = orderIdFromNotifData(notifData);
+  const wantLoad =
+    (action === 'load' || notifData.intent === 'load' || action === '' || action === 'open') &&
+    notifData.type === 'storefront-order' &&
+    !!orderId;
   const targetUrl =
-    event.notification.data?.url || new URL('/#store-orders', self.registration.scope).href;
+    notifData.url ||
+    (wantLoad
+      ? new URL(`/#load-store-order=${encodeURIComponent(orderId)}`, self.registration.scope).href
+      : new URL('/#store-orders', self.registration.scope).href);
+  const navExtra = wantLoad ? { orderId, intent: 'load' } : {};
 
   event.waitUntil(
     (async () => {
@@ -296,7 +346,7 @@ self.addEventListener('notificationclick', (event) => {
       const standaloneFlags = await Promise.all(focusable.map((client) => probeStandalone(client)));
       const standaloneIdx = standaloneFlags.findIndex(Boolean);
       if (standaloneIdx >= 0) {
-        await focusAndNavigate(focusable[standaloneIdx], targetUrl);
+        await focusAndNavigate(focusable[standaloneIdx], targetUrl, navExtra);
         return;
       }
 
@@ -311,7 +361,7 @@ self.addEventListener('notificationclick', (event) => {
 
       // Not installed (or openWindow failed): reuse any open browser tab.
       if (focusable.length) {
-        await focusAndNavigate(focusable[0], targetUrl);
+        await focusAndNavigate(focusable[0], targetUrl, navExtra);
         return;
       }
 

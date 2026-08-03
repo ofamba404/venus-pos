@@ -97,9 +97,10 @@ export default async () => {
       type: 'storefront-order',
       title: 'Order placed',
       body: formatBody(row),
-      url: '/#store-orders',
+      url: `/#load-store-order=${encodeURIComponent(row.id)}`,
       tag: `storefront-order-${row.id}`,
       requireInteraction: true,
+      orderId: row.id,
     });
 
     await store.setJSON(key, {

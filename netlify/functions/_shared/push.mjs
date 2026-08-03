@@ -52,6 +52,7 @@ export function configureWebPush() {
  *   tag?: string,
  *   requireInteraction?: boolean,
  *   schedulesOnly?: boolean,
+ *   orderId?: string,
  * }} payload
  * schedulesOnly: only devices with schedulesEnabled (quote reminders).
  */
@@ -70,6 +71,7 @@ export async function sendToAllStaff(payload) {
     requireInteraction: payload.requireInteraction !== false,
     vibrate: [220, 80, 220, 80, 400],
     renotify: true,
+    ...(payload.orderId ? { orderId: String(payload.orderId) } : {}),
   });
 
   let sent = 0;

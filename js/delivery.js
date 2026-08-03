@@ -33,6 +33,7 @@ import {
   periodForDate,
   periodMeta,
   predictSafeBodaFee as predictFromModel,
+  predictSafeBodaFeeRange as predictRangeFromModel,
   quoteFee,
 } from './delivery-fee-model.js';
 import { isTestQuote, renderQuoteLab } from './delivery-quote-lab.js';
@@ -73,6 +74,15 @@ export function getDeliveryFeeModel() {
 export function predictSafeBodaFee(km, opts = {}) {
   const model = opts.model ?? getDeliveryFeeModel();
   return predictFromModel(km, model, opts);
+}
+
+/**
+ * Min–max SafeBoda fee range from logged residual envelopes.
+ * feeMaxUgx is the value autofilled into checkout (editable before save).
+ */
+export function predictSafeBodaFeeRange(km, opts = {}) {
+  const model = opts.model ?? getDeliveryFeeModel();
+  return predictRangeFromModel(km, model, opts);
 }
 
 function buildDeliveryScatterSVG(model) {

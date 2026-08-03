@@ -245,6 +245,7 @@ export async function syncWebPushPrefs({
  *   requireInteraction?: boolean,
  *   inApp?: boolean,
  *   silentOs?: boolean,
+ *   orderId?: string,
  * }} opts
  */
 export async function showAppNotification(opts) {
@@ -257,10 +258,11 @@ export async function showAppNotification(opts) {
     requireInteraction = false,
     inApp = true,
     silentOs = false,
+    orderId = '',
   } = opts;
 
   if (inApp) {
-    showInAppBanner({ type, title, body, url });
+    showInAppBanner({ type, title, body, url, orderId });
   }
 
   if (silentOs) return { ok: true, via: 'in-app-only' };
@@ -269,6 +271,7 @@ export async function showAppNotification(opts) {
   if (permission !== 'granted') return { ok: false, reason: permission };
 
   const absoluteUrl = new URL(url, location.href).href;
+  const wantLoad = type === NOTIF_TYPE.STOREFRONT_ORDER && !!orderId;
   const options = {
     body,
     icon: logoNotifUrl(),
@@ -278,8 +281,19 @@ export async function showAppNotification(opts) {
     requireInteraction,
     vibrate: [220, 80, 220, 80, 400],
     silent: false,
-    data: { type, url: absoluteUrl },
+    data: {
+      type,
+      url: absoluteUrl,
+      tag,
+      ...(wantLoad ? { orderId, intent: 'load' } : {}),
+    },
   };
+  if (wantLoad) {
+    options.actions = [
+      { action: 'load', title: 'Load' },
+      { action: 'dismiss', title: 'Dismiss' },
+    ];
+  }
 
   try {
     if ('serviceWorker' in navigator) {
@@ -297,7 +311,11 @@ export async function showAppNotification(opts) {
     n.onclick = () => {
       window.focus();
       clearAppBadge();
-      if (absoluteUrl && absoluteUrl !== location.href) location.href = absoluteUrl;
+      if (wantLoad) {
+        void import('./store-orders.js').then((m) => m.loadStoreOrderFromNotification(orderId));
+      } else if (absoluteUrl && absoluteUrl !== location.href) {
+        location.href = absoluteUrl;
+      }
       n.close();
     };
     await bumpAppBadge();
@@ -312,7 +330,14 @@ export async function showAppNotification(opts) {
  * In-app banner — works even when Notification permission is denied.
  * Swipe left/right to dismiss (same idea as cancelled store-order cards).
  */
-export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body = '', url = null, actions = null }) {
+export function showInAppBanner({
+  type = NOTIF_TYPE.DELIVERY_TEST,
+  title,
+  body = '',
+  url = null,
+  orderId = '',
+  actions = null,
+}) {
   let el = document.getElementById('inAppBanner');
   if (!el) {
     el = document.createElement('div');
@@ -327,10 +352,14 @@ export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body =
 
   const logo = getAssetHref('logo.svg');
   const primaryUrl = url || getPageHref('home');
+  const wantLoad = type === NOTIF_TYPE.STOREFRONT_ORDER && !!orderId;
   const actionHtml =
     actions ||
-    `<a class="in-app-banner-cta" href="${primaryUrl}">Open</a>
-     <button type="button" class="in-app-banner-dismiss" data-banner-dismiss>Dismiss</button>`;
+    (wantLoad
+      ? `<button type="button" class="in-app-banner-cta" data-banner-load-order="${escapeBanner(orderId)}">Load</button>
+     <button type="button" class="in-app-banner-dismiss" data-banner-dismiss>Dismiss</button>`
+      : `<a class="in-app-banner-cta" href="${primaryUrl}">Open</a>
+     <button type="button" class="in-app-banner-dismiss" data-banner-dismiss>Dismiss</button>`);
 
   el.dataset.type = type;
   el.hidden = false;
@@ -350,6 +379,12 @@ export function showInAppBanner({ type = NOTIF_TYPE.DELIVERY_TEST, title, body =
 
   const dismiss = () => dismissInAppBanner(el);
   el.querySelector('[data-banner-dismiss]')?.addEventListener('click', dismiss);
+  el.querySelector('[data-banner-load-order]')?.addEventListener('click', () => {
+    const id = el.querySelector('[data-banner-load-order]')?.getAttribute('data-banner-load-order') || '';
+    dismiss();
+    if (!id) return;
+    void import('./store-orders.js').then((m) => m.loadStoreOrderFromNotification(id));
+  });
 
   clearTimeout(showInAppBanner._t);
   showInAppBanner._t = setTimeout(() => {
@@ -589,8 +624,13 @@ export async function notifyStorefrontOrder(order = {}) {
   if (order.itemCount) parts.push(`${order.itemCount} item${order.itemCount === 1 ? '' : 's'}`);
   if (order.totalLabel) parts.push(order.totalLabel);
   const body = parts.join(' · ');
-  const tag = order.orderId ? `storefront-order-${order.orderId}` : `storefront-order-${Date.now()}`;
-  const url = order.url || `${getPageHref('home')}#store-orders`;
+  const orderId = order.orderId ? String(order.orderId) : '';
+  const tag = orderId ? `storefront-order-${orderId}` : `storefront-order-${Date.now()}`;
+  const url =
+    order.url ||
+    (orderId
+      ? `${getPageHref('home')}#load-store-order=${encodeURIComponent(orderId)}`
+      : `${getPageHref('home')}#store-orders`);
 
   return showAppNotification({
     type: NOTIF_TYPE.STOREFRONT_ORDER,
@@ -598,6 +638,7 @@ export async function notifyStorefrontOrder(order = {}) {
     body,
     url,
     tag,
+    orderId,
     requireInteraction: true,
     inApp: true,
     // Always fire a local OS alert too — push may lag or miss when the tab is open.

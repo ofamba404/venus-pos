@@ -398,9 +398,8 @@ export function wireInventoryPage() {
   }
 
   function closeAmountModal() {
-    closeModal(amountModal);
+    closeModal(amountModal, { onComplete: clearAmountTheme });
     amountContext = null;
-    clearAmountTheme();
   }
 
   function applyAmountModal() {

@@ -206,14 +206,18 @@ export function openModal(overlay, { instant = false } = {}) {
     );
 }
 
-export function closeModal(overlay, { instant = false } = {}) {
-  if (!overlay || overlay.hidden) return;
+export function closeModal(overlay, { instant = false, onComplete } = {}) {
+  if (!overlay || overlay.hidden) {
+    onComplete?.();
+    return;
+  }
 
   if (instant || !hasGsap() || prefersReducedMotion()) {
     overlay._closeTween?.kill?.();
     overlay._closeTween = null;
     overlay.hidden = true;
     overlay._closing = false;
+    onComplete?.();
     return;
   }
 
@@ -228,6 +232,7 @@ export function closeModal(overlay, { instant = false } = {}) {
         overlay._closing = false;
         overlay._closeTween = null;
         gsap().set([overlay, modal].filter(Boolean), { clearProps: 'opacity,transform' });
+        onComplete?.();
       },
     })
     .to(modal, { y: 12, opacity: 0, duration: 0.18, ease: EASE.in, force3D: true })

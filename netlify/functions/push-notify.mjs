@@ -33,23 +33,29 @@ export default async (req) => {
 
   const type = body.type || 'storefront-order';
   const tag = body.tag || `venus-pos-${Date.now()}`;
+  const orderMatch = String(tag).match(/^storefront-order-(.+)$/);
+  const orderId =
+    body.orderId || (type === 'storefront-order' && orderMatch?.[1] ? orderMatch[1] : '') || '';
+  const url =
+    body.url ||
+    (orderId ? `/#load-store-order=${encodeURIComponent(orderId)}` : '/#store-orders');
 
   const result = await sendToAllStaff({
     type,
     title: body.title,
     body: body.body || '',
-    url: body.url || '/#store-orders',
+    url,
     tag,
     requireInteraction: body.requireInteraction !== false,
+    ...(orderId ? { orderId } : {}),
   });
 
   // Mark order as alerted so the minute poller does not double-push.
-  const orderMatch = String(tag).match(/^storefront-order-(.+)$/);
-  if (orderMatch?.[1] && type === 'storefront-order') {
+  if (orderId && type === 'storefront-order') {
     try {
       const store = getStore({ name: 'venus-push-order-alerts', consistency: 'strong' });
-      await store.setJSON(`order:${orderMatch[1]}`, {
-        orderId: orderMatch[1],
+      await store.setJSON(`order:${orderId}`, {
+        orderId,
         pushedAt: new Date().toISOString(),
         sent: result.sent || 0,
         via: 'notify',

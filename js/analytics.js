@@ -676,6 +676,28 @@ function renderEditSaleMainView() {
     : '';
   const total = saleItemsTotal(editSaleItems);
 
+  const fulfillBits = [];
+  if (sale) {
+    const phone = String(sale.client_phone || '').trim();
+    if (phone) fulfillBits.push(phone);
+    const delivery = sale.delivery && typeof sale.delivery === 'object' ? sale.delivery : {};
+    const when = String(delivery.label || '').trim();
+    if (sale.delivery_enabled === false) {
+      fulfillBits.push(when ? `Pickup · ${when}` : 'Pickup');
+    } else if (when) {
+      fulfillBits.push(`Delivery · ${when}`);
+    }
+    const location = String(sale.location_label || '').trim();
+    if (location) fulfillBits.push(location);
+    const fee = sale.delivery_fee_ugx;
+    if (fee != null && !Number.isNaN(Number(fee)) && Number(fee) > 0) {
+      fulfillBits.push(`Fee ${fmtUGX(fee)}`);
+    }
+  }
+  const fulfillHtml = fulfillBits.length
+    ? `<div class="edit-sale-fulfillment">${escapeHtml(fulfillBits.join(' · '))}</div>`
+    : '';
+
   const itemRows =
     editSaleItems.length === 0
       ? `<div class="cart-empty">No items — add items below or void this order</div>`
@@ -743,6 +765,7 @@ function renderEditSaleMainView() {
           : ''
       }
     </div>
+    ${fulfillHtml}
     ${itemRows}
     <button class="add-item-btn" id="editSaleAddItem" type="button">+ Add item</button>
     <div class="cart-total-row">

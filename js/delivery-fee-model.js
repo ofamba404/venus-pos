@@ -8,9 +8,20 @@
  * Venus does not get live API quotes, so we fit from your logged quotes.
  * In-range: OLS + period premiums + MIN_FARE floor.
  * Past farthest logged km: blend toward long-range SafeBoda anchors.
+ * Quotes expose a min–max range from km-band residual envelopes so every
+ * logged SafeBoda fee falls inside (width grows past 500/1000 when needed).
  */
 
 export const FEE_STEP_UGX = 500;
+
+/** Distance bands for residual envelopes used by quoteFeeRange. */
+export const RANGE_BANDS_KM = [
+  { minKm: 0, maxKm: 3 },
+  { minKm: 3, maxKm: 6 },
+  { minKm: 6, maxKm: 9 },
+  { minKm: 9, maxKm: 15 },
+  { minKm: 15, maxKm: Infinity },
+];
 
 /** SafeBoda minimum fare (UGX). Applied after predict — never during the OLS fit. */
 export const MIN_FARE_UGX = 3000;
@@ -78,6 +89,14 @@ export function periodForDate(date = new Date()) {
 
 export function roundFeeToNearest500(fee) {
   return Math.max(0, Math.round(fee / FEE_STEP_UGX) * FEE_STEP_UGX);
+}
+
+export function roundFeeDown500(fee) {
+  return Math.max(0, Math.floor(fee / FEE_STEP_UGX) * FEE_STEP_UGX);
+}
+
+export function roundFeeUp500(fee) {
+  return Math.max(0, Math.ceil(fee / FEE_STEP_UGX) * FEE_STEP_UGX);
 }
 
 function mean(nums) {
@@ -286,7 +305,7 @@ export function fitDeliveryFeeModel(rows) {
   // Back-compat aliases used by older scatter / UI code.
   const dataMaxKm = Math.max(...samples.map((s) => s.km));
 
-  return {
+  const model = {
     kind: 'dynamic',
     n: samples.length,
     r2,
@@ -301,6 +320,52 @@ export function fitDeliveryFeeModel(rows) {
     dataMaxKm,
     samples,
   };
+  model.residualBands = fitResidualBands(model, samples);
+  return model;
+}
+
+function envelopeFromResiduals(residuals) {
+  if (!residuals.length) {
+    return { minResidual: -FEE_STEP_UGX, maxResidual: FEE_STEP_UGX, n: 0 };
+  }
+  return {
+    minResidual: Math.min(...residuals),
+    maxResidual: Math.max(...residuals),
+    n: residuals.length,
+  };
+}
+
+/** Snap quoted point residuals into km-band envelopes for range quotes. */
+function fitResidualBands(model, samples) {
+  const bandBuckets = RANGE_BANDS_KM.map((b) => ({ ...b, residuals: [] }));
+  const global = [];
+  samples.forEach((s) => {
+    const pred = quoteFee(s.km, model, { durationMin: s.mins, period: s.period });
+    const err = s.fee - pred;
+    global.push(err);
+    const band =
+      bandBuckets.find((b) => s.km >= b.minKm && s.km < b.maxKm) ||
+      bandBuckets[bandBuckets.length - 1];
+    band.residuals.push(err);
+  });
+  return {
+    global: envelopeFromResiduals(global),
+    bands: bandBuckets.map((b) => ({
+      minKm: b.minKm,
+      maxKm: b.maxKm,
+      ...envelopeFromResiduals(b.residuals),
+    })),
+  };
+}
+
+function envelopeForKm(km, model) {
+  const rb = model?.residualBands;
+  if (!rb) {
+    return { minResidual: -FEE_STEP_UGX * 2, maxResidual: FEE_STEP_UGX * 2, n: 0 };
+  }
+  const band = rb.bands.find((b) => km >= b.minKm && km < b.maxKm);
+  if (band && band.n >= 2) return band;
+  return rb.global;
 }
 
 export function estimateDurationMin(km, model) {
@@ -347,6 +412,30 @@ export function quoteFee(km, model, opts = {}) {
 }
 
 /**
+ * Min–max range that covers logged SafeBoda residual envelopes for this km band.
+ * Width is 500 when the band allows, otherwise grows in 500 UGX steps as needed.
+ * @returns {{ feeMinUgx: number, feeMaxUgx: number, feePointUgx: number, widthUgx: number }}
+ */
+export function quoteFeeRange(km, model, opts = {}) {
+  const point = quoteFee(km, model, opts);
+  if (!point) {
+    return { feeMinUgx: 0, feeMaxUgx: 0, feePointUgx: 0, widthUgx: 0 };
+  }
+  const env = envelopeForKm(km, model);
+  let lo = Math.max(MIN_FARE_UGX, roundFeeDown500(point + env.minResidual));
+  let hi = Math.max(lo + FEE_STEP_UGX, roundFeeUp500(point + env.maxResidual));
+  if (point < lo) lo = Math.max(MIN_FARE_UGX, roundFeeDown500(point));
+  if (point > hi) hi = roundFeeUp500(point);
+  if (hi - lo < FEE_STEP_UGX) hi = lo + FEE_STEP_UGX;
+  return {
+    feeMinUgx: lo,
+    feeMaxUgx: hi,
+    feePointUgx: point,
+    widthUgx: hi - lo,
+  };
+}
+
+/**
  * @param {number} km
  * @param {object | null} model
  * @param {{ durationMin?: number|null, period?: string|null, at?: Date|string|null }} [opts]
@@ -355,6 +444,16 @@ export function predictSafeBodaFee(km, model, opts = {}) {
   if (!model || km == null || Number.isNaN(km)) return null;
   const fee = quoteFee(km, model, opts);
   return fee > 0 ? fee : null;
+}
+
+/**
+ * Range quote for storefront / POS — feeMaxUgx is the safe stored estimate.
+ * @returns {{ feeMinUgx: number, feeMaxUgx: number, feePointUgx: number, widthUgx: number } | null}
+ */
+export function predictSafeBodaFeeRange(km, model, opts = {}) {
+  if (!model || km == null || Number.isNaN(km)) return null;
+  const range = quoteFeeRange(km, model, opts);
+  return range.feeMaxUgx > 0 ? range : null;
 }
 
 export function modelConfidence(model) {

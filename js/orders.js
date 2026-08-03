@@ -13,7 +13,9 @@ import {
   ICON_ROUTE,
   loadGoogleMaps,
   predictSafeBodaFee,
+  predictSafeBodaFeeRange,
 } from './delivery.js';
+import { BASE_ORIGIN } from './delivery-test-routes.js';
 import {
   deliveryPlaceFieldMarkup,
   reverseGeocodeLabel,
@@ -236,10 +238,20 @@ function formatOrderClockTime(isoOrDate) {
   });
 }
 
+/**
+ * Review-cart time: keep "Right now"; turn "In 30 min" / "In 1 hour" into a clock.
+ * @param {{ deliveryTimeMode?: string, deliveryDeliverAt?: string, deliveryTimeLabel?: string }} meta
+ */
+function formatReviewDeliveryTime(meta = {}) {
+  const label = String(meta.deliveryTimeLabel || '').trim();
+  const mode = String(meta.deliveryTimeMode || '').trim();
+  if (mode === 'now' || /^right\s*now$/i.test(label)) return label || 'Right now';
+  return formatOrderClockTime(meta.deliveryDeliverAt) || label;
+}
+
 /** Prefer absolute deliverAt over relative labels like "In 30 min". */
 function getOrderDeliveryTimeLabel() {
-  const meta = getOrderMeta();
-  return formatOrderClockTime(meta.deliveryDeliverAt) || meta.deliveryTimeLabel || '';
+  return formatReviewDeliveryTime(getOrderMeta());
 }
 
 function getOrderDeliveryLocationLabel() {
@@ -267,6 +279,45 @@ function emptyOrderMeta(extra = {}) {
     deliveryDeliverAt: '',
     storeOrderId: '',
     ...extra,
+  };
+}
+
+/** Snapshot review-cart / storefront fulfillment for the `sales` row (order history). */
+function buildSaleFulfillmentFields() {
+  const meta = getOrderMeta();
+  const phone = String(meta.clientPhone || '').trim();
+  const locationLabel = String(meta.deliveryLocationLabel || checkoutDestText || '').trim();
+  const deliveryLabel = String(meta.deliveryTimeLabel || '').trim();
+  const deliveryMode = String(meta.deliveryTimeMode || '').trim();
+  const deliverAt = String(meta.deliveryDeliverAt || '').trim();
+  const linkedStoreOrderId = String(meta.storeOrderId || '').trim();
+  const feeParsed = parseInt(checkoutFeeValue, 10);
+  const lat = checkoutDest?.lat != null ? Number(checkoutDest.lat) : NaN;
+  const lng = checkoutDest?.lng != null ? Number(checkoutDest.lng) : NaN;
+
+  /** @type {Record<string, string>} */
+  const delivery = {};
+  if (deliveryMode) delivery.mode = deliveryMode;
+  if (deliveryLabel) delivery.label = deliveryLabel;
+  if (deliverAt) delivery.deliverAt = deliverAt;
+
+  return {
+    client_phone: phone || null,
+    delivery_enabled: meta.deliveryEnabled !== false,
+    delivery,
+    location_label: locationLabel || null,
+    location_lat: Number.isFinite(lat) ? lat : null,
+    location_lng: Number.isFinite(lng) ? lng : null,
+    delivery_fee_ugx: Number.isFinite(feeParsed) && feeParsed >= 0 ? feeParsed : null,
+    delivery_distance_km:
+      checkoutDistanceKm == null || Number.isNaN(Number(checkoutDistanceKm))
+        ? null
+        : Number(checkoutDistanceKm),
+    delivery_duration_min:
+      checkoutDurationMin == null || Number.isNaN(Number(checkoutDurationMin))
+        ? null
+        : Number(checkoutDurationMin),
+    store_order_id: linkedStoreOrderId || null,
   };
 }
 
@@ -440,8 +491,7 @@ function reviewPropsFromSession(orderId, session) {
     orderClientId: meta.clientId || '',
     orderIsCredit: !!meta.isCredit,
     orderClientPhone: meta.clientPhone || '',
-    orderDeliveryTime:
-      formatOrderClockTime(meta.deliveryDeliverAt) || meta.deliveryTimeLabel || '',
+    orderDeliveryTime: formatReviewDeliveryTime(meta),
     orderDeliveryLocation:
       String(meta.deliveryLocationLabel || checkout.destText || '').trim(),
     orderDeliveryEnabled: meta.deliveryEnabled !== false,
@@ -1045,7 +1095,12 @@ function updateCheckoutDistanceReadout() {
 
 function applyPredictedFee() {
   if (checkoutFeeManuallyEdited || checkoutDistanceKm == null) return;
-  const predicted = predictSafeBodaFee(checkoutDistanceKm, {
+  const range = predictSafeBodaFeeRange(checkoutDistanceKm, {
+    durationMin: checkoutDurationMin,
+    at: new Date(),
+  });
+  // Prefer range high end (same as storefront); fall back to point estimate.
+  const predicted = range?.feeMaxUgx ?? predictSafeBodaFee(checkoutDistanceKm, {
     durationMin: checkoutDurationMin,
     at: new Date(),
   });
@@ -1108,12 +1163,9 @@ function ensureReviewDeliveryRoute() {
     syncReviewDeliveryEstimateUi();
     return;
   }
+  // Storefront distance is shop → customer. Never block logging on staff GPS.
   if (!checkoutOrigin) {
-    if (!pickupAutoRequested) {
-      pickupAutoRequested = true;
-      autoFillPickupLocation();
-    }
-    return;
+    applyShopPickupOrigin();
   }
   if (checkoutDistanceKm == null) {
     computeCheckoutDistance();
@@ -1227,6 +1279,17 @@ function wireDeliveryAutocompletes() {
 }
 
 const PICKUP_PROVISIONAL = 'Locating…';
+
+/**
+ * Shop pin used by storefront quotes — review-cart logs must use this origin,
+ * not staff GPS (which is often missing when checkout is tapped quickly).
+ */
+function applyShopPickupOrigin() {
+  checkoutOrigin = { lat: BASE_ORIGIN.lat, lng: BASE_ORIGIN.lng };
+  if (!checkoutPickupText || checkoutPickupText === PICKUP_PROVISIONAL) {
+    checkoutPickupText = BASE_ORIGIN.label;
+  }
+}
 
 function setPickupField(label) {
   checkoutPickupText = label;
@@ -2381,6 +2444,7 @@ async function checkout() {
         : {}),
     }));
 
+    const fulfillment = buildSaleFulfillmentFields();
     const res = await sbFetch('sales', {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
@@ -2392,6 +2456,7 @@ async function checkout() {
         credit_cleared: !orderIsCredit,
         amount_paid_ugx: orderIsCredit ? 0 : total,
         cleared_at: null,
+        ...fulfillment,
       }),
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
@@ -2416,16 +2481,27 @@ async function checkout() {
     }
 
     const feeVal = parseInt(checkoutFeeValue, 10);
+    // Safety net: storefront review quotes are always shop-origin; don't drop the
+    // deliveries row if GPS autofill never ran.
+    if (!checkoutOrigin && storeOrderId && checkoutDest && getOrderDeliveryEnabled()) {
+      applyShopPickupOrigin();
+    }
     const deliveryAttempted =
       checkoutOrigin && checkoutDest && checkoutDistanceKm != null && feeVal > 0;
     // Recompute once at confirm so we still log an estimate even if autofill never ran
     // (e.g. model became ready mid-flow); prefer the autofilled snapshot when present.
     let predictedAtCheckout = checkoutPredictedFee;
     if (predictedAtCheckout == null && checkoutDistanceKm != null) {
-      predictedAtCheckout = predictSafeBodaFee(checkoutDistanceKm, {
+      const range = predictSafeBodaFeeRange(checkoutDistanceKm, {
         durationMin: checkoutDurationMin,
         at: new Date(),
       });
+      predictedAtCheckout =
+        range?.feeMaxUgx ??
+        predictSafeBodaFee(checkoutDistanceKm, {
+          durationMin: checkoutDurationMin,
+          at: new Date(),
+        });
     }
     const feeWasEdited =
       checkoutFeeManuallyEdited &&
@@ -2580,6 +2656,8 @@ export function applyStorefrontOrderToCart({
 
   if (wantsDelivery) {
     checkoutDestText = locationText;
+    // Match storefront quote origin so checkout can always log a deliveries row.
+    applyShopPickupOrigin();
     if (
       locationLat != null &&
       locationLng != null &&
@@ -2589,8 +2667,12 @@ export function applyStorefrontOrderToCart({
       checkoutDest = { lat: Number(locationLat), lng: Number(locationLng) };
     }
     if (deliveryFeeUgx != null && !Number.isNaN(Number(deliveryFeeUgx))) {
-      checkoutFeeValue = String(Math.round(Number(deliveryFeeUgx)));
-      checkoutFeeManuallyEdited = true;
+      const seeded = Math.round(Number(deliveryFeeUgx));
+      checkoutFeeValue = String(seeded);
+      // Seeded quote from the storefront — staff can edit before save; only then
+      // is it treated as a manual override in fee_was_edited / model training.
+      checkoutFeeManuallyEdited = false;
+      checkoutPredictedFee = seeded;
     }
     if (deliveryDistanceKm != null && !Number.isNaN(Number(deliveryDistanceKm))) {
       checkoutDistanceKm = Number(deliveryDistanceKm);
@@ -2600,10 +2682,19 @@ export function applyStorefrontOrderToCart({
     }
     const at = delivery?.deliverAt ? new Date(delivery.deliverAt) : new Date();
     if (checkoutPredictedFee == null && checkoutDistanceKm != null) {
-      checkoutPredictedFee = predictSafeBodaFee(checkoutDistanceKm, {
+      const range = predictSafeBodaFeeRange(checkoutDistanceKm, {
         durationMin: checkoutDurationMin,
         at: Number.isNaN(at.getTime()) ? new Date() : at,
       });
+      checkoutPredictedFee =
+        range?.feeMaxUgx ??
+        predictSafeBodaFee(checkoutDistanceKm, {
+          durationMin: checkoutDurationMin,
+          at: Number.isNaN(at.getTime()) ? new Date() : at,
+        });
+      if (checkoutPredictedFee != null && !checkoutFeeValue) {
+        checkoutFeeValue = String(checkoutPredictedFee);
+      }
     }
   }
 

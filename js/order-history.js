@@ -170,6 +170,30 @@ export function buildOrderHistoryTree(sales, now = new Date()) {
   return { thisWeekDays, recentWeeks, months };
 }
 
+function fulfillmentMetaBits(s) {
+  const bits = [];
+  const phone = String(s.client_phone || '').trim();
+  if (phone) bits.push(phone);
+
+  const delivery = s.delivery && typeof s.delivery === 'object' ? s.delivery : {};
+  const when = String(delivery.label || '').trim();
+  if (s.delivery_enabled === false) {
+    bits.push(when ? `Pickup · ${when}` : 'Pickup');
+  } else if (when) {
+    bits.push(when);
+  }
+
+  const location = String(s.location_label || '').trim();
+  if (location) bits.push(location);
+
+  const fee = s.delivery_fee_ugx;
+  if (fee != null && !Number.isNaN(Number(fee)) && Number(fee) > 0) {
+    bits.push(`Fee ${fmtUGX(fee)}`);
+  }
+
+  return bits;
+}
+
 function renderOrderRow(s) {
   const t = new Date(s.created_at);
   const time = t.toLocaleTimeString(undefined, {
@@ -185,6 +209,10 @@ function renderOrderRow(s) {
     .join('<br>');
   const client = s.client_id ? clients.find((c) => c.id === s.client_id) : null;
   const clientLine = client ? `<div class="r-client">${escapeHtml(client.name)}</div>` : '';
+  const metaBits = fulfillmentMetaBits(s);
+  const metaLine = metaBits.length
+    ? `<div class="r-meta">${escapeHtml(metaBits.join(' · '))}</div>`
+    : '';
   const items = Array.isArray(s.items) ? s.items : [];
   const allFreebie =
     items.length > 0 && items.every((i) => Boolean(i.is_reward) || Number(i.line_total) === 0);
@@ -198,6 +226,7 @@ function renderOrderRow(s) {
       hasFreebie && !allFreebie ? '<span class="freebie-tag">freebie</span>' : ''
     }${s.is_credit && !s.credit_cleared ? '<span class="credit-tag">credit</span>' : ''}</span></div>
     ${clientLine}
+    ${metaLine}
     <div class="r-items">${itemLines}</div>
   </button>`;
 }
