@@ -1098,11 +1098,13 @@ function applyPredictedFee() {
   const range = predictSafeBodaFeeRange(checkoutDistanceKm, {
     durationMin: checkoutDurationMin,
     at: new Date(),
+    dest: checkoutDest,
   });
   // Prefer range high end (same as storefront); fall back to point estimate.
   const predicted = range?.feeMaxUgx ?? predictSafeBodaFee(checkoutDistanceKm, {
     durationMin: checkoutDurationMin,
     at: new Date(),
+    dest: checkoutDest,
   });
   if (predicted == null) {
     checkoutPredictedFee = null;
@@ -2495,12 +2497,14 @@ async function checkout() {
       const range = predictSafeBodaFeeRange(checkoutDistanceKm, {
         durationMin: checkoutDurationMin,
         at: new Date(),
+        dest: checkoutDest,
       });
       predictedAtCheckout =
         range?.feeMaxUgx ??
         predictSafeBodaFee(checkoutDistanceKm, {
           durationMin: checkoutDurationMin,
           at: new Date(),
+          dest: checkoutDest,
         });
     }
     const feeWasEdited =
@@ -2685,12 +2689,14 @@ export function applyStorefrontOrderToCart({
       const range = predictSafeBodaFeeRange(checkoutDistanceKm, {
         durationMin: checkoutDurationMin,
         at: Number.isNaN(at.getTime()) ? new Date() : at,
+        dest: checkoutDest,
       });
       checkoutPredictedFee =
         range?.feeMaxUgx ??
         predictSafeBodaFee(checkoutDistanceKm, {
           durationMin: checkoutDurationMin,
           at: Number.isNaN(at.getTime()) ? new Date() : at,
+          dest: checkoutDest,
         });
       if (checkoutPredictedFee != null && !checkoutFeeValue) {
         checkoutFeeValue = String(checkoutPredictedFee);

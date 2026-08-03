@@ -8,11 +8,24 @@
  * Venus does not get live API quotes, so we fit from your logged quotes.
  * In-range: OLS + period premiums + MIN_FARE floor.
  * Past farthest logged km: blend toward long-range SafeBoda anchors.
- * Quotes expose a min–max range from km-band residual envelopes so every
- * logged SafeBoda fee falls inside (width grows past 500/1000 when needed).
+ * Quotes expose a min–max from km-band residual envelopes, then clamp around
+ * the point estimate: ±500 when R² + band sample count look solid, else ±1000.
+ * Not every outlier log needs to fit; accuracy improves as quotes accumulate.
+ * When opts.dest matches prior drop-offs in the same Kampala period, the quote
+ * tightens to those logged fees instead of the wider km-band envelope.
  */
 
 export const FEE_STEP_UGX = 500;
+/** Half-width when confident (total range width 1000 UGX). */
+export const TIGHT_RANGE_HALF_UGX = 500;
+/** Half-width when unsure / sparse / extrapolating (total width 2000 UGX). */
+export const WIDE_RANGE_HALF_UGX = 1000;
+/** Min model R² to treat a quote as confident. */
+const CONFIDENT_R2 = 0.75;
+/** Min logs in the km residual band to treat a quote as confident. */
+const CONFIDENT_BAND_N = 5;
+/** @deprecated Prefer TIGHT/WIDE half-widths; kept as “sure” total width. */
+export const MAX_RANGE_WIDTH_UGX = TIGHT_RANGE_HALF_UGX * 2;
 
 /** Distance bands for residual envelopes used by quoteFeeRange. */
 export const RANGE_BANDS_KM = [
@@ -22,6 +35,11 @@ export const RANGE_BANDS_KM = [
   { minKm: 9, maxKm: 15 },
   { minKm: 15, maxKm: Infinity },
 ];
+
+/** Match prior drop-offs within this radius for location-aware tight quotes. */
+const MEMORY_RADIUS_KM = 0.75;
+/** Cap how many nearby hits shape the remembered range. */
+const MEMORY_MAX_HITS = 8;
 
 /** SafeBoda minimum fare (UGX). Applied after predict — never during the OLS fit. */
 export const MIN_FARE_UGX = 3000;
@@ -97,6 +115,48 @@ export function roundFeeDown500(fee) {
 
 export function roundFeeUp500(fee) {
   return Math.max(0, Math.ceil(fee / FEE_STEP_UGX) * FEE_STEP_UGX);
+}
+
+/**
+ * ±500 when R² and km-band sample count look solid; ±1000 otherwise.
+ * Extrapolation past farthest logged km always uses the wider half-width.
+ */
+function rangeHalfWidthUgx(km, model) {
+  if (!model) return WIDE_RANGE_HALF_UGX;
+  const horizon = model.dataMaxKm != null ? model.dataMaxKm : 12;
+  if (km != null && !Number.isNaN(km) && km > horizon + 0.25) {
+    return WIDE_RANGE_HALF_UGX;
+  }
+  const r2 = model.r2 || 0;
+  const env = envelopeForKm(km, model);
+  const n = env?.n || 0;
+  if (r2 >= CONFIDENT_R2 && n >= CONFIDENT_BAND_N) return TIGHT_RANGE_HALF_UGX;
+  return WIDE_RANGE_HALF_UGX;
+}
+
+/**
+ * Keep [lo, hi] within ±halfWidth of the point estimate.
+ * Does not widen a naturally tight envelope. Point stays inside the range.
+ */
+function clampRangeAroundPoint(lo, hi, point, halfWidth = WIDE_RANGE_HALF_UGX) {
+  const maxWidth = Math.max(FEE_STEP_UGX, halfWidth * 2);
+  let pt = roundFeeToNearest500(point);
+  if (pt < MIN_FARE_UGX) pt = MIN_FARE_UGX;
+  let min = Math.max(MIN_FARE_UGX, lo);
+  let max = Math.max(min + FEE_STEP_UGX, hi);
+
+  if (max - min > maxWidth) {
+    min = Math.max(MIN_FARE_UGX, roundFeeDown500(pt - halfWidth));
+    max = roundFeeUp500(pt + halfWidth);
+    if (max - min > maxWidth) max = min + maxWidth;
+    if (max - min < FEE_STEP_UGX) max = min + FEE_STEP_UGX;
+  } else if (max - min < FEE_STEP_UGX) {
+    max = min + FEE_STEP_UGX;
+  }
+
+  if (pt < min) pt = min;
+  if (pt > max) pt = max;
+  return { lo: min, hi: max, point: pt, widthUgx: max - min };
 }
 
 function mean(nums) {
@@ -200,6 +260,8 @@ function buildSamples(rows) {
       const fee = Number(d.fee_ugx);
       const mins = d.duration_min != null ? Number(d.duration_min) : null;
       const at = d.created_at ? new Date(d.created_at) : null;
+      const lat = d.dest_lat != null ? Number(d.dest_lat) : null;
+      const lng = d.dest_lng != null ? Number(d.dest_lng) : null;
       if (Number.isNaN(km) || Number.isNaN(fee) || km < 0) return null;
       return {
         km,
@@ -207,6 +269,8 @@ function buildSamples(rows) {
         mins: mins != null && !Number.isNaN(mins) && mins > 0 ? mins : null,
         period: at && !Number.isNaN(at.getTime()) ? periodForDate(at) : 'day',
         at,
+        lat: lat != null && !Number.isNaN(lat) ? lat : null,
+        lng: lng != null && !Number.isNaN(lng) ? lng : null,
       };
     })
     .filter(Boolean);
@@ -368,6 +432,76 @@ function envelopeForKm(km, model) {
   return rb.global;
 }
 
+function haversineKm(a, b) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/**
+ * Tight quote from prior drop-offs near dest in the same Kampala period.
+ * @returns {{ feeMinUgx: number, feeMaxUgx: number, feePointUgx: number, widthUgx: number } | null}
+ */
+function locationMemoryQuote(model, opts = {}) {
+  const dest = opts.dest;
+  if (
+    !model ||
+    !dest ||
+    !Number.isFinite(dest.lat) ||
+    !Number.isFinite(dest.lng)
+  ) {
+    return null;
+  }
+  const period = opts.period || periodForDate(opts.at || new Date());
+  const nearby = [];
+  (model.samples || []).forEach((s) => {
+    if (s.period !== period) return;
+    if (s.lat == null || s.lng == null) return;
+    const dKm = haversineKm(dest, { lat: s.lat, lng: s.lng });
+    if (dKm <= MEMORY_RADIUS_KM) nearby.push({ s, dKm });
+  });
+  if (!nearby.length) return null;
+
+  nearby.sort((a, b) => {
+    if (a.dKm !== b.dKm) return a.dKm - b.dKm;
+    const atA = a.s.at instanceof Date && !Number.isNaN(a.s.at.getTime()) ? a.s.at.getTime() : 0;
+    const atB = b.s.at instanceof Date && !Number.isNaN(b.s.at.getTime()) ? b.s.at.getTime() : 0;
+    return atB - atA;
+  });
+  const pool = nearby.slice(0, MEMORY_MAX_HITS).map((n) => n.s);
+  const fees = pool.map((s) => s.fee);
+  let lo = Math.max(MIN_FARE_UGX, roundFeeDown500(Math.min(...fees)));
+  let hi = Math.max(lo, roundFeeUp500(Math.max(...fees)));
+
+  const newest = pool
+    .slice()
+    .sort((a, b) => {
+      const atA = a.at instanceof Date && !Number.isNaN(a.at.getTime()) ? a.at.getTime() : 0;
+      const atB = b.at instanceof Date && !Number.isNaN(b.at.getTime()) ? b.at.getTime() : 0;
+      return atB - atA;
+    })[0];
+  const clamped = clampRangeAroundPoint(
+    lo,
+    hi,
+    newest.fee,
+    rangeHalfWidthUgx(opts.quoteKm, model)
+  );
+
+  return {
+    feeMinUgx: clamped.lo,
+    feeMaxUgx: clamped.hi,
+    feePointUgx: clamped.point,
+    widthUgx: clamped.widthUgx,
+  };
+}
+
 export function estimateDurationMin(km, model) {
   if (km == null || Number.isNaN(km) || km < 0) return null;
   const speed = model?.avgSpeedKmh > 0 ? model.avgSpeedKmh : 18;
@@ -406,17 +540,22 @@ export function rawQuoteFee(km, model, { durationMin = null, period = null, at =
 }
 
 export function quoteFee(km, model, opts = {}) {
+  const mem = locationMemoryQuote(model, { ...opts, quoteKm: km });
+  if (mem) return mem.feePointUgx;
   const raw = rawQuoteFee(km, model, opts);
   if (raw == null) return 0;
   return Math.max(MIN_FARE_UGX, roundFeeToNearest500(raw));
 }
 
 /**
- * Min–max range that covers logged SafeBoda residual envelopes for this km band.
- * Width is 500 when the band allows, otherwise grows in 500 UGX steps as needed.
+ * Min–max range from km-band residual envelopes, clamped around the point
+ * estimate (±500 when confident, ±1000 when unsure).
+ * With opts.dest, prefers a tight range from nearby same-period logged fees.
  * @returns {{ feeMinUgx: number, feeMaxUgx: number, feePointUgx: number, widthUgx: number }}
  */
 export function quoteFeeRange(km, model, opts = {}) {
+  const mem = locationMemoryQuote(model, { ...opts, quoteKm: km });
+  if (mem) return mem;
   const point = quoteFee(km, model, opts);
   if (!point) {
     return { feeMinUgx: 0, feeMaxUgx: 0, feePointUgx: 0, widthUgx: 0 };
@@ -426,19 +565,19 @@ export function quoteFeeRange(km, model, opts = {}) {
   let hi = Math.max(lo + FEE_STEP_UGX, roundFeeUp500(point + env.maxResidual));
   if (point < lo) lo = Math.max(MIN_FARE_UGX, roundFeeDown500(point));
   if (point > hi) hi = roundFeeUp500(point);
-  if (hi - lo < FEE_STEP_UGX) hi = lo + FEE_STEP_UGX;
+  const clamped = clampRangeAroundPoint(lo, hi, point, rangeHalfWidthUgx(km, model));
   return {
-    feeMinUgx: lo,
-    feeMaxUgx: hi,
-    feePointUgx: point,
-    widthUgx: hi - lo,
+    feeMinUgx: clamped.lo,
+    feeMaxUgx: clamped.hi,
+    feePointUgx: clamped.point,
+    widthUgx: clamped.widthUgx,
   };
 }
 
 /**
  * @param {number} km
  * @param {object | null} model
- * @param {{ durationMin?: number|null, period?: string|null, at?: Date|string|null }} [opts]
+ * @param {{ durationMin?: number|null, period?: string|null, at?: Date|string|null, dest?: { lat: number, lng: number }|null }} [opts]
  */
 export function predictSafeBodaFee(km, model, opts = {}) {
   if (!model || km == null || Number.isNaN(km)) return null;
@@ -448,6 +587,7 @@ export function predictSafeBodaFee(km, model, opts = {}) {
 
 /**
  * Range quote for storefront / POS — feeMaxUgx is the safe stored estimate.
+ * When opts.dest matches nearby same-period logs, range tightens to those fees.
  * @returns {{ feeMinUgx: number, feeMaxUgx: number, feePointUgx: number, widthUgx: number } | null}
  */
 export function predictSafeBodaFeeRange(km, model, opts = {}) {
