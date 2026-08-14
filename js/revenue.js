@@ -1,9 +1,8 @@
-import { COOKIE_COMMISSION_UGX } from './config.js';
+import { COOKIE_COMMISSION_UGX, cookieQtyFromBreakdown } from './config.js';
 
-/** Cookie qty on a sale line (breakdown key `cookie`). */
+/** Cookie qty on a sale line (any `cookie_*` or legacy `cookie` breakdown key). */
 export function cookieQtyFromItem(item) {
-  const qty = Number(item?.breakdown?.cookie);
-  return Number.isFinite(qty) && qty > 0 ? qty : 0;
+  return cookieQtyFromBreakdown(item?.breakdown);
 }
 
 /**

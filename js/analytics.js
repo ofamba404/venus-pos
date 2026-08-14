@@ -1,6 +1,6 @@
 import { dataStore } from './store/index.js';
 import { sbDelete, sbFetch } from './api.js';
-import { CATEGORIES, LOW_STOCK_THRESHOLD } from './config.js';
+import { CATEGORIES, LOW_STOCK_THRESHOLD, isCookieCategoryId } from './config.js';
 import {
   breakdownToConfigSelection,
   buildLineFromConfig,
@@ -11,7 +11,7 @@ import {
   wireProductConfigView,
   wireProductPickButtons,
 } from './product-config.js';
-import { applyActiveHighlight, cookieStockLevel, getActiveStatusHighlight } from './inventory.js';
+import { applyActiveHighlight, getActiveStatusHighlight } from './inventory.js';
 import { animateAccordionPanel, animateFlavorMeter, animateModalContent, applyBarFillWidths, isModalOpen, readFlavorMeterScale, setAccordionPanelInstant } from './animations.js';
 import {
   filterSalesByInsightPeriod,
@@ -534,8 +534,10 @@ export function renderAnalyticsCharts() {
 }
 
 export function renderAnalyticsStock() {
-  const jointCats = CATEGORIES.filter((c) => c.id !== 'cookie');
+  const jointCats = CATEGORIES.filter((c) => !isCookieCategoryId(c.id));
+  const cookieCats = CATEGORIES.filter((c) => isCookieCategoryId(c.id));
   const maxJointStock = Math.max(1, ...jointCats.map((c) => inventory[c.id]));
+  const maxCookieStock = Math.max(1, ...cookieCats.map((c) => inventory[c.id]));
   const stockPending = showPlaceholder('inventory');
   const stockBars = document.getElementById('stockBars');
   if (!stockBars) return;
@@ -544,10 +546,9 @@ export function renderAnalyticsStock() {
     const stock = inventory[c.id];
     let status;
     let pct;
-    if (c.id === 'cookie') {
-      const meter = cookieStockLevel(stock);
-      status = meter.state;
-      pct = meter.pct;
+    if (isCookieCategoryId(c.id)) {
+      status = stock === 0 ? 'out' : stock < LOW_STOCK_THRESHOLD ? 'low' : 'ok';
+      pct = Math.round((stock / maxCookieStock) * 100);
     } else {
       status = stock === 0 ? 'out' : stock < LOW_STOCK_THRESHOLD ? 'low' : 'ok';
       pct = Math.round((stock / maxJointStock) * 100);
@@ -973,18 +974,15 @@ function animateEditModalBody(body) {
 }
 
 async function applyStockDelta(oldBreakdown, newBreakdown, { persistLocal = true } = {}) {
+  const { upsertInventoryStock } = await import('./inventory.js');
   const allIds = new Set([...Object.keys(oldBreakdown), ...Object.keys(newBreakdown)]);
   for (const id of allIds) {
     const oldQty = oldBreakdown[id] || 0;
     const newQty = newBreakdown[id] || 0;
     const delta = newQty - oldQty;
     if (delta === 0) continue;
-    inventory[id] = Math.max(0, inventory[id] - delta);
-    await sbFetch(`inventory?category_id=eq.${id}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ stock: inventory[id], updated_at: new Date().toISOString() }),
-    });
+    inventory[id] = Math.max(0, (inventory[id] || 0) - delta);
+    await upsertInventoryStock(id);
     const el = document.getElementById(`inv-count-${id}`);
     if (el) el.textContent = inventory[id];
   }

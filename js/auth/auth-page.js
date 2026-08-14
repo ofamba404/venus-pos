@@ -26,14 +26,11 @@
     submitBtn.classList.toggle('is-loading', busy);
   }
 
-  // Already signed in as staff → continue.
-  window.VenusPosAuth.ensureStaffSession()
-    .then((session) => {
-      if (session) {
-        window.location.replace(window.VenusPosAuth.resolveNextHref());
-      }
-    })
-    .catch(() => {});
+  const existing = window.VenusPosAuth.staffSessionFromStore?.();
+  if (existing) {
+    window.location.replace(window.VenusPosAuth.resolveNextHref());
+    return;
+  }
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -51,13 +48,19 @@
       await window.VenusPosAuth.signIn(email, password);
       window.location.replace(window.VenusPosAuth.resolveNextHref());
     } catch (err) {
-      const code = err?.code || err?.message || '';
-      if (code === 'not_staff' || /not authorized/i.test(String(err?.message || ''))) {
+      const code = err?.code || '';
+      const msg = String(err?.message || '');
+      if (code === 'not_staff' || /not authorized/i.test(msg)) {
         setStatus('This account is not authorized for POS.');
-      } else if (/invalid login|invalid credentials|email not confirmed/i.test(String(err?.message || ''))) {
+      } else if (/invalid login|invalid credentials|email not confirmed|invalid_grant/i.test(msg)) {
         setStatus('Wrong email or password.');
+      } else if (
+        window.VenusPosAuth.isTransientAuthError?.(err) ||
+        /fetch|network|timeout|Load failed|Failed to load/i.test(msg)
+      ) {
+        setStatus('Cannot reach login service. Check internet and try again.');
       } else {
-        setStatus(err?.message || 'Could not sign in.');
+        setStatus('Could not sign in. Try again.');
       }
       setBusy(false);
     }

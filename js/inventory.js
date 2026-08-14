@@ -7,6 +7,7 @@ import {
   COOKIE_LOW_PCT,
   COOKIE_STOCK_CAPACITY,
   LOW_STOCK_THRESHOLD,
+  isCookieCategoryId,
 } from './config.js';
 import { navigate } from './router.js';
 import { inventory, draftStock } from './state.js';
@@ -35,17 +36,26 @@ export function setActiveStatusHighlight(status) {
 
 export async function persistStock(id) {
   try {
-    const res = await sbFetch(`inventory?category_id=eq.${id}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ stock: inventory[id], updated_at: new Date().toISOString() }),
-    });
-    if (!res.ok) throw new Error(`Supabase ${res.status}`);
+    await upsertInventoryStock(id);
     await dataStore.persistCurrent('inventory');
   } catch (e) {
     console.error('persist stock failed', e);
     showToast('Could not save — check connection', true);
   }
+}
+
+/** Upsert a single inventory row (creates missing flavor categories). */
+export async function upsertInventoryStock(id) {
+  const res = await sbFetch('inventory?on_conflict=category_id', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({
+      category_id: id,
+      stock: inventory[id],
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  if (!res.ok) throw new Error(`Supabase ${res.status}`);
 }
 
 export function refreshInvCard(id) {
@@ -173,13 +183,66 @@ export function syncInventoryToDom() {
 }
 
 export async function loadInventory() {
+  await ensureInventoryCategories();
   await dataStore.fetch('inventory');
   syncInventoryToDom();
   renderStockGlance();
 }
 
 function isCookieCategory(cat) {
-  return cat.id === 'cookie';
+  return isCookieCategoryId(cat?.id);
+}
+
+/**
+ * Ensure every CATEGORIES id has an inventory row. Migrates legacy aggregate
+ * `cookie` stock into butterscotch when any leftover units remain.
+ */
+export async function ensureInventoryCategories() {
+  try {
+    const res = await sbFetch('inventory?select=category_id,stock');
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return;
+
+    const byId = Object.fromEntries(
+      rows.map((r) => [r.category_id, Math.max(0, Math.floor(Number(r.stock) || 0))]),
+    );
+    const legacy = Number(byId.cookie) || 0;
+    const now = new Date().toISOString();
+    const upserts = [];
+
+    CATEGORIES.forEach((cat) => {
+      if (Object.hasOwn(byId, cat.id)) return;
+      upserts.push({ category_id: cat.id, stock: 0, updated_at: now });
+    });
+
+    if (legacy > 0) {
+      const target = 'cookie_butterscotch';
+      const next = (Number(byId[target]) || 0) + legacy;
+      upserts.push({ category_id: target, stock: next, updated_at: now });
+      upserts.push({ category_id: 'cookie', stock: 0, updated_at: now });
+    }
+
+    if (!upserts.length) return;
+
+    const post = await sbFetch('inventory?on_conflict=category_id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(upserts),
+    });
+    if (!post.ok) {
+      console.warn('ensureInventoryCategories failed', post.status);
+      return;
+    }
+
+    upserts.forEach((row) => {
+      if (!Object.hasOwn(inventory, row.category_id)) return;
+      inventory[row.category_id] = row.stock;
+      draftStock[row.category_id] = row.stock;
+    });
+  } catch (e) {
+    console.warn('ensureInventoryCategories', e);
+  }
 }
 
 function countByStatus(categories) {
@@ -267,7 +330,10 @@ export function renderStockGlance() {
   if (donutStatus) {
     donutStatus.innerHTML = showPlaceholder('inventory')
       ? stockStatusPlaceholder()
-      : renderStatusGroup('Joints', countByStatus(jointCats), 'ds-joints');
+      : [
+          renderStatusGroup('Joints', countByStatus(jointCats), 'ds-joints'),
+          renderStatusGroup('Cookies', countByStatus(cookieCats), 'ds-cookies'),
+        ].join('');
   }
 
   donutStatus.querySelectorAll('.ds-ok, .ds-low, .ds-out').forEach((chip) => {

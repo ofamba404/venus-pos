@@ -1,3 +1,4 @@
+import { isCookieCategoryId } from './config.js';
 import { isDataPending, revealLoaded } from './pending.js';
 import { navigate } from './router.js';
 import { sumOwnerRevenue } from './revenue.js';
@@ -13,7 +14,7 @@ export function updateTodayStrip() {
   todaySales.forEach((s) =>
     (s.items || []).forEach((i) => {
       Object.entries(i.breakdown || {}).forEach(([catId, qty]) => {
-        if (catId === 'cookie') cookies += qty;
+        if (isCookieCategoryId(catId)) cookies += qty;
         else joints += qty;
       });
     }),

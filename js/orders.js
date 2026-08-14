@@ -740,7 +740,9 @@ function adjustDraftForItem(item, direction) {
 function cartItemToConfigSelection(item) {
   const p = PRODUCTS.find((pr) => pr.id === item.productId);
   if (!p) return {};
-  if (p.rule === 'choose_any' || p.rule === 'spliff_qty') return { ...item.breakdown };
+  if (p.rule === 'choose_any' || p.rule === 'spliff_qty' || p.rule === 'cookie_qty') {
+    return { ...item.breakdown };
+  }
   if (p.rule === 'choose_variety') {
     const sel = { ...item.breakdown };
     delete sel.classic;
@@ -2230,16 +2232,8 @@ function addConfiguredItemToCart() {
 }
 
 async function patchInventoryRemote(ids) {
-  await Promise.all(
-    ids.map(async (id) => {
-      const res = await sbFetch(`inventory?category_id=eq.${id}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({ stock: inventory[id], updated_at: new Date().toISOString() }),
-      });
-      if (!res.ok) throw new Error(`Supabase ${res.status}`);
-    }),
-  );
+  const { upsertInventoryStock } = await import('./inventory.js');
+  await Promise.all(ids.map((id) => upsertInventoryStock(id)));
 }
 
 async function resolveCheckoutClientId(orderClientName) {

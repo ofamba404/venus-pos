@@ -18,6 +18,7 @@ import {
   markPageWired,
   showPageView,
 } from './view-cache.js';
+import { ensureInventoryCategories } from './inventory.js';
 
 /** @type {(() => void) | null} */
 let unsubSlices = null;
@@ -48,7 +49,14 @@ function defaultSlices(paint) {
 function ensureSessionOrRedirect() {
   return (async () => {
     if (!window.VenusPosAuth?.ensureStaffSession) return true;
-    const session = await window.VenusPosAuth.ensureStaffSession().catch(() => null);
+    const local = window.VenusPosAuth.staffSessionFromStore?.();
+    if (local) {
+      void window.VenusPosAuth.ensureStaffSession().catch(() => {});
+      return true;
+    }
+    const session = await window.VenusPosAuth.ensureStaffSession().catch(
+      () => window.VenusPosAuth.staffSessionFromStore?.() || null,
+    );
     if (!session) {
       const href = window.VenusPosAuth.authPageHref?.() || 'auth.html';
       window.location.replace(href);
@@ -209,6 +217,8 @@ export async function bootApp(initialPage) {
     resetPageDataSettled();
     const hydrated = await hydrateFromCache();
     applyPendingFlags(hydrated);
+    // Create missing cookie-flavor rows (and migrate legacy `cookie` stock) before first paint fetch.
+    await ensureInventoryCategories().catch(() => {});
 
     mountAppOnce(startPage);
     setActivateHandler(activatePage);

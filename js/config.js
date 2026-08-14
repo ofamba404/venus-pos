@@ -9,6 +9,51 @@ export const GOOGLE_MAPS_API_KEY = 'AIzaSyCrCkJGwRrloiRPW3x91dvWMeVKEecKL7Y';
 export const VAPID_PUBLIC_KEY =
   'BFnscOwOMzgLqNfjhxeGJ8lfii156h-gBuSbv2vMp2XBPDrv1r6DofpbGHHIzeXG7AUf2ae8Fpa42lJJcWwM6D0';
 
+/**
+ * Cookie flavors — add a row here to introduce a new flavor across POS inventory,
+ * sales breakdowns, and (via store mappings) the storefront.
+ * Category ids are `cookie_<id>` so they never collide with joint flavors.
+ */
+export const COOKIE_FLAVORS = [
+  { id: 'butterscotch', name: 'Butterscotch', color: '#D4A355' },
+  { id: 'chocolate', name: 'Chocolate', color: '#5c2e1f' },
+  { id: 'mint', name: 'Mint', color: '#3CB043' },
+  { id: 'strawberry', name: 'Strawberry', color: '#d81e2c' },
+];
+
+export function cookieCategoryId(flavorId) {
+  const raw = String(flavorId || '').toLowerCase().replace(/^cookie_/, '');
+  return raw ? `cookie_${raw}` : '';
+}
+
+export function cookieFlavorIdFromCategory(categoryId) {
+  const id = String(categoryId || '');
+  if (id === 'cookie') return null;
+  return id.startsWith('cookie_') ? id.slice('cookie_'.length) : null;
+}
+
+/** True for per-flavor cookie categories and legacy aggregate `cookie`. */
+export function isCookieCategoryId(categoryId) {
+  const id = String(categoryId || '');
+  return id === 'cookie' || id.startsWith('cookie_');
+}
+
+export function cookieQtyFromBreakdown(breakdown) {
+  if (!breakdown || typeof breakdown !== 'object') return 0;
+  return Object.entries(breakdown).reduce((sum, [id, qty]) => {
+    if (!isCookieCategoryId(id)) return sum;
+    const n = Number(qty);
+    return sum + (Number.isFinite(n) && n > 0 ? n : 0);
+  }, 0);
+}
+
+const COOKIE_CATEGORIES = COOKIE_FLAVORS.map((f) => ({
+  id: cookieCategoryId(f.id),
+  name: f.name,
+  sub: 'Cookie',
+  color: f.color,
+}));
+
 export const CATEGORIES = [
   { id: 'mint', name: 'Mint', sub: '', color: '#8fd6f0' },
   { id: 'strawberry', name: 'Strawberry', sub: '', color: '#d81e2c' },
@@ -20,12 +65,14 @@ export const CATEGORIES = [
   { id: 'classic', name: 'Plain', sub: '', color: '#e3cba7' },
   { id: 'spliff5050', name: 'Bangis', sub: '50/50', color: '#ffd400' },
   { id: 'spliff7030', name: 'Bangis', sub: '70/30', color: '#FFFFA5' },
-  { id: 'cookie', name: 'Cookies', sub: '', color: '#D4A355' },
+  ...COOKIE_CATEGORIES,
 ];
 
 export const CAT_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 export const FLAVOR_POOL = ['mint', 'strawberry', 'blueberry', 'watermelon', 'grape', 'coconut', 'melon'];
 export const SPLIFF_POOL = ['spliff5050', 'spliff7030'];
+/** POS inventory keys for cookie flavors — order matches COOKIE_FLAVORS. */
+export const COOKIE_FLAVOR_POOL = COOKIE_CATEGORIES.map((c) => c.id);
 export const LOW_STOCK_THRESHOLD = 5;
 export const COOKIE_STOCK_CAPACITY = 100;
 /** Cookie bar + label below this share of capacity (30 → running low under 30 cookies). */
@@ -40,7 +87,7 @@ export const PRODUCTS = [
   { id: 'variety', name: 'Variety Pack', price: 50000, joints: 8, rule: 'choose_variety' },
   { id: 'plain_single', name: 'Plain', unitPrice: 5000, rule: 'single_qty', categoryId: 'classic', unitLabel: 'per joint' },
   { id: 'spliff_single', name: 'Bangis', unitPrice: 5000, rule: 'spliff_qty' },
-  { id: 'cookie_single', name: 'Cookies', unitPrice: 5000, rule: 'single_qty', categoryId: 'cookie', unitLabel: 'per cookie' },
+  { id: 'cookie_single', name: 'Cookies', unitPrice: 5000, rule: 'cookie_qty', unitLabel: 'per cookie' },
 ];
 
 export const PAGES = [

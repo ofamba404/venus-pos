@@ -15,7 +15,8 @@
     try {
       const raw = localStorage.getItem(cfg.storageKey);
       if (!raw) return false;
-      return Boolean(JSON.parse(raw).access_token);
+      const parsed = JSON.parse(raw);
+      return Boolean(parsed?.access_token || parsed?.currentSession?.access_token);
     } catch {
       return false;
     }
@@ -54,4 +55,8 @@
   }
 
   document.documentElement.classList.add('auth-checking');
+  // Never leave the register blank if client.js / gate.js fail to load.
+  setTimeout(function () {
+    document.documentElement.classList.remove('auth-checking');
+  }, 2000);
 })();

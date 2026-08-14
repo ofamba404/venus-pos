@@ -1,4 +1,5 @@
 import { animateRevenueChart } from './animations.js';
+import { isCookieCategoryId } from './config.js';
 import { revenueChartPlaceholder, salesPatternsPlaceholder, showPlaceholder } from './pending.js';
 import { isOutstandingCredit } from './credit.js';
 import {
@@ -525,7 +526,7 @@ export function computeSalesPatterns(sales) {
     }
     (s.items || []).forEach((item) => {
       Object.entries(item.breakdown || {}).forEach(([id, qty]) => {
-        if (id === 'cookie') cookies += qty;
+        if (isCookieCategoryId(id)) cookies += qty;
         else joints += qty;
       });
     });

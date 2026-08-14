@@ -287,6 +287,16 @@ export function stockStatusPlaceholder() {
         <span class="ds-sep">·</span>
         <span class="ds-out is-pending">${pt()}</span>
       </div>
+    </div>
+    <div class="ds-group ds-cookies">
+      <div class="ds-group-label">Cookies</div>
+      <div class="ds-group-stats">
+        <span class="ds-ok is-pending">${pt()}</span>
+        <span class="ds-sep">·</span>
+        <span class="ds-low is-pending">${pt()}</span>
+        <span class="ds-sep">·</span>
+        <span class="ds-out is-pending">${pt()}</span>
+      </div>
     </div>`;
 }
 

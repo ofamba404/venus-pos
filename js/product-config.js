@@ -1,5 +1,6 @@
 import {
   CAT_MAP,
+  COOKIE_FLAVOR_POOL,
   FLAVOR_POOL,
   PRODUCTS,
   SPLIFF_POOL,
@@ -11,14 +12,15 @@ export function findProduct(productId) {
 }
 
 export function productDetailLabel(p) {
-  if (p.rule === 'single_qty') return p.unitLabel;
+  if (p.rule === 'single_qty' || p.rule === 'cookie_qty') return p.unitLabel;
   if (p.rule === 'spliff_qty') return 'per joint';
   return `${p.joints} joint${p.joints > 1 ? 's' : ''}`;
 }
 
 const PACK_PRODUCTS = PRODUCTS.filter((p) => p.rule === 'choose_any' || p.rule === 'choose_variety');
-const SINGLE_PRODUCTS = PRODUCTS.filter((p) => p.rule === 'single_qty' || p.rule === 'spliff_qty');
-
+const SINGLE_PRODUCTS = PRODUCTS.filter(
+  (p) => p.rule === 'single_qty' || p.rule === 'spliff_qty' || p.rule === 'cookie_qty',
+);
 export function productPickButtonHtml(p) {
   return `
     <button class="product-row pick-product-card" type="button" data-product="${p.id}">
@@ -58,7 +60,9 @@ export function wireProductPickButtons(root, onPick) {
 
 export function breakdownToConfigSelection(product, breakdown) {
   if (!product) return {};
-  if (product.rule === 'choose_any' || product.rule === 'spliff_qty') return { ...(breakdown || {}) };
+  if (product.rule === 'choose_any' || product.rule === 'spliff_qty' || product.rule === 'cookie_qty') {
+    return { ...(breakdown || {}) };
+  }
   if (product.rule === 'choose_variety') {
     const sel = { ...(breakdown || {}) };
     delete sel.classic;
@@ -125,6 +129,15 @@ export function buildLineFromConfig(product, configSelection) {
     lineTotal = totalQty * product.unitPrice;
     detail = Object.entries(breakdown)
       .map(([id, qty]) => `${CAT_MAP[id].sub} x${qty}`)
+      .join(', ');
+  } else if (product.rule === 'cookie_qty') {
+    COOKIE_FLAVOR_POOL.forEach((id) => {
+      if (configSelection[id] > 0) breakdown[id] = configSelection[id];
+    });
+    const totalQty = Object.values(breakdown).reduce((a, b) => a + b, 0);
+    lineTotal = totalQty * product.unitPrice;
+    detail = Object.entries(breakdown)
+      .map(([id, qty]) => `${CAT_MAP[id]?.name || id} x${qty}`)
       .join(', ');
   }
 
@@ -340,6 +353,35 @@ export function renderProductConfigView(
     const totalQty = SPLIFF_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);
     inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX(totalQty * product.unitPrice)}</div>`;
     const overStock = SPLIFF_POOL.some((id) => (configSelection[id] || 0) > draftStock[id]);
+    inner += configFooterHtml({
+      ready: totalQty > 0 && !overStock,
+      isEditing,
+      closeId,
+      backId,
+      confirmId,
+    });
+  } else if (product.rule === 'cookie_qty') {
+    inner += `<div class="modal-progress">Enter quantity for each flavor</div>`;
+    inner += `<div class="flavor-list">`;
+    COOKIE_FLAVOR_POOL.forEach((id) => {
+      const cat = CAT_MAP[id];
+      const qty = configSelection[id] || 0;
+      const stock = draftStock[id] || 0;
+      inner += flavorSwatchHtml({
+        id,
+        label: cat?.name || id,
+        color: cat?.color || '#D4A355',
+        chosen: qty,
+        stock,
+        canAdd: qty < stock,
+        canRemove: qty > 0,
+        editable: true,
+      });
+    });
+    inner += `</div>`;
+    const totalQty = COOKIE_FLAVOR_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);
+    inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX(totalQty * product.unitPrice)}</div>`;
+    const overStock = COOKIE_FLAVOR_POOL.some((id) => (configSelection[id] || 0) > (draftStock[id] || 0));
     inner += configFooterHtml({
       ready: totalQty > 0 && !overStock,
       isEditing,

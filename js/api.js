@@ -16,15 +16,25 @@ export async function sbFetch(path, options = {}) {
     }
   }
 
-  return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...options,
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${bearer}`,
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
-  });
+  const exec = (token) =>
+    fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+      ...options,
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+    });
+
+  let res = await exec(bearer);
+  if (res.status === 401 && window.VenusPosAuth?.refreshNow) {
+    const next = await window.VenusPosAuth.refreshNow().catch(() => null);
+    if (next?.access_token && next.access_token !== bearer) {
+      res = await exec(next.access_token);
+    }
+  }
+  return res;
 }
 
 /** DELETE and verify at least one row was removed (PostgREST can return 204 with 0 rows under RLS). */
