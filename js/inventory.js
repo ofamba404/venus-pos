@@ -44,18 +44,28 @@ export async function persistStock(id) {
   }
 }
 
-/** Upsert a single inventory row (creates missing flavor categories). */
+/**
+ * Save stock for a category. Prefer PATCH (RLS update); insert only when the row is missing.
+ */
 export async function upsertInventoryStock(id) {
-  const res = await sbFetch('inventory?on_conflict=category_id', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({
-      category_id: id,
-      stock: inventory[id],
-      updated_at: new Date().toISOString(),
-    }),
+  const payload = { stock: inventory[id], updated_at: new Date().toISOString() };
+  const patch = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(`Supabase ${res.status}`);
+  if (patch.ok) return;
+
+  // Row may not exist yet (new cookie flavor) — insert, then we're done.
+  const insert = await sbFetch('inventory', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ category_id: id, ...payload }),
+  });
+  if (insert.ok) return;
+
+  const detail = await insert.text().catch(() => '');
+  throw new Error(`Supabase ${insert.status}${detail ? `: ${detail}` : ''} (patch ${patch.status})`);
 }
 
 export function refreshInvCard(id) {
@@ -209,37 +219,42 @@ export async function ensureInventoryCategories() {
     );
     const legacy = Number(byId.cookie) || 0;
     const now = new Date().toISOString();
-    const upserts = [];
+    const missing = CATEGORIES.filter((cat) => !Object.hasOwn(byId, cat.id)).map((cat) => ({
+      category_id: cat.id,
+      stock: 0,
+      updated_at: now,
+    }));
 
-    CATEGORIES.forEach((cat) => {
-      if (Object.hasOwn(byId, cat.id)) return;
-      upserts.push({ category_id: cat.id, stock: 0, updated_at: now });
-    });
+    if (missing.length) {
+      const post = await sbFetch('inventory', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify(missing),
+      });
+      if (!post.ok) {
+        console.warn('ensureInventoryCategories insert failed', post.status);
+      } else {
+        missing.forEach((row) => {
+          if (!Object.hasOwn(inventory, row.category_id)) return;
+          inventory[row.category_id] = row.stock;
+          draftStock[row.category_id] = row.stock;
+        });
+      }
+    }
 
     if (legacy > 0) {
       const target = 'cookie_butterscotch';
       const next = (Number(byId[target]) || 0) + legacy;
-      upserts.push({ category_id: target, stock: next, updated_at: now });
-      upserts.push({ category_id: 'cookie', stock: 0, updated_at: now });
+      inventory[target] = next;
+      draftStock[target] = next;
+      await upsertInventoryStock(target);
+      const zeroLegacy = await sbFetch('inventory?category_id=eq.cookie', {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ stock: 0, updated_at: now }),
+      });
+      if (!zeroLegacy.ok) console.warn('legacy cookie zero failed', zeroLegacy.status);
     }
-
-    if (!upserts.length) return;
-
-    const post = await sbFetch('inventory?on_conflict=category_id', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(upserts),
-    });
-    if (!post.ok) {
-      console.warn('ensureInventoryCategories failed', post.status);
-      return;
-    }
-
-    upserts.forEach((row) => {
-      if (!Object.hasOwn(inventory, row.category_id)) return;
-      inventory[row.category_id] = row.stock;
-      draftStock[row.category_id] = row.stock;
-    });
   } catch (e) {
     console.warn('ensureInventoryCategories', e);
   }
