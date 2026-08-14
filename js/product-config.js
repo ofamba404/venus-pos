@@ -1,6 +1,7 @@
 import {
   CAT_MAP,
   COOKIE_FLAVOR_POOL,
+  cookieUnitPrice,
   FLAVOR_POOL,
   PRODUCTS,
   SPLIFF_POOL,
@@ -11,10 +12,26 @@ export function findProduct(productId) {
   return PRODUCTS.find((p) => p.id === productId);
 }
 
+/** Fixed flavor for choose_variety packs (Plain for joints; butterscotch for cookie packs). */
+export function varietyFixedFlavor(product) {
+  return product?.fixedFlavor || 'classic';
+}
+
+/** Selectable flavor pool for choose_variety (defaults to joint FLAVOR_POOL). */
+export function varietyFlavorPool(product) {
+  return product?.flavorPool || FLAVOR_POOL;
+}
+
+function slotNoun(product) {
+  return product?.slotNoun || 'joints';
+}
+
 export function productDetailLabel(p) {
   if (p.rule === 'single_qty' || p.rule === 'cookie_qty') return p.unitLabel;
   if (p.rule === 'spliff_qty') return 'per joint';
-  return `${p.joints} joint${p.joints > 1 ? 's' : ''}`;
+  const noun = slotNoun(p);
+  const n = p.joints || 0;
+  return `${n} ${noun === 'joints' ? (n === 1 ? 'joint' : 'joints') : noun}`;
 }
 
 const PACK_PRODUCTS = PRODUCTS.filter((p) => p.rule === 'choose_any' || p.rule === 'choose_variety');
@@ -22,6 +39,8 @@ const SINGLE_PRODUCTS = PRODUCTS.filter(
   (p) => p.rule === 'single_qty' || p.rule === 'spliff_qty' || p.rule === 'cookie_qty',
 );
 export function productPickButtonHtml(p) {
+  const amount = p.price != null ? p.price : p.unitPrice;
+  const priceLabel = p.priceFrom ? `from ${fmtUGX(amount)}` : fmtUGX(amount);
   return `
     <button class="product-row pick-product-card" type="button" data-product="${p.id}">
       <div class="pick-product-card__main">
@@ -29,7 +48,7 @@ export function productPickButtonHtml(p) {
         <div class="pcount">${productDetailLabel(p)}</div>
       </div>
       <div class="p-right">
-        <div class="pprice">${fmtUGX(p.price || p.unitPrice)}</div>
+        <div class="pprice">${priceLabel}</div>
       </div>
     </button>`;
 }
@@ -65,13 +84,20 @@ export function breakdownToConfigSelection(product, breakdown) {
   }
   if (product.rule === 'choose_variety') {
     const sel = { ...(breakdown || {}) };
-    delete sel.classic;
+    delete sel[varietyFixedFlavor(product)];
     return sel;
   }
   if (product.rule === 'single_qty') {
     return { qty: (breakdown || {})[product.categoryId] || 0 };
   }
   return {};
+}
+
+function cookieLineTotalFromSelection(selection) {
+  return COOKIE_FLAVOR_POOL.reduce((sum, id) => {
+    const qty = selection[id] || 0;
+    return sum + qty * cookieUnitPrice(id);
+  }, 0);
 }
 
 export function configTotalSelected(configSelection) {
@@ -111,12 +137,18 @@ export function buildLineFromConfig(product, configSelection) {
       .map(([id, qty]) => `${CAT_MAP[id].name} x${qty}`)
       .join(', ');
   } else if (product.rule === 'choose_variety') {
-    breakdown = { ...configSelection, classic: 1 };
+    const fixedId = varietyFixedFlavor(product);
+    const pool = varietyFlavorPool(product);
+    const fixedCat = CAT_MAP[fixedId];
+    breakdown = { ...configSelection, [fixedId]: 1 };
     lineTotal = product.price;
-    detail =
-      FLAVOR_POOL.filter((id) => configSelection[id] > 0)
-        .map((id) => `${CAT_MAP[id].name} x${configSelection[id]}`)
-        .join(', ') + ' + Plain';
+    const choices = pool
+      .filter((id) => configSelection[id] > 0)
+      .map((id) => `${CAT_MAP[id]?.name || id} x${configSelection[id]}`)
+      .join(', ');
+    detail = choices
+      ? `${choices} + ${fixedCat?.name || fixedId}`
+      : fixedCat?.name || fixedId;
   } else if (product.rule === 'single_qty') {
     breakdown = { [product.categoryId]: configSelection.qty };
     lineTotal = configSelection.qty * product.unitPrice;
@@ -134,8 +166,7 @@ export function buildLineFromConfig(product, configSelection) {
     COOKIE_FLAVOR_POOL.forEach((id) => {
       if (configSelection[id] > 0) breakdown[id] = configSelection[id];
     });
-    const totalQty = Object.values(breakdown).reduce((a, b) => a + b, 0);
-    lineTotal = totalQty * product.unitPrice;
+    lineTotal = cookieLineTotalFromSelection(breakdown);
     detail = Object.entries(breakdown)
       .map(([id, qty]) => `${CAT_MAP[id]?.name || id} x${qty}`)
       .join(', ');

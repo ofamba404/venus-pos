@@ -13,12 +13,13 @@ export const VAPID_PUBLIC_KEY =
  * Cookie flavors — add a row here to introduce a new flavor across POS inventory,
  * sales breakdowns, and (via store mappings) the storefront.
  * Category ids are `cookie_<id>` so they never collide with joint flavors.
+ * `unitPrice` is the ala-carte single price (matches storefront catalog).
  */
 export const COOKIE_FLAVORS = [
-  { id: 'butterscotch', name: 'Butterscotch', color: '#D4A355' },
-  { id: 'chocolate', name: 'Chocolate', color: '#5c2e1f' },
-  { id: 'mint', name: 'Mint', color: '#3CB043' },
-  { id: 'strawberry', name: 'Strawberry', color: '#d81e2c' },
+  { id: 'butterscotch', name: 'Butterscotch', color: '#D4A355', unitPrice: 5000 },
+  { id: 'chocolate', name: 'Chocolate', color: '#5c2e1f', unitPrice: 8000 },
+  { id: 'mint', name: 'Mint', color: '#3CB043', unitPrice: 8000 },
+  { id: 'strawberry', name: 'Strawberry', color: '#d81e2c', unitPrice: 8000 },
 ];
 
 export function cookieCategoryId(flavorId) {
@@ -73,6 +74,22 @@ export const FLAVOR_POOL = ['mint', 'strawberry', 'blueberry', 'watermelon', 'gr
 export const SPLIFF_POOL = ['spliff5050', 'spliff7030'];
 /** POS inventory keys for cookie flavors — order matches COOKIE_FLAVORS. */
 export const COOKIE_FLAVOR_POOL = COOKIE_CATEGORIES.map((c) => c.id);
+/** Choice flavors for Cookie Duet / Quartet (butterscotch is always included fixed). */
+export const COOKIE_CHOICE_POOL = COOKIE_FLAVOR_POOL.filter((id) => id !== 'cookie_butterscotch');
+
+const COOKIE_UNIT_PRICE_BY_ID = Object.fromEntries(
+  COOKIE_FLAVORS.map((f) => [cookieCategoryId(f.id), f.unitPrice]),
+);
+
+/** Ala-carte unit price for a cookie category id (`cookie_mint`, …). */
+export function cookieUnitPrice(categoryId) {
+  const id = String(categoryId || '');
+  if (COOKIE_UNIT_PRICE_BY_ID[id] != null) return COOKIE_UNIT_PRICE_BY_ID[id];
+  // Legacy aggregate `cookie` stock maps to butterscotch pricing.
+  if (id === 'cookie') return COOKIE_UNIT_PRICE_BY_ID.cookie_butterscotch || 5000;
+  return 5000;
+}
+
 export const LOW_STOCK_THRESHOLD = 5;
 export const COOKIE_STOCK_CAPACITY = 100;
 /** Cookie bar + label below this share of capacity (30 → running low under 30 cookies). */
@@ -85,9 +102,36 @@ export const PRODUCTS = [
   { id: 'pilot', name: 'Pilot Pack', price: 15000, joints: 2, rule: 'choose_any' },
   { id: 'commander', name: "Commander's Stash", price: 35000, joints: 5, rule: 'choose_any' },
   { id: 'variety', name: 'Variety Pack', price: 50000, joints: 8, rule: 'choose_variety' },
+  {
+    id: 'cookie_duet',
+    name: 'Cookie Duet',
+    price: 15000,
+    joints: 2,
+    rule: 'choose_variety',
+    fixedFlavor: 'cookie_butterscotch',
+    flavorPool: COOKIE_CHOICE_POOL,
+    slotNoun: 'cookies',
+  },
+  {
+    id: 'cookie_quartet',
+    name: 'Cookie Quartet',
+    price: 25000,
+    joints: 4,
+    rule: 'choose_variety',
+    fixedFlavor: 'cookie_butterscotch',
+    flavorPool: COOKIE_CHOICE_POOL,
+    slotNoun: 'cookies',
+  },
   { id: 'plain_single', name: 'Plain', unitPrice: 5000, rule: 'single_qty', categoryId: 'classic', unitLabel: 'per joint' },
   { id: 'spliff_single', name: 'Bangis', unitPrice: 5000, rule: 'spliff_qty' },
-  { id: 'cookie_single', name: 'Cookies', unitPrice: 5000, rule: 'cookie_qty', unitLabel: 'per cookie' },
+  {
+    id: 'cookie_single',
+    name: 'Cookies',
+    unitPrice: 5000,
+    rule: 'cookie_qty',
+    unitLabel: 'per cookie',
+    priceFrom: true,
+  },
 ];
 
 export const PAGES = [

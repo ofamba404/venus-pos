@@ -4,6 +4,7 @@ import { bumpElement, closeModal, openModal } from './animations.js';
 import {
   CATEGORIES,
   CAT_MAP,
+  COOKIE_FLAVOR_POOL,
   COOKIE_LOW_PCT,
   COOKIE_STOCK_CAPACITY,
   LOW_STOCK_THRESHOLD,
@@ -46,26 +47,80 @@ export async function persistStock(id) {
 
 /**
  * Save stock for a category. Prefer PATCH (RLS update); insert only when the row is missing.
+ * PostgREST returns 2xx with an empty body when PATCH matches 0 rows — treat that as missing.
  */
 export async function upsertInventoryStock(id) {
   const payload = { stock: inventory[id], updated_at: new Date().toISOString() };
   const patch = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
+    headers: { Prefer: 'return=representation' },
     body: JSON.stringify(payload),
   });
-  if (patch.ok) return;
+  let saved = false;
+  if (patch.ok) {
+    const rows = await patch.json().catch(() => null);
+    if (Array.isArray(rows) && rows.length > 0) saved = true;
+  } else if (patch.status >= 500) {
+    throw new Error(`Supabase ${patch.status}`);
+  }
 
-  // Row may not exist yet (new cookie flavor) — insert, then we're done.
+  if (!saved) {
+    const insert = await sbFetch('inventory', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ category_id: id, ...payload }),
+    });
+    if (insert.ok) {
+      saved = true;
+    } else if (insert.status === 409) {
+      const retry = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify(payload),
+      });
+      if (retry.ok) {
+        const rows = await retry.json().catch(() => null);
+        if (Array.isArray(rows) && rows.length > 0) saved = true;
+      }
+    }
+
+    if (!saved) {
+      // Flavor rows may be blocked by RLS — still mirror into legacy `cookie` for the store.
+      if (isCookieCategoryId(id) && id !== 'cookie') {
+        await mirrorLegacyCookieTotal();
+        return;
+      }
+      const detail = await insert.text().catch(() => '');
+      throw new Error(`Supabase ${insert.status}${detail ? `: ${detail}` : ''} (patch ${patch.status})`);
+    }
+  }
+
+  if (isCookieCategoryId(id) && id !== 'cookie') {
+    await mirrorLegacyCookieTotal().catch((e) => console.warn('legacy cookie mirror', e));
+  }
+}
+
+/** Keep legacy `cookie` stock = sum of flavor stocks so older storefronts clear OOS. */
+async function mirrorLegacyCookieTotal() {
+  const total = COOKIE_FLAVOR_POOL.reduce((sum, fid) => sum + (Number(inventory[fid]) || 0), 0);
+  const payload = { stock: total, updated_at: new Date().toISOString() };
+  const patch = await sbFetch('inventory?category_id=eq.cookie', {
+    method: 'PATCH',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(payload),
+  });
+  if (patch.ok) {
+    const rows = await patch.json().catch(() => null);
+    if (Array.isArray(rows) && rows.length > 0) return;
+  }
   const insert = await sbFetch('inventory', {
     method: 'POST',
     headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ category_id: id, ...payload }),
+    body: JSON.stringify({ category_id: 'cookie', ...payload }),
   });
-  if (insert.ok) return;
-
-  const detail = await insert.text().catch(() => '');
-  throw new Error(`Supabase ${insert.status}${detail ? `: ${detail}` : ''} (patch ${patch.status})`);
+  if (!insert.ok && insert.status !== 409) {
+    throw new Error(`Supabase legacy cookie ${insert.status}`);
+  }
 }
 
 export function refreshInvCard(id) {
