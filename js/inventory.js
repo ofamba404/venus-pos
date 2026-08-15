@@ -57,6 +57,10 @@ function assertWritableId(id) {
  * - Only after inventory has been hydrated from IDB/network
  * - Writes exactly one row — never bulk-push local state, never migrate/mirror
  * - No side effects on other categories
+ *
+ * Use Prefer: return=minimal. return=representation often comes back [] under RLS
+ * even when the UPDATE succeeded — that caused false "could not save" toasts.
+ * Missing rows are created by ensureInventoryRows() on boot.
  */
 export async function upsertInventoryStock(id) {
   assertWritableId(id);
@@ -71,42 +75,30 @@ export async function upsertInventoryStock(id) {
   const payload = { stock, updated_at: new Date().toISOString() };
   const patch = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    headers: { Prefer: 'return=representation' },
+    headers: { Prefer: 'return=minimal' },
     body: JSON.stringify(payload),
   });
-  let saved = false;
-  if (patch.ok) {
-    const rows = await patch.json().catch(() => null);
-    if (Array.isArray(rows) && rows.length > 0) saved = true;
-  } else if (patch.status >= 500) {
-    throw new Error(`Supabase ${patch.status}`);
+  if (patch.ok) return true;
+  if (patch.status >= 500) throw new Error(`Supabase ${patch.status}`);
+
+  const insert = await sbFetch('inventory', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ category_id: id, ...payload }),
+  });
+  if (insert.ok) return true;
+
+  if (insert.status === 409) {
+    const retry = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(payload),
+    });
+    if (retry.ok) return true;
   }
 
-  if (!saved) {
-    const insert = await sbFetch('inventory', {
-      method: 'POST',
-      headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({ category_id: id, ...payload }),
-    });
-    if (insert.ok) {
-      saved = true;
-    } else if (insert.status === 409) {
-      const retry = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=representation' },
-        body: JSON.stringify(payload),
-      });
-      if (retry.ok) {
-        const rows = await retry.json().catch(() => null);
-        if (Array.isArray(rows) && rows.length > 0) saved = true;
-      }
-    }
-    if (!saved) {
-      const detail = await insert.text().catch(() => '');
-      throw new Error(`Supabase ${insert.status}${detail ? `: ${detail}` : ''} (patch ${patch.status})`);
-    }
-  }
-  return true;
+  const detail = await insert.text().catch(() => '');
+  throw new Error(`Supabase ${insert.status}${detail ? `: ${detail}` : ''} (patch ${patch.status})`);
 }
 
 export async function persistStock(id) {
@@ -115,12 +107,16 @@ export async function persistStock(id) {
     .catch(() => {})
     .then(async () => {
       await upsertInventoryStock(id);
-      await dataStore.persistCurrent('inventory');
+      // Local cache is best-effort — never toast if Supabase already saved.
+      try {
+        await dataStore.persistCurrent('inventory');
+      } catch (e) {
+        console.warn('local inventory cache persist failed', e);
+      }
     })
     .catch((e) => {
       console.error('persist stock failed', e);
       showToast('Could not save — check connection', true);
-      throw e;
     });
   writeQueue.set(id, next);
   return next;
