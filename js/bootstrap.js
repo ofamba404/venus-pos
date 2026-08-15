@@ -18,7 +18,7 @@ import {
   markPageWired,
   showPageView,
 } from './view-cache.js';
-import { ensureInventoryCategories } from './inventory.js';
+import { ensureInventoryRows } from './inventory.js';
 
 /** @type {(() => void) | null} */
 let unsubSlices = null;
@@ -214,8 +214,8 @@ export async function bootApp(initialPage) {
     resetPageDataSettled();
     const hydrated = await hydrateFromCache();
     applyPendingFlags(hydrated);
-    // Create missing cookie-flavor rows (and migrate legacy `cookie` stock) before first paint fetch.
-    await ensureInventoryCategories().catch(() => {});
+    // Create any missing category rows at 0 — never migrate/redistribute stock.
+    await ensureInventoryRows().catch(() => {});
 
     mountAppOnce(startPage);
     setActivateHandler(activatePage);

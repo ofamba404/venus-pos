@@ -877,6 +877,7 @@ function renderOrderModal() {
 function snapshotInventory(ids) {
   const snap = {};
   ids.forEach((id) => {
+    if (!Object.hasOwn(inventory, id)) return;
     snap[id] = inventory[id];
   });
   return snap;
@@ -884,6 +885,7 @@ function snapshotInventory(ids) {
 
 function applyInventorySnapshot(snap) {
   Object.entries(snap).forEach(([id, stock]) => {
+    if (!Object.hasOwn(inventory, id)) return;
     inventory[id] = stock;
     const el = document.getElementById(`inv-count-${id}`);
     if (el && !el.querySelector('input')) el.textContent = stock;
@@ -2235,7 +2237,9 @@ function addConfiguredItemToCart() {
 
 async function patchInventoryRemote(ids) {
   const { upsertInventoryStock } = await import('./inventory.js');
-  await Promise.all(ids.map((id) => upsertInventoryStock(id)));
+  // Only CATEGORIES keys — never legacy `cookie` or unknown breakdown ids.
+  const known = ids.filter((id) => Object.hasOwn(inventory, id));
+  await Promise.all(known.map((id) => upsertInventoryStock(id)));
 }
 
 async function resolveCheckoutClientId(orderClientName) {
@@ -2421,8 +2425,9 @@ async function checkout() {
 
   try {
     for (const [id, qty] of Object.entries(mergedBreakdown)) {
+      if (!Object.hasOwn(inventory, id)) continue;
       const previous = inventory[id];
-      inventory[id] = Math.max(0, inventory[id] - qty);
+      inventory[id] = Math.max(0, (inventory[id] || 0) - qty);
       const el = document.getElementById(`inv-count-${id}`);
       if (el) el.textContent = inventory[id];
       void notifyStockCrossing(id, previous, inventory[id]);

@@ -1050,13 +1050,17 @@ function animateEditModalBody(body) {
 }
 
 async function applyStockDelta(oldBreakdown, newBreakdown, { persistLocal = true } = {}) {
-  const { upsertInventoryStock } = await import('./inventory.js');
+  const { upsertInventoryStock, isInventoryHydrated } = await import('./inventory.js');
+  if (!isInventoryHydrated()) {
+    throw new Error('Inventory not loaded yet');
+  }
   const allIds = new Set([...Object.keys(oldBreakdown), ...Object.keys(newBreakdown)]);
   for (const id of allIds) {
     const oldQty = oldBreakdown[id] || 0;
     const newQty = newBreakdown[id] || 0;
     const delta = newQty - oldQty;
     if (delta === 0) continue;
+    if (!Object.hasOwn(inventory, id)) continue;
     inventory[id] = Math.max(0, (inventory[id] || 0) - delta);
     await upsertInventoryStock(id);
     const el = document.getElementById(`inv-count-${id}`);

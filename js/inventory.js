@@ -4,7 +4,6 @@ import { bumpElement, closeModal, openModal } from './animations.js';
 import {
   CATEGORIES,
   CAT_MAP,
-  COOKIE_FLAVOR_POOL,
   COOKIE_LOW_PCT,
   COOKIE_STOCK_CAPACITY,
   LOW_STOCK_THRESHOLD,
@@ -17,6 +16,10 @@ import { showToast } from './utils.js';
 import { showPlaceholder, revealLoaded, jointsStatusPlaceholder, cookieFlavorPlaceholder } from './pending.js';
 
 const HIGHLIGHT_KEY = 'venus-pos-stock-highlight';
+const KNOWN_IDS = new Set(CATEGORIES.map((c) => c.id));
+
+/** In-flight writes per category — last write wins, no stampedes. */
+const writeQueue = new Map();
 
 export { isInventoryHydrated, markInventoryHydrated };
 
@@ -37,27 +40,35 @@ export function setActiveStatusHighlight(status) {
   }
 }
 
-export async function persistStock(id) {
-  try {
-    await upsertInventoryStock(id);
-    await dataStore.persistCurrent('inventory');
-  } catch (e) {
-    console.error('persist stock failed', e);
-    showToast('Could not save — check connection', true);
+function clampStock(n) {
+  return Math.max(0, Math.floor(Number(n) || 0));
+}
+
+function assertWritableId(id) {
+  if (!KNOWN_IDS.has(id)) {
+    throw new Error(`Unknown inventory category: ${id}`);
   }
 }
 
 /**
- * Save stock for a category. Prefer PATCH (RLS update); insert only when the row is missing.
- * PostgREST returns 2xx with an empty body when PATCH matches 0 rows — treat that as missing.
- * Returns true when the category row itself was written (not merely legacy-mirrored).
+ * Persist one category's current local stock to Supabase.
+ * Rules (the "never again" contract):
+ * - Only known CATEGORIES ids — never legacy `cookie`, never invent keys
+ * - Only after inventory has been hydrated from IDB/network
+ * - Writes exactly one row — never bulk-push local state, never migrate/mirror
+ * - No side effects on other categories
  */
-export async function upsertInventoryStock(id, { allowUnhydrated = false } = {}) {
-  if (!allowUnhydrated && !isInventoryHydrated()) {
+export async function upsertInventoryStock(id) {
+  assertWritableId(id);
+  if (!isInventoryHydrated()) {
     throw new Error('Inventory not loaded yet — refusing to overwrite stock');
   }
 
-  const payload = { stock: inventory[id], updated_at: new Date().toISOString() };
+  const stock = clampStock(inventory[id]);
+  inventory[id] = stock;
+  draftStock[id] = stock;
+
+  const payload = { stock, updated_at: new Date().toISOString() };
   const patch = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { Prefer: 'return=representation' },
@@ -90,49 +101,29 @@ export async function upsertInventoryStock(id, { allowUnhydrated = false } = {})
         if (Array.isArray(rows) && rows.length > 0) saved = true;
       }
     }
-
     if (!saved) {
-      // Flavor rows may be blocked by RLS — mirror into legacy `cookie` for the store,
-      // but do not claim the flavor row was saved (callers must not zero legacy yet).
-      if (isCookieCategoryId(id) && id !== 'cookie') {
-        await mirrorLegacyCookieTotal();
-        return false;
-      }
       const detail = await insert.text().catch(() => '');
       throw new Error(`Supabase ${insert.status}${detail ? `: ${detail}` : ''} (patch ${patch.status})`);
     }
   }
-
-  if (isCookieCategoryId(id) && id !== 'cookie') {
-    await mirrorLegacyCookieTotal().catch((e) => console.warn('legacy cookie mirror', e));
-  }
   return true;
 }
 
-/** Keep legacy `cookie` stock = sum of flavor stocks so older storefronts clear OOS. */
-async function mirrorLegacyCookieTotal() {
-  // Never push a zero total before local flavor stocks have been hydrated — that
-  // wiped live aggregate cookie stock during the per-flavor migration.
-  if (!isInventoryHydrated()) return;
-  const total = COOKIE_FLAVOR_POOL.reduce((sum, fid) => sum + (Number(inventory[fid]) || 0), 0);
-  const payload = { stock: total, updated_at: new Date().toISOString() };
-  const patch = await sbFetch('inventory?category_id=eq.cookie', {
-    method: 'PATCH',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify(payload),
-  });
-  if (patch.ok) {
-    const rows = await patch.json().catch(() => null);
-    if (Array.isArray(rows) && rows.length > 0) return;
-  }
-  const insert = await sbFetch('inventory', {
-    method: 'POST',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ category_id: 'cookie', ...payload }),
-  });
-  if (!insert.ok && insert.status !== 409) {
-    throw new Error(`Supabase legacy cookie ${insert.status}`);
-  }
+export async function persistStock(id) {
+  const prev = writeQueue.get(id) || Promise.resolve();
+  const next = prev
+    .catch(() => {})
+    .then(async () => {
+      await upsertInventoryStock(id);
+      await dataStore.persistCurrent('inventory');
+    })
+    .catch((e) => {
+      console.error('persist stock failed', e);
+      showToast('Could not save — check connection', true);
+      throw e;
+    });
+  writeQueue.set(id, next);
+  return next;
 }
 
 export function refreshInvCard(id) {
@@ -143,11 +134,16 @@ export function refreshInvCard(id) {
 }
 
 export function adjustStock(id, delta) {
+  assertWritableId(id);
+  if (!isInventoryHydrated()) {
+    showToast('Stock still loading — try again in a moment', true);
+    return;
+  }
   const previous = inventory[id];
-  inventory[id] = Math.max(0, inventory[id] + delta);
+  inventory[id] = clampStock(inventory[id] + delta);
   draftStock[id] = inventory[id];
   refreshInvCard(id);
-  persistStock(id);
+  void persistStock(id);
   renderStockGlance();
   if (delta < 0) void notifyStockCrossing(id, previous, inventory[id]);
 }
@@ -184,13 +180,19 @@ function finishEditCount(id, value, fallback) {
   const el = document.getElementById(`inv-count-${id}`);
   const num = parseInt(value, 10);
   if (!isNaN(num) && num >= 0) {
+    if (!isInventoryHydrated()) {
+      if (el) el.textContent = fallback;
+      showToast('Stock still loading — try again in a moment', true);
+      return;
+    }
+    assertWritableId(id);
     const previous = inventory[id];
-    inventory[id] = num;
-    draftStock[id] = num;
-    if (el) el.textContent = num;
-    persistStock(id);
+    inventory[id] = clampStock(num);
+    draftStock[id] = inventory[id];
+    if (el) el.textContent = inventory[id];
+    void persistStock(id);
     renderStockGlance();
-    if (num < previous) void notifyStockCrossing(id, previous, num);
+    if (inventory[id] < previous) void notifyStockCrossing(id, previous, inventory[id]);
   } else if (el) {
     el.textContent = fallback;
   }
@@ -261,7 +263,7 @@ export function syncInventoryToDom() {
 }
 
 export async function loadInventory() {
-  await ensureInventoryCategories();
+  await ensureInventoryRows();
   await dataStore.fetch('inventory');
   syncInventoryToDom();
   renderStockGlance();
@@ -272,12 +274,15 @@ function isCookieCategory(cat) {
 }
 
 /**
- * Ensure every CATEGORIES id has an inventory row. Migrates legacy aggregate
- * `cookie` stock into butterscotch when any leftover units remain.
- * Never zeros legacy `cookie` unless the flavor row save is confirmed — a failed
- * flavor write + legacy zero was wiping all cookie stock to OOS.
+ * Create missing CATEGORIES inventory rows at stock 0.
+ *
+ * NEVER migrates, mirrors, redistributes, or mutates existing stock.
+ * The old legacy `cookie` → butterscotch migration + flavor-sum mirror
+ * caused stock to pile into butterscotch on every boot.
+ *
+ * Alias kept for any leftover callers.
  */
-export async function ensureInventoryCategories() {
+export async function ensureInventoryRows() {
   try {
     const res = await sbFetch('inventory?select=category_id,stock');
     if (!res.ok) return;
@@ -286,9 +291,8 @@ export async function ensureInventoryCategories() {
     if (rows.length > 0) markInventoryHydrated();
 
     const byId = Object.fromEntries(
-      rows.map((r) => [r.category_id, Math.max(0, Math.floor(Number(r.stock) || 0))]),
+      rows.map((r) => [r.category_id, clampStock(r.stock)]),
     );
-    const legacy = Number(byId.cookie) || 0;
     const now = new Date().toISOString();
     const missing = CATEGORIES.filter((cat) => !Object.hasOwn(byId, cat.id)).map((cat) => ({
       category_id: cat.id,
@@ -296,46 +300,32 @@ export async function ensureInventoryCategories() {
       updated_at: now,
     }));
 
-    if (missing.length) {
-      const post = await sbFetch('inventory', {
-        method: 'POST',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify(missing),
-      });
-      if (!post.ok) {
-        console.warn('ensureInventoryCategories insert failed', post.status);
-      } else {
-        missing.forEach((row) => {
-          if (!Object.hasOwn(inventory, row.category_id)) return;
-          // Keep any already-hydrated local value; only seed truly unknown keys.
-          if ((inventory[row.category_id] || 0) === 0) {
-            inventory[row.category_id] = row.stock;
-            draftStock[row.category_id] = row.stock;
-          }
-        });
-      }
-    }
+    if (!missing.length) return;
 
-    if (legacy > 0) {
-      const target = 'cookie_butterscotch';
-      const next = (Number(byId[target]) || 0) + legacy;
-      inventory[target] = next;
-      draftStock[target] = next;
-      const saved = await upsertInventoryStock(target, { allowUnhydrated: true });
-      if (!saved) {
-        console.warn('ensureInventoryCategories: flavor row not saved — keeping legacy cookie stock');
-        return;
-      }
-      const zeroLegacy = await sbFetch('inventory?category_id=eq.cookie', {
-        method: 'PATCH',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({ stock: 0, updated_at: now }),
-      });
-      if (!zeroLegacy.ok) console.warn('legacy cookie zero failed', zeroLegacy.status);
+    const post = await sbFetch('inventory', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(missing),
+    });
+    if (!post.ok) {
+      console.warn('ensureInventoryRows insert failed', post.status);
+      return;
     }
+    missing.forEach((row) => {
+      if (!Object.hasOwn(inventory, row.category_id)) return;
+      if ((inventory[row.category_id] || 0) === 0) {
+        inventory[row.category_id] = 0;
+        draftStock[row.category_id] = 0;
+      }
+    });
   } catch (e) {
-    console.warn('ensureInventoryCategories', e);
+    console.warn('ensureInventoryRows', e);
   }
+}
+
+/** @deprecated Use ensureInventoryRows — no migration side effects. */
+export async function ensureInventoryCategories() {
+  return ensureInventoryRows();
 }
 
 function countByStatus(categories) {
