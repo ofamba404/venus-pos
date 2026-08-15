@@ -48,6 +48,30 @@ export function cookieQtyFromBreakdown(breakdown) {
   }, 0);
 }
 
+/**
+ * Cart/order label for cookie lines — matches storefront titles
+ * (Butterscotch Cookie, Cookie Duet, …) instead of generic "Cookies".
+ */
+export function cookieLineDisplayName(productId, breakdown, fallback = 'Cookies') {
+  const id = String(productId || '');
+  if (id === 'cookie_duet') return 'Cookie Duet';
+  if (id === 'cookie_quartet') return 'Cookie Quartet';
+  if (id !== 'cookie_single') return fallback;
+
+  const flavors = Object.entries(breakdown || {})
+    .filter(([catId, qty]) => isCookieCategoryId(catId) && Number(qty) > 0)
+    .map(([catId]) => {
+      const flavor = cookieFlavorIdFromCategory(catId);
+      if (!flavor) return '';
+      const named = COOKIE_FLAVORS.find((f) => f.id === flavor);
+      return named?.name || flavor.charAt(0).toUpperCase() + flavor.slice(1);
+    })
+    .filter(Boolean);
+
+  if (flavors.length === 1) return `${flavors[0]} Cookie`;
+  return fallback;
+}
+
 const COOKIE_CATEGORIES = COOKIE_FLAVORS.map((f) => ({
   id: cookieCategoryId(f.id),
   name: f.name,
@@ -74,7 +98,7 @@ export const FLAVOR_POOL = ['mint', 'strawberry', 'blueberry', 'watermelon', 'gr
 export const SPLIFF_POOL = ['spliff5050', 'spliff7030'];
 /** POS inventory keys for cookie flavors — order matches COOKIE_FLAVORS. */
 export const COOKIE_FLAVOR_POOL = COOKIE_CATEGORIES.map((c) => c.id);
-/** Choice flavors for Cookie Duet / Quartet (butterscotch is always included fixed). */
+/** Non-butterscotch cookie flavors — Duet picks 2 of these; Quartet adds fixed butterscotch. */
 export const COOKIE_CHOICE_POOL = COOKIE_FLAVOR_POOL.filter((id) => id !== 'cookie_butterscotch');
 
 const COOKIE_UNIT_PRICE_BY_ID = Object.fromEntries(
@@ -94,7 +118,28 @@ export const LOW_STOCK_THRESHOLD = 5;
 export const COOKIE_STOCK_CAPACITY = 100;
 /** Cookie bar + label below this share of capacity (30 → running low under 30 cookies). */
 export const COOKIE_LOW_PCT = 0.3;
-/** Amount you keep per cookie sold (rest of unit price is not owner revenue). */
+/**
+ * Wholesale cost per cookie (all flavors). Profit = sale allocation − this.
+ * Butterscotch profit splits 40/60 (you / partner); other flavors 50/50.
+ * Your cookie revenue is only your profit split; partner gets the rest (cost + their split).
+ */
+export const COOKIE_WHOLESALE_UGX = 2500;
+/** Your share of butterscotch profit (40% → 1k of 2.5k on a 5k single). */
+export const COOKIE_BUTTERSCOTCH_OWNER_SHARE = 0.4;
+/** Your share of flavored-cookie profit (chocolate / mint / strawberry). */
+export const COOKIE_FLAVORED_OWNER_SHARE = 0.5;
+/** Settle with cookie partner every this many cookie units sold. */
+export const COOKIE_PARTNER_SETTLE_EVERY = 20;
+/**
+ * Partner settlement only counts cookie sales from this moment forward
+ * (Africa/Kampala). Older sales are ignored until explicitly re-included.
+ * Wednesday 12 Aug 2026.
+ */
+export const COOKIE_PARTNER_TRACK_FROM_MS = Date.parse('2026-08-12T00:00:00+03:00');
+/**
+ * @deprecated Prefer flavor/wholesale split via revenue.js — kept as butterscotch
+ * owner share on a full-price single (5000 − 2500) × 0.4.
+ */
 export const COOKIE_COMMISSION_UGX = 1000;
 
 export const PRODUCTS = [
@@ -107,8 +152,7 @@ export const PRODUCTS = [
     name: 'Cookie Duet',
     price: 15000,
     joints: 2,
-    rule: 'choose_variety',
-    fixedFlavor: 'cookie_butterscotch',
+    rule: 'choose_any',
     flavorPool: COOKIE_CHOICE_POOL,
     slotNoun: 'cookies',
   },

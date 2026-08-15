@@ -12,12 +12,12 @@ export function findProduct(productId) {
   return PRODUCTS.find((p) => p.id === productId);
 }
 
-/** Fixed flavor for choose_variety packs (Plain for joints; butterscotch for cookie packs). */
+/** Fixed flavor for choose_variety packs (Plain for joints; butterscotch for Cookie Quartet). */
 export function varietyFixedFlavor(product) {
   return product?.fixedFlavor || 'classic';
 }
 
-/** Selectable flavor pool for choose_variety (defaults to joint FLAVOR_POOL). */
+/** Selectable flavor pool (defaults to joint FLAVOR_POOL). */
 export function varietyFlavorPool(product) {
   return product?.flavorPool || FLAVOR_POOL;
 }
@@ -134,7 +134,8 @@ export function buildLineFromConfig(product, configSelection) {
     breakdown = { ...configSelection };
     lineTotal = product.price;
     detail = Object.entries(breakdown)
-      .map(([id, qty]) => `${CAT_MAP[id].name} x${qty}`)
+      .filter(([, qty]) => qty > 0)
+      .map(([id, qty]) => `${CAT_MAP[id]?.name || id} x${qty}`)
       .join(', ');
   } else if (product.rule === 'choose_variety') {
     const fixedId = varietyFixedFlavor(product);
@@ -187,10 +188,10 @@ export function renderProductPickList({ backId = 'productPickBack', backLabel = 
     </div>`;
 }
 
-function jointSlotsHtml(selected, target) {
+function jointSlotsHtml(selected, target, noun = 'joints') {
   const pct = target > 0 ? Math.min(100, (selected / target) * 100) : 0;
   return `
-    <div class="flavor-meter" role="status" aria-live="polite" aria-label="${selected} of ${target} joints selected">
+    <div class="flavor-meter" role="status" aria-live="polite" aria-label="${selected} of ${target} ${noun} selected">
       <div class="flavor-meter__copy">
         <span class="flavor-meter__count">${selected}</span>
         <span class="flavor-meter__of">of ${target}</span>
@@ -228,9 +229,10 @@ function qtyStepperHtml({ id, label, chosen, canAdd, canRemove, editable = false
     </div>`;
 }
 
-function flavorSwatchHtml({ id, label, color, chosen, stock, canAdd, canRemove, editable = false }) {
+function flavorSwatchHtml({ id, label, color, chosen, stock, canAdd, canRemove, editable = false, priceLabel = '' }) {
   const active = chosen > 0;
   const out = stock <= 0;
+  const stockLine = out ? 'Out of stock' : priceLabel ? `${stock} available · ${priceLabel}` : `${stock} available`;
   return `
     <div class="flavor-row${active ? ' is-active' : ''}${out ? ' is-out' : ''}" style="${flavorStyle(color)}" data-flavor="${id}">
       <div class="flavor-orb" aria-hidden="true">
@@ -239,25 +241,25 @@ function flavorSwatchHtml({ id, label, color, chosen, stock, canAdd, canRemove, 
       </div>
       <div class="flavor-row__meta">
         <div class="flavor-row__name">${escapeHtml(label)}</div>
-        <div class="flavor-row__stock">${out ? 'Out of stock' : `${stock} available`}</div>
+        <div class="flavor-row__stock">${escapeHtml(stockLine)}</div>
       </div>
       ${qtyStepperHtml({ id, label, chosen, canAdd, canRemove, editable })}
     </div>`;
 }
 
-function flavorPaletteHtml(configSelection, draftStock, target, suffixHtml = '') {
+function flavorPaletteHtml(configSelection, draftStock, target, suffixHtml = '', pool = FLAVOR_POOL) {
   const selected = configTotalSelected(configSelection);
   const remaining = target - selected;
   return `
     <div class="flavor-list">
-      ${FLAVOR_POOL.map((id) => {
+      ${pool.map((id) => {
         const cat = CAT_MAP[id];
         const chosen = configSelection[id] || 0;
         const stock = draftStock[id] || 0;
         return flavorSwatchHtml({
           id,
-          label: cat.name,
-          color: cat.color,
+          label: cat?.name || id,
+          color: cat?.color || '#D4A355',
           chosen,
           stock,
           canAdd: remaining > 0 && chosen < stock,
@@ -297,9 +299,10 @@ export function renderProductConfigView(
 
   if (product.rule === 'choose_any') {
     const selected = configTotalSelected(configSelection);
+    const pool = varietyFlavorPool(product);
     inner += `<div class="modal-price">${fmtUGX(product.price)}</div>`;
-    inner += jointSlotsHtml(selected, product.joints);
-    inner += flavorPaletteHtml(configSelection, draftStock, product.joints);
+    inner += jointSlotsHtml(selected, product.joints, slotNoun(product));
+    inner += flavorPaletteHtml(configSelection, draftStock, product.joints, '', pool);
     inner += configFooterHtml({
       ready: selected === product.joints,
       isEditing,
@@ -308,28 +311,32 @@ export function renderProductConfigView(
       confirmId,
     });
   } else if (product.rule === 'choose_variety') {
+    const fixedId = varietyFixedFlavor(product);
+    const pool = varietyFlavorPool(product);
     const flavorTarget = product.joints - 1;
     const flavorSelected = configTotalSelected(configSelection);
-    const plainOk = (draftStock.classic || 0) >= 1;
-    const plain = CAT_MAP.classic;
-    const meterSelected = flavorSelected + (plainOk ? 1 : 0);
+    const fixedOk = (draftStock[fixedId] || 0) >= 1;
+    const fixedCat = CAT_MAP[fixedId];
+    const meterSelected = flavorSelected + (fixedOk ? 1 : 0);
+    const noun = slotNoun(product);
+    const fixedLabel = fixedCat?.name || fixedId;
     const plainFixedHtml = `
-      <div class="flavor-fixed${plainOk ? ' is-active' : ' is-out'}" style="${flavorStyle(plain.color)}">
+      <div class="flavor-fixed${fixedOk ? ' is-active' : ' is-out'}" style="${flavorStyle(fixedCat?.color || '#D4A355')}">
         <div class="flavor-orb" aria-hidden="true">
           <span class="flavor-orb__glow"></span>
           <span class="flavor-orb__core"></span>
         </div>
         <div class="flavor-row__meta">
-          <div class="flavor-row__name">Plain</div>
+          <div class="flavor-row__name">${escapeHtml(fixedLabel)}</div>
           <div class="flavor-row__stock">Always included</div>
         </div>
-        <span class="flavor-fixed__badge ${plainOk ? 'ok' : 'no'}">${plainOk ? '×1' : 'Out'}</span>
+        <span class="flavor-fixed__badge ${fixedOk ? 'ok' : 'no'}">${fixedOk ? '×1' : 'Out'}</span>
       </div>`;
     inner += `<div class="modal-price">${fmtUGX(product.price)}</div>`;
-    inner += jointSlotsHtml(meterSelected, product.joints);
-    inner += flavorPaletteHtml(configSelection, draftStock, flavorTarget, plainFixedHtml);
+    inner += jointSlotsHtml(meterSelected, product.joints, noun);
+    inner += flavorPaletteHtml(configSelection, draftStock, flavorTarget, plainFixedHtml, pool);
     inner += configFooterHtml({
-      ready: flavorSelected === flavorTarget && plainOk,
+      ready: flavorSelected === flavorTarget && fixedOk,
       isEditing,
       closeId,
       backId,
@@ -407,12 +414,14 @@ export function renderProductConfigView(
         canAdd: qty < stock,
         canRemove: qty > 0,
         editable: true,
+        priceLabel: fmtUGX(cookieUnitPrice(id)),
       });
     });
     inner += `</div>`;
-    const totalQty = COOKIE_FLAVOR_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);
-    inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX(totalQty * product.unitPrice)}</div>`;
+    const lineTotal = cookieLineTotalFromSelection(configSelection);
+    inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX(lineTotal)}</div>`;
     const overStock = COOKIE_FLAVOR_POOL.some((id) => (configSelection[id] || 0) > (draftStock[id] || 0));
+    const totalQty = COOKIE_FLAVOR_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);
     inner += configFooterHtml({
       ready: totalQty > 0 && !overStock,
       isEditing,

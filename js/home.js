@@ -41,12 +41,12 @@ export function updateTodayStrip() {
 }
 
 export function wireHomePage() {
-  const stockSplit = document.querySelector('.stock-split');
+  const stockGlance = document.getElementById('stockGlance');
   const goInventory = () => {
     void navigate('inventory');
   };
-  stockSplit?.addEventListener('click', goInventory);
-  stockSplit?.addEventListener('keydown', (e) => {
+  stockGlance?.addEventListener('click', goInventory);
+  stockGlance?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       goInventory();

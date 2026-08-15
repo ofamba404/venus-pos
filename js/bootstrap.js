@@ -49,11 +49,8 @@ function defaultSlices(paint) {
 function ensureSessionOrRedirect() {
   return (async () => {
     if (!window.VenusPosAuth?.ensureStaffSession) return true;
-    const local = window.VenusPosAuth.staffSessionFromStore?.();
-    if (local) {
-      void window.VenusPosAuth.ensureStaffSession().catch(() => {});
-      return true;
-    }
+    // Always await session refresh so inventory fetches use a valid JWT.
+    // Fire-and-forget previously let RLS return [] and cache all stock as zero.
     const session = await window.VenusPosAuth.ensureStaffSession().catch(
       () => window.VenusPosAuth.staffSessionFromStore?.() || null,
     );

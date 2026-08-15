@@ -3,6 +3,7 @@ import { sbFetch } from './api.js';
 import {
   CAT_MAP,
   PRODUCTS,
+  cookieLineDisplayName,
 } from './config.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
 import { resolveClientId } from './clients.js';
@@ -32,6 +33,7 @@ import {
   productPickButtonHtml,
   renderProductConfigView,
   renderProductPickPanel,
+  varietyFixedFlavor,
   wireProductConfigView,
   wireProductPickButtons,
 } from './product-config.js';
@@ -745,7 +747,7 @@ function cartItemToConfigSelection(item) {
   }
   if (p.rule === 'choose_variety') {
     const sel = { ...item.breakdown };
-    delete sel.classic;
+    delete sel[varietyFixedFlavor(p)];
     return sel;
   }
   if (p.rule === 'single_qty') {
@@ -1433,18 +1435,18 @@ const CART_SWATCH_VISIBLE = 8;
 
 function cartFlavorSwatchesHtml(
   entries,
-  { maxVisible = CART_SWATCH_VISIBLE, varietyPlainLast = false } = {},
+  { maxVisible = CART_SWATCH_VISIBLE, fixedFlavorId = null } = {},
 ) {
   if (!entries.length) return '';
 
   let flavors = entries;
   let plain = null;
-  if (varietyPlainLast) {
-    plain = entries.find((e) => e.id === 'classic') || null;
-    flavors = entries.filter((e) => e.id !== 'classic');
+  if (fixedFlavorId) {
+    plain = entries.find((e) => e.id === fixedFlavorId) || null;
+    flavors = entries.filter((e) => e.id !== fixedFlavorId);
   }
 
-  // Keep Plain pinned at the end; overflow only collapses other flavors.
+  // Keep fixed flavor pinned at the end; overflow only collapses other flavors.
   const plainSlots = plain ? 1 : 0;
   const flavorSlots = Math.max(0, maxVisible - plainSlots);
   const visibleFlavors = flavors.slice(0, flavorSlots);
@@ -1499,7 +1501,7 @@ function cartItemHtml(item, { readonly = false } = {}) {
   const product = PRODUCTS.find((p) => p.id === item.productId);
   const flavors = cartFlavorEntries(item.breakdown);
   const swatchesHtml = cartFlavorSwatchesHtml(flavors, {
-    varietyPlainLast: product?.rule === 'choose_variety',
+    fixedFlavorId: product?.rule === 'choose_variety' ? varietyFixedFlavor(product) : null,
   });
   const detailText = String(item.detail || '').trim();
   const detailHtml = swatchesHtml ? swatchesHtml : cartDetailHtml(detailText);
@@ -2220,7 +2222,7 @@ function addConfiguredItemToCart() {
   cart.push({
     key: `${p.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     productId: p.id,
-    name: p.name,
+    name: cookieLineDisplayName(p.id, breakdown, p.name),
     detail,
     breakdown,
     lineTotal,
@@ -2379,6 +2381,12 @@ async function checkout() {
   if (cart.length === 0) return;
   if (!orderClientName) {
     showToast('Client name is required', true);
+    return;
+  }
+
+  const { isInventoryHydrated } = await import('./inventory.js');
+  if (!isInventoryHydrated()) {
+    showToast('Stock still loading — wait a moment and try again', true);
     return;
   }
 

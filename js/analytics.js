@@ -1,6 +1,6 @@
 import { dataStore } from './store/index.js';
 import { sbDelete, sbFetch } from './api.js';
-import { CATEGORIES, LOW_STOCK_THRESHOLD, isCookieCategoryId } from './config.js';
+import { CATEGORIES, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName } from './config.js';
 import {
   breakdownToConfigSelection,
   buildLineFromConfig,
@@ -33,7 +33,9 @@ import {
 } from './credit.js';
 import { settleClientCredit, settleSaleCredit } from './settle-credit.js';
 import {
+  cookiePartnerSettlementSummary,
   itemOwnerRevenue,
+  markCookiePartnerBatchesSent,
   salePaidRatio,
   saleRecognizedOwnerRevenue,
   sumOwnerRevenue,
@@ -442,6 +444,80 @@ function renderOverviewSections() {
   applyBarFillWidths(statCards);
   wireCreditPanel();
   wireInsightPeriodPills(statCards);
+  renderCookiePartnerPanel();
+}
+
+function renderCookiePartnerPanel() {
+  const el = document.getElementById('cookiePartnerPanel');
+  if (!el) return;
+
+  if (showPlaceholder('sales', salesCache.length)) {
+    el.innerHTML = `
+      <div class="cookie-partner-card is-pending-card" aria-hidden="true">
+        <div class="cookie-partner-kicker is-pending">····</div>
+        <div class="cookie-partner-title is-pending">········</div>
+      </div>`;
+    return;
+  }
+
+  const s = cookiePartnerSettlementSummary(salesCache);
+  const ready = s.readyBatches > 0;
+  const progressPct = Math.min(100, Math.round((s.towardNext / s.every) * 100));
+  const cycleLabel = ready
+    ? `${s.readyCount} cookie${s.readyCount === 1 ? '' : 's'} ready to settle`
+    : `${s.towardNext} of ${s.every} toward next send`;
+
+  const showOwner = ready ? s.readyOwnerSplit : s.batchOwnerSplit;
+  const showPartner = ready ? s.readyPartnerDue : s.batchPartnerDue;
+  const showRevenue = ready ? s.readyRevenue : s.batchRevenue;
+
+  el.innerHTML = `
+    <div class="cookie-partner-card${ready ? ' is-ready' : ''}">
+      <div class="cookie-partner-head">
+        <div>
+          <div class="cookie-partner-kicker">Settlement every ${s.every} cookies</div>
+          <div class="cookie-partner-title">${cycleLabel}</div>
+          <div class="cookie-partner-sub">${s.unsettledCount} unsettled · ${s.totalCookies} since Wed Aug 12</div>
+        </div>
+        ${
+          ready
+            ? `<button type="button" class="credit-clear-btn cookie-partner-send" data-cookie-partner-send>Mark sent</button>`
+            : ''
+        }
+      </div>
+
+      <div class="cookie-partner-track" aria-hidden="true">
+        <div class="cookie-partner-fill" style="width:${ready ? 100 : progressPct}%"></div>
+      </div>
+
+      <div class="cookie-partner-grid">
+        <div class="cookie-partner-stat">
+          <div class="cookie-partner-stat-lbl">Your split</div>
+          <div class="cookie-partner-stat-val">${fmtUGX(showOwner)}</div>
+          <div class="cookie-partner-stat-hint">Butterscotch 40% · others 50% of profit</div>
+        </div>
+        <div class="cookie-partner-stat cookie-partner-stat--partner">
+          <div class="cookie-partner-stat-lbl">Send partner</div>
+          <div class="cookie-partner-stat-val">${fmtUGX(showPartner)}</div>
+          <div class="cookie-partner-stat-hint">Their revenue (sale − your split)</div>
+        </div>
+      </div>
+
+      <div class="cookie-partner-foot">
+        <span>Batch cookie sales <strong>${fmtCompact(showRevenue)}</strong></span>
+        <span>Lifetime yours <strong>${fmtCompact(s.lifetimeOwnerSplit)}</strong> · partner <strong>${fmtCompact(s.lifetimePartnerDue)}</strong></span>
+      </div>
+    </div>`;
+
+  el.querySelector('[data-cookie-partner-send]')?.addEventListener('click', async () => {
+    const ok = await showConfirm(
+      `Mark partner paid? Send ${fmtUGX(s.readyPartnerDue)} for ${s.readyCount} cookies (your split ${fmtUGX(s.readyOwnerSplit)}).`,
+    );
+    if (!ok) return;
+    markCookiePartnerBatchesSent(salesCache);
+    showToast('Cookie partner batch marked sent');
+    renderCookiePartnerPanel();
+  });
 }
 
 function renderInsightLists() {
@@ -949,7 +1025,7 @@ function confirmEditSaleConfig() {
   const { breakdown, lineTotal, detail } = buildLineFromConfig(product, editConfigSelection);
   const saleItem = {
     product_id: product.id,
-    product_name: product.name,
+    product_name: cookieLineDisplayName(product.id, breakdown, product.name),
     detail,
     line_total: lineTotal,
     breakdown,

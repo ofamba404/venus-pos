@@ -4,7 +4,7 @@
  */
 
 import { sbFetch } from './api.js';
-import { PRODUCTS } from './config.js';
+import { PRODUCTS, cookieLineDisplayName } from './config.js';
 import { notifyOrderCancelled, notifyStorefrontOrder } from './notifications.js';
 import {
   applyStorefrontOrderToCart,
@@ -961,7 +961,7 @@ function stackItemHtml(order) {
   const itemBits = items
     .slice(0, 2)
     .map((line) => {
-      const name = escapeHtml(line.product_name || 'Item');
+      const name = escapeHtml(resolveStoreLineName(line, PRODUCTS.find((p) => p.id === line.product_id)));
       return line.is_reward || line.reward_key ? `${name} (freebie)` : name;
     })
     .join(' · ');
@@ -1154,6 +1154,34 @@ export function renderStoreOrderUi() {
   }
 }
 
+const STORE_COOKIE_TITLES = {
+  'butterscotch-cookie': 'Butterscotch Cookie',
+  'strawberry-cookie': 'Strawberry Cookie',
+  'mint-cookie': 'Mint Cookie',
+  'chocolate-cookie': 'Chocolate Cookie',
+  'cookie-duet': 'Cookie Duet',
+  'cookie-quartet': 'Cookie Quartet',
+};
+
+function resolveStoreLineName(line, product) {
+  const storeId = String(line.store_product_id || '').toLowerCase();
+  if (STORE_COOKIE_TITLES[storeId]) return STORE_COOKIE_TITLES[storeId];
+
+  const synced = String(line.product_name || '').trim();
+  const productId = String(line.product_id || product?.id || '');
+  const breakdown =
+    line.breakdown && typeof line.breakdown === 'object' ? line.breakdown : {};
+
+  // Prefer storefront titles; fall back to flavor-derived cookie labels when
+  // older sync rows still say generic "Cookies".
+  if (synced && synced !== 'Cookies') return synced;
+
+  const fromFlavor = cookieLineDisplayName(productId, breakdown, '');
+  if (fromFlavor) return fromFlavor;
+
+  return synced || product?.name || 'Item';
+}
+
 function rowsToCartLines(items) {
   return (Array.isArray(items) ? items : []).map((line, index) => {
     const productId = String(line.product_id || '');
@@ -1162,7 +1190,7 @@ function rowsToCartLines(items) {
     return {
       key: `store-${productId}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
       productId,
-      name: product?.name || String(line.product_name || 'Item'),
+      name: resolveStoreLineName(line, product),
       detail: String(line.detail || ''),
       breakdown: line.breakdown && typeof line.breakdown === 'object' ? { ...line.breakdown } : {},
       // Always zero cash for rewards — never inherit a catalog unit price.

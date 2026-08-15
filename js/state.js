@@ -6,6 +6,17 @@ export let salesCache = [];
 export let clients = [];
 export let deliveries = [];
 
+/** True after inventory rows have been applied from IDB or network. */
+let inventoryHydrated = false;
+
+export function isInventoryHydrated() {
+  return inventoryHydrated;
+}
+
+export function markInventoryHydrated(value = true) {
+  inventoryHydrated = Boolean(value);
+}
+
 let pageDataSettled = false;
 
 /** False until the first fetch on the current page finishes (success or error). */

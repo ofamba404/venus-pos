@@ -276,28 +276,32 @@ export function salesPatternsPlaceholder() {
     </div>`;
 }
 
-export function stockStatusPlaceholder() {
+export function jointsStatusPlaceholder() {
   return `
-    <div class="ds-group ds-joints">
-      <div class="ds-group-label">Joints</div>
-      <div class="ds-group-stats">
-        <span class="ds-ok is-pending">${pt()}</span>
-        <span class="ds-sep">·</span>
-        <span class="ds-low is-pending">${pt()}</span>
-        <span class="ds-sep">·</span>
-        <span class="ds-out is-pending">${pt()}</span>
-      </div>
-    </div>
-    <div class="ds-group ds-cookies">
-      <div class="ds-group-label">Cookies</div>
-      <div class="ds-group-stats">
-        <span class="ds-ok is-pending">${pt()}</span>
-        <span class="ds-sep">·</span>
-        <span class="ds-low is-pending">${pt()}</span>
-        <span class="ds-sep">·</span>
-        <span class="ds-out is-pending">${pt()}</span>
-      </div>
-    </div>`;
+    <span class="sg-pill sg-ok is-pending"><span class="sg-pill-n">${pt()}</span><span class="sg-pill-l">ok</span></span>
+    <span class="sg-pill sg-low is-pending"><span class="sg-pill-n">${pt()}</span><span class="sg-pill-l">low</span></span>
+    <span class="sg-pill sg-out is-pending"><span class="sg-pill-n">${pt()}</span><span class="sg-pill-l">out</span></span>`;
+}
+
+export function cookieFlavorPlaceholder(cookieCats = []) {
+  const rows = cookieCats.length
+    ? cookieCats
+    : [
+        { name: 'Butterscotch', color: '#D4A355' },
+        { name: 'Chocolate', color: '#5c2e1f' },
+        { name: 'Mint', color: '#3CB043' },
+        { name: 'Strawberry', color: '#d81e2c' },
+      ];
+  return rows
+    .map(
+      (c) => `
+    <div class="sg-cookie-row" data-state="pending">
+      <span class="sg-cookie-swatch" style="background:${c.color}"></span>
+      <span class="sg-cookie-name">${c.name}</span>
+      <span class="sg-cookie-qty is-pending">${pt()}</span>
+    </div>`,
+    )
+    .join('');
 }
 
 /** Fade content in when replacing a pending placeholder. */

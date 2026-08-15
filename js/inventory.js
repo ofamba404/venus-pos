@@ -11,12 +11,14 @@ import {
   isCookieCategoryId,
 } from './config.js';
 import { navigate } from './router.js';
-import { inventory, draftStock } from './state.js';
+import { inventory, draftStock, isInventoryHydrated, markInventoryHydrated } from './state.js';
 import { notifyStockCrossing } from './notifications.js';
 import { showToast } from './utils.js';
-import { showPlaceholder, revealLoaded, stockStatusPlaceholder } from './pending.js';
+import { showPlaceholder, revealLoaded, jointsStatusPlaceholder, cookieFlavorPlaceholder } from './pending.js';
 
 const HIGHLIGHT_KEY = 'venus-pos-stock-highlight';
+
+export { isInventoryHydrated, markInventoryHydrated };
 
 export function getActiveStatusHighlight() {
   try {
@@ -48,8 +50,13 @@ export async function persistStock(id) {
 /**
  * Save stock for a category. Prefer PATCH (RLS update); insert only when the row is missing.
  * PostgREST returns 2xx with an empty body when PATCH matches 0 rows — treat that as missing.
+ * Returns true when the category row itself was written (not merely legacy-mirrored).
  */
-export async function upsertInventoryStock(id) {
+export async function upsertInventoryStock(id, { allowUnhydrated = false } = {}) {
+  if (!allowUnhydrated && !isInventoryHydrated()) {
+    throw new Error('Inventory not loaded yet — refusing to overwrite stock');
+  }
+
   const payload = { stock: inventory[id], updated_at: new Date().toISOString() };
   const patch = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',
@@ -85,10 +92,11 @@ export async function upsertInventoryStock(id) {
     }
 
     if (!saved) {
-      // Flavor rows may be blocked by RLS — still mirror into legacy `cookie` for the store.
+      // Flavor rows may be blocked by RLS — mirror into legacy `cookie` for the store,
+      // but do not claim the flavor row was saved (callers must not zero legacy yet).
       if (isCookieCategoryId(id) && id !== 'cookie') {
         await mirrorLegacyCookieTotal();
-        return;
+        return false;
       }
       const detail = await insert.text().catch(() => '');
       throw new Error(`Supabase ${insert.status}${detail ? `: ${detail}` : ''} (patch ${patch.status})`);
@@ -98,10 +106,14 @@ export async function upsertInventoryStock(id) {
   if (isCookieCategoryId(id) && id !== 'cookie') {
     await mirrorLegacyCookieTotal().catch((e) => console.warn('legacy cookie mirror', e));
   }
+  return true;
 }
 
 /** Keep legacy `cookie` stock = sum of flavor stocks so older storefronts clear OOS. */
 async function mirrorLegacyCookieTotal() {
+  // Never push a zero total before local flavor stocks have been hydrated — that
+  // wiped live aggregate cookie stock during the per-flavor migration.
+  if (!isInventoryHydrated()) return;
   const total = COOKIE_FLAVOR_POOL.reduce((sum, fid) => sum + (Number(inventory[fid]) || 0), 0);
   const payload = { stock: total, updated_at: new Date().toISOString() };
   const patch = await sbFetch('inventory?category_id=eq.cookie', {
@@ -231,6 +243,7 @@ function applyInventoryRows(rows) {
       if (el) el.textContent = row.stock;
     }
   });
+  if (Array.isArray(rows) && rows.length > 0) markInventoryHydrated();
 }
 
 export function restoreInventoryFromCache() {
@@ -261,6 +274,8 @@ function isCookieCategory(cat) {
 /**
  * Ensure every CATEGORIES id has an inventory row. Migrates legacy aggregate
  * `cookie` stock into butterscotch when any leftover units remain.
+ * Never zeros legacy `cookie` unless the flavor row save is confirmed — a failed
+ * flavor write + legacy zero was wiping all cookie stock to OOS.
  */
 export async function ensureInventoryCategories() {
   try {
@@ -268,6 +283,7 @@ export async function ensureInventoryCategories() {
     if (!res.ok) return;
     const rows = await res.json();
     if (!Array.isArray(rows)) return;
+    if (rows.length > 0) markInventoryHydrated();
 
     const byId = Object.fromEntries(
       rows.map((r) => [r.category_id, Math.max(0, Math.floor(Number(r.stock) || 0))]),
@@ -291,8 +307,11 @@ export async function ensureInventoryCategories() {
       } else {
         missing.forEach((row) => {
           if (!Object.hasOwn(inventory, row.category_id)) return;
-          inventory[row.category_id] = row.stock;
-          draftStock[row.category_id] = row.stock;
+          // Keep any already-hydrated local value; only seed truly unknown keys.
+          if ((inventory[row.category_id] || 0) === 0) {
+            inventory[row.category_id] = row.stock;
+            draftStock[row.category_id] = row.stock;
+          }
         });
       }
     }
@@ -302,7 +321,11 @@ export async function ensureInventoryCategories() {
       const next = (Number(byId[target]) || 0) + legacy;
       inventory[target] = next;
       draftStock[target] = next;
-      await upsertInventoryStock(target);
+      const saved = await upsertInventoryStock(target, { allowUnhydrated: true });
+      if (!saved) {
+        console.warn('ensureInventoryCategories: flavor row not saved — keeping legacy cookie stock');
+        return;
+      }
       const zeroLegacy = await sbFetch('inventory?category_id=eq.cookie', {
         method: 'PATCH',
         headers: { Prefer: 'return=minimal' },
@@ -337,15 +360,13 @@ function buildDonutGradient(categories, total) {
   return stops.length ? `conic-gradient(${stops.join(', ')})` : 'var(--btn-bg)';
 }
 
-function formatStatusParts({ ok, low, out }, showZeros = true) {
-  const parts = [];
-  if (showZeros || ok) parts.push(`<span class="ds-ok">${ok} well stocked</span>`);
-  if (showZeros || low) parts.push(`<span class="ds-low">${low} running low</span>`);
-  if (showZeros || out) parts.push(`<span class="ds-out">${out} out of stock</span>`);
-  return parts.length ? parts.join('<span class="ds-sep">·</span>') : '<span class="ds-out">out of stock</span>';
+function stockState(qty) {
+  if (qty <= 0) return 'out';
+  if (qty < LOW_STOCK_THRESHOLD) return 'low';
+  return 'ok';
 }
 
-/** Cookie fill = stock / 100 capacity; joints use their own relative bar scale. */
+/** Cookie fill = stock / 100 capacity; kept for callers that need aggregate level. */
 export function cookieStockLevel(stock) {
   const pct = stock <= 0 ? 0 : Math.min(100, Math.round((stock / COOKIE_STOCK_CAPACITY) * 100));
   if (stock === 0) return { pct, state: 'out' };
@@ -354,27 +375,45 @@ export function cookieStockLevel(stock) {
   return { pct, state: 'ok' };
 }
 
-function renderStatusGroup(label, status, typeClass, statsHtml) {
+function renderJointsPills({ ok, low, out }) {
   return `
-    <div class="ds-group ${typeClass}">
-      <div class="ds-group-label">${label}</div>
-      <div class="ds-group-stats">${statsHtml ?? formatStatusParts(status)}</div>
-    </div>`;
+    <button type="button" class="sg-pill sg-ok" data-status="ok" aria-label="${ok} well stocked">
+      <span class="sg-pill-n">${ok}</span><span class="sg-pill-l">ok</span>
+    </button>
+    <button type="button" class="sg-pill sg-low" data-status="low" aria-label="${low} running low">
+      <span class="sg-pill-n">${low}</span><span class="sg-pill-l">low</span>
+    </button>
+    <button type="button" class="sg-pill sg-out" data-status="out" aria-label="${out} out of stock">
+      <span class="sg-pill-n">${out}</span><span class="sg-pill-l">out</span>
+    </button>`;
+}
+
+function renderCookieFlavorRows(cookieCats) {
+  return cookieCats
+    .map((c) => {
+      const qty = inventory[c.id] || 0;
+      const state = stockState(qty);
+      return `
+        <div class="sg-cookie-row" data-state="${state}">
+          <span class="sg-cookie-swatch" style="background:${c.color}"></span>
+          <span class="sg-cookie-name">${c.name}</span>
+          <span class="sg-cookie-qty">${qty}</span>
+        </div>`;
+    })
+    .join('');
 }
 
 export function renderStockGlance() {
   const donutJoints = document.getElementById('donutJoints');
   const donutJointsTotal = document.getElementById('donutJointsTotal');
-  const cookieStockTotal = document.getElementById('cookieStockTotal');
-  const cookieStockFill = document.getElementById('cookieStockFill');
-  const donutStatus = document.getElementById('donutStatus');
+  const jointsStatus = document.getElementById('jointsStatus');
+  const cookieFlavorGlance = document.getElementById('cookieFlavorGlance');
   if (!donutJoints) return;
 
   const jointCats = CATEGORIES.filter((c) => !isCookieCategory(c));
   const cookieCats = CATEGORIES.filter(isCookieCategory);
 
   const jointsTotal = jointCats.reduce((sum, c) => sum + inventory[c.id], 0);
-  const cookiesTotal = cookieCats.reduce((sum, c) => sum + inventory[c.id], 0);
   const stockPending = showPlaceholder('inventory');
 
   if (donutJointsTotal) {
@@ -383,37 +422,25 @@ export function renderStockGlance() {
   }
   donutJoints.style.background = stockPending ? 'var(--btn-bg)' : buildDonutGradient(jointCats, jointsTotal);
 
-  if (cookieStockTotal) {
-    cookieStockTotal.classList.toggle('is-pending', stockPending);
-    cookieStockTotal.textContent = stockPending ? '—' : String(cookiesTotal);
-  }
-  if (cookieStockFill) {
-    const meter = cookieStockLevel(cookiesTotal);
-    const pct = stockPending ? 0 : meter.pct;
-    cookieStockFill.dataset.fillWidth = `${pct}%`;
-    cookieStockFill.dataset.state = stockPending ? 'ok' : meter.state;
-    cookieStockFill.style.width = '100%';
-    cookieStockFill.style.transformOrigin = 'left center';
-    cookieStockFill.style.transform = `scaleX(${pct / 100})`;
-  }
-
-  if (donutStatus) {
-    donutStatus.innerHTML = showPlaceholder('inventory')
-      ? stockStatusPlaceholder()
-      : [
-          renderStatusGroup('Joints', countByStatus(jointCats), 'ds-joints'),
-          renderStatusGroup('Cookies', countByStatus(cookieCats), 'ds-cookies'),
-        ].join('');
-  }
-
-  donutStatus.querySelectorAll('.ds-ok, .ds-low, .ds-out').forEach((chip) => {
-    chip.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const status = chip.classList.contains('ds-low') ? 'low' : chip.classList.contains('ds-out') ? 'out' : 'ok';
-      setActiveStatusHighlight(status);
-      void navigate('analytics', { hash: '#stock' });
+  if (jointsStatus) {
+    jointsStatus.innerHTML = stockPending
+      ? jointsStatusPlaceholder()
+      : renderJointsPills(countByStatus(jointCats));
+    jointsStatus.querySelectorAll('.sg-pill').forEach((chip) => {
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const status = chip.dataset.status || 'ok';
+        setActiveStatusHighlight(status);
+        void navigate('analytics', { hash: '#stock' });
+      });
     });
-  });
+  }
+
+  if (cookieFlavorGlance) {
+    cookieFlavorGlance.innerHTML = stockPending
+      ? cookieFlavorPlaceholder(cookieCats)
+      : renderCookieFlavorRows(cookieCats);
+  }
 }
 
 export function applyActiveHighlight() {

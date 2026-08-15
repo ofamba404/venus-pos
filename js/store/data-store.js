@@ -1,5 +1,5 @@
 import { showToast } from '../utils.js';
-import { clients, deliveries, draftStock, inventory, salesCache } from '../state.js';
+import { clients, deliveries, draftStock, inventory, salesCache, markInventoryHydrated } from '../state.js';
 import { idbClear, idbReadStale, idbWrite } from './idb.js';
 import {
   ENTITIES,
@@ -30,9 +30,11 @@ function applyEntity(entity, data) {
     case 'sales':
       applySales(salesCache, data);
       break;
-    case 'inventory':
-      applyInventoryRows(inventory, draftStock, data);
+    case 'inventory': {
+      const applied = applyInventoryRows(inventory, draftStock, data);
+      if (applied > 0) markInventoryHydrated();
       break;
+    }
     case 'clients':
       applyClients(clients, data);
       break;
@@ -166,10 +168,17 @@ export async function fetchEntity(entity, { force = false, silent = false, trust
     try {
       const rows = await fetchEntityFromNetwork(entity);
       const hadRows = hasEntityData(entity, stateRef());
-      if (!rows.length && hadRows && entity !== 'inventory' && !trustEmpty) {
+      // Inventory used to be excluded from empty protection — an auth/RLS blip
+      // returning [] was persisted as a "fresh" empty snapshot and painted all zeros.
+      if (!rows.length && hadRows && !trustEmpty) {
         console.warn(`fetch ${entity} returned empty while cache had data — keeping cache`);
         setMeta(entity, { ts: Date.now(), error: new Error('Empty response') });
         return { entity, ok: false, error: new Error('Empty response') };
+      }
+      if (entity === 'inventory' && !rows.length && !trustEmpty) {
+        console.warn('fetch inventory returned empty — keeping prior cache/state');
+        setMeta(entity, { ts: Date.now(), error: new Error('Empty inventory response') });
+        return { entity, ok: false, error: new Error('Empty inventory response') };
       }
       await persist(entity, rows);
       return { entity, ok: true };
@@ -217,6 +226,7 @@ export async function clearEntity(entity) {
         inventory[k] = 0;
         draftStock[k] = 0;
       });
+      markInventoryHydrated(false);
       break;
     case 'clients':
       clients.length = 0;

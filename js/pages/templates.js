@@ -23,39 +23,21 @@ export const PAGE_TEMPLATES = {
         </button>
       </div>
 
-      <div class="stock-card stock-summary" id="stockGlance">
-        <div class="stock-split" role="button" tabindex="0" aria-label="View inventory">
-          <div class="stock-split-item stock-joints">
-            <div class="donut-container mini">
-              <div class="donut" id="donutJoints"></div>
-              <div class="donut-hole">
-                <div class="donut-total is-pending" id="donutJointsTotal">—</div>
-                <div class="donut-caption">joints</div>
-              </div>
+      <div class="stock-card stock-summary" id="stockGlance" tabindex="0" aria-label="View inventory">
+        <div class="sg-joints">
+          <div class="donut-container mini">
+            <div class="donut" id="donutJoints"></div>
+            <div class="donut-hole">
+              <div class="donut-total is-pending" id="donutJointsTotal">—</div>
+              <div class="donut-caption">joints</div>
             </div>
           </div>
-          <div class="stock-split-sep"></div>
-          <div class="stock-split-item stock-cookies">
-            <div class="stock-stat">
-              <div class="stock-stat-val is-pending" id="cookieStockTotal">—</div>
-              <div class="stock-stat-label">cookies</div>
-              <div class="stock-stat-meter" aria-hidden="true">
-                <div class="stock-stat-meter-fill" id="cookieStockFill"></div>
-              </div>
-            </div>
-          </div>
+          <div class="sg-pills" id="jointsStatus" aria-label="Joint stock status"></div>
         </div>
-        <div class="donut-status" id="donutStatus">
-          <div class="ds-group ds-joints">
-            <div class="ds-group-label">Joints</div>
-            <div class="ds-group-stats">
-              <span class="ds-ok is-pending">···</span>
-              <span class="ds-sep">·</span>
-              <span class="ds-low is-pending">···</span>
-              <span class="ds-sep">·</span>
-              <span class="ds-out is-pending">···</span>
-            </div>
-          </div>
+        <div class="sg-divider" aria-hidden="true"></div>
+        <div class="sg-cookies">
+          <div class="sg-cookies-label">Cookies</div>
+          <div class="sg-cookie-list" id="cookieFlavorGlance"></div>
         </div>
       </div>
 
@@ -100,6 +82,24 @@ export const PAGE_TEMPLATES = {
             <div class="pprice">UGX 50,000</div>
           </div>
         </button>
+        <button class="product-row" type="button" data-product="cookie_duet">
+          <div>
+            <div class="pname">Cookie Duet</div>
+            <div class="pcount">2 cookies</div>
+          </div>
+          <div class="p-right">
+            <div class="pprice">UGX 15,000</div>
+          </div>
+        </button>
+        <button class="product-row" type="button" data-product="cookie_quartet">
+          <div>
+            <div class="pname">Cookie Quartet</div>
+            <div class="pcount">4 cookies</div>
+          </div>
+          <div class="p-right">
+            <div class="pprice">UGX 25,000</div>
+          </div>
+        </button>
         <button class="product-row" type="button" data-product="plain_single">
           <div>
             <div class="pname">Plain</div>
@@ -124,7 +124,7 @@ export const PAGE_TEMPLATES = {
             <div class="pcount">per cookie</div>
           </div>
           <div class="p-right">
-            <div class="pprice">UGX 5,000</div>
+            <div class="pprice">from UGX 5,000</div>
           </div>
         </button>
       </div>
@@ -174,6 +174,8 @@ export const PAGE_TEMPLATES = {
 
   analytics: `
     <div class="analytics-overview" id="statCards"></div>
+    <div class="section-title">Cookie partner</div>
+    <div class="analytics-block" id="cookiePartnerPanel"></div>
     <div class="analytics-block" id="revenueChart"></div>
     <div class="section-title">Sales patterns</div>
     <div id="salesPatterns"></div>

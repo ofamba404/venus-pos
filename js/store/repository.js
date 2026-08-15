@@ -59,12 +59,15 @@ export function inventoryRowsFromState(inventory) {
 }
 
 export function applyInventoryRows(inventory, draftStock, rows) {
+  let applied = 0;
   rows.forEach((row) => {
     if (Object.hasOwn(inventory, row.category_id)) {
       inventory[row.category_id] = row.stock;
       draftStock[row.category_id] = row.stock;
+      applied += 1;
     }
   });
+  return applied;
 }
 
 function replaceArrayContents(target, rows) {
