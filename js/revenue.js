@@ -46,9 +46,59 @@ export function cookieFlavorEntriesFromItem(item) {
   return rows;
 }
 
+function cookieProductKind(item) {
+  const id = String(item?.product_id || item?.productId || '')
+    .toLowerCase()
+    .replace(/-/g, '_');
+  const name = String(item?.product_name || item?.name || '').toLowerCase();
+  if (id.includes('quartet') || name.includes('quartet')) return 'quartet';
+  if (id.includes('duet') || name.includes('duet')) return 'duet';
+  return 'single';
+}
+
+/**
+ * Revenue share per flavor entry on a cookie line.
+ * Quartet: butterscotch keeps its single price (5k); remaining pack price
+ * is split evenly across the flavored cookies. Other lines use ala-carte weights.
+ * @returns {number[]} allocation aligned with `entries`
+ */
+export function allocateCookieLineRevenue(entries, revenue, productKind = 'single') {
+  const list = entries || [];
+  if (!list.length || revenue <= 0) return list.map(() => 0);
+
+  if (productKind === 'quartet') {
+    const butterIdx = [];
+    const flavoredIdx = [];
+    list.forEach((e, i) => {
+      if (isButterscotchCookie(e.catId, e.flavorId)) butterIdx.push(i);
+      else flavoredIdx.push(i);
+    });
+    const flavoredQty = flavoredIdx.reduce((sum, i) => sum + list[i].qty, 0);
+    if (butterIdx.length && flavoredQty > 0) {
+      const allocs = list.map(() => 0);
+      let butterBudget = 0;
+      for (const i of butterIdx) {
+        const slice = Math.min(
+          list[i].unitPrice * list[i].qty,
+          Math.max(0, revenue - butterBudget),
+        );
+        allocs[i] = slice;
+        butterBudget += slice;
+      }
+      const remaining = Math.max(0, revenue - butterBudget);
+      for (const i of flavoredIdx) {
+        allocs[i] = remaining * (list[i].qty / flavoredQty);
+      }
+      return allocs;
+    }
+  }
+
+  const weightSum = list.reduce((sum, e) => sum + e.unitPrice * e.qty, 0) || list.reduce((s, e) => s + e.qty, 0);
+  return list.map((e) => revenue * ((e.unitPrice * e.qty) / weightSum));
+}
+
 /**
  * Cookie line economics: wholesale, profit, your split, partner due (cost + their split).
- * Pack revenue is allocated across flavors by ala-carte unit-price weights.
  * @returns {{ cookieQty: number, revenue: number, wholesale: number, profit: number, ownerSplit: number, partnerDue: number } | null}
  */
 export function itemCookieSettlement(item) {
@@ -58,11 +108,12 @@ export function itemCookieSettlement(item) {
 
   const revenue = Math.max(0, Number(item?.line_total) || 0);
   const wholesale = cookieQty * COOKIE_WHOLESALE_UGX;
-  const weightSum = entries.reduce((sum, e) => sum + e.unitPrice * e.qty, 0) || cookieQty;
+  const allocs = allocateCookieLineRevenue(entries, revenue, cookieProductKind(item));
 
   let ownerSplit = 0;
-  for (const e of entries) {
-    const alloc = revenue * ((e.unitPrice * e.qty) / weightSum);
+  for (let i = 0; i < entries.length; i += 1) {
+    const e = entries[i];
+    const alloc = allocs[i];
     const cost = e.qty * COOKIE_WHOLESALE_UGX;
     const profit = alloc - cost;
     if (profit <= 0) continue;
@@ -97,11 +148,13 @@ export function expandCookieUnitsFromItem(item, paidRatio = 1) {
   const revenue = Math.max(0, Number(item?.line_total) || 0) * paidRatio;
   if (revenue <= 0) return [];
 
-  const weightSum = entries.reduce((sum, e) => sum + e.unitPrice * e.qty, 0) || cookieQty;
+  const kind = cookieProductKind(item);
+  const allocs = allocateCookieLineRevenue(entries, revenue, kind);
   const units = [];
 
-  for (const e of entries) {
-    const alloc = revenue * ((e.unitPrice * e.qty) / weightSum);
+  for (let i = 0; i < entries.length; i += 1) {
+    const e = entries[i];
+    const alloc = allocs[i];
     const cost = e.qty * COOKIE_WHOLESALE_UGX * paidRatio;
     const profit = alloc - cost;
     const share = isButterscotchCookie(e.catId, e.flavorId)
@@ -111,27 +164,17 @@ export function expandCookieUnitsFromItem(item, paidRatio = 1) {
     const partnerTotal = Math.max(0, alloc - ownerTotal);
     const ownerEach = ownerTotal / e.qty;
     const partnerEach = partnerTotal / e.qty;
-    for (let i = 0; i < e.qty; i += 1) {
+    for (let u = 0; u < e.qty; u += 1) {
       units.push({
         flavorId: e.flavorId,
         ownerSplit: ownerEach,
         partnerDue: partnerEach,
         revenue: alloc / e.qty,
-        productKind: cookieProductKind(item),
+        productKind: kind,
       });
     }
   }
   return units;
-}
-
-function cookieProductKind(item) {
-  const id = String(item?.product_id || item?.productId || '')
-    .toLowerCase()
-    .replace(/-/g, '_');
-  const name = String(item?.product_name || item?.name || '').toLowerCase();
-  if (id.includes('quartet') || name.includes('quartet')) return 'quartet';
-  if (id.includes('duet') || name.includes('duet')) return 'duet';
-  return 'single';
 }
 
 function flavorCountsOf(units) {

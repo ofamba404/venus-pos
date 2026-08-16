@@ -122,6 +122,8 @@ export const COOKIE_LOW_PCT = 0.3;
  * Wholesale cost per cookie (all flavors). Profit = sale allocation − this.
  * Butterscotch profit splits 40/60 (you / partner); other flavors 50/50.
  * Your cookie revenue is only your profit split; partner gets the rest (cost + their split).
+ * Quartet: butterscotch is priced at its single (5k); remaining pack price is split
+ * evenly across the flavored cookies (e.g. 20k ÷ 3 on a 25k Quartet).
  */
 export const COOKIE_WHOLESALE_UGX = 2500;
 /** Your share of butterscotch profit (40% → 1k of 2.5k on a 5k single). */
