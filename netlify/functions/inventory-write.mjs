@@ -62,17 +62,76 @@ async function restJson(url, serviceKey, path, { method = 'GET', body, prefer } 
   return { ok: res.ok, status: res.status, data, text };
 }
 
-async function readRows(url, serviceKey, ids) {
+async function readRows(url, serviceKey, ids, { withUpdatedAt = false } = {}) {
   const filter = ids.map(encodeURIComponent).join(',');
+  const select = withUpdatedAt
+    ? 'category_id,stock,updated_at'
+    : 'category_id,stock';
   const { ok, status, data } = await restJson(
     url,
     serviceKey,
-    `inventory?category_id=in.(${filter})&select=category_id,stock`,
+    `inventory?category_id=in.(${filter})&select=${select}`,
   );
   if (!ok || !Array.isArray(data)) {
     throw new Error(`Read failed (${status})`);
   }
   return data;
+}
+
+/**
+ * Apply a stock delta with optimistic concurrency.
+ * Retries when another terminal updates the same row between our read and write.
+ */
+async function applyDeltaWithRetry(url, serviceKey, categoryId, delta, maxAttempts = 6) {
+  const d = Math.trunc(Number(delta) || 0);
+  if (d === 0) {
+    const rows = await readRows(url, serviceKey, [categoryId]);
+    return rows[0] ? clampStock(rows[0].stock) : 0;
+  }
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const rows = await readRows(url, serviceKey, [categoryId], {
+      withUpdatedAt: true,
+    });
+    const row = rows[0] || null;
+    const current = row ? clampStock(row.stock) : 0;
+    const nextStock = clampStock(current + d);
+    const payload = { stock: nextStock, updated_at: new Date().toISOString() };
+
+    if (!row) {
+      const ins = await restJson(url, serviceKey, 'inventory', {
+        method: 'POST',
+        body: { category_id: categoryId, ...payload },
+        prefer: 'return=representation',
+      });
+      if (ins.ok && Array.isArray(ins.data) && ins.data[0]) {
+        return clampStock(ins.data[0].stock);
+      }
+      if (ins.status === 409) continue;
+      throw new Error(`Delta insert failed (${ins.status})`);
+    }
+
+    const updatedAtFilter = row.updated_at
+      ? `updated_at=eq.${encodeURIComponent(row.updated_at)}`
+      : 'updated_at=is.null';
+    const patch = await restJson(
+      url,
+      serviceKey,
+      `inventory?category_id=eq.${encodeURIComponent(categoryId)}&${updatedAtFilter}`,
+      { method: 'PATCH', body: payload, prefer: 'return=representation' },
+    );
+
+    if (patch.ok && Array.isArray(patch.data) && patch.data.length > 0) {
+      return clampStock(patch.data[0].stock);
+    }
+    // 0 affected rows -> concurrency miss, retry.
+    if (patch.ok && Array.isArray(patch.data) && patch.data.length === 0) continue;
+    // Non-200 with likely race/miss semantics -> retry as well.
+    if (patch.status === 404 || patch.status === 409 || patch.status === 412) continue;
+    throw new Error(`Delta patch failed (${patch.status})`);
+  }
+
+  throw new Error('Delta write conflict (please retry)');
 }
 
 async function upsertStock(url, serviceKey, categoryId, stock) {
@@ -200,19 +259,14 @@ export default async (req) => {
       await absorbLegacyCookie(url, serviceKey);
     }
 
-    let nextStock;
+    let stock;
     if (op === 'delta') {
-      const delta = Math.trunc(Number(body?.delta) || 0);
-      const rows = await readRows(url, serviceKey, [categoryId]);
-      const current = rows[0] ? clampStock(rows[0].stock) : 0;
-      nextStock = clampStock(current + delta);
+      stock = await applyDeltaWithRetry(url, serviceKey, categoryId, body?.delta);
     } else if (op === 'set') {
-      nextStock = clampStock(body?.stock);
+      stock = await upsertStock(url, serviceKey, categoryId, clampStock(body?.stock));
     } else {
       return json({ error: `Unknown op: ${op}` }, 400);
     }
-
-    const stock = await upsertStock(url, serviceKey, categoryId, nextStock);
     return json({ ok: true, category_id: categoryId, stock });
   } catch (err) {
     console.error('inventory-write', err);
