@@ -8,6 +8,8 @@ export let deliveries = [];
 
 /** True after inventory rows have been applied from IDB or network. */
 let inventoryHydrated = false;
+/** True after stock values were applied from a live Supabase read (not IDB-only). */
+let inventoryNetworkSynced = false;
 
 export function isInventoryHydrated() {
   return inventoryHydrated;
@@ -15,6 +17,16 @@ export function isInventoryHydrated() {
 
 export function markInventoryHydrated(value = true) {
   inventoryHydrated = Boolean(value);
+  if (!inventoryHydrated) inventoryNetworkSynced = false;
+}
+
+export function isInventoryNetworkSynced() {
+  return inventoryNetworkSynced;
+}
+
+export function markInventoryNetworkSynced(value = true) {
+  inventoryNetworkSynced = Boolean(value);
+  if (inventoryNetworkSynced) inventoryHydrated = true;
 }
 
 let pageDataSettled = false;

@@ -1,6 +1,6 @@
 import { dataStore } from './store/index.js';
 import { sbDelete, sbFetch } from './api.js';
-import { CATEGORIES, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName } from './config.js';
+import { CATEGORIES, COOKIE_FLAVORS, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName } from './config.js';
 import {
   breakdownToConfigSelection,
   buildLineFromConfig,
@@ -33,7 +33,10 @@ import {
 } from './credit.js';
 import { settleClientCredit, settleSaleCredit } from './settle-credit.js';
 import {
+  cookieBatchLineTitle,
+  cookieFlavorMixPhrase,
   cookiePartnerSettlementSummary,
+  cookiePartnerShareText,
   itemOwnerRevenue,
   markCookiePartnerBatchesSent,
   salePaidRatio,
@@ -44,6 +47,7 @@ import { clients, inventory, salesCache } from './state.js';
 import {
   closeEditModal,
   clientInitials,
+  copyText,
   escapeHtml,
   fmtCompact,
   fmtUGX,
@@ -447,6 +451,83 @@ function renderOverviewSections() {
   renderCookiePartnerPanel();
 }
 
+function flavorDotColor(flavorId) {
+  return COOKIE_FLAVORS.find((f) => f.id === flavorId)?.color || '#D4A355';
+}
+
+function fmtPlainUgx(n) {
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function cookiePartnerLineDots(row) {
+  if (row.kind === 'single') {
+    return `<span class="cookie-partner-dot" style="background:${flavorDotColor(row.flavorId)}"></span>`;
+  }
+  return COOKIE_FLAVORS.flatMap((f) => {
+    const n = row.flavorCounts?.[f.id] || 0;
+    return Array.from({ length: n }, () => `<span class="cookie-partner-dot" style="background:${f.color}"></span>`);
+  }).join('');
+}
+
+function renderCookiePartnerSoldLines(batch) {
+  return (batch.lines || [])
+    .map((row) => {
+      const mix = row.kind === 'single' ? '' : cookieFlavorMixPhrase(row.flavorCounts);
+      return `
+        <div class="cookie-partner-line">
+          <div class="cookie-partner-line-qty">${row.qty}</div>
+          <div class="cookie-partner-line-body">
+            <div class="cookie-partner-line-name">${escapeHtml(cookieBatchLineTitle(row))}</div>
+            ${mix ? `<div class="cookie-partner-line-mix">${escapeHtml(mix)}</div>` : ''}
+            <div class="cookie-partner-line-dots" aria-hidden="true">${cookiePartnerLineDots(row)}</div>
+          </div>
+          <div class="cookie-partner-line-amt">${fmtPlainUgx(row.revenue)}</div>
+        </div>`;
+    })
+    .join('');
+}
+
+function renderCookiePartnerSold(s) {
+  const batches = s.batches || [];
+  if (!batches.length) return '';
+
+  const soldLabel =
+    batches.length === 1
+      ? batches[0].complete
+        ? 'Sold this batch'
+        : 'Sold so far'
+      : 'Sold by batch';
+
+  const blocks = batches
+    .map((batch, i) => {
+      const kicker =
+        batches.length > 1
+          ? `<div class="cookie-partner-batch-kicker">${
+              batch.complete ? `Batch ${i + 1}` : `Next cycle · ${batch.cookieCount} of ${batch.every}`
+            }</div>`
+          : '';
+      return `
+        <div class="cookie-partner-batch">
+          ${kicker}
+          <div class="cookie-partner-lines">${renderCookiePartnerSoldLines(batch)}</div>
+          <div class="cookie-partner-sold-total">
+            <span>${batch.cookieCount} cookie${batch.cookieCount === 1 ? '' : 's'}</span>
+            <strong>${fmtPlainUgx(batch.revenue)}</strong>
+          </div>
+        </div>`;
+    })
+    .join('');
+
+  return `
+    <div class="cookie-partner-sold">
+      <div class="cookie-partner-sold-head">
+        <div class="cookie-partner-sold-label">${soldLabel}</div>
+        <button type="button" class="cookie-partner-copy" data-cookie-partner-copy>Copy</button>
+      </div>
+      ${blocks}
+    </div>`;
+}
+
 function renderCookiePartnerPanel() {
   const el = document.getElementById('cookiePartnerPanel');
   if (!el) return;
@@ -503,11 +584,23 @@ function renderCookiePartnerPanel() {
         </div>
       </div>
 
+      ${renderCookiePartnerSold(s)}
+
       <div class="cookie-partner-foot">
-        <span>Batch cookie sales <strong>${fmtCompact(showRevenue)}</strong></span>
+        ${
+          s.batches?.length
+            ? ''
+            : `<span>Batch cookie sales <strong>${fmtCompact(showRevenue)}</strong></span>`
+        }
         <span>Lifetime yours <strong>${fmtCompact(s.lifetimeOwnerSplit)}</strong> · partner <strong>${fmtCompact(s.lifetimePartnerDue)}</strong></span>
       </div>
     </div>`;
+
+  el.querySelector('[data-cookie-partner-copy]')?.addEventListener('click', () => {
+    const text = cookiePartnerShareText(s.batches);
+    if (!text) return;
+    void copyText(text, 'Copied for partner');
+  });
 
   el.querySelector('[data-cookie-partner-send]')?.addEventListener('click', async () => {
     const ok = await showConfirm(
@@ -1050,8 +1143,9 @@ function animateEditModalBody(body) {
 }
 
 async function applyStockDelta(oldBreakdown, newBreakdown, { persistLocal = true } = {}) {
-  const { upsertInventoryStock, isInventoryHydrated } = await import('./inventory.js');
-  if (!isInventoryHydrated()) {
+  const { applyStockDeltaToServer, isInventoryHydrated, isInventoryNetworkSynced } =
+    await import('./inventory.js');
+  if (!isInventoryHydrated() || !isInventoryNetworkSynced()) {
     throw new Error('Inventory not loaded yet');
   }
   const allIds = new Set([...Object.keys(oldBreakdown), ...Object.keys(newBreakdown)]);
@@ -1061,8 +1155,8 @@ async function applyStockDelta(oldBreakdown, newBreakdown, { persistLocal = true
     const delta = newQty - oldQty;
     if (delta === 0) continue;
     if (!Object.hasOwn(inventory, id)) continue;
-    inventory[id] = Math.max(0, (inventory[id] || 0) - delta);
-    await upsertInventoryStock(id);
+    // Sale edit: +delta items sold means −delta stock on server.
+    await applyStockDeltaToServer(id, -delta);
     const el = document.getElementById(`inv-count-${id}`);
     if (el) el.textContent = inventory[id];
   }

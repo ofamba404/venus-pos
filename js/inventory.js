@@ -10,7 +10,14 @@ import {
   isCookieCategoryId,
 } from './config.js';
 import { navigate } from './router.js';
-import { inventory, draftStock, isInventoryHydrated, markInventoryHydrated } from './state.js';
+import {
+  inventory,
+  draftStock,
+  isInventoryHydrated,
+  markInventoryHydrated,
+  isInventoryNetworkSynced,
+  markInventoryNetworkSynced,
+} from './state.js';
 import { notifyStockCrossing } from './notifications.js';
 import { showToast } from './utils.js';
 import { showPlaceholder, revealLoaded, jointsStatusPlaceholder, cookieFlavorPlaceholder } from './pending.js';
@@ -18,10 +25,15 @@ import { showPlaceholder, revealLoaded, jointsStatusPlaceholder, cookieFlavorPla
 const HIGHLIGHT_KEY = 'venus-pos-stock-highlight';
 const KNOWN_IDS = new Set(CATEGORIES.map((c) => c.id));
 
-/** In-flight writes per category — last write wins, no stampedes. */
+/** In-flight writes per category — serialized so rapid taps don't race. */
 const writeQueue = new Map();
 
-export { isInventoryHydrated, markInventoryHydrated };
+export {
+  isInventoryHydrated,
+  markInventoryHydrated,
+  isInventoryNetworkSynced,
+  markInventoryNetworkSynced,
+};
 
 export function getActiveStatusHighlight() {
   try {
@@ -50,43 +62,59 @@ function assertWritableId(id) {
   }
 }
 
+function setLocalStock(id, stock) {
+  const next = clampStock(stock);
+  inventory[id] = next;
+  draftStock[id] = next;
+  return next;
+}
+
+async function readServerStock(id) {
+  const res = await sbFetch(
+    `inventory?category_id=eq.${encodeURIComponent(id)}&select=stock`,
+  );
+  if (!res.ok) throw new Error(`Supabase ${res.status}`);
+  const rows = await res.json();
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return clampStock(rows[0].stock);
+}
+
 /**
- * Persist one category's current local stock to Supabase.
- * Rules (the "never again" contract):
- * - Only known CATEGORIES ids — never legacy `cookie`, never invent keys
- * - Only after inventory has been hydrated from IDB/network
- * - Writes exactly one row — never bulk-push local state, never migrate/mirror
- * - No side effects on other categories
- *
- * Use Prefer: return=minimal. return=representation often comes back [] under RLS
- * even when the UPDATE succeeded — that caused false "could not save" toasts.
- * Missing rows are created by ensureInventoryRows() on boot.
+ * Write absolute stock for one category. Verifies the row exists after PATCH
+ * (return=minimal can be 2xx with 0 matches).
  */
-export async function upsertInventoryStock(id) {
+async function writeServerStock(id, stock) {
   assertWritableId(id);
-  if (!isInventoryHydrated()) {
-    throw new Error('Inventory not loaded yet — refusing to overwrite stock');
-  }
+  const next = clampStock(stock);
+  const payload = { stock: next, updated_at: new Date().toISOString() };
 
-  const stock = clampStock(inventory[id]);
-  inventory[id] = stock;
-  draftStock[id] = stock;
-
-  const payload = { stock, updated_at: new Date().toISOString() };
   const patch = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify(payload),
   });
-  if (patch.ok) return true;
-  if (patch.status >= 500) throw new Error(`Supabase ${patch.status}`);
+  if (!patch.ok && patch.status >= 500) throw new Error(`Supabase ${patch.status}`);
+
+  let current = await readServerStock(id);
+  if (current !== null) {
+    if (current !== next) {
+      const retry = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify(payload),
+      });
+      if (!retry.ok && retry.status >= 500) throw new Error(`Supabase ${retry.status}`);
+      current = await readServerStock(id);
+    }
+    return setLocalStock(id, current ?? next);
+  }
 
   const insert = await sbFetch('inventory', {
     method: 'POST',
     headers: { Prefer: 'return=minimal' },
     body: JSON.stringify({ category_id: id, ...payload }),
   });
-  if (insert.ok) return true;
+  if (insert.ok) return setLocalStock(id, next);
 
   if (insert.status === 409) {
     const retry = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
@@ -94,32 +122,94 @@ export async function upsertInventoryStock(id) {
       headers: { Prefer: 'return=minimal' },
       body: JSON.stringify(payload),
     });
-    if (retry.ok) return true;
+    if (retry.ok) {
+      const verified = await readServerStock(id);
+      return setLocalStock(id, verified ?? next);
+    }
   }
 
   const detail = await insert.text().catch(() => '');
   throw new Error(`Supabase ${insert.status}${detail ? `: ${detail}` : ''} (patch ${patch.status})`);
 }
 
-export async function persistStock(id) {
+/**
+ * Apply delta against the **server** value (read → merge → write).
+ * Stale local zeros can never wipe live stock.
+ */
+export async function applyStockDeltaToServer(id, delta) {
+  assertWritableId(id);
+  if (!isInventoryHydrated()) {
+    throw new Error('Inventory not loaded yet — refusing to overwrite stock');
+  }
+  const d = Math.trunc(Number(delta) || 0);
+  if (d === 0) return inventory[id];
+
+  const server = await readServerStock(id);
+  const base = server == null ? clampStock(inventory[id]) : server;
+  const next = clampStock(base + d);
+  return writeServerStock(id, next);
+}
+
+/** User typed an absolute count on the inventory card. */
+export async function setStockAbsoluteOnServer(id, stock) {
+  assertWritableId(id);
+  if (!isInventoryHydrated()) {
+    throw new Error('Inventory not loaded yet — refusing to overwrite stock');
+  }
+  const next = clampStock(stock);
+
+  // Block zeroing from a cache-only session that never saw live server stock.
+  if (next === 0) {
+    const server = await readServerStock(id);
+    if (server != null && server > 0 && !isInventoryNetworkSynced()) {
+      setLocalStock(id, server);
+      throw new Error('Refusing to zero stock before network sync');
+    }
+  }
+
+  return writeServerStock(id, next);
+}
+
+/** @deprecated Prefer applyStockDeltaToServer / setStockAbsoluteOnServer */
+export async function upsertInventoryStock(id) {
+  return setStockAbsoluteOnServer(id, inventory[id]);
+}
+
+function enqueueWrite(id, work) {
   const prev = writeQueue.get(id) || Promise.resolve();
   const next = prev
     .catch(() => {})
-    .then(async () => {
-      await upsertInventoryStock(id);
-      // Local cache is best-effort — never toast if Supabase already saved.
-      try {
-        await dataStore.persistCurrent('inventory');
-      } catch (e) {
-        console.warn('local inventory cache persist failed', e);
-      }
-    })
+    .then(work)
     .catch((e) => {
       console.error('persist stock failed', e);
       showToast('Could not save — check connection', true);
     });
   writeQueue.set(id, next);
   return next;
+}
+
+export async function persistStock(id) {
+  return enqueueWrite(id, async () => {
+    await setStockAbsoluteOnServer(id, inventory[id]);
+    try {
+      await dataStore.persistCurrent('inventory');
+    } catch (e) {
+      console.warn('local inventory cache persist failed', e);
+    }
+  });
+}
+
+export async function persistStockDelta(id, delta) {
+  return enqueueWrite(id, async () => {
+    await applyStockDeltaToServer(id, delta);
+    refreshInvCard(id);
+    renderStockGlance();
+    try {
+      await dataStore.persistCurrent('inventory');
+    } catch (e) {
+      console.warn('local inventory cache persist failed', e);
+    }
+  });
 }
 
 export function refreshInvCard(id) {
@@ -136,10 +226,9 @@ export function adjustStock(id, delta) {
     return;
   }
   const previous = inventory[id];
-  inventory[id] = clampStock(inventory[id] + delta);
-  draftStock[id] = inventory[id];
+  setLocalStock(id, inventory[id] + delta);
   refreshInvCard(id);
-  void persistStock(id);
+  void persistStockDelta(id, delta);
   renderStockGlance();
   if (delta < 0) void notifyStockCrossing(id, previous, inventory[id]);
 }
@@ -183,8 +272,7 @@ function finishEditCount(id, value, fallback) {
     }
     assertWritableId(id);
     const previous = inventory[id];
-    inventory[id] = clampStock(num);
-    draftStock[id] = inventory[id];
+    setLocalStock(id, num);
     if (el) el.textContent = inventory[id];
     void persistStock(id);
     renderStockGlance();
@@ -261,6 +349,7 @@ export function syncInventoryToDom() {
 export async function loadInventory() {
   await ensureInventoryRows();
   await dataStore.fetch('inventory');
+  markInventoryNetworkSynced(true);
   syncInventoryToDom();
   renderStockGlance();
 }
@@ -270,13 +359,10 @@ function isCookieCategory(cat) {
 }
 
 /**
- * Create missing CATEGORIES inventory rows at stock 0.
+ * Create missing CATEGORIES inventory rows at stock 0, and apply live server
+ * values into local state before any writes are allowed.
  *
  * NEVER migrates, mirrors, redistributes, or mutates existing stock.
- * The old legacy `cookie` → butterscotch migration + flavor-sum mirror
- * caused stock to pile into butterscotch on every boot.
- *
- * Alias kept for any leftover callers.
  */
 export async function ensureInventoryRows() {
   try {
@@ -284,11 +370,22 @@ export async function ensureInventoryRows() {
     if (!res.ok) return;
     const rows = await res.json();
     if (!Array.isArray(rows)) return;
-    if (rows.length > 0) markInventoryHydrated();
 
     const byId = Object.fromEntries(
       rows.map((r) => [r.category_id, clampStock(r.stock)]),
     );
+
+    // Always adopt server values for known categories before marking ready.
+    let applied = 0;
+    CATEGORIES.forEach((cat) => {
+      if (!Object.hasOwn(byId, cat.id)) return;
+      setLocalStock(cat.id, byId[cat.id]);
+      const el = document.getElementById(`inv-count-${cat.id}`);
+      if (el && !el.querySelector('input')) el.textContent = inventory[cat.id];
+      applied += 1;
+    });
+    if (applied > 0) markInventoryNetworkSynced(true);
+
     const now = new Date().toISOString();
     const missing = CATEGORIES.filter((cat) => !Object.hasOwn(byId, cat.id)).map((cat) => ({
       category_id: cat.id,
@@ -309,10 +406,7 @@ export async function ensureInventoryRows() {
     }
     missing.forEach((row) => {
       if (!Object.hasOwn(inventory, row.category_id)) return;
-      if ((inventory[row.category_id] || 0) === 0) {
-        inventory[row.category_id] = 0;
-        draftStock[row.category_id] = 0;
-      }
+      setLocalStock(row.category_id, 0);
     });
   } catch (e) {
     console.warn('ensureInventoryRows', e);

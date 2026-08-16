@@ -129,7 +129,7 @@ export const COOKIE_BUTTERSCOTCH_OWNER_SHARE = 0.4;
 /** Your share of flavored-cookie profit (chocolate / mint / strawberry). */
 export const COOKIE_FLAVORED_OWNER_SHARE = 0.5;
 /** Settle with cookie partner every this many cookie units sold. */
-export const COOKIE_PARTNER_SETTLE_EVERY = 20;
+export const COOKIE_PARTNER_SETTLE_EVERY = 25;
 /**
  * Partner settlement only counts cookie sales from this moment forward
  * (Africa/Kampala). Older sales are ignored until explicitly re-included.

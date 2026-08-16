@@ -2235,11 +2235,13 @@ function addConfiguredItemToCart() {
   renderOrderModal();
 }
 
-async function patchInventoryRemote(ids) {
-  const { upsertInventoryStock } = await import('./inventory.js');
-  // Only CATEGORIES keys — never legacy `cookie` or unknown breakdown ids.
-  const known = ids.filter((id) => Object.hasOwn(inventory, id));
-  await Promise.all(known.map((id) => upsertInventoryStock(id)));
+async function patchInventoryRemote(soldById) {
+  const { applyStockDeltaToServer } = await import('./inventory.js');
+  // Deduct sold qty against live server stock — never push stale local absolutes.
+  const entries = Object.entries(soldById || {}).filter(
+    ([id, qty]) => Object.hasOwn(inventory, id) && Number(qty) > 0,
+  );
+  await Promise.all(entries.map(([id, qty]) => applyStockDeltaToServer(id, -Number(qty))));
 }
 
 async function resolveCheckoutClientId(orderClientName) {
@@ -2295,7 +2297,7 @@ async function finishCheckoutBackground({
   orderClientName,
   saleId,
   deliverySnapshot,
-  inventoryIds,
+  soldById,
 }) {
   try {
     const { updateTodayStrip } = await import('./home.js');
@@ -2304,9 +2306,9 @@ async function finishCheckoutBackground({
     console.error('updateTodayStrip failed', e);
   }
 
-  if (inventoryIds?.length) {
+  if (soldById && Object.keys(soldById).length) {
     try {
-      await patchInventoryRemote(inventoryIds);
+      await patchInventoryRemote(soldById);
       void dataStore.persistCurrent('inventory');
     } catch (e) {
       console.error('inventory sync failed', e);
@@ -2388,8 +2390,8 @@ async function checkout() {
     return;
   }
 
-  const { isInventoryHydrated } = await import('./inventory.js');
-  if (!isInventoryHydrated()) {
+  const { isInventoryHydrated, isInventoryNetworkSynced } = await import('./inventory.js');
+  if (!isInventoryHydrated() || !isInventoryNetworkSynced()) {
     showToast('Stock still loading — wait a moment and try again', true);
     return;
   }
@@ -2546,7 +2548,7 @@ async function checkout() {
       orderClientName,
       saleId: saleRows?.[0]?.id || null,
       deliverySnapshot,
-      inventoryIds,
+      soldById: mergedBreakdown,
     });
   } catch (e) {
     console.error('checkout failed', e);

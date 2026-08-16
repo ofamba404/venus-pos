@@ -1,6 +1,7 @@
 import {
   COOKIE_BUTTERSCOTCH_OWNER_SHARE,
   COOKIE_FLAVORED_OWNER_SHARE,
+  COOKIE_FLAVORS,
   COOKIE_PARTNER_SETTLE_EVERY,
   COOKIE_PARTNER_TRACK_FROM_MS,
   COOKIE_WHOLESALE_UGX,
@@ -84,7 +85,7 @@ export function itemCookieSettlement(item) {
 }
 
 /**
- * Expand a cookie line into per-unit shares (for 20-cookie settlement batches).
+ * Expand a cookie line into per-unit shares (for settlement batches).
  * Amounts are scaled by `paidRatio` (credit collections).
  * Zero-revenue lines (rewards) are omitted from partner settlement.
  */
@@ -116,10 +117,207 @@ export function expandCookieUnitsFromItem(item, paidRatio = 1) {
         ownerSplit: ownerEach,
         partnerDue: partnerEach,
         revenue: alloc / e.qty,
+        productKind: cookieProductKind(item),
       });
     }
   }
   return units;
+}
+
+function cookieProductKind(item) {
+  const id = String(item?.product_id || item?.productId || '')
+    .toLowerCase()
+    .replace(/-/g, '_');
+  const name = String(item?.product_name || item?.name || '').toLowerCase();
+  if (id.includes('quartet') || name.includes('quartet')) return 'quartet';
+  if (id.includes('duet') || name.includes('duet')) return 'duet';
+  return 'single';
+}
+
+function flavorCountsOf(units) {
+  const counts = {};
+  for (const unit of units) {
+    const id = unit.flavorId || 'butterscotch';
+    counts[id] = (counts[id] || 0) + 1;
+  }
+  return counts;
+}
+
+function flavorCountsKey(counts) {
+  return COOKIE_FLAVORS.map((f) => `${f.id}:${counts[f.id] || 0}`).join('|');
+}
+
+function flavorName(flavorId) {
+  const named = COOKIE_FLAVORS.find((f) => f.id === flavorId);
+  return (named?.name || String(flavorId || 'cookie')).toLowerCase();
+}
+
+/** "1 chocolate, 2 strawberry, 1 butterscotch" — choices first, butterscotch last. */
+export function cookieFlavorMixPhrase(counts) {
+  const parts = COOKIE_FLAVORS.filter((f) => f.id !== 'butterscotch' && (counts[f.id] || 0) > 0).map(
+    (f) => `${counts[f.id]} ${f.name.toLowerCase()}`,
+  );
+  if ((counts.butterscotch || 0) > 0) parts.push(`${counts.butterscotch} butterscotch`);
+  return parts.join(', ');
+}
+
+function sumUnitMoney(slice) {
+  return slice.reduce(
+    (acc, unit) => {
+      acc.ownerSplit += unit.ownerSplit;
+      acc.partnerDue += unit.partnerDue;
+      acc.revenue += unit.revenue;
+      return acc;
+    },
+    { ownerSplit: 0, partnerDue: 0, revenue: 0 },
+  );
+}
+
+function fmtPlainUgx(n) {
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/**
+ * Group a cookie-unit slice into sold products (singles by flavor, packs by mix).
+ * Complete packs stay packs; a pack split across batches shows as "2 of 4".
+ */
+export function cookieBatchProductLines(units) {
+  const byLine = new Map();
+  for (const unit of units || []) {
+    const key = unit.lineKey || `${unit.saleId || 'sale'}:${unit.flavorId || 'cookie'}`;
+    if (!byLine.has(key)) byLine.set(key, []);
+    byLine.get(key).push(unit);
+  }
+
+  const merged = new Map();
+  const addRow = (row) => {
+    const key =
+      row.kind === 'single'
+        ? `single:${row.flavorId}`
+        : `${row.kind}:${row.complete ? 'full' : 'part'}:${flavorCountsKey(row.flavorCounts)}:${row.lineCookieQty}:${Math.round(row.cookieQty / row.qty)}`;
+    const existing = merged.get(key);
+    if (existing) {
+      existing.qty += row.qty;
+      existing.cookieQty += row.cookieQty;
+      existing.revenue += row.revenue;
+      return;
+    }
+    merged.set(key, { ...row, flavorCounts: { ...row.flavorCounts } });
+  };
+
+  for (const lineUnits of byLine.values()) {
+    const first = lineUnits[0];
+    const kind = first.productKind || 'single';
+    if (kind === 'single') {
+      const byFlavor = new Map();
+      for (const unit of lineUnits) {
+        const flavorId = unit.flavorId || 'butterscotch';
+        if (!byFlavor.has(flavorId)) byFlavor.set(flavorId, []);
+        byFlavor.get(flavorId).push(unit);
+      }
+      for (const [flavorId, flavorUnits] of byFlavor) {
+        addRow({
+          kind: 'single',
+          flavorId,
+          qty: flavorUnits.length,
+          cookieQty: flavorUnits.length,
+          complete: true,
+          lineCookieQty: flavorUnits.length,
+          flavorCounts: { [flavorId]: flavorUnits.length },
+          revenue: flavorUnits.reduce((sum, unit) => sum + unit.revenue, 0),
+        });
+      }
+      continue;
+    }
+
+    const cookieQty = lineUnits.length;
+    const lineCookieQty = first.lineCookieQty || cookieQty;
+    addRow({
+      kind,
+      flavorId: null,
+      qty: 1,
+      cookieQty,
+      complete: cookieQty === lineCookieQty,
+      lineCookieQty,
+      flavorCounts: flavorCountsOf(lineUnits),
+      revenue: lineUnits.reduce((sum, unit) => sum + unit.revenue, 0),
+    });
+  }
+
+  const rank = (row) => {
+    if (row.kind === 'single') {
+      const i = COOKIE_FLAVORS.findIndex((f) => f.id === row.flavorId);
+      return [0, i < 0 ? 99 : i];
+    }
+    if (row.kind === 'duet') return [1, row.complete ? 0 : 1];
+    if (row.kind === 'quartet') return [2, row.complete ? 0 : 1];
+    return [3, 0];
+  };
+
+  return [...merged.values()]
+    .map((row) => ({ ...row, revenue: Math.round(row.revenue) }))
+    .sort((a, b) => {
+      const ra = rank(a);
+      const rb = rank(b);
+      return ra[0] - rb[0] || ra[1] - rb[1];
+    });
+}
+
+export function cookieBatchLineTitle(row) {
+  if (row.kind === 'single') return `single ${flavorName(row.flavorId)}`;
+  const pack = row.kind === 'quartet' ? 'Quartet' : 'Duet';
+  if (!row.complete) return `${pack} · ${row.cookieQty} of ${row.lineCookieQty}`;
+  return pack;
+}
+
+export function cookiePartnerBatchesFromUnits(units, every) {
+  const size = Math.max(1, Number(every) || COOKIE_PARTNER_SETTLE_EVERY);
+  const list = units || [];
+  const batches = [];
+  for (let offset = 0; offset < list.length; offset += size) {
+    const slice = list.slice(offset, offset + size);
+    const totals = sumUnitMoney(slice);
+    batches.push({
+      index: batches.length + 1,
+      cookieCount: slice.length,
+      every: size,
+      complete: slice.length === size,
+      lines: cookieBatchProductLines(slice),
+      revenue: Math.round(totals.revenue),
+      ownerSplit: Math.round(totals.ownerSplit),
+      partnerDue: Math.round(totals.partnerDue),
+    });
+  }
+  return batches;
+}
+
+export function cookieBatchShareText(batch) {
+  if (!batch) return '';
+  const lines = (batch.lines || []).map((row) => {
+    const mix = row.kind === 'single' ? '' : cookieFlavorMixPhrase(row.flavorCounts);
+    const title = mix ? `${row.qty} ${cookieBatchLineTitle(row)} (${mix})` : `${row.qty} ${cookieBatchLineTitle(row)}`;
+    return `${title} — ${fmtPlainUgx(row.revenue)}`;
+  });
+  lines.push('');
+  lines.push(`${batch.cookieCount} cookies — ${fmtPlainUgx(batch.revenue)}`);
+  lines.push(`Your split — ${fmtPlainUgx(batch.ownerSplit)}`);
+  lines.push(`Send partner — ${fmtPlainUgx(batch.partnerDue)}`);
+  return lines.join('\n');
+}
+
+export function cookiePartnerShareText(batches) {
+  const list = batches || [];
+  if (!list.length) return '';
+  return list
+    .map((batch, i) => {
+      const body = cookieBatchShareText(batch);
+      if (list.length === 1) return body;
+      const head = batch.complete
+        ? `Batch ${i + 1} — ${batch.cookieCount} cookies`
+        : `Next cycle — ${batch.cookieCount} of ${batch.every}`;
+      return `${head}\n${body}`;
+    })
+    .join('\n\n');
 }
 
 /** Chronological cookie units from the partner track-from date (oldest first). */
@@ -129,15 +327,19 @@ export function cookieUnitsChronological(sales) {
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   const units = [];
   for (const sale of sorted) {
-    for (const item of sale.items || []) {
-      for (const unit of expandCookieUnitsFromItem(item, 1)) {
+    (sale.items || []).forEach((item, itemIndex) => {
+      const expanded = expandCookieUnitsFromItem(item, 1);
+      const lineCookieQty = expanded.length;
+      for (const unit of expanded) {
         units.push({
           ...unit,
           saleId: sale.id,
           created_at: sale.created_at,
+          lineKey: `${sale.id}:${itemIndex}`,
+          lineCookieQty,
         });
       }
-    }
+    });
   }
   return units;
 }
@@ -215,17 +417,18 @@ export function cookiePartnerSettlementSummary(sales) {
     batchOwnerSplit: Math.round(unsettledTotals.ownerSplit),
     batchPartnerDue: Math.round(unsettledTotals.partnerDue),
     batchRevenue: Math.round(unsettledTotals.revenue),
-    /** Complete 20-cookie chunks ready to send now. */
+    /** Complete settlement chunks ready to send now. */
     readyOwnerSplit: Math.round(readyTotals.ownerSplit),
     readyPartnerDue: Math.round(readyTotals.partnerDue),
     readyRevenue: Math.round(readyTotals.revenue),
     lifetimeOwnerSplit: Math.round(lifetime.ownerSplit),
     lifetimePartnerDue: Math.round(lifetime.partnerDue),
     lifetimeRevenue: Math.round(lifetime.revenue),
+    batches: cookiePartnerBatchesFromUnits(unsettled, every),
   };
 }
 
-/** Mark the next complete 20-cookie batch(es) as sent to partner. */
+/** Mark the next complete settlement batch(es) as sent to partner. */
 export function markCookiePartnerBatchesSent(sales) {
   const summary = cookiePartnerSettlementSummary(sales);
   if (summary.readyCount <= 0) return summary;

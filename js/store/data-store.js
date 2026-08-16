@@ -1,5 +1,13 @@
 import { showToast } from '../utils.js';
-import { clients, deliveries, draftStock, inventory, salesCache, markInventoryHydrated } from '../state.js';
+import {
+  clients,
+  deliveries,
+  draftStock,
+  inventory,
+  salesCache,
+  markInventoryHydrated,
+  markInventoryNetworkSynced,
+} from '../state.js';
 import { idbClear, idbReadStale, idbWrite } from './idb.js';
 import {
   ENTITIES,
@@ -181,6 +189,9 @@ export async function fetchEntity(entity, { force = false, silent = false, trust
         return { entity, ok: false, error: new Error('Empty inventory response') };
       }
       await persist(entity, rows);
+      if (entity === 'inventory' && rows.length > 0) {
+        markInventoryNetworkSynced(true);
+      }
       return { entity, ok: true };
     } catch (e) {
       console.error(`fetch ${entity} failed`, e);
@@ -227,6 +238,7 @@ export async function clearEntity(entity) {
         draftStock[k] = 0;
       });
       markInventoryHydrated(false);
+      markInventoryNetworkSynced(false);
       break;
     case 'clients':
       clients.length = 0;
