@@ -69,108 +69,63 @@ function setLocalStock(id, stock) {
   return next;
 }
 
-async function readServerStock(id) {
-  const res = await sbFetch(
-    `inventory?category_id=eq.${encodeURIComponent(id)}&select=stock`,
-  );
-  if (!res.ok) throw new Error(`Supabase ${res.status}`);
-  const rows = await res.json();
-  if (!Array.isArray(rows) || rows.length === 0) return null;
-  return clampStock(rows[0].stock);
+async function staffAccessToken() {
+  const token =
+    window.VenusPosAuth?.peekAccessToken?.() ||
+    (await window.VenusPosAuth?.getAccessToken?.().catch(() => '')) ||
+    '';
+  if (!token) throw new Error('Not signed in');
+  return token;
 }
 
 /**
- * Write absolute stock for one category. Verifies the row exists after PATCH
- * (return=minimal can be 2xx with 0 matches).
+ * ONE write path: Netlify function + service role.
+ * Client never PATCHes Supabase inventory directly — that caused RLS ghosts,
+ * false toasts, zero-wipes, and butterscotch migration bugs.
  */
-async function writeServerStock(id, stock) {
-  assertWritableId(id);
-  const next = clampStock(stock);
-  const payload = { stock: next, updated_at: new Date().toISOString() };
-
-  const patch = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify(payload),
-  });
-  if (!patch.ok && patch.status >= 500) throw new Error(`Supabase ${patch.status}`);
-
-  let current = await readServerStock(id);
-  if (current !== null) {
-    if (current !== next) {
-      const retry = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
-        method: 'PATCH',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify(payload),
-      });
-      if (!retry.ok && retry.status >= 500) throw new Error(`Supabase ${retry.status}`);
-      current = await readServerStock(id);
-    }
-    return setLocalStock(id, current ?? next);
-  }
-
-  const insert = await sbFetch('inventory', {
+async function apiWriteStock({ categoryId, op, stock, delta }) {
+  assertWritableId(categoryId);
+  const token = await staffAccessToken();
+  const res = await fetch('/api/inventory/write', {
     method: 'POST',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ category_id: id, ...payload }),
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      category_id: categoryId,
+      op,
+      ...(op === 'set' ? { stock: clampStock(stock) } : { delta: Math.trunc(Number(delta) || 0) }),
+    }),
   });
-  if (insert.ok) return setLocalStock(id, next);
-
-  if (insert.status === 409) {
-    const retry = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify(payload),
-    });
-    if (retry.ok) {
-      const verified = await readServerStock(id);
-      return setLocalStock(id, verified ?? next);
-    }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.error || `Inventory write failed (${res.status})`);
   }
-
-  const detail = await insert.text().catch(() => '');
-  throw new Error(`Supabase ${insert.status}${detail ? `: ${detail}` : ''} (patch ${patch.status})`);
+  return setLocalStock(categoryId, data.stock);
 }
 
-/**
- * Apply delta against the **server** value (read → merge → write).
- * Stale local zeros can never wipe live stock.
- */
+/** Checkout / sale edits: deduct/add against live server stock. */
 export async function applyStockDeltaToServer(id, delta) {
   assertWritableId(id);
   if (!isInventoryHydrated()) {
-    throw new Error('Inventory not loaded yet — refusing to overwrite stock');
+    throw new Error('Inventory not loaded yet');
   }
   const d = Math.trunc(Number(delta) || 0);
   if (d === 0) return inventory[id];
-
-  const server = await readServerStock(id);
-  const base = server == null ? clampStock(inventory[id]) : server;
-  const next = clampStock(base + d);
-  return writeServerStock(id, next);
+  return apiWriteStock({ categoryId: id, op: 'delta', delta: d });
 }
 
-/** User typed an absolute count on the inventory card. */
+/** User typed an absolute count. */
 export async function setStockAbsoluteOnServer(id, stock) {
   assertWritableId(id);
   if (!isInventoryHydrated()) {
-    throw new Error('Inventory not loaded yet — refusing to overwrite stock');
+    throw new Error('Inventory not loaded yet');
   }
-  const next = clampStock(stock);
-
-  // Block zeroing from a cache-only session that never saw live server stock.
-  if (next === 0) {
-    const server = await readServerStock(id);
-    if (server != null && server > 0 && !isInventoryNetworkSynced()) {
-      setLocalStock(id, server);
-      throw new Error('Refusing to zero stock before network sync');
-    }
-  }
-
-  return writeServerStock(id, next);
+  return apiWriteStock({ categoryId: id, op: 'set', stock });
 }
 
-/** @deprecated Prefer applyStockDeltaToServer / setStockAbsoluteOnServer */
+/** @deprecated */
 export async function upsertInventoryStock(id) {
   return setStockAbsoluteOnServer(id, inventory[id]);
 }
@@ -182,7 +137,8 @@ function enqueueWrite(id, work) {
     .then(work)
     .catch((e) => {
       console.error('persist stock failed', e);
-      showToast('Could not save — check connection', true);
+      // Only toast after the authoritative API rejects — not after local cache quirks.
+      showToast('Could not save stock — try again', true);
     });
   writeQueue.set(id, next);
   return next;
@@ -199,9 +155,19 @@ export async function persistStock(id) {
   });
 }
 
-export async function persistStockDelta(id, delta) {
+export async function persistStockDelta(id, delta, rollbackTo) {
+  const prior = rollbackTo != null ? clampStock(rollbackTo) : null;
   return enqueueWrite(id, async () => {
-    await applyStockDeltaToServer(id, delta);
+    try {
+      await applyStockDeltaToServer(id, delta);
+    } catch (e) {
+      if (prior != null) {
+        setLocalStock(id, prior);
+        refreshInvCard(id);
+        renderStockGlance();
+      }
+      throw e;
+    }
     refreshInvCard(id);
     renderStockGlance();
     try {
@@ -226,9 +192,10 @@ export function adjustStock(id, delta) {
     return;
   }
   const previous = inventory[id];
-  setLocalStock(id, inventory[id] + delta);
+  // Optimistic UI — server confirms via /api/inventory/write.
+  setLocalStock(id, previous + delta);
   refreshInvCard(id);
-  void persistStockDelta(id, delta);
+  void persistStockDelta(id, delta, previous);
   renderStockGlance();
   if (delta < 0) void notifyStockCrossing(id, previous, inventory[id]);
 }
