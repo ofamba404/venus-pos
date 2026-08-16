@@ -2387,8 +2387,9 @@ async function checkout() {
     return;
   }
 
-  const { isInventoryHydrated, isInventoryNetworkSynced } = await import('./inventory.js');
-  if (!isInventoryHydrated() || !isInventoryNetworkSynced()) {
+  const { isInventoryHydrated, loadInventory } = await import('./inventory.js');
+  if (!isInventoryHydrated()) {
+    void loadInventory().catch(() => {});
     showToast('Stock still loading — wait a moment and try again', true);
     return;
   }

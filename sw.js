@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'venus-pos-v72';
+const CACHE_VERSION = 'venus-pos-v73';
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 /** Survives CACHE_VERSION bumps — records that Venus POS was installed as a PWA. */

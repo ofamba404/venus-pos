@@ -109,7 +109,7 @@ async function apiWriteStock({ categoryId, op, stock, delta }) {
 }
 
 function assertNetworkReady() {
-  if (!isInventoryHydrated() || !isInventoryNetworkSynced()) {
+  if (!isInventoryHydrated()) {
     throw new Error('Inventory not loaded yet');
   }
 }
@@ -204,7 +204,9 @@ export function refreshInvCard(id) {
 
 export function adjustStock(id, delta) {
   const canon = assertWritableId(id);
-  if (!isInventoryHydrated() || !isInventoryNetworkSynced()) {
+  if (!isInventoryHydrated()) {
+    // Self-heal on first interaction after a cold/auth-glitch boot.
+    void loadInventory().catch(() => {});
     showToast('Stock still loading — try again in a moment', true);
     return;
   }
@@ -252,7 +254,8 @@ function finishEditCount(id, value, fallback) {
   const el = document.getElementById(`inv-count-${id}`);
   const num = parseInt(value, 10);
   if (!isNaN(num) && num >= 0) {
-    if (!isInventoryHydrated() || !isInventoryNetworkSynced()) {
+    if (!isInventoryHydrated()) {
+      void loadInventory().catch(() => {});
       if (el) el.textContent = fallback;
       showToast('Stock still loading — try again in a moment', true);
       return;
