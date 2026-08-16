@@ -29,8 +29,28 @@ export function cookieCategoryId(flavorId) {
 
 export function cookieFlavorIdFromCategory(categoryId) {
   const id = String(categoryId || '');
-  if (id === 'cookie') return null;
+  if (id === 'cookie') return 'butterscotch';
   return id.startsWith('cookie_') ? id.slice('cookie_'.length) : null;
+}
+
+/** Legacy shared bucket → butterscotch (the original cookie SKU). */
+export function canonicalInventoryCategoryId(categoryId) {
+  const id = String(categoryId || '');
+  return id === 'cookie' ? 'cookie_butterscotch' : id;
+}
+
+/** Merge breakdown keys so leftover `cookie` deducts from `cookie_butterscotch`. */
+export function normalizeInventoryBreakdown(breakdown) {
+  const out = {};
+  if (!breakdown || typeof breakdown !== 'object') return out;
+  for (const [id, qtyRaw] of Object.entries(breakdown)) {
+    const n = Number(qtyRaw);
+    if (!Number.isFinite(n) || n === 0) continue;
+    const canon = canonicalInventoryCategoryId(id);
+    if (!canon) continue;
+    out[canon] = (out[canon] || 0) + n;
+  }
+  return out;
 }
 
 /** True for per-flavor cookie categories and legacy aggregate `cookie`. */
@@ -120,16 +140,13 @@ export const COOKIE_STOCK_CAPACITY = 100;
 export const COOKIE_LOW_PCT = 0.3;
 /**
  * Wholesale cost per cookie (all flavors). Profit = sale allocation − this.
- * Butterscotch profit splits 40/60 (you / partner); other flavors 50/50.
+ * All flavors split profit 45/55 (you / partner).
  * Your cookie revenue is only your profit split; partner gets the rest (cost + their split).
- * Quartet: butterscotch is priced at its single (5k); remaining pack price is split
- * evenly across the flavored cookies (e.g. 20k ÷ 3 on a 25k Quartet).
+ * Packs (Duet / Quartet) split pack price evenly across the cookies in the pack.
  */
 export const COOKIE_WHOLESALE_UGX = 2500;
-/** Your share of butterscotch profit (40% → 1k of 2.5k on a 5k single). */
-export const COOKIE_BUTTERSCOTCH_OWNER_SHARE = 0.4;
-/** Your share of flavored-cookie profit (chocolate / mint / strawberry). */
-export const COOKIE_FLAVORED_OWNER_SHARE = 0.5;
+/** Your share of cookie profit (all flavors). Partner gets 1 − this. */
+export const COOKIE_OWNER_SHARE = 0.45;
 /** Settle with cookie partner every this many cookie units sold. */
 export const COOKIE_PARTNER_SETTLE_EVERY = 25;
 /**
@@ -139,10 +156,12 @@ export const COOKIE_PARTNER_SETTLE_EVERY = 25;
  */
 export const COOKIE_PARTNER_TRACK_FROM_MS = Date.parse('2026-08-12T00:00:00+03:00');
 /**
- * @deprecated Prefer flavor/wholesale split via revenue.js — kept as butterscotch
- * owner share on a full-price single (5000 − 2500) × 0.4.
+ * @deprecated Prefer wholesale split via revenue.js — kept as owner share
+ * on a full-price butterscotch single (5000 − 2500) × COOKIE_OWNER_SHARE.
  */
-export const COOKIE_COMMISSION_UGX = 1000;
+export const COOKIE_COMMISSION_UGX = Math.round(
+  (5000 - COOKIE_WHOLESALE_UGX) * COOKIE_OWNER_SHARE,
+);
 
 export const PRODUCTS = [
   { id: 'scout', name: 'Scout Pack', price: 8000, joints: 1, rule: 'choose_any' },

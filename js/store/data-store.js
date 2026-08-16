@@ -142,16 +142,21 @@ export async function hydrate(entities = ENTITIES) {
   return result;
 }
 
-export async function persist(entity, data) {
+export async function persist(entity, data, { bumpFreshness = true } = {}) {
   applyEntity(entity, data);
-  const ts = Date.now();
+  const prevTs = meta.get(entity)?.ts || 0;
+  const ts = bumpFreshness ? Date.now() : prevTs;
   await idbWrite(entity, data);
   setMeta(entity, { ts, hydrated: true, error: null });
   notify(entity);
 }
 
 export async function persistCurrent(entity) {
-  await persist(entity, serializeEntity(entity));
+  // Local inventory snapshots must not extend the 20s fresh window — that
+  // skipped the next server fetch and left cookie zeros painted for minutes.
+  await persist(entity, serializeEntity(entity), {
+    bumpFreshness: entity !== 'inventory',
+  });
 }
 
 export async function invalidate(entity) {
@@ -190,7 +195,14 @@ export async function fetchEntity(entity, { force = false, silent = false, trust
       }
       await persist(entity, rows);
       if (entity === 'inventory' && rows.length > 0) {
-        markInventoryNetworkSynced(true);
+        const leftover = rows.find((r) => r?.category_id === 'cookie');
+        const flavorHasStock = rows.some(
+          (r) => String(r?.category_id || '').startsWith('cookie_') && Number(r.stock) > 0,
+        );
+        // Unlock after a live read unless the only cookie stock is still on leftover `cookie`.
+        if (!leftover || !(Number(leftover.stock) > 0) || flavorHasStock) {
+          markInventoryNetworkSynced(true);
+        }
       }
       return { entity, ok: true };
     } catch (e) {

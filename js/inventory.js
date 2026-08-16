@@ -1,4 +1,3 @@
-import { sbFetch } from './api.js';
 import { dataStore } from './store/index.js';
 import { bumpElement, closeModal, openModal } from './animations.js';
 import {
@@ -7,7 +6,9 @@ import {
   COOKIE_LOW_PCT,
   COOKIE_STOCK_CAPACITY,
   LOW_STOCK_THRESHOLD,
+  canonicalInventoryCategoryId,
   isCookieCategoryId,
+  normalizeInventoryBreakdown,
 } from './config.js';
 import { navigate } from './router.js';
 import {
@@ -57,9 +58,11 @@ function clampStock(n) {
 }
 
 function assertWritableId(id) {
-  if (!KNOWN_IDS.has(id)) {
+  const canon = canonicalInventoryCategoryId(id);
+  if (!KNOWN_IDS.has(canon)) {
     throw new Error(`Unknown inventory category: ${id}`);
   }
+  return canon;
 }
 
 function setLocalStock(id, stock) {
@@ -84,7 +87,7 @@ async function staffAccessToken() {
  * false toasts, zero-wipes, and butterscotch migration bugs.
  */
 async function apiWriteStock({ categoryId, op, stock, delta }) {
-  assertWritableId(categoryId);
+  const id = assertWritableId(categoryId);
   const token = await staffAccessToken();
   const res = await fetch('/api/inventory/write', {
     method: 'POST',
@@ -93,7 +96,7 @@ async function apiWriteStock({ categoryId, op, stock, delta }) {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      category_id: categoryId,
+      category_id: id,
       op,
       ...(op === 'set' ? { stock: clampStock(stock) } : { delta: Math.trunc(Number(delta) || 0) }),
     }),
@@ -102,27 +105,29 @@ async function apiWriteStock({ categoryId, op, stock, delta }) {
   if (!res.ok || !data?.ok) {
     throw new Error(data?.error || `Inventory write failed (${res.status})`);
   }
-  return setLocalStock(categoryId, data.stock);
+  return setLocalStock(id, data.stock);
+}
+
+function assertNetworkReady() {
+  if (!isInventoryHydrated() || !isInventoryNetworkSynced()) {
+    throw new Error('Inventory not loaded yet');
+  }
 }
 
 /** Checkout / sale edits: deduct/add against live server stock. */
 export async function applyStockDeltaToServer(id, delta) {
-  assertWritableId(id);
-  if (!isInventoryHydrated()) {
-    throw new Error('Inventory not loaded yet');
-  }
+  const canon = assertWritableId(id);
+  assertNetworkReady();
   const d = Math.trunc(Number(delta) || 0);
-  if (d === 0) return inventory[id];
-  return apiWriteStock({ categoryId: id, op: 'delta', delta: d });
+  if (d === 0) return inventory[canon];
+  return apiWriteStock({ categoryId: canon, op: 'delta', delta: d });
 }
 
 /** User typed an absolute count. */
 export async function setStockAbsoluteOnServer(id, stock) {
-  assertWritableId(id);
-  if (!isInventoryHydrated()) {
-    throw new Error('Inventory not loaded yet');
-  }
-  return apiWriteStock({ categoryId: id, op: 'set', stock });
+  const canon = assertWritableId(id);
+  assertNetworkReady();
+  return apiWriteStock({ categoryId: canon, op: 'set', stock });
 }
 
 /** @deprecated */
@@ -137,16 +142,17 @@ function enqueueWrite(id, work) {
     .then(work)
     .catch((e) => {
       console.error('persist stock failed', e);
-      // Only toast after the authoritative API rejects — not after local cache quirks.
       showToast('Could not save stock — try again', true);
+      throw e;
     });
   writeQueue.set(id, next);
   return next;
 }
 
 export async function persistStock(id) {
-  return enqueueWrite(id, async () => {
-    await setStockAbsoluteOnServer(id, inventory[id]);
+  const canon = assertWritableId(id);
+  return enqueueWrite(canon, async () => {
+    await setStockAbsoluteOnServer(canon, inventory[canon]);
     try {
       await dataStore.persistCurrent('inventory');
     } catch (e) {
@@ -156,19 +162,20 @@ export async function persistStock(id) {
 }
 
 export async function persistStockDelta(id, delta, rollbackTo) {
+  const canon = assertWritableId(id);
   const prior = rollbackTo != null ? clampStock(rollbackTo) : null;
-  return enqueueWrite(id, async () => {
+  return enqueueWrite(canon, async () => {
     try {
-      await applyStockDeltaToServer(id, delta);
+      await applyStockDeltaToServer(canon, delta);
     } catch (e) {
       if (prior != null) {
-        setLocalStock(id, prior);
-        refreshInvCard(id);
+        setLocalStock(canon, prior);
+        refreshInvCard(canon);
         renderStockGlance();
       }
       throw e;
     }
-    refreshInvCard(id);
+    refreshInvCard(canon);
     renderStockGlance();
     try {
       await dataStore.persistCurrent('inventory');
@@ -176,6 +183,16 @@ export async function persistStockDelta(id, delta, rollbackTo) {
       console.warn('local inventory cache persist failed', e);
     }
   });
+}
+
+/** Checkout: deduct sold qty against live server stock (queued per flavor). */
+export async function persistSoldBreakdown(soldById) {
+  const entries = Object.entries(normalizeInventoryBreakdown(soldById)).filter(
+    ([id, qty]) => KNOWN_IDS.has(id) && Number(qty) > 0,
+  );
+  await Promise.all(
+    entries.map(([id, qty]) => persistStockDelta(id, -Number(qty), inventory[id] + Number(qty))),
+  );
 }
 
 export function refreshInvCard(id) {
@@ -186,18 +203,21 @@ export function refreshInvCard(id) {
 }
 
 export function adjustStock(id, delta) {
-  assertWritableId(id);
-  if (!isInventoryHydrated()) {
+  const canon = assertWritableId(id);
+  if (!isInventoryHydrated() || !isInventoryNetworkSynced()) {
     showToast('Stock still loading — try again in a moment', true);
     return;
   }
-  const previous = inventory[id];
-  // Optimistic UI — server confirms via /api/inventory/write.
-  setLocalStock(id, previous + delta);
-  refreshInvCard(id);
-  void persistStockDelta(id, delta, previous);
+  const d = Math.trunc(Number(delta) || 0);
+  if (d === 0) return;
+  const previous = inventory[canon];
+  // Local 0 + minus used to still send delta -1 and drain live server stock.
+  if (d < 0 && previous <= 0) return;
+  setLocalStock(canon, previous + d);
+  refreshInvCard(canon);
+  void persistStockDelta(canon, d, previous).catch(() => {});
   renderStockGlance();
-  if (delta < 0) void notifyStockCrossing(id, previous, inventory[id]);
+  if (d < 0) void notifyStockCrossing(canon, previous, inventory[canon]);
 }
 
 function startEditCount(el) {
@@ -232,18 +252,22 @@ function finishEditCount(id, value, fallback) {
   const el = document.getElementById(`inv-count-${id}`);
   const num = parseInt(value, 10);
   if (!isNaN(num) && num >= 0) {
-    if (!isInventoryHydrated()) {
+    if (!isInventoryHydrated() || !isInventoryNetworkSynced()) {
       if (el) el.textContent = fallback;
       showToast('Stock still loading — try again in a moment', true);
       return;
     }
-    assertWritableId(id);
-    const previous = inventory[id];
-    setLocalStock(id, num);
-    if (el) el.textContent = inventory[id];
-    void persistStock(id);
+    const canon = assertWritableId(id);
+    const previous = inventory[canon];
+    if (num === previous) {
+      if (el) el.textContent = previous;
+      return;
+    }
+    setLocalStock(canon, num);
+    if (el) el.textContent = inventory[canon];
+    void persistStock(canon).catch(() => {});
     renderStockGlance();
-    if (inventory[id] < previous) void notifyStockCrossing(id, previous, inventory[id]);
+    if (inventory[canon] < previous) void notifyStockCrossing(canon, previous, inventory[canon]);
   } else if (el) {
     el.textContent = fallback;
   }
@@ -287,18 +311,6 @@ export function renderInventoryGrid() {
   });
 }
 
-function applyInventoryRows(rows) {
-  rows.forEach((row) => {
-    if (Object.hasOwn(inventory, row.category_id)) {
-      inventory[row.category_id] = row.stock;
-      draftStock[row.category_id] = row.stock;
-      const el = document.getElementById(`inv-count-${row.category_id}`);
-      if (el) el.textContent = row.stock;
-    }
-  });
-  if (Array.isArray(rows) && rows.length > 0) markInventoryHydrated();
-}
-
 export function restoreInventoryFromCache() {
   return dataStore.hasData('inventory');
 }
@@ -315,7 +327,7 @@ export function syncInventoryToDom() {
 
 export async function loadInventory() {
   await ensureInventoryRows();
-  await dataStore.fetch('inventory');
+  await dataStore.fetch('inventory', { force: true, silent: true });
   markInventoryNetworkSynced(true);
   syncInventoryToDom();
   renderStockGlance();
@@ -326,55 +338,35 @@ function isCookieCategory(cat) {
 }
 
 /**
- * Create missing CATEGORIES inventory rows at stock 0, and apply live server
- * values into local state before any writes are allowed.
- *
- * NEVER migrates, mirrors, redistributes, or mutates existing stock.
+ * Absorb leftover shared `cookie` stock into butterscotch and create any
+ * missing flavor rows. Client never POSTs stock 0 — that stranded/wiped cookies.
  */
 export async function ensureInventoryRows() {
   try {
-    const res = await sbFetch('inventory?select=category_id,stock');
-    if (!res.ok) return;
-    const rows = await res.json();
-    if (!Array.isArray(rows)) return;
-
-    const byId = Object.fromEntries(
-      rows.map((r) => [r.category_id, clampStock(r.stock)]),
-    );
-
-    // Always adopt server values for known categories before marking ready.
-    let applied = 0;
-    CATEGORIES.forEach((cat) => {
-      if (!Object.hasOwn(byId, cat.id)) return;
-      setLocalStock(cat.id, byId[cat.id]);
-      const el = document.getElementById(`inv-count-${cat.id}`);
-      if (el && !el.querySelector('input')) el.textContent = inventory[cat.id];
-      applied += 1;
-    });
-    if (applied > 0) markInventoryNetworkSynced(true);
-
-    const now = new Date().toISOString();
-    const missing = CATEGORIES.filter((cat) => !Object.hasOwn(byId, cat.id)).map((cat) => ({
-      category_id: cat.id,
-      stock: 0,
-      updated_at: now,
-    }));
-
-    if (!missing.length) return;
-
-    const post = await sbFetch('inventory', {
+    const token = await staffAccessToken();
+    const res = await fetch('/api/inventory/write', {
       method: 'POST',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify(missing),
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ op: 'ensure' }),
     });
-    if (!post.ok) {
-      console.warn('ensureInventoryRows insert failed', post.status);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok || !Array.isArray(data.rows)) {
+      console.warn('ensureInventoryRows failed', data?.error || res.status);
       return;
     }
-    missing.forEach((row) => {
-      if (!Object.hasOwn(inventory, row.category_id)) return;
-      setLocalStock(row.category_id, 0);
+
+    data.rows.forEach((row) => {
+      const canon = canonicalInventoryCategoryId(row.category_id);
+      if (canon !== row.category_id) return;
+      if (!Object.hasOwn(inventory, canon)) return;
+      setLocalStock(canon, row.stock);
+      const el = document.getElementById(`inv-count-${canon}`);
+      if (el && !el.querySelector('input')) el.textContent = inventory[canon];
     });
+    if (data.rows.length > 0) markInventoryNetworkSynced(true);
   } catch (e) {
     console.warn('ensureInventoryRows', e);
   }

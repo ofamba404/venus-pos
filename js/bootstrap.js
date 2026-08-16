@@ -214,8 +214,10 @@ export async function bootApp(initialPage) {
     resetPageDataSettled();
     const hydrated = await hydrateFromCache();
     applyPendingFlags(hydrated);
-    // Create any missing category rows at 0 — never migrate/redistribute stock.
+    // Absorb leftover `cookie` stock, then force a live read so IDB zeros
+    // cannot skip the network because a local snapshot looked "fresh".
     await ensureInventoryRows().catch(() => {});
+    await dataStore.fetch('inventory', { force: true, silent: true }).catch(() => {});
 
     mountAppOnce(startPage);
     setActivateHandler(activatePage);

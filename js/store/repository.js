@@ -1,11 +1,11 @@
 import { sbFetch } from '../api.js';
-import { CATEGORIES } from '../config.js';
+import { CATEGORIES, canonicalInventoryCategoryId } from '../config.js';
 
 export const ENTITIES = ['sales', 'inventory', 'clients', 'deliveries'];
 
 export const STALE_MS = {
   sales: 15 * 60_000,
-  inventory: 30 * 60_000,
+  inventory: 20_000,
   clients: 30 * 60_000,
   deliveries: 15 * 60_000,
 };
@@ -60,12 +60,16 @@ export function inventoryRowsFromState(inventory) {
 
 export function applyInventoryRows(inventory, draftStock, rows) {
   let applied = 0;
-  rows.forEach((row) => {
-    if (Object.hasOwn(inventory, row.category_id)) {
-      inventory[row.category_id] = row.stock;
-      draftStock[row.category_id] = row.stock;
-      applied += 1;
-    }
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (!row?.category_id) return;
+    const canon = canonicalInventoryCategoryId(row.category_id);
+    // Ignore leftover shared `cookie` — ensure/absorb moves it onto butterscotch.
+    if (canon !== row.category_id) return;
+    if (!Object.hasOwn(inventory, canon)) return;
+    const stock = Math.max(0, Math.floor(Number(row.stock) || 0));
+    inventory[canon] = stock;
+    draftStock[canon] = stock;
+    applied += 1;
   });
   return applied;
 }

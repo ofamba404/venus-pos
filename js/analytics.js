@@ -1,6 +1,6 @@
 import { dataStore } from './store/index.js';
 import { sbDelete, sbFetch } from './api.js';
-import { CATEGORIES, COOKIE_FLAVORS, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName } from './config.js';
+import { CATEGORIES, COOKIE_FLAVORS, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName, normalizeInventoryBreakdown } from './config.js';
 import {
   breakdownToConfigSelection,
   buildLineFromConfig,
@@ -575,7 +575,7 @@ function renderCookiePartnerPanel() {
         <div class="cookie-partner-stat">
           <div class="cookie-partner-stat-lbl">Your split</div>
           <div class="cookie-partner-stat-val">${fmtUGX(showOwner)}</div>
-          <div class="cookie-partner-stat-hint">Butterscotch 40% · others 50% of profit</div>
+          <div class="cookie-partner-stat-hint">All flavors 45% of profit</div>
         </div>
         <div class="cookie-partner-stat cookie-partner-stat--partner">
           <div class="cookie-partner-stat-lbl">Send partner</div>
@@ -767,7 +767,7 @@ export function wireAnalyticsPage() {
 function mergeItemBreakdown(items) {
   const merged = {};
   items.forEach((item) => {
-    Object.entries(item.breakdown || {}).forEach(([id, qty]) => {
+    Object.entries(normalizeInventoryBreakdown(item.breakdown)).forEach(([id, qty]) => {
       merged[id] = (merged[id] || 0) + qty;
     });
   });

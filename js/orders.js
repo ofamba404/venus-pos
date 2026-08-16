@@ -4,6 +4,7 @@ import {
   CAT_MAP,
   PRODUCTS,
   cookieLineDisplayName,
+  normalizeInventoryBreakdown,
 } from './config.js';
 import { clientAutocompleteMarkup, wireClientAutocomplete } from './client-autocomplete.js';
 import { resolveClientId } from './clients.js';
@@ -2236,12 +2237,8 @@ function addConfiguredItemToCart() {
 }
 
 async function patchInventoryRemote(soldById) {
-  const { applyStockDeltaToServer } = await import('./inventory.js');
-  // Deduct sold qty against live server stock — never push stale local absolutes.
-  const entries = Object.entries(soldById || {}).filter(
-    ([id, qty]) => Object.hasOwn(inventory, id) && Number(qty) > 0,
-  );
-  await Promise.all(entries.map(([id, qty]) => applyStockDeltaToServer(id, -Number(qty))));
+  const { persistSoldBreakdown } = await import('./inventory.js');
+  await persistSoldBreakdown(soldById);
 }
 
 async function resolveCheckoutClientId(orderClientName) {
@@ -2418,7 +2415,7 @@ async function checkout() {
 
   const mergedBreakdown = {};
   cart.forEach((item) => {
-    Object.entries(item.breakdown || {}).forEach(([id, qty]) => {
+    Object.entries(normalizeInventoryBreakdown(item.breakdown)).forEach(([id, qty]) => {
       mergedBreakdown[id] = (mergedBreakdown[id] || 0) + qty;
     });
   });

@@ -1,7 +1,6 @@
 import {
-  COOKIE_BUTTERSCOTCH_OWNER_SHARE,
-  COOKIE_FLAVORED_OWNER_SHARE,
   COOKIE_FLAVORS,
+  COOKIE_OWNER_SHARE,
   COOKIE_PARTNER_SETTLE_EVERY,
   COOKIE_PARTNER_TRACK_FROM_MS,
   COOKIE_WHOLESALE_UGX,
@@ -9,6 +8,7 @@ import {
   cookieQtyFromBreakdown,
   cookieUnitPrice,
   isCookieCategoryId,
+  normalizeInventoryBreakdown,
 } from './config.js';
 
 /** v3 — track from Wed 12 Aug 2026; bumps key so prior settle progress clears. */
@@ -19,17 +19,13 @@ export function cookieQtyFromItem(item) {
   return cookieQtyFromBreakdown(item?.breakdown);
 }
 
-function isButterscotchCookie(catId, flavorId) {
-  return catId === 'cookie' || flavorId === 'butterscotch';
-}
-
 /**
  * Per-flavor rows on a cookie line (legacy `cookie` → butterscotch).
  * @returns {{ catId: string, flavorId: string, qty: number, unitPrice: number }[]}
  */
 export function cookieFlavorEntriesFromItem(item) {
-  const breakdown = item?.breakdown;
-  if (!breakdown || typeof breakdown !== 'object') return [];
+  const breakdown = normalizeInventoryBreakdown(item?.breakdown);
+  if (!Object.keys(breakdown).length) return [];
   const rows = [];
   for (const [catId, qtyRaw] of Object.entries(breakdown)) {
     if (!isCookieCategoryId(catId)) continue;
@@ -58,42 +54,20 @@ function cookieProductKind(item) {
 
 /**
  * Revenue share per flavor entry on a cookie line.
- * Quartet: butterscotch keeps its single price (5k); remaining pack price
- * is split evenly across the flavored cookies. Other lines use ala-carte weights.
+ * Packs split pack price evenly per cookie; singles use ala-carte weights.
  * @returns {number[]} allocation aligned with `entries`
  */
 export function allocateCookieLineRevenue(entries, revenue, productKind = 'single') {
   const list = entries || [];
   if (!list.length || revenue <= 0) return list.map(() => 0);
 
-  if (productKind === 'quartet') {
-    const butterIdx = [];
-    const flavoredIdx = [];
-    list.forEach((e, i) => {
-      if (isButterscotchCookie(e.catId, e.flavorId)) butterIdx.push(i);
-      else flavoredIdx.push(i);
-    });
-    const flavoredQty = flavoredIdx.reduce((sum, i) => sum + list[i].qty, 0);
-    if (butterIdx.length && flavoredQty > 0) {
-      const allocs = list.map(() => 0);
-      let butterBudget = 0;
-      for (const i of butterIdx) {
-        const slice = Math.min(
-          list[i].unitPrice * list[i].qty,
-          Math.max(0, revenue - butterBudget),
-        );
-        allocs[i] = slice;
-        butterBudget += slice;
-      }
-      const remaining = Math.max(0, revenue - butterBudget);
-      for (const i of flavoredIdx) {
-        allocs[i] = remaining * (list[i].qty / flavoredQty);
-      }
-      return allocs;
-    }
+  if (productKind === 'quartet' || productKind === 'duet') {
+    const totalQty = list.reduce((sum, e) => sum + e.qty, 0) || 1;
+    return list.map((e) => revenue * (e.qty / totalQty));
   }
 
-  const weightSum = list.reduce((sum, e) => sum + e.unitPrice * e.qty, 0) || list.reduce((s, e) => s + e.qty, 0);
+  const weightSum =
+    list.reduce((sum, e) => sum + e.unitPrice * e.qty, 0) || list.reduce((s, e) => s + e.qty, 0);
   return list.map((e) => revenue * ((e.unitPrice * e.qty) / weightSum));
 }
 
@@ -117,10 +91,7 @@ export function itemCookieSettlement(item) {
     const cost = e.qty * COOKIE_WHOLESALE_UGX;
     const profit = alloc - cost;
     if (profit <= 0) continue;
-    const share = isButterscotchCookie(e.catId, e.flavorId)
-      ? COOKIE_BUTTERSCOTCH_OWNER_SHARE
-      : COOKIE_FLAVORED_OWNER_SHARE;
-    ownerSplit += profit * share;
+    ownerSplit += profit * COOKIE_OWNER_SHARE;
   }
 
   ownerSplit = Math.round(ownerSplit);
@@ -157,10 +128,7 @@ export function expandCookieUnitsFromItem(item, paidRatio = 1) {
     const alloc = allocs[i];
     const cost = e.qty * COOKIE_WHOLESALE_UGX * paidRatio;
     const profit = alloc - cost;
-    const share = isButterscotchCookie(e.catId, e.flavorId)
-      ? COOKIE_BUTTERSCOTCH_OWNER_SHARE
-      : COOKIE_FLAVORED_OWNER_SHARE;
-    const ownerTotal = profit > 0 ? profit * share : 0;
+    const ownerTotal = profit > 0 ? profit * COOKIE_OWNER_SHARE : 0;
     const partnerTotal = Math.max(0, alloc - ownerTotal);
     const ownerEach = ownerTotal / e.qty;
     const partnerEach = partnerTotal / e.qty;

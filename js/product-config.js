@@ -5,6 +5,7 @@ import {
   FLAVOR_POOL,
   PRODUCTS,
   SPLIFF_POOL,
+  normalizeInventoryBreakdown,
 } from './config.js';
 import { escapeHtml, fmtUGX } from './utils.js';
 
@@ -79,16 +80,17 @@ export function wireProductPickButtons(root, onPick) {
 
 export function breakdownToConfigSelection(product, breakdown) {
   if (!product) return {};
+  const normalized = normalizeInventoryBreakdown(breakdown);
   if (product.rule === 'choose_any' || product.rule === 'spliff_qty' || product.rule === 'cookie_qty') {
-    return { ...(breakdown || {}) };
+    return { ...normalized };
   }
   if (product.rule === 'choose_variety') {
-    const sel = { ...(breakdown || {}) };
+    const sel = { ...normalized };
     delete sel[varietyFixedFlavor(product)];
     return sel;
   }
   if (product.rule === 'single_qty') {
-    return { qty: (breakdown || {})[product.categoryId] || 0 };
+    return { qty: normalized[product.categoryId] || 0 };
   }
   return {};
 }
