@@ -139,7 +139,14 @@ async function apiInventory(body) {
 async function clientUpsertStock(categoryId, stock) {
   const id = assertWritableId(categoryId);
   const next = clampStock(stock);
-  const payload = { stock: next, updated_at: new Date().toISOString() };
+  const cat = CAT_MAP[id] || { name: id, sub: '', color: '#888888' };
+  const payload = {
+    display_name: cat.name,
+    category_sub: cat.sub || '',
+    color: cat.color || '#888888',
+    stock: next,
+    updated_at: new Date().toISOString(),
+  };
   const patch = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { Prefer: 'return=representation' },
@@ -158,7 +165,8 @@ async function clientUpsertStock(categoryId, stock) {
     body: JSON.stringify({ category_id: id, ...payload }),
   });
   if (!ins.ok) {
-    throw new Error(`Direct stock write failed (${ins.status})`);
+    const detail = await ins.text().catch(() => '');
+    throw new Error(`Direct stock write failed (${ins.status}) ${detail}`);
   }
   const inserted = await ins.json().catch(() => []);
   if (Array.isArray(inserted) && inserted[0]) {

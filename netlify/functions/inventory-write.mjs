@@ -11,22 +11,26 @@ import { adminHeaders, requireStaffUser, supabaseConfig } from './_shared/supaba
  *   { op: 'ensure' | 'list' }  — absorb legacy `cookie`, create missing rows, return all stock
  */
 
-const ALLOWED = new Set([
-  'mint',
-  'strawberry',
-  'blueberry',
-  'watermelon',
-  'grape',
-  'coconut',
-  'melon',
-  'classic',
-  'spliff5050',
-  'spliff7030',
-  'cookie_butterscotch',
-  'cookie_chocolate',
-  'cookie_mint',
-  'cookie_strawberry',
-]);
+const CATEGORY_META = {
+  mint: { display_name: 'Mint', category_sub: '', color: '#8fd6f0' },
+  strawberry: { display_name: 'Strawberry', category_sub: '', color: '#d81e2c' },
+  blueberry: { display_name: 'Blueberry', category_sub: '', color: '#3f5bb8' },
+  watermelon: { display_name: 'Watermelon', category_sub: '', color: '#f4a6c1' },
+  grape: { display_name: 'Grape', category_sub: '', color: '#D5C7E8' },
+  coconut: { display_name: 'Coconut', category_sub: '', color: '#ffffff' },
+  melon: { display_name: 'Melon', category_sub: '', color: '#ff8c1a' },
+  classic: { display_name: 'Plain', category_sub: '', color: '#e3cba7' },
+  spliff5050: { display_name: 'Bangis', category_sub: '50/50', color: '#ffd400' },
+  spliff7030: { display_name: 'Bangis', category_sub: '70/30', color: '#FFFFA5' },
+  cookie_butterscotch: { display_name: 'Butterscotch', category_sub: 'Cookie', color: '#D4A355' },
+  cookie_chocolate: { display_name: 'Chocolate', category_sub: 'Cookie', color: '#5c2e1f' },
+  cookie_mint: { display_name: 'Mint', category_sub: 'Cookie', color: '#3CB043' },
+  cookie_strawberry: { display_name: 'Strawberry', category_sub: 'Cookie', color: '#d81e2c' },
+  // Legacy shared cookie row — kept only so absorption can zero it.
+  cookie: { display_name: 'Cookies', category_sub: '', color: '#d4af37' },
+};
+
+const ALLOWED = new Set(Object.keys(CATEGORY_META).filter((id) => id !== 'cookie'));
 
 const LEGACY_COOKIE = 'cookie';
 const COOKIE_BUTTERSCOTCH = 'cookie_butterscotch';
@@ -40,8 +44,23 @@ function canonicalCategoryId(categoryId) {
   return id === LEGACY_COOKIE ? COOKIE_BUTTERSCOTCH : id;
 }
 
+function rowPayload(categoryId, stock) {
+  const meta = CATEGORY_META[categoryId] || {
+    display_name: categoryId,
+    category_sub: '',
+    color: '#888888',
+  };
+  return {
+    category_id: categoryId,
+    display_name: meta.display_name,
+    category_sub: meta.category_sub,
+    color: meta.color,
+    stock: clampStock(stock),
+    updated_at: new Date().toISOString(),
+  };
+}
+
 function requestMethod(req) {
-  // Netlify may hand us a Web Request or a legacy event-like object.
   const raw =
     (req && typeof req.method === 'string' && req.method) ||
     (req && typeof req.httpMethod === 'string' && req.httpMethod) ||
@@ -94,18 +113,26 @@ async function readRows(url, serviceKey, ids) {
     `inventory?category_id=in.(${filter})&select=category_id,stock`,
   );
   if (!ok || !Array.isArray(data)) {
-    throw new Error(`Read failed (${status})`);
+    throw new Error(`Read failed (${status}) ${typeof data === 'string' ? data : ''}`);
   }
   return data;
 }
 
 async function upsertStock(url, serviceKey, categoryId, stock) {
-  const payload = { stock: clampStock(stock), updated_at: new Date().toISOString() };
+  const payload = rowPayload(categoryId, stock);
+  const patchBody = {
+    display_name: payload.display_name,
+    category_sub: payload.category_sub,
+    color: payload.color,
+    stock: payload.stock,
+    updated_at: payload.updated_at,
+  };
+
   const patch = await restJson(
     url,
     serviceKey,
     `inventory?category_id=eq.${encodeURIComponent(categoryId)}`,
-    { method: 'PATCH', body: payload, prefer: 'return=representation' },
+    { method: 'PATCH', body: patchBody, prefer: 'return=representation' },
   );
   if (patch.ok && Array.isArray(patch.data) && patch.data.length > 0) {
     return clampStock(patch.data[0].stock);
@@ -113,7 +140,7 @@ async function upsertStock(url, serviceKey, categoryId, stock) {
 
   const ins = await restJson(url, serviceKey, 'inventory', {
     method: 'POST',
-    body: { category_id: categoryId, ...payload },
+    body: payload,
     prefer: 'return=representation',
   });
   if (ins.ok && Array.isArray(ins.data) && ins.data[0]) {
@@ -125,14 +152,15 @@ async function upsertStock(url, serviceKey, categoryId, stock) {
       url,
       serviceKey,
       `inventory?category_id=eq.${encodeURIComponent(categoryId)}`,
-      { method: 'PATCH', body: payload, prefer: 'return=representation' },
+      { method: 'PATCH', body: patchBody, prefer: 'return=representation' },
     );
     if (retry.ok && Array.isArray(retry.data) && retry.data.length > 0) {
       return clampStock(retry.data[0].stock);
     }
+    throw new Error(`Write conflict (${retry.status}) ${retry.text || ''}`);
   }
 
-  throw new Error(`Write failed (${patch.status}/${ins.status})`);
+  throw new Error(`Write failed (${patch.status}/${ins.status}) ${ins.text || patch.text || ''}`);
 }
 
 async function applyDelta(url, serviceKey, categoryId, delta, maxAttempts = 4) {
@@ -162,11 +190,14 @@ async function absorbLegacyCookie(url, serviceKey) {
   const butter = byId[COOKIE_BUTTERSCOTCH] || 0;
   if (leftover <= 0) return butter;
 
+  // Prefer keeping an existing butterscotch count; only copy when missing/empty.
   if (butter <= 0) {
     await upsertStock(url, serviceKey, COOKIE_BUTTERSCOTCH, leftover);
     await upsertStock(url, serviceKey, LEGACY_COOKIE, 0);
     return leftover;
   }
+  // Butterscotch already has stock — just clear the legacy bucket so it stops double-counting.
+  await upsertStock(url, serviceKey, LEGACY_COOKIE, 0);
   return butter;
 }
 
@@ -176,25 +207,8 @@ async function ensureRows(url, serviceKey) {
   const rows = await readRows(url, serviceKey, [...ids, LEGACY_COOKIE]);
   const byId = Object.fromEntries(rows.map((r) => [r.category_id, clampStock(r.stock)]));
   const missing = ids.filter((id) => !Object.hasOwn(byId, id));
-  if (missing.length) {
-    const now = new Date().toISOString();
-    const ins = await restJson(url, serviceKey, 'inventory', {
-      method: 'POST',
-      body: missing.map((category_id) => ({ category_id, stock: 0, updated_at: now })),
-      prefer: 'return=representation',
-    });
-    if (!ins.ok) {
-      throw new Error(`Ensure insert failed (${ins.status})`);
-    }
-    if (Array.isArray(ins.data)) {
-      ins.data.forEach((row) => {
-        byId[row.category_id] = clampStock(row.stock);
-      });
-    } else {
-      missing.forEach((id) => {
-        byId[id] = 0;
-      });
-    }
+  for (const id of missing) {
+    byId[id] = await upsertStock(url, serviceKey, id, 0);
   }
   return ids.map((category_id) => ({
     category_id,
@@ -205,10 +219,6 @@ async function ensureRows(url, serviceKey) {
 export default async (req) => {
   const method = requestMethod(req);
   if (method === 'OPTIONS' || method === 'HEAD') return json({ ok: true });
-
-  // Do not hard-fail on unexpected method strings — browsers / edge runtimes
-  // have produced empty method values that previously became false 405s.
-  // Only reject clearly non-mutating verbs.
   if (method === 'GET' || method === 'DELETE' || method === 'PUT' || method === 'PATCH') {
     return json({ error: `Method not allowed (${method})`, method }, 405);
   }
