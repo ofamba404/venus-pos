@@ -183,7 +183,15 @@ function enqueueWrite(id, work) {
     .then(work)
     .catch((e) => {
       console.error('persist stock failed', e);
-      showToast('Could not save stock — try again', true);
+      const msg =
+        e?.status === 503 || /service role|not configured/i.test(String(e?.message || ''))
+          ? 'Stock save blocked — missing SUPABASE_SERVICE_ROLE_KEY on Netlify'
+          : e?.status === 401
+            ? 'Session expired — sign in again'
+            : e?.message
+              ? `Could not save stock — ${e.message}`
+              : 'Could not save stock — try again';
+      showToast(msg, true);
       throw e;
     });
   writeQueue.set(id, next);
