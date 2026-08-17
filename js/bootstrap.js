@@ -18,7 +18,7 @@ import {
   markPageWired,
   showPageView,
 } from './view-cache.js';
-import { ensureInventoryRows } from './inventory.js';
+import { loadInventory } from './inventory.js';
 
 /** @type {(() => void) | null} */
 let unsubSlices = null;
@@ -214,10 +214,8 @@ export async function bootApp(initialPage) {
     resetPageDataSettled();
     const hydrated = await hydrateFromCache();
     applyPendingFlags(hydrated);
-    // Absorb leftover `cookie` stock, then force a live read so IDB zeros
-    // cannot skip the network because a local snapshot looked "fresh".
-    await ensureInventoryRows().catch(() => {});
-    await dataStore.fetch('inventory', { force: true, silent: true }).catch(() => {});
+    // Authoritative inventory load via Netlify service-role API (not RLS).
+    await loadInventory().catch((e) => console.warn('boot inventory load failed', e));
 
     mountAppOnce(startPage);
     setActivateHandler(activatePage);

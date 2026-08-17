@@ -2387,10 +2387,12 @@ async function checkout() {
     return;
   }
 
-  const { isInventoryHydrated, loadInventory } = await import('./inventory.js');
-  if (!isInventoryHydrated()) {
-    void loadInventory().catch(() => {});
-    showToast('Stock still loading — wait a moment and try again', true);
+  const { awaitInventoryReady } = await import('./inventory.js');
+  try {
+    await awaitInventoryReady();
+  } catch (e) {
+    console.error('inventory ready failed', e);
+    showToast('Could not load stock — check connection', true);
     return;
   }
 

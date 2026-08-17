@@ -1,5 +1,6 @@
 import { sbFetch } from '../api.js';
 import { CATEGORIES, canonicalInventoryCategoryId } from '../config.js';
+import { isInventoryHydrated } from '../state.js';
 
 export const ENTITIES = ['sales', 'inventory', 'clients', 'deliveries'];
 
@@ -98,7 +99,9 @@ export function hasEntityData(entity, { salesCache, inventory, clients, deliveri
     case 'sales':
       return salesCache.length > 0;
     case 'inventory':
-      return Object.values(inventory).some((n) => n > 0);
+      // All-zero stock is still valid data. Old "any qty > 0" check left the UI
+      // stuck in pending forever after a real empty shelf / wipe.
+      return isInventoryHydrated() || Object.values(inventory).some((n) => n > 0);
     case 'clients':
       return clients.length > 0;
     case 'deliveries':

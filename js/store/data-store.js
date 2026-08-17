@@ -40,6 +40,7 @@ function applyEntity(entity, data) {
       break;
     case 'inventory': {
       const applied = applyInventoryRows(inventory, draftStock, data);
+      // Zeros count — a full known-category snapshot is enough to unlock UI.
       if (applied > 0) markInventoryHydrated();
       break;
     }
@@ -195,14 +196,10 @@ export async function fetchEntity(entity, { force = false, silent = false, trust
       }
       await persist(entity, rows);
       if (entity === 'inventory' && rows.length > 0) {
-        const leftover = rows.find((r) => r?.category_id === 'cookie');
-        const flavorHasStock = rows.some(
-          (r) => String(r?.category_id || '').startsWith('cookie_') && Number(r.stock) > 0,
-        );
-        // Unlock after a live read unless the only cookie stock is still on leftover `cookie`.
-        if (!leftover || !(Number(leftover.stock) > 0) || flavorHasStock) {
-          markInventoryNetworkSynced(true);
-        }
+        // Any successful non-empty live read unlocks writes. Legacy `cookie`
+        // absorption is handled by /api/inventory/write ensure — do not block
+        // readiness on leftover rows.
+        markInventoryNetworkSynced(true);
       }
       return { entity, ok: true };
     } catch (e) {
@@ -250,7 +247,6 @@ export async function clearEntity(entity) {
         draftStock[k] = 0;
       });
       markInventoryHydrated(false);
-      markInventoryNetworkSynced(false);
       break;
     case 'clients':
       clients.length = 0;

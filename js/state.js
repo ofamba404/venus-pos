@@ -6,9 +6,16 @@ export let salesCache = [];
 export let clients = [];
 export let deliveries = [];
 
-/** True after inventory rows have been applied from IDB or network. */
+/**
+ * Inventory readiness (single concept):
+ * - hydrated: a trusted category snapshot was applied (IDB and/or network),
+ *   including legitimate all-zero stock.
+ * - networkSynced: that snapshot came from (or was confirmed by) a live
+ *   server read via the inventory write/ensure API or Supabase.
+ *
+ * Writes may proceed once hydrated. Boot always tries to network-sync first.
+ */
 let inventoryHydrated = false;
-/** True after stock values were applied from a live Supabase read (not IDB-only). */
 let inventoryNetworkSynced = false;
 
 export function isInventoryHydrated() {
@@ -27,6 +34,19 @@ export function isInventoryNetworkSynced() {
 export function markInventoryNetworkSynced(value = true) {
   inventoryNetworkSynced = Boolean(value);
   if (inventoryNetworkSynced) inventoryHydrated = true;
+}
+
+/** Ready for stock edits / checkout deductions. */
+export function isInventoryReady() {
+  return inventoryHydrated;
+}
+
+export function markInventoryReady() {
+  markInventoryNetworkSynced(true);
+}
+
+export function resetInventoryReady() {
+  markInventoryHydrated(false);
 }
 
 let pageDataSettled = false;

@@ -18,6 +18,8 @@ import {
   markInventoryHydrated,
   isInventoryNetworkSynced,
   markInventoryNetworkSynced,
+  isInventoryReady,
+  markInventoryReady,
 } from './state.js';
 import { notifyStockCrossing } from './notifications.js';
 import { showToast } from './utils.js';
@@ -29,11 +31,15 @@ const KNOWN_IDS = new Set(CATEGORIES.map((c) => c.id));
 /** In-flight writes per category — serialized so rapid taps don't race. */
 const writeQueue = new Map();
 
+/** Deduplicate concurrent boot / self-heal loads. */
+let loadPromise = null;
+
 export {
   isInventoryHydrated,
   markInventoryHydrated,
   isInventoryNetworkSynced,
   markInventoryNetworkSynced,
+  isInventoryReady,
 };
 
 export function getActiveStatusHighlight() {
@@ -72,22 +78,42 @@ function setLocalStock(id, stock) {
   return next;
 }
 
+/**
+ * Apply a full server snapshot (including zeros) and unlock inventory.
+ * @returns {number} known categories updated
+ */
+function applyServerRows(rows) {
+  let applied = 0;
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (!row?.category_id) return;
+    const canon = canonicalInventoryCategoryId(row.category_id);
+    // Ignore leftover shared `cookie` — ensure absorbs it server-side.
+    if (canon !== row.category_id) return;
+    if (!Object.hasOwn(inventory, canon)) return;
+    setLocalStock(canon, row.stock);
+    const el = document.getElementById(`inv-count-${canon}`);
+    if (el && !el.querySelector('input')) el.textContent = inventory[canon];
+    applied += 1;
+  });
+  if (applied > 0) markInventoryReady();
+  return applied;
+}
+
 async function staffAccessToken() {
   const token =
-    window.VenusPosAuth?.peekAccessToken?.() ||
     (await window.VenusPosAuth?.getAccessToken?.().catch(() => '')) ||
+    window.VenusPosAuth?.peekAccessToken?.() ||
     '';
   if (!token) throw new Error('Not signed in');
   return token;
 }
 
 /**
- * ONE write path: Netlify function + service role.
- * Client never PATCHes Supabase inventory directly — that caused RLS ghosts,
- * false toasts, zero-wipes, and butterscotch migration bugs.
+ * ONE network path for POS inventory: Netlify function + service role.
+ * Client never relies on direct Supabase inventory reads for readiness —
+ * RLS empty responses used to leave stock permanently "loading".
  */
-async function apiWriteStock({ categoryId, op, stock, delta }) {
-  const id = assertWritableId(categoryId);
+async function apiInventory(body) {
   const token = await staffAccessToken();
   const res = await fetch('/api/inventory/write', {
     method: 'POST',
@@ -95,29 +121,44 @@ async function apiWriteStock({ categoryId, op, stock, delta }) {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      category_id: id,
-      op,
-      ...(op === 'set' ? { stock: clampStock(stock) } : { delta: Math.trunc(Number(delta) || 0) }),
-    }),
+    body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data?.ok) {
-    throw new Error(data?.error || `Inventory write failed (${res.status})`);
+    const err = new Error(data?.error || `Inventory request failed (${res.status})`);
+    err.status = res.status;
+    err.payload = data;
+    throw err;
   }
+  return data;
+}
+
+async function apiWriteStock({ categoryId, op, stock, delta }) {
+  const id = assertWritableId(categoryId);
+  const data = await apiInventory({
+    category_id: id,
+    op,
+    ...(op === 'set' ? { stock: clampStock(stock) } : { delta: Math.trunc(Number(delta) || 0) }),
+  });
   return setLocalStock(id, data.stock);
 }
 
-function assertNetworkReady() {
-  if (!isInventoryHydrated()) {
-    throw new Error('Inventory not loaded yet');
-  }
+/**
+ * Wait until inventory can be edited. Loads from the authoritative API if needed.
+ * Does not toast-and-bail on first tap — one gesture loads then applies.
+ */
+export async function awaitInventoryReady() {
+  if (isInventoryReady()) return true;
+  const ok = await loadInventory();
+  if (isInventoryReady()) return true;
+  if (!ok) throw new Error('Inventory not loaded yet');
+  return true;
 }
 
 /** Checkout / sale edits: deduct/add against live server stock. */
 export async function applyStockDeltaToServer(id, delta) {
   const canon = assertWritableId(id);
-  assertNetworkReady();
+  await awaitInventoryReady();
   const d = Math.trunc(Number(delta) || 0);
   if (d === 0) return inventory[canon];
   return apiWriteStock({ categoryId: canon, op: 'delta', delta: d });
@@ -126,7 +167,7 @@ export async function applyStockDeltaToServer(id, delta) {
 /** User typed an absolute count. */
 export async function setStockAbsoluteOnServer(id, stock) {
   const canon = assertWritableId(id);
-  assertNetworkReady();
+  await awaitInventoryReady();
   return apiWriteStock({ categoryId: canon, op: 'set', stock });
 }
 
@@ -202,24 +243,39 @@ export function refreshInvCard(id) {
   bumpElement(el);
 }
 
-export function adjustStock(id, delta) {
-  const canon = assertWritableId(id);
-  if (!isInventoryHydrated()) {
-    // Self-heal on first interaction after a cold/auth-glitch boot.
-    void loadInventory().catch(() => {});
-    showToast('Stock still loading — try again in a moment', true);
-    return;
-  }
-  const d = Math.trunc(Number(delta) || 0);
-  if (d === 0) return;
+function applyLocalDelta(canon, d) {
   const previous = inventory[canon];
-  // Local 0 + minus used to still send delta -1 and drain live server stock.
-  if (d < 0 && previous <= 0) return;
+  if (d < 0 && previous <= 0) return null;
   setLocalStock(canon, previous + d);
   refreshInvCard(canon);
-  void persistStockDelta(canon, d, previous).catch(() => {});
   renderStockGlance();
   if (d < 0) void notifyStockCrossing(canon, previous, inventory[canon]);
+  void persistStockDelta(canon, d, previous).catch(() => {});
+  return inventory[canon];
+}
+
+export function adjustStock(id, delta) {
+  const canon = assertWritableId(id);
+  const d = Math.trunc(Number(delta) || 0);
+  if (d === 0) return;
+
+  const run = async () => {
+    try {
+      await awaitInventoryReady();
+    } catch (e) {
+      console.error('inventory ready failed', e);
+      const msg =
+        e?.status === 503
+          ? 'Inventory server not configured'
+          : e?.status === 401
+            ? 'Session expired — sign in again'
+            : 'Could not load stock — check connection';
+      showToast(msg, true);
+      return;
+    }
+    applyLocalDelta(canon, d);
+  };
+  void run();
 }
 
 function startEditCount(el) {
@@ -253,11 +309,17 @@ function startEditCount(el) {
 function finishEditCount(id, value, fallback) {
   const el = document.getElementById(`inv-count-${id}`);
   const num = parseInt(value, 10);
-  if (!isNaN(num) && num >= 0) {
-    if (!isInventoryHydrated()) {
-      void loadInventory().catch(() => {});
+  if (isNaN(num) || num < 0) {
+    if (el) el.textContent = fallback;
+    return;
+  }
+
+  const run = async () => {
+    try {
+      await awaitInventoryReady();
+    } catch (e) {
       if (el) el.textContent = fallback;
-      showToast('Stock still loading — try again in a moment', true);
+      showToast('Could not load stock — check connection', true);
       return;
     }
     const canon = assertWritableId(id);
@@ -271,9 +333,8 @@ function finishEditCount(id, value, fallback) {
     void persistStock(canon).catch(() => {});
     renderStockGlance();
     if (inventory[canon] < previous) void notifyStockCrossing(canon, previous, inventory[canon]);
-  } else if (el) {
-    el.textContent = fallback;
-  }
+  };
+  void run();
 }
 
 export function buildInvCard(cat) {
@@ -328,12 +389,63 @@ export function syncInventoryToDom() {
   });
 }
 
+/**
+ * Authoritative inventory load for POS.
+ * 1) /api/inventory/write ensure (service role) — preferred
+ * 2) fallback direct Supabase fetch
+ * 3) if IDB already hydrated categories, unlock writes anyway
+ */
 export async function loadInventory() {
-  await ensureInventoryRows();
-  await dataStore.fetch('inventory', { force: true, silent: true });
-  markInventoryNetworkSynced(true);
-  syncInventoryToDom();
-  renderStockGlance();
+  if (loadPromise) return loadPromise;
+
+  loadPromise = (async () => {
+    let lastErr = null;
+    try {
+      const data = await apiInventory({ op: 'ensure' });
+      if (Array.isArray(data.rows) && data.rows.length > 0) {
+        applyServerRows(data.rows);
+        try {
+          await dataStore.persistCurrent('inventory');
+        } catch (e) {
+          console.warn('local inventory cache persist failed', e);
+        }
+        syncInventoryToDom();
+        renderStockGlance();
+        return true;
+      }
+    } catch (e) {
+      lastErr = e;
+      console.warn('ensureInventoryRows failed', e?.message || e);
+    }
+
+    try {
+      const result = await dataStore.fetch('inventory', { force: true, silent: true });
+      if (result?.ok) {
+        markInventoryReady();
+        syncInventoryToDom();
+        renderStockGlance();
+        return true;
+      }
+    } catch (e) {
+      lastErr = e;
+      console.warn('inventory fetch fallback failed', e);
+    }
+
+    // Offline / API down but IDB already painted known categories.
+    if (isInventoryHydrated()) {
+      markInventoryReady();
+      syncInventoryToDom();
+      renderStockGlance();
+      return true;
+    }
+
+    if (lastErr) throw lastErr;
+    return false;
+  })().finally(() => {
+    loadPromise = null;
+  });
+
+  return loadPromise;
 }
 
 function isCookieCategory(cat) {
@@ -342,42 +454,15 @@ function isCookieCategory(cat) {
 
 /**
  * Absorb leftover shared `cookie` stock into butterscotch and create any
- * missing flavor rows. Client never POSTs stock 0 — that stranded/wiped cookies.
+ * missing flavor rows. Prefer loadInventory() — this remains for boot callers.
  */
 export async function ensureInventoryRows() {
-  try {
-    const token = await staffAccessToken();
-    const res = await fetch('/api/inventory/write', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ op: 'ensure' }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.ok || !Array.isArray(data.rows)) {
-      console.warn('ensureInventoryRows failed', data?.error || res.status);
-      return;
-    }
-
-    data.rows.forEach((row) => {
-      const canon = canonicalInventoryCategoryId(row.category_id);
-      if (canon !== row.category_id) return;
-      if (!Object.hasOwn(inventory, canon)) return;
-      setLocalStock(canon, row.stock);
-      const el = document.getElementById(`inv-count-${canon}`);
-      if (el && !el.querySelector('input')) el.textContent = inventory[canon];
-    });
-    if (data.rows.length > 0) markInventoryNetworkSynced(true);
-  } catch (e) {
-    console.warn('ensureInventoryRows', e);
-  }
+  return loadInventory();
 }
 
-/** @deprecated Use ensureInventoryRows — no migration side effects. */
+/** @deprecated Use ensureInventoryRows / loadInventory. */
 export async function ensureInventoryCategories() {
-  return ensureInventoryRows();
+  return loadInventory();
 }
 
 function countByStatus(categories) {

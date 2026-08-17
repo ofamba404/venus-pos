@@ -2,13 +2,13 @@ import { env, json } from './_shared/push.mjs';
 import { adminHeaders, requireStaffUser, supabaseConfig } from './_shared/supabase-admin.mjs';
 
 /**
- * Single authoritative inventory write for Venus POS.
- * Uses the service role so RLS cannot return ambiguous empty representations.
+ * Single authoritative inventory API for Venus POS.
+ * Uses the service role so RLS cannot return empty ghosts or block writes.
  *
  * Body:
  *   { category_id, op: 'set', stock: number }
  *   { category_id, op: 'delta', delta: number }
- *   { op: 'ensure' }  — absorb leftover `cookie` into butterscotch; create missing rows
+ *   { op: 'ensure' | 'list' }  — absorb legacy `cookie`, create missing rows, return all stock
  *
  * Response: { ok: true, category_id, stock } or { ok: true, rows: [...] }
  */
@@ -62,76 +62,17 @@ async function restJson(url, serviceKey, path, { method = 'GET', body, prefer } 
   return { ok: res.ok, status: res.status, data, text };
 }
 
-async function readRows(url, serviceKey, ids, { withUpdatedAt = false } = {}) {
+async function readRows(url, serviceKey, ids) {
   const filter = ids.map(encodeURIComponent).join(',');
-  const select = withUpdatedAt
-    ? 'category_id,stock,updated_at'
-    : 'category_id,stock';
   const { ok, status, data } = await restJson(
     url,
     serviceKey,
-    `inventory?category_id=in.(${filter})&select=${select}`,
+    `inventory?category_id=in.(${filter})&select=category_id,stock`,
   );
   if (!ok || !Array.isArray(data)) {
     throw new Error(`Read failed (${status})`);
   }
   return data;
-}
-
-/**
- * Apply a stock delta with optimistic concurrency.
- * Retries when another terminal updates the same row between our read and write.
- */
-async function applyDeltaWithRetry(url, serviceKey, categoryId, delta, maxAttempts = 6) {
-  const d = Math.trunc(Number(delta) || 0);
-  if (d === 0) {
-    const rows = await readRows(url, serviceKey, [categoryId]);
-    return rows[0] ? clampStock(rows[0].stock) : 0;
-  }
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const rows = await readRows(url, serviceKey, [categoryId], {
-      withUpdatedAt: true,
-    });
-    const row = rows[0] || null;
-    const current = row ? clampStock(row.stock) : 0;
-    const nextStock = clampStock(current + d);
-    const payload = { stock: nextStock, updated_at: new Date().toISOString() };
-
-    if (!row) {
-      const ins = await restJson(url, serviceKey, 'inventory', {
-        method: 'POST',
-        body: { category_id: categoryId, ...payload },
-        prefer: 'return=representation',
-      });
-      if (ins.ok && Array.isArray(ins.data) && ins.data[0]) {
-        return clampStock(ins.data[0].stock);
-      }
-      if (ins.status === 409) continue;
-      throw new Error(`Delta insert failed (${ins.status})`);
-    }
-
-    const updatedAtFilter = row.updated_at
-      ? `updated_at=eq.${encodeURIComponent(row.updated_at)}`
-      : 'updated_at=is.null';
-    const patch = await restJson(
-      url,
-      serviceKey,
-      `inventory?category_id=eq.${encodeURIComponent(categoryId)}&${updatedAtFilter}`,
-      { method: 'PATCH', body: payload, prefer: 'return=representation' },
-    );
-
-    if (patch.ok && Array.isArray(patch.data) && patch.data.length > 0) {
-      return clampStock(patch.data[0].stock);
-    }
-    // 0 affected rows -> concurrency miss, retry.
-    if (patch.ok && Array.isArray(patch.data) && patch.data.length === 0) continue;
-    // Non-200 with likely race/miss semantics -> retry as well.
-    if (patch.status === 404 || patch.status === 409 || patch.status === 412) continue;
-    throw new Error(`Delta patch failed (${patch.status})`);
-  }
-
-  throw new Error('Delta write conflict (please retry)');
 }
 
 async function upsertStock(url, serviceKey, categoryId, stock) {
@@ -168,6 +109,31 @@ async function upsertStock(url, serviceKey, categoryId, stock) {
   }
 
   throw new Error(`Write failed (${patch.status}/${ins.status})`);
+}
+
+/**
+ * Apply a stock delta with short retry.
+ * Re-reads current stock each attempt — no fragile updated_at equality filters
+ * (PostgREST timestamp eq mismatches were aborting every write).
+ */
+async function applyDelta(url, serviceKey, categoryId, delta, maxAttempts = 4) {
+  const d = Math.trunc(Number(delta) || 0);
+  if (d === 0) {
+    const rows = await readRows(url, serviceKey, [categoryId]);
+    return rows[0] ? clampStock(rows[0].stock) : 0;
+  }
+
+  let lastErr = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      const rows = await readRows(url, serviceKey, [categoryId]);
+      const current = rows[0] ? clampStock(rows[0].stock) : 0;
+      return await upsertStock(url, serviceKey, categoryId, current + d);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error('Delta write failed');
 }
 
 /**
@@ -244,7 +210,7 @@ export default async (req) => {
   const op = String(body?.op || 'set').toLowerCase();
 
   try {
-    if (op === 'ensure') {
+    if (op === 'ensure' || op === 'list') {
       const rows = await ensureRows(url, serviceKey);
       return json({ ok: true, rows });
     }
@@ -261,7 +227,7 @@ export default async (req) => {
 
     let stock;
     if (op === 'delta') {
-      stock = await applyDeltaWithRetry(url, serviceKey, categoryId, body?.delta);
+      stock = await applyDelta(url, serviceKey, categoryId, body?.delta);
     } else if (op === 'set') {
       stock = await upsertStock(url, serviceKey, categoryId, clampStock(body?.stock));
     } else {

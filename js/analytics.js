@@ -1143,11 +1143,8 @@ function animateEditModalBody(body) {
 }
 
 async function applyStockDelta(oldBreakdown, newBreakdown, { persistLocal = true } = {}) {
-  const { applyStockDeltaToServer, isInventoryHydrated, isInventoryNetworkSynced } =
-    await import('./inventory.js');
-  if (!isInventoryHydrated() || !isInventoryNetworkSynced()) {
-    throw new Error('Inventory not loaded yet');
-  }
+  const { applyStockDeltaToServer, awaitInventoryReady } = await import('./inventory.js');
+  await awaitInventoryReady();
   const allIds = new Set([...Object.keys(oldBreakdown), ...Object.keys(newBreakdown)]);
   for (const id of allIds) {
     const oldQty = oldBreakdown[id] || 0;
