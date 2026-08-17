@@ -189,8 +189,9 @@ async function ensureRows(url, serviceKey) {
 }
 
 export default async (req) => {
-  if (req.method === 'OPTIONS') return json({ ok: true });
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  const method = String(req.method || 'GET').toUpperCase();
+  if (method === 'OPTIONS') return json({ ok: true });
+  if (method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   const { url, serviceKey, anonKey } = supabaseConfig();
   if (!serviceKey) {
@@ -240,7 +241,8 @@ export default async (req) => {
   }
 };
 
+// Do not restrict methods in config — Netlify edge 405s were rejecting valid
+// POSTs before the handler ran. The handler enforces POST itself.
 export const config = {
   path: '/api/inventory/write',
-  method: ['POST', 'OPTIONS'],
 };

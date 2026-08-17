@@ -122,10 +122,12 @@ async function apiInventory(body) {
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
+    cache: 'no-store',
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data?.ok) {
-    const err = new Error(data?.error || `Inventory request failed (${res.status})`);
+    const detail = data?.error || res.statusText || `HTTP ${res.status}`;
+    const err = new Error(detail);
     err.status = res.status;
     err.payload = data;
     throw err;
