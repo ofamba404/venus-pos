@@ -31,8 +31,21 @@ export function adminHeaders(serviceKey, extra = {}) {
 
 /** Validate a staff JWT via Supabase Auth. Returns user or null. */
 export async function requireStaffUser(req, { url, anonKey }) {
-  const auth = req.headers.get('authorization') || '';
-  const token = auth.replace(/^Bearer\s+/i, '').trim();
+  let auth = '';
+  try {
+    if (typeof req?.headers?.get === 'function') {
+      auth = req.headers.get('authorization') || req.headers.get('Authorization') || '';
+    } else if (req?.headers && typeof req.headers === 'object') {
+      auth =
+        req.headers.authorization ||
+        req.headers.Authorization ||
+        req.headers.AUTHORIZATION ||
+        '';
+    }
+  } catch {
+    auth = '';
+  }
+  const token = String(auth).replace(/^Bearer\s+/i, '').trim();
   if (!token || !url || !anonKey) return null;
 
   const res = await fetch(`${url}/auth/v1/user`, {

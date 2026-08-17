@@ -1,5 +1,6 @@
 import { dataStore } from './store/index.js';
 import { bumpElement, closeModal, openModal } from './animations.js';
+import { sbFetch } from './api.js';
 import {
   CATEGORIES,
   CAT_MAP,
@@ -110,8 +111,7 @@ async function staffAccessToken() {
 
 /**
  * ONE network path for POS inventory: Netlify function + service role.
- * Client never relies on direct Supabase inventory reads for readiness —
- * RLS empty responses used to leave stock permanently "loading".
+ * Falls back to direct staff JWT writes if the function route misbehaves (405).
  */
 async function apiInventory(body) {
   const token = await staffAccessToken();
@@ -135,14 +135,69 @@ async function apiInventory(body) {
   return data;
 }
 
+/** Direct Supabase write with the signed-in staff JWT (RLS). Used only as fallback. */
+async function clientUpsertStock(categoryId, stock) {
+  const id = assertWritableId(categoryId);
+  const next = clampStock(stock);
+  const payload = { stock: next, updated_at: new Date().toISOString() };
+  const patch = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(payload),
+  });
+  if (patch.ok) {
+    const rows = await patch.json().catch(() => []);
+    if (Array.isArray(rows) && rows[0]) {
+      return setLocalStock(id, rows[0].stock);
+    }
+  }
+
+  const ins = await sbFetch('inventory', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({ category_id: id, ...payload }),
+  });
+  if (!ins.ok) {
+    throw new Error(`Direct stock write failed (${ins.status})`);
+  }
+  const inserted = await ins.json().catch(() => []);
+  if (Array.isArray(inserted) && inserted[0]) {
+    return setLocalStock(id, inserted[0].stock);
+  }
+  return setLocalStock(id, next);
+}
+
+async function clientApplyDelta(categoryId, delta) {
+  const id = assertWritableId(categoryId);
+  const d = Math.trunc(Number(delta) || 0);
+  if (d === 0) return inventory[id];
+  const read = await sbFetch(
+    `inventory?category_id=eq.${encodeURIComponent(id)}&select=category_id,stock`,
+  );
+  if (!read.ok) throw new Error(`Direct stock read failed (${read.status})`);
+  const rows = await read.json().catch(() => []);
+  const current = Array.isArray(rows) && rows[0] ? clampStock(rows[0].stock) : 0;
+  return clientUpsertStock(id, current + d);
+}
+
 async function apiWriteStock({ categoryId, op, stock, delta }) {
   const id = assertWritableId(categoryId);
-  const data = await apiInventory({
-    category_id: id,
-    op,
-    ...(op === 'set' ? { stock: clampStock(stock) } : { delta: Math.trunc(Number(delta) || 0) }),
-  });
-  return setLocalStock(id, data.stock);
+  try {
+    const data = await apiInventory({
+      category_id: id,
+      op,
+      ...(op === 'set' ? { stock: clampStock(stock) } : { delta: Math.trunc(Number(delta) || 0) }),
+    });
+    return setLocalStock(id, data.stock);
+  } catch (e) {
+    // Function route / method quirks — keep the register usable.
+    if (e?.status === 405 || e?.status === 404 || e?.status === 502 || e?.status === 503) {
+      console.warn('inventory API unavailable, falling back to direct write', e?.message || e);
+      if (op === 'set') return clientUpsertStock(id, stock);
+      return clientApplyDelta(id, delta);
+    }
+    throw e;
+  }
 }
 
 /**

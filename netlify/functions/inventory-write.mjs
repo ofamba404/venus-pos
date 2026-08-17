@@ -9,8 +9,6 @@ import { adminHeaders, requireStaffUser, supabaseConfig } from './_shared/supaba
  *   { category_id, op: 'set', stock: number }
  *   { category_id, op: 'delta', delta: number }
  *   { op: 'ensure' | 'list' }  — absorb legacy `cookie`, create missing rows, return all stock
- *
- * Response: { ok: true, category_id, stock } or { ok: true, rows: [...] }
  */
 
 const ALLOWED = new Set([
@@ -40,6 +38,32 @@ function clampStock(n) {
 function canonicalCategoryId(categoryId) {
   const id = String(categoryId || '').trim();
   return id === LEGACY_COOKIE ? COOKIE_BUTTERSCOTCH : id;
+}
+
+function requestMethod(req) {
+  // Netlify may hand us a Web Request or a legacy event-like object.
+  const raw =
+    (req && typeof req.method === 'string' && req.method) ||
+    (req && typeof req.httpMethod === 'string' && req.httpMethod) ||
+    '';
+  return String(raw || 'POST').toUpperCase();
+}
+
+async function readJsonBody(req) {
+  if (typeof req?.json === 'function') {
+    try {
+      return await req.json();
+    } catch {
+      return null;
+    }
+  }
+  if (req?.body == null) return null;
+  if (typeof req.body === 'object') return req.body;
+  try {
+    return JSON.parse(String(req.body));
+  } catch {
+    return null;
+  }
 }
 
 async function restJson(url, serviceKey, path, { method = 'GET', body, prefer } = {}) {
@@ -111,11 +135,6 @@ async function upsertStock(url, serviceKey, categoryId, stock) {
   throw new Error(`Write failed (${patch.status}/${ins.status})`);
 }
 
-/**
- * Apply a stock delta with short retry.
- * Re-reads current stock each attempt — no fragile updated_at equality filters
- * (PostgREST timestamp eq mismatches were aborting every write).
- */
 async function applyDelta(url, serviceKey, categoryId, delta, maxAttempts = 4) {
   const d = Math.trunc(Number(delta) || 0);
   if (d === 0) {
@@ -136,11 +155,6 @@ async function applyDelta(url, serviceKey, categoryId, delta, maxAttempts = 4) {
   throw lastErr || new Error('Delta write failed');
 }
 
-/**
- * Move leftover shared `cookie` stock onto butterscotch, then zero the legacy row.
- * Copy only when butterscotch is empty — never add on top (retries would double).
- * Write butterscotch first so a failed second step cannot wipe stock.
- */
 async function absorbLegacyCookie(url, serviceKey) {
   const rows = await readRows(url, serviceKey, [LEGACY_COOKIE, COOKIE_BUTTERSCOTCH]);
   const byId = Object.fromEntries(rows.map((r) => [r.category_id, clampStock(r.stock)]));
@@ -189,9 +203,15 @@ async function ensureRows(url, serviceKey) {
 }
 
 export default async (req) => {
-  const method = String(req.method || 'GET').toUpperCase();
-  if (method === 'OPTIONS') return json({ ok: true });
-  if (method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  const method = requestMethod(req);
+  if (method === 'OPTIONS' || method === 'HEAD') return json({ ok: true });
+
+  // Do not hard-fail on unexpected method strings — browsers / edge runtimes
+  // have produced empty method values that previously became false 405s.
+  // Only reject clearly non-mutating verbs.
+  if (method === 'GET' || method === 'DELETE' || method === 'PUT' || method === 'PATCH') {
+    return json({ error: `Method not allowed (${method})`, method }, 405);
+  }
 
   const { url, serviceKey, anonKey } = supabaseConfig();
   if (!serviceKey) {
@@ -201,10 +221,8 @@ export default async (req) => {
   const user = await requireStaffUser(req, { url, anonKey });
   if (!user) return json({ error: 'Unauthorized' }, 401);
 
-  let body;
-  try {
-    body = await req.json();
-  } catch {
+  const body = await readJsonBody(req);
+  if (!body || typeof body !== 'object') {
     return json({ error: 'Invalid JSON' }, 400);
   }
 
@@ -221,7 +239,6 @@ export default async (req) => {
       return json({ error: `Unknown category: ${categoryId}` }, 400);
     }
 
-    // Any cookie write first folds leftover shared stock into butterscotch.
     if (categoryId.startsWith('cookie_')) {
       await absorbLegacyCookie(url, serviceKey);
     }
@@ -241,8 +258,6 @@ export default async (req) => {
   }
 };
 
-// Do not restrict methods in config — Netlify edge 405s were rejecting valid
-// POSTs before the handler ran. The handler enforces POST itself.
 export const config = {
   path: '/api/inventory/write',
 };
