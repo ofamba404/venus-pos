@@ -139,12 +139,21 @@ export const COOKIE_STOCK_CAPACITY = 100;
 /** Cookie bar + label below this share of capacity (30 → running low under 30 cookies). */
 export const COOKIE_LOW_PCT = 0.3;
 /**
- * Wholesale cost per cookie (all flavors). Profit = sale allocation − this.
+ * Wholesale cost per cookie for partner settlement. Profit = sale allocation − this.
  * All flavors split profit 45/55 (you / partner).
  * Your cookie revenue is only your profit split; partner gets the rest (cost + their split).
  * Packs (Duet / Quartet) split pack price evenly across the cookies in the pack.
  */
 export const COOKIE_WHOLESALE_UGX = 2500;
+/** Chocolate / mint / strawberry wholesale (butterscotch stays COOKIE_WHOLESALE_UGX). */
+export const COOKIE_WHOLESALE_FLAVORED_UGX = 3000;
+
+/** Wholesale cost for a cookie category id or flavor id. */
+export function cookieWholesaleUgx(categoryOrFlavorId) {
+  const id = String(categoryOrFlavorId || '').toLowerCase().replace(/^cookie_/, '');
+  if (id === 'chocolate' || id === 'mint' || id === 'strawberry') return COOKIE_WHOLESALE_FLAVORED_UGX;
+  return COOKIE_WHOLESALE_UGX;
+}
 /** Your share of cookie profit (all flavors). Partner gets 1 − this. */
 export const COOKIE_OWNER_SHARE = 0.45;
 /** Settle with cookie partner every this many cookie units sold. */

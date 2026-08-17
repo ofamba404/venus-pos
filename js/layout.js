@@ -8,7 +8,7 @@ const PAGE_ICONS = {
   delivery:
     '<circle cx="19.5" cy="16.5" r="2.5"/><circle cx="4.5" cy="16.5" r="2.5"/><path d="M20.235 7.87c1.281 1.559 1.727 3.042 1.764 3.826a5.3 5.3 0 0 0-2.217-.479c-2.445 0-4.64 1.626-5.164 3.792c-.126.518-.188.777-.324.884s-.356.107-.795.107h-2.878c-.443 0-.664 0-.8-.108c-.137-.11-.197-.367-.316-.883c-.496-2.138-2.508-3.997-4.603-3.84c-.211.017-.317.025-.39.008c-.071-.016-.144-.057-.29-.14c-.421-.237-.851-.463-1.264-.714A2 2 0 0 1 2 8.683c-.013-.384.207-.764.652-.66l6.42 1.511c.483.114.724.17.931.132s.462-.212.97-.56c1.288-.88 3.33-1.713 5.365-.978c.557.201.836.302.994.307c.16.005.392-.063.857-.198a9.5 9.5 0 0 1 2.045-.367m0 0c-.802-.978-1.934-1.985-3.5-2.87"/>',
   history: '<circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/>',
-  analytics: '<path d="M5 19V11"/><path d="M12 19V5"/><path d="M19 19v-8"/>',
+  analytics: '<path d="M3 17l6-6 4 4 8-8"/><path d="M16 7h5v5"/>',
 };
 
 const ACTION_ICONS = {
@@ -21,7 +21,7 @@ const ACTION_ICONS = {
 };
 
 /** Closest to the toggle first: day-to-day work → oversight → system → leave. */
-const FAB_NAV_ORDER = ['home', 'inventory', 'clients', 'delivery', 'history', 'analytics', 'reviews'];
+const FAB_NAV_ORDER = ['home', 'inventory', 'analytics', 'clients', 'delivery', 'history', 'reviews'];
 
 function iconSvg(paths) {
   return `<svg class="fab-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;

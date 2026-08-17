@@ -3,10 +3,10 @@ import {
   COOKIE_OWNER_SHARE,
   COOKIE_PARTNER_SETTLE_EVERY,
   COOKIE_PARTNER_TRACK_FROM_MS,
-  COOKIE_WHOLESALE_UGX,
   cookieFlavorIdFromCategory,
   cookieQtyFromBreakdown,
   cookieUnitPrice,
+  cookieWholesaleUgx,
   isCookieCategoryId,
   normalizeInventoryBreakdown,
 } from './config.js';
@@ -37,6 +37,7 @@ export function cookieFlavorEntriesFromItem(item) {
       flavorId,
       qty,
       unitPrice: cookieUnitPrice(catId),
+      wholesale: cookieWholesaleUgx(flavorId),
     });
   }
   return rows;
@@ -81,14 +82,14 @@ export function itemCookieSettlement(item) {
   if (cookieQty <= 0) return null;
 
   const revenue = Math.max(0, Number(item?.line_total) || 0);
-  const wholesale = cookieQty * COOKIE_WHOLESALE_UGX;
+  const wholesale = entries.reduce((sum, e) => sum + e.qty * e.wholesale, 0);
   const allocs = allocateCookieLineRevenue(entries, revenue, cookieProductKind(item));
 
   let ownerSplit = 0;
   for (let i = 0; i < entries.length; i += 1) {
     const e = entries[i];
     const alloc = allocs[i];
-    const cost = e.qty * COOKIE_WHOLESALE_UGX;
+    const cost = e.qty * e.wholesale;
     const profit = alloc - cost;
     if (profit <= 0) continue;
     ownerSplit += profit * COOKIE_OWNER_SHARE;
@@ -126,7 +127,7 @@ export function expandCookieUnitsFromItem(item, paidRatio = 1) {
   for (let i = 0; i < entries.length; i += 1) {
     const e = entries[i];
     const alloc = allocs[i];
-    const cost = e.qty * COOKIE_WHOLESALE_UGX * paidRatio;
+    const cost = e.qty * e.wholesale * paidRatio;
     const profit = alloc - cost;
     const ownerTotal = profit > 0 ? profit * COOKIE_OWNER_SHARE : 0;
     const partnerTotal = Math.max(0, alloc - ownerTotal);
