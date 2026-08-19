@@ -1160,6 +1160,7 @@ const STORE_COOKIE_TITLES = {
   'mint-cookie': 'Mint Cookie',
   'chocolate-cookie': 'Chocolate Cookie',
   'cookie-duet': 'Cookie Duet',
+  'cookie-trio': 'Cookie Trio',
   'cookie-quartet': 'Cookie Quartet',
 };
 

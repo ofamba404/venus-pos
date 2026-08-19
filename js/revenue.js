@@ -49,6 +49,7 @@ function cookieProductKind(item) {
     .replace(/-/g, '_');
   const name = String(item?.product_name || item?.name || '').toLowerCase();
   if (id.includes('quartet') || name.includes('quartet')) return 'quartet';
+  if (id.includes('trio') || name.includes('trio')) return 'trio';
   if (id.includes('duet') || name.includes('duet')) return 'duet';
   return 'single';
 }
@@ -62,7 +63,7 @@ export function allocateCookieLineRevenue(entries, revenue, productKind = 'singl
   const list = entries || [];
   if (!list.length || revenue <= 0) return list.map(() => 0);
 
-  if (productKind === 'quartet' || productKind === 'duet') {
+  if (productKind === 'quartet' || productKind === 'trio' || productKind === 'duet') {
     const totalQty = list.reduce((sum, e) => sum + e.qty, 0) || 1;
     return list.map((e) => revenue * (e.qty / totalQty));
   }
@@ -262,7 +263,8 @@ export function cookieBatchProductLines(units) {
       return [0, i < 0 ? 99 : i];
     }
     if (row.kind === 'duet') return [1, row.complete ? 0 : 1];
-    if (row.kind === 'quartet') return [2, row.complete ? 0 : 1];
+    if (row.kind === 'trio') return [2, row.complete ? 0 : 1];
+    if (row.kind === 'quartet') return [3, row.complete ? 0 : 1];
     return [3, 0];
   };
 
@@ -277,7 +279,7 @@ export function cookieBatchProductLines(units) {
 
 export function cookieBatchLineTitle(row) {
   if (row.kind === 'single') return `single ${flavorName(row.flavorId)}`;
-  const pack = row.kind === 'quartet' ? 'Quartet' : 'Duet';
+  const pack = row.kind === 'quartet' ? 'Quartet' : row.kind === 'trio' ? 'Trio' : 'Duet';
   if (!row.complete) return `${pack} · ${row.cookieQty} of ${row.lineCookieQty}`;
   return pack;
 }

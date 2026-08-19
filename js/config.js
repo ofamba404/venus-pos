@@ -75,6 +75,7 @@ export function cookieQtyFromBreakdown(breakdown) {
 export function cookieLineDisplayName(productId, breakdown, fallback = 'Cookies') {
   const id = String(productId || '');
   if (id === 'cookie_duet') return 'Cookie Duet';
+  if (id === 'cookie_trio') return 'Cookie Trio';
   if (id === 'cookie_quartet') return 'Cookie Quartet';
   if (id !== 'cookie_single') return fallback;
 
@@ -118,7 +119,7 @@ export const FLAVOR_POOL = ['mint', 'strawberry', 'blueberry', 'watermelon', 'gr
 export const SPLIFF_POOL = ['spliff5050', 'spliff7030'];
 /** POS inventory keys for cookie flavors — order matches COOKIE_FLAVORS. */
 export const COOKIE_FLAVOR_POOL = COOKIE_CATEGORIES.map((c) => c.id);
-/** Non-butterscotch cookie flavors — Duet picks 2 of these; Quartet adds fixed butterscotch. */
+/** Non-butterscotch cookie flavors — Duet picks 2; Trio picks 3; Quartet adds fixed butterscotch. */
 export const COOKIE_CHOICE_POOL = COOKIE_FLAVOR_POOL.filter((id) => id !== 'cookie_butterscotch');
 
 const COOKIE_UNIT_PRICE_BY_ID = Object.fromEntries(
@@ -142,7 +143,7 @@ export const COOKIE_LOW_PCT = 0.3;
  * Wholesale cost per cookie for partner settlement. Profit = sale allocation − this.
  * All flavors split profit 45/55 (you / partner).
  * Your cookie revenue is only your profit split; partner gets the rest (cost + their split).
- * Packs (Duet / Quartet) split pack price evenly across the cookies in the pack.
+ * Packs (Duet / Trio / Quartet) split pack price evenly across the cookies in the pack.
  */
 export const COOKIE_WHOLESALE_UGX = 2500;
 /** Chocolate / mint / strawberry wholesale (butterscotch stays COOKIE_WHOLESALE_UGX). */
@@ -182,6 +183,15 @@ export const PRODUCTS = [
     name: 'Cookie Duet',
     price: 15000,
     joints: 2,
+    rule: 'choose_any',
+    flavorPool: COOKIE_CHOICE_POOL,
+    slotNoun: 'cookies',
+  },
+  {
+    id: 'cookie_trio',
+    name: 'Cookie Trio',
+    price: 20000,
+    joints: 3,
     rule: 'choose_any',
     flavorPool: COOKIE_CHOICE_POOL,
     slotNoun: 'cookies',
