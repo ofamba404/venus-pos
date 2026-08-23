@@ -64,6 +64,23 @@ export function barRowPlaceholders(count = 4, wideLabel = false) {
   ).join('');
 }
 
+export function rankRowPlaceholders(count = 4, { swatch = false, meta = true } = {}) {
+  return Array.from({ length: count }, (_, i) => {
+    const mark = swatch
+      ? `<span class="rank-row-swatch is-pending"></span>`
+      : `<span class="is-pending">${i + 1}</span>`;
+    return `
+    <div class="rank-row rank-row--placeholder" aria-hidden="true">
+      <div class="rank-row-mark">${mark}</div>
+      <div class="rank-row-main">
+        <div class="rank-row-name is-pending">${pt(true)}</div>
+        ${meta ? `<div class="rank-row-meta is-pending">${pt()}</div>` : ''}
+      </div>
+      <div class="rank-row-val is-pending">${pt()}</div>
+    </div>`;
+  }).join('');
+}
+
 export function fixedItemPlaceholders(count = 3) {
   return Array.from(
     { length: count },
@@ -167,10 +184,9 @@ export function analyticsOverviewPlaceholder() {
       <div class="ao-tile">
         <div class="ao-tile-top">
           <span class="ao-tile-label">This month</span>
-          <span class="ao-tile-pill is-pending">${pt()}</span>
         </div>
         <div class="ao-tile-value is-pending">${pt()}</div>
-        <div class="ao-tile-track"><div class="ao-tile-fill is-pending" style="width:100%;transform:scaleX(0.4);transform-origin:left center"></div></div>
+        <div class="ao-tile-foot is-pending">${pt(true)}</div>
       </div>
       <div class="ao-tile">
         <div class="ao-tile-top">
@@ -237,30 +253,26 @@ export function revenueChartPlaceholder() {
 }
 
 export function salesPatternsPlaceholder() {
-  const barCols = Array.from(
-    { length: 12 },
+  const heatCells = Array.from({ length: 12 }, () => `<span class="heat-cell is-pending" data-lvl="0"></span>`).join(
+    '',
+  );
+  const heatRows = Array.from(
+    { length: 7 },
     () => `
-    <div class="pattern-bar-col" aria-hidden="true">
-      <div class="pattern-bar-track"><div class="pattern-bar-fill hour is-pending" style="height:28%"></div></div>
-      <span class="pattern-bar-lbl"></span>
+    <div class="heat-row">
+      <span class="heat-day is-pending">${pt()}</span>
+      <div class="heat-cells">${heatCells}</div>
     </div>`,
   ).join('');
 
   return `
-    <div class="pattern-grid pattern-grid--placeholder" aria-hidden="true">
-      <div class="pattern-card">
+    <div class="pattern-grid pattern-grid--heat pattern-grid--placeholder" aria-hidden="true">
+      <div class="pattern-card pattern-heat">
         <div class="pattern-card-head">
-          <span class="pattern-title">Peak hours</span>
+          <span class="pattern-title">Busy times</span>
           <span class="pattern-hint is-pending">${pt()}</span>
         </div>
-        <div class="pattern-bars vertical">${barCols}</div>
-      </div>
-      <div class="pattern-card">
-        <div class="pattern-card-head">
-          <span class="pattern-title">By weekday</span>
-          <span class="pattern-hint is-pending">${pt()}</span>
-        </div>
-        <div class="pattern-bars vertical">${barCols}</div>
+        <div class="heat-map">${heatRows}</div>
       </div>
       <div class="pattern-card pattern-mix">
         <div class="pattern-card-head">

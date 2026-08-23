@@ -1,6 +1,6 @@
 import { dataStore } from './store/index.js';
 import { sbDelete, sbFetch } from './api.js';
-import { CATEGORIES, COOKIE_FLAVORS, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName, normalizeInventoryBreakdown } from './config.js';
+import { CATEGORIES, COOKIE_FLAVORS, COOKIE_STOCK_CAPACITY, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName, normalizeInventoryBreakdown } from './config.js';
 import {
   breakdownToConfigSelection,
   buildLineFromConfig,
@@ -38,6 +38,7 @@ import {
   cookieFlavorMixPhrase,
   cookiePartnerSettlementSummary,
   cookiePartnerShareText,
+  itemFlavorOwnerShares,
   itemOwnerRevenue,
   markCookiePartnerBatchesSent,
   salePaidRatio,
@@ -60,8 +61,7 @@ import {
 } from './utils.js';
 import {
   analyticsOverviewPlaceholder,
-  barRowPlaceholders,
-  fixedItemPlaceholders,
+  rankRowPlaceholders,
   showPlaceholder,
 } from './pending.js';
 import { createMemo, salesFingerprint } from './store/memo.js';
@@ -414,10 +414,9 @@ function renderOverviewSections() {
       <div class="ao-tile">
         <div class="ao-tile-top">
           <span class="ao-tile-label">This month</span>
-          <span class="ao-tile-pill">${monthShare}% of all-time</span>
         </div>
         <div class="ao-tile-value">${fmtCompact(revenueMonth)}</div>
-        <div class="ao-tile-track"><div class="ao-tile-fill" style="width:${monthShare}%"></div></div>
+        <div class="ao-tile-foot">${monthShare}% of lifetime</div>
       </div>
       <div class="ao-tile">
         <div class="ao-tile-top">
@@ -614,17 +613,200 @@ function renderCookiePartnerPanel() {
   });
 }
 
+function categoryLabel(c, { shortCookie = false } = {}) {
+  if (shortCookie && isCookieCategoryId(c.id)) return c.name;
+  return c.sub ? `${c.name} ${c.sub}` : c.name;
+}
+
+function sharePct(part, total) {
+  if (!(total > 0)) return 0;
+  return Math.round((part / total) * 100);
+}
+
+/** Soft full shelf for joints — fill is vs capacity, not vs the fullest SKU. */
+const JOINT_STOCK_CAPACITY = Math.max(20, LOW_STOCK_THRESHOLD * 4);
+
+function conicFromShares(rows, valueKey = 'revenue') {
+  const total = rows.reduce((sum, r) => sum + (Number(r[valueKey]) || 0), 0);
+  if (!(total > 0)) return 'var(--btn-bg)';
+  let cursor = 0;
+  const stops = [];
+  rows.forEach((r) => {
+    const v = Number(r[valueKey]) || 0;
+    if (v <= 0) return;
+    const start = cursor;
+    const end = cursor + (v / total) * 100;
+    stops.push(`${r.color} ${start.toFixed(2)}% ${end.toFixed(2)}%`);
+    cursor = end;
+  });
+  return stops.length ? `conic-gradient(${stops.join(', ')})` : 'var(--btn-bg)';
+}
+
+function hbarRowsHtml(rows, { max, valueFmt, metaOf, colorOf, titleOf } = {}) {
+  const ceiling = Math.max(1, max ?? Math.max(0, ...rows.map((r) => r.revenue ?? r.value ?? 0)));
+  return rows
+    .map((r) => {
+      const value = r.revenue ?? r.value ?? 0;
+      const pct = Math.round((value / ceiling) * 100);
+      const color = colorOf ? colorOf(r) : r.color || 'var(--jade)';
+      const meta = metaOf ? metaOf(r) : '';
+      const title = titleOf ? titleOf(r) : '';
+      return `
+      <div class="hbar-row"${title ? ` title="${escapeHtml(title)}"` : ''}>
+        <div class="hbar-label">
+          ${r.color ? `<span class="hbar-swatch" style="background:${r.color}"></span>` : ''}
+          <span class="hbar-name">${escapeHtml(r.label || r.name)}</span>
+        </div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${color}"></div></div>
+        <div class="hbar-meta">${meta ? `<span class="hbar-sub">${escapeHtml(meta)}</span>` : ''}<span class="hbar-val">${valueFmt(value, r)}</span></div>
+      </div>`;
+    })
+    .join('');
+}
+
+function flavorDonutHtml(rows, { caption = 'cookies' } = {}) {
+  const total = rows.reduce((sum, r) => sum + r.revenue, 0);
+  const gradient = conicFromShares(rows);
+  const legend = rows
+    .map((r) => {
+      const qty = Math.round(r.qty);
+      const share = sharePct(r.revenue, total);
+      return `
+      <div class="donut-leg-row" title="${escapeHtml(`${fmtUGX(r.revenue)} · ${qty} sold`)}">
+        <span class="donut-leg-swatch" style="background:${r.color}"></span>
+        <span class="donut-leg-name">${escapeHtml(r.label)}</span>
+        <span class="donut-leg-share">${share}%</span>
+        <span class="donut-leg-val">${fmtCompact(r.revenue)}</span>
+      </div>`;
+    })
+    .join('');
+
+  return `
+    <div class="flavor-donut-panel">
+      <div class="donut-container analytics-donut" aria-hidden="true">
+        <div class="donut" style="background:${gradient}"></div>
+        <div class="donut-hole">
+          <div class="donut-total">${fmtCompact(total)}</div>
+          <div class="donut-caption">${escapeHtml(caption)}</div>
+        </div>
+      </div>
+      <div class="donut-legend">${legend}</div>
+    </div>`;
+}
+
+function paretoRowsHtml(sortedEntries) {
+  const total = sortedEntries.reduce((sum, [, rev]) => sum + rev, 0);
+  const max = Math.max(1, ...sortedEntries.map(([, rev]) => rev));
+  let cum = 0;
+  return sortedEntries
+    .map(([name, rev], i) => {
+      cum += rev;
+      const cumPct = sharePct(cum, total);
+      const barPct = Math.round((rev / max) * 100);
+      const hit80 = cumPct >= 80 && (i === 0 || sharePct(cum - rev, total) < 80);
+      return `
+      <div class="pareto-row${hit80 ? ' is-pareto-cut' : ''}" title="${escapeHtml(`${fmtUGX(rev)} · ${cumPct}% cumulative`)}">
+        <div class="pareto-rank">${i + 1}</div>
+        <div class="pareto-main">
+          <div class="pareto-name">${escapeHtml(name)}</div>
+          <div class="pareto-track"><div class="pareto-fill" style="width:${barPct}%"></div></div>
+        </div>
+        <div class="pareto-side">
+          <span class="pareto-val">${fmtCompact(rev)}</span>
+          <span class="pareto-cum">${cumPct}% cum</span>
+        </div>
+      </div>`;
+    })
+    .join('');
+}
+
+function insightGroupHtml(title, inner) {
+  if (!inner) return '';
+  return `<div class="insight-group">
+    <div class="insight-kicker">${escapeHtml(title)}</div>
+    ${inner}
+  </div>`;
+}
+
+function insightSplitHtml(...groups) {
+  const present = groups.filter(Boolean);
+  if (!present.length) return '';
+  if (present.length === 1) return present[0];
+  return `<div class="insight-split">${present.join('')}</div>`;
+}
+
 function renderInsightLists() {
   const period = getInsightPeriod();
   const periodSales = filterSalesByInsightPeriod(salesCache, period);
   const periodSuffix = period.id === 'all' ? 'all time' : period.label.toLowerCase();
 
+  const flavorPeriodEl = document.getElementById('flavorRevenuePeriod');
   const productPeriodEl = document.getElementById('productRevenuePeriod');
   const clientsPeriodEl = document.getElementById('topClientsPeriod');
+  paintInsightPeriodPills(flavorPeriodEl, period);
   paintInsightPeriodPills(productPeriodEl, period);
   paintInsightPeriodPills(clientsPeriodEl, period);
+  wireInsightPeriodPills(flavorPeriodEl);
   wireInsightPeriodPills(productPeriodEl);
   wireInsightPeriodPills(clientsPeriodEl);
+
+  const flavorRevenueEl = document.getElementById('flavorRevenue');
+  if (flavorRevenueEl) {
+    const flavorMap = {};
+    periodSales.forEach((s) => {
+      const ratio = salePaidRatio(s);
+      (s.items || []).forEach((i) => {
+        itemFlavorOwnerShares(i).forEach((share) => {
+          const row = flavorMap[share.catId] || { catId: share.catId, qty: 0, revenue: 0 };
+          row.qty += share.qty * ratio;
+          row.revenue += share.revenue * ratio;
+          flavorMap[share.catId] = row;
+        });
+      });
+    });
+
+    const toRows = (cats) =>
+      cats
+        .map((c) => {
+          const row = flavorMap[c.id];
+          if (!row || row.revenue <= 0) return null;
+          return {
+            label: categoryLabel(c, { shortCookie: true }),
+            color: c.color,
+            qty: row.qty,
+            revenue: row.revenue,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.revenue - a.revenue);
+
+    const jointRows = toRows(CATEGORIES.filter((c) => !isCookieCategoryId(c.id)));
+    const cookieRows = toRows(CATEGORIES.filter((c) => isCookieCategoryId(c.id)));
+
+    const jointBars =
+      jointRows.length === 0
+        ? ''
+        : hbarRowsHtml(jointRows, {
+            valueFmt: (v) => fmtCompact(v),
+            metaOf: (r) => `${Math.round(r.qty)} sold`,
+            titleOf: (r) => `${fmtUGX(r.revenue)} · ${Math.round(r.qty)} sold`,
+          });
+
+    flavorRevenueEl.innerHTML =
+      jointRows.length === 0 && cookieRows.length === 0
+        ? showPlaceholder('sales', periodSales.length)
+          ? insightSplitHtml(
+              insightGroupHtml('Joints', rankRowPlaceholders(4, { swatch: true })),
+              insightGroupHtml('Cookies', rankRowPlaceholders(3, { swatch: true })),
+            )
+          : `<div class="receipt-empty">No flavor sales ${period.id === 'all' ? 'yet' : `this ${periodSuffix}`}</div>`
+        : insightSplitHtml(
+            insightGroupHtml('Joints', jointBars),
+            insightGroupHtml('Cookies', cookieRows.length ? flavorDonutHtml(cookieRows) : ''),
+          );
+
+    applyBarFillWidths(flavorRevenueEl);
+  }
 
   const productRevenueMap = {};
   periodSales.forEach((s) => {
@@ -635,27 +817,16 @@ function renderInsightLists() {
     });
   });
   const sortedProducts = Object.entries(productRevenueMap).sort((a, b) => b[1] - a[1]);
-  const maxProdRev = Math.max(1, ...sortedProducts.map(([, v]) => v));
   const productRevenueEl = document.getElementById('productRevenue');
   if (productRevenueEl) {
     productRevenueEl.innerHTML =
       sortedProducts.length === 0
         ? showPlaceholder('sales', periodSales.length)
-          ? barRowPlaceholders(4, true)
+          ? rankRowPlaceholders(4)
           : `<div class="receipt-empty">No sales ${period.id === 'all' ? 'yet' : `this ${periodSuffix}`}</div>`
-        : sortedProducts
-          .map(
-            ([name, rev]) => `
-        <div class="bar-row">
-          <div class="bar-label wide">${escapeHtml(name)}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${Math.round((rev / maxProdRev) * 100)}%; background:var(--jade);"></div></div>
-          <div class="bar-value">${fmtCompact(rev)}</div>
-        </div>`,
-          )
-          .join('');
+        : `<div class="pareto-list">${paretoRowsHtml(sortedProducts)}</div>`;
+    applyBarFillWidths(productRevenueEl);
   }
-
-  applyBarFillWidths(productRevenueEl);
 
   const clientTotals = {};
   periodSales.forEach((s) => {
@@ -665,7 +836,11 @@ function renderInsightLists() {
     clientTotals[s.client_id].orders += 1;
   });
   const rankedClients = Object.entries(clientTotals)
-    .map(([id, data]) => ({ name: clients.find((c) => c.id === id)?.name || 'Unknown', ...data }))
+    .map(([id, data]) => ({
+      name: clients.find((c) => c.id === id)?.name || 'Unknown',
+      label: clients.find((c) => c.id === id)?.name || 'Unknown',
+      ...data,
+    }))
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5);
   const topClientsEl = document.getElementById('topClients');
@@ -673,17 +848,14 @@ function renderInsightLists() {
     topClientsEl.innerHTML =
       rankedClients.length === 0
         ? showPlaceholder('sales', periodSales.length)
-          ? fixedItemPlaceholders(3)
+          ? rankRowPlaceholders(3)
           : `<div class="receipt-empty">No client-attributed sales ${period.id === 'all' ? 'yet' : `this ${periodSuffix}`}</div>`
-        : rankedClients
-          .map(
-            (c, i) => `
-        <div class="fixed-item">
-          <span>${i + 1}. ${escapeHtml(c.name)}</span>
-          <span style="color:var(--gold); font-size:12px;">${fmtUGX(c.revenue)} · ${c.orders} order${c.orders > 1 ? 's' : ''}</span>
-        </div>`,
-          )
-          .join('');
+        : hbarRowsHtml(rankedClients, {
+            valueFmt: (v) => fmtUGX(v),
+            metaOf: (c) => `${c.orders} order${c.orders > 1 ? 's' : ''}`,
+            colorOf: () => 'var(--jade)',
+          });
+    applyBarFillWidths(topClientsEl);
   }
 }
 
@@ -706,30 +878,86 @@ export function renderAnalyticsCharts() {
 export function renderAnalyticsStock() {
   const jointCats = CATEGORIES.filter((c) => !isCookieCategoryId(c.id));
   const cookieCats = CATEGORIES.filter((c) => isCookieCategoryId(c.id));
-  const maxJointStock = Math.max(1, ...jointCats.map((c) => inventory[c.id]));
-  const maxCookieStock = Math.max(1, ...cookieCats.map((c) => inventory[c.id]));
   const stockPending = showPlaceholder('inventory');
   const stockBars = document.getElementById('stockBars');
   if (!stockBars) return;
 
-  stockBars.innerHTML = CATEGORIES.map((c) => {
-    const stock = inventory[c.id];
-    let status;
-    let pct;
-    if (isCookieCategoryId(c.id)) {
-      status = stock === 0 ? 'out' : stock < LOW_STOCK_THRESHOLD ? 'low' : 'ok';
-      pct = Math.round((stock / maxCookieStock) * 100);
-    } else {
-      status = stock === 0 ? 'out' : stock < LOW_STOCK_THRESHOLD ? 'low' : 'ok';
-      pct = Math.round((stock / maxJointStock) * 100);
-    }
-    const label = c.sub ? `${c.name} ${c.sub}` : c.name;
-    return `<div class="bar-row" data-status="${status}">
-      <div class="bar-label">${escapeHtml(label)}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${stockPending ? 0 : pct}%; background:${c.color};"></div></div>
-      <div class="bar-value${stockPending ? ' is-pending' : ''}" style="${!stockPending && status !== 'ok' ? `color:var(--${status === 'low' ? 'gold' : 'danger'});` : ''}">${stockPending ? '··' : stock}</div>
-    </div>`;
-  }).join('');
+  const statusOf = (stock) => (stock === 0 ? 'out' : stock < LOW_STOCK_THRESHOLD ? 'low' : 'ok');
+
+  const allCats = [...jointCats, ...cookieCats];
+  const alerts = allCats
+    .map((c) => {
+      const stock = inventory[c.id] || 0;
+      const status = statusOf(stock);
+      if (status === 'ok') return null;
+      return {
+        label: categoryLabel(c, { shortCookie: isCookieCategoryId(c.id) }),
+        color: c.color,
+        stock,
+        status,
+        catId: c.id,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (a.status === 'out' ? 0 : 1) - (b.status === 'out' ? 0 : 1) || a.stock - b.stock);
+
+  const alertHtml =
+    !stockPending && alerts.length
+      ? `<div class="stock-alerts" role="status">
+        <div class="stock-alerts-kicker">${alerts.length} need attention</div>
+        <div class="stock-alert-chips">
+          ${alerts
+            .map(
+              (a) => `
+            <div class="stock-alert-chip is-${a.status}" data-status="${a.status}">
+              <span class="stock-alert-swatch" style="background:${a.color}"></span>
+              <span class="stock-alert-name">${escapeHtml(a.label)}</span>
+              <span class="stock-alert-qty">${a.status === 'out' ? 'Out' : a.stock}</span>
+            </div>`,
+            )
+            .join('')}
+        </div>
+      </div>`
+      : !stockPending
+        ? `<div class="stock-alerts is-clear"><span class="stock-alerts-kicker">All flavors healthy</span></div>`
+        : '';
+
+  const capRowsHtml = (cats, capacity, { shortCookie = false } = {}) =>
+    cats
+      .map((c) => {
+        const stock = inventory[c.id] || 0;
+        const status = statusOf(stock);
+        const pct = stockPending ? 0 : Math.min(100, Math.round((stock / capacity) * 100));
+        const reorderPct = Math.min(100, Math.round((LOW_STOCK_THRESHOLD / capacity) * 100));
+        return `
+        <div class="stock-cap-row" data-status="${status}">
+          <div class="stock-cap-label">
+            <span class="hbar-swatch" style="background:${c.color}"></span>
+            <span class="hbar-name">${escapeHtml(categoryLabel(c, { shortCookie }))}</span>
+          </div>
+          <div class="stock-cap-track" title="Reorder under ${LOW_STOCK_THRESHOLD}">
+            <div class="stock-cap-fill is-${status}" style="width:${pct}%;background:${c.color}"></div>
+            <span class="stock-cap-mark" style="left:${reorderPct}%" aria-hidden="true"></span>
+          </div>
+          <div class="stock-cap-val${stockPending ? ' is-pending' : status === 'ok' ? '' : ` is-${status}`}">${stockPending ? '··' : stock}</div>
+        </div>`;
+      })
+      .join('');
+
+  stockBars.innerHTML = stockPending
+    ? insightSplitHtml(
+        insightGroupHtml('Joints', rankRowPlaceholders(5, { swatch: true, meta: false })),
+        insightGroupHtml('Cookies', rankRowPlaceholders(4, { swatch: true, meta: false })),
+      )
+    : `${alertHtml}
+      ${insightSplitHtml(
+        insightGroupHtml('Joints', capRowsHtml(jointCats, JOINT_STOCK_CAPACITY)),
+        insightGroupHtml(
+          'Cookies',
+          capRowsHtml(cookieCats, COOKIE_STOCK_CAPACITY, { shortCookie: true }),
+        ),
+      )}`;
+
   applyActiveHighlight();
   applyBarFillWidths(stockBars);
 }

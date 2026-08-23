@@ -645,10 +645,25 @@ export function renderStockGlance() {
 
 export function applyActiveHighlight() {
   const highlight = getActiveStatusHighlight();
-  document.querySelectorAll('.bar-fill').forEach((f) => f.classList.remove('glow-ok', 'glow-low', 'glow-out'));
+  document.querySelectorAll('.bar-fill, .stock-cap-fill').forEach((f) => {
+    f.classList.remove('glow-ok', 'glow-low', 'glow-out');
+  });
+  document.querySelectorAll('.rank-row, .stock-cap-row, .stock-alert-chip').forEach((row) => {
+    row.classList.remove('glow-ok', 'glow-low', 'glow-out');
+  });
   if (!highlight) return;
   document.querySelectorAll(`.bar-row[data-status="${highlight}"] .bar-fill`).forEach((f) => {
     f.classList.add(`glow-${highlight}`);
+  });
+  document.querySelectorAll(`.rank-row[data-status="${highlight}"]`).forEach((row) => {
+    row.classList.add(`glow-${highlight}`);
+  });
+  document.querySelectorAll(`.stock-cap-row[data-status="${highlight}"]`).forEach((row) => {
+    row.classList.add(`glow-${highlight}`);
+    row.querySelector('.stock-cap-fill')?.classList.add(`glow-${highlight}`);
+  });
+  document.querySelectorAll(`.stock-alert-chip[data-status="${highlight}"]`).forEach((chip) => {
+    chip.classList.add(`glow-${highlight}`);
   });
 }
 

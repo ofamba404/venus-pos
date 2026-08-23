@@ -191,6 +191,11 @@ export const PAGE_TEMPLATES = {
     <div class="section-title" id="stockLevelsLabel">Stock levels</div>
     <div id="stockBars"></div>
     <div class="section-title-row">
+      <div class="section-title" id="flavorRevenueLabel">Revenue by flavor</div>
+      <div class="insight-period-pills" id="flavorRevenuePeriod" role="group" aria-label="Revenue by flavor period"></div>
+    </div>
+    <div id="flavorRevenue"></div>
+    <div class="section-title-row">
       <div class="section-title" id="productRevenueLabel">Revenue by product</div>
       <div class="insight-period-pills" id="productRevenuePeriod" role="group" aria-label="Revenue by product period"></div>
     </div>

@@ -19,7 +19,7 @@ export const CHART_RANGES = [
   { id: 'all', label: 'All time', short: 'All', unit: null, count: null },
 ];
 
-/** Shared period for Customer favorite, Revenue by product, and Top clients. */
+/** Shared period for Customer favorite, Revenue by flavor, Revenue by product, and Top clients. */
 export const INSIGHT_PERIODS = [
   { id: 'week', label: 'Week', short: 'Week', unit: 'week', count: 1 },
   { id: 'month', label: 'Month', short: 'Month', unit: 'month', count: 1 },
@@ -496,12 +496,17 @@ export function renderRevenueChart(block, sales, range, onRangeChange) {
 }
 
 const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** Heatmap row order: Mon → Sun (matches calendar weeks elsewhere). */
+const HEAT_WEEKDAYS = [1, 2, 3, 4, 5, 6, 0];
 
 export function computeSalesPatterns(sales) {
   const hours = Array(24).fill(0);
   const hourOrders = Array(24).fill(0);
   const weekdays = Array(7).fill(0);
   const weekdayOrders = Array(7).fill(0);
+  /** revenue[weekday][hour] */
+  const heat = Array.from({ length: 7 }, () => Array(24).fill(0));
+  const heatOrders = Array.from({ length: 7 }, () => Array(24).fill(0));
   let creditRevenue = 0;
   let paidRevenue = 0;
   let joints = 0;
@@ -517,6 +522,8 @@ export function computeSalesPatterns(sales) {
     hourOrders[h] += 1;
     weekdays[wd] += recognized;
     weekdayOrders[wd] += 1;
+    heat[wd][h] += recognized;
+    heatOrders[wd][h] += 1;
     // Settled credit counts as paid; only open AR stays in the credit bucket.
     if (isOutstandingCredit(s)) {
       paidRevenue += recognized;
@@ -543,18 +550,24 @@ export function computeSalesPatterns(sales) {
     .filter((x) => x.rev > 0 || x.orders > 0);
   const minH = activeHours.length ? Math.min(...activeHours.map((x) => x.h)) : 8;
   const maxH = activeHours.length ? Math.max(...activeHours.map((x) => x.h)) : 22;
-  const hourSlice = [];
-  for (let h = Math.max(0, minH - 1); h <= Math.min(23, maxH + 1); h++) {
-    hourSlice.push({ h, rev: hours[h], orders: hourOrders[h] });
+  const hourStart = Math.max(0, minH - 1);
+  const hourEnd = Math.min(23, maxH + 1);
+  const hourCols = [];
+  for (let h = hourStart; h <= hourEnd; h++) hourCols.push(h);
+
+  let peakCell = { wd: 0, h: 0, rev: 0 };
+  for (let wd = 0; wd < 7; wd++) {
+    for (let h = 0; h < 24; h++) {
+      if (heat[wd][h] > peakCell.rev) peakCell = { wd, h, rev: heat[wd][h] };
+    }
   }
 
   return {
-    hours: hourSlice.length
-      ? hourSlice
-      : hours
-          .map((rev, h) => ({ h, rev, orders: hourOrders[h] }))
-          .slice(8, 23),
-    weekdays: weekdays.map((rev, i) => ({ day: WEEKDAY_NAMES[i], rev, orders: weekdayOrders[i] })),
+    hourCols,
+    heat,
+    heatOrders,
+    heatMax: Math.max(1, peakCell.rev),
+    peakCell,
     peakHour,
     peakWeekday,
     creditPct,
@@ -567,10 +580,27 @@ export function computeSalesPatterns(sales) {
 }
 
 function formatHour(h) {
+  if (h === 0) return '12a';
+  if (h < 12) return `${h}a`;
+  if (h === 12) return '12p';
+  return `${h - 12}p`;
+}
+
+function formatHourLong(h) {
   if (h === 0) return '12am';
   if (h < 12) return `${h}am`;
   if (h === 12) return '12pm';
   return `${h - 12}pm`;
+}
+
+function heatLevel(rev, max) {
+  if (!(rev > 0)) return 0;
+  const ratio = rev / max;
+  if (ratio < 0.2) return 1;
+  if (ratio < 0.4) return 2;
+  if (ratio < 0.65) return 3;
+  if (ratio < 0.85) return 4;
+  return 5;
 }
 
 export function renderSalesPatterns(container, sales) {
@@ -584,49 +614,59 @@ export function renderSalesPatterns(container, sales) {
     return;
   }
 
-  const maxHour = Math.max(1, ...p.hours.map((x) => x.rev));
-  const maxWd = Math.max(1, ...p.weekdays.map((x) => x.rev));
-  const peakHourLabel = p.peakHour.v > 0 ? formatHour(p.peakHour.i) : '—';
-  const peakDayLabel = p.peakWeekday.v > 0 ? WEEKDAY_NAMES[p.peakWeekday.i] : '—';
+  const peakHint =
+    p.peakCell.rev > 0
+      ? `${WEEKDAY_NAMES[p.peakCell.wd]} ${formatHourLong(p.peakCell.h)}`
+      : '—';
 
-  const hourBars = p.hours
-    .map(
-      (x) => `
-    <div class="pattern-bar-col" title="${formatHour(x.h)}: ${fmtUGX(x.rev)}">
-      <div class="pattern-bar-track"><div class="pattern-bar-fill hour" style="height:${Math.round((x.rev / maxHour) * 100)}%"></div></div>
-      <span class="pattern-bar-lbl">${x.h % 3 === 0 || x.h === p.peakHour.i ? formatHour(x.h) : ''}</span>
-    </div>`,
-    )
+  const hourHeaders = p.hourCols
+    .map((h) => {
+      const show = h % 3 === 0 || h === p.peakCell.h || h === p.hourCols[0];
+      return `<span class="heat-h">${show ? formatHour(h) : ''}</span>`;
+    })
     .join('');
 
-  const wdBars = p.weekdays
-    .map(
-      (x, i) => `
-    <div class="pattern-bar-col${i === p.peakWeekday.i ? ' peak' : ''}" title="${x.day}: ${fmtUGX(x.rev)}">
-      <div class="pattern-bar-track"><div class="pattern-bar-fill day" style="height:${Math.round((x.rev / maxWd) * 100)}%"></div></div>
-      <span class="pattern-bar-lbl">${x.day}</span>
-    </div>`,
-    )
-    .join('');
+  const heatRows = HEAT_WEEKDAYS.map((wd) => {
+    const cells = p.hourCols
+      .map((h) => {
+        const rev = p.heat[wd][h];
+        const orders = p.heatOrders[wd][h];
+        const lvl = heatLevel(rev, p.heatMax);
+        const peak = wd === p.peakCell.wd && h === p.peakCell.h && rev > 0;
+        return `<button type="button" class="heat-cell${peak ? ' is-peak' : ''}" data-lvl="${lvl}" title="${WEEKDAY_NAMES[wd]} ${formatHourLong(h)}: ${fmtUGX(rev)} · ${orders} order${orders === 1 ? '' : 's'}" aria-label="${WEEKDAY_NAMES[wd]} ${formatHourLong(h)}, ${fmtUGX(rev)}"></button>`;
+      })
+      .join('');
+    return `
+      <div class="heat-row">
+        <span class="heat-day">${WEEKDAY_NAMES[wd]}</span>
+        <div class="heat-cells">${cells}</div>
+      </div>`;
+  }).join('');
 
   const jointPct = p.unitTotal > 0 ? Math.round((p.joints / p.unitTotal) * 100) : 0;
   const cookiePct = p.unitTotal > 0 ? 100 - jointPct : 0;
 
   container.innerHTML = `
-    <div class="pattern-grid">
-      <div class="pattern-card">
+    <div class="pattern-grid pattern-grid--heat">
+      <div class="pattern-card pattern-heat">
         <div class="pattern-card-head">
-          <span class="pattern-title">Peak hours</span>
-          <span class="pattern-hint">${peakHourLabel} busiest</span>
+          <span class="pattern-title">Busy times</span>
+          <span class="pattern-hint">${peakHint} peak</span>
         </div>
-        <div class="pattern-bars vertical">${hourBars}</div>
-      </div>
-      <div class="pattern-card">
-        <div class="pattern-card-head">
-          <span class="pattern-title">By weekday</span>
-          <span class="pattern-hint">${peakDayLabel} tops</span>
+        <div class="heat-map" role="img" aria-label="Sales heatmap by weekday and hour">
+          <div class="heat-row heat-row--head">
+            <span class="heat-day" aria-hidden="true"></span>
+            <div class="heat-cells heat-cells--head">${hourHeaders}</div>
+          </div>
+          ${heatRows}
         </div>
-        <div class="pattern-bars vertical">${wdBars}</div>
+        <div class="heat-legend" aria-hidden="true">
+          <span>Quiet</span>
+          <span class="heat-legend-scale">
+            <i data-lvl="1"></i><i data-lvl="2"></i><i data-lvl="3"></i><i data-lvl="4"></i><i data-lvl="5"></i>
+          </span>
+          <span>Busy</span>
+        </div>
       </div>
       <div class="pattern-card pattern-mix">
         <div class="pattern-card-head">

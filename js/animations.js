@@ -290,7 +290,7 @@ export function animateToastOut(el) {
 }
 
 const PAGE_CONTENT_SELECTOR =
-  '.kpi-grid > *, .stock-card, .section-head, .page-hint, .client-add-row, .client-search-wrap, .ao-hero, .ao-tiles > *, .ao-feature, .credit-panel, .analytics-block, .rev-chart-card, .pattern-card, .dl-model-card, .delivery-day-group, .delivery-stats, .delivery-log, .history-hero, .history-section, .card, .section-title, .product-row, .client-row, .bar-row';
+  '.kpi-grid > *, .stock-card, .section-head, .page-hint, .client-add-row, .client-search-wrap, .ao-hero, .ao-tiles > *, .ao-feature, .credit-panel, .analytics-block, .rev-chart-card, .pattern-card, .dl-model-card, .delivery-day-group, .delivery-stats, .delivery-log, .history-hero, .history-section, .card, .section-title, .product-row, .client-row, .insight-group, .hbar-row, .pareto-row, .stock-cap-row, .stock-alerts';
 
 function markAppReady() {
   document.body.classList.add('is-ready');
@@ -826,7 +826,9 @@ export function bumpElement(el) {
 
 export function applyBarFillWidths(root = document) {
   if (!root) return;
-  root.querySelectorAll('.bar-fill, .ao-tile-fill, .stock-stat-meter-fill').forEach((fill) => {
+  root
+    .querySelectorAll('.bar-fill, .ao-tile-fill, .stock-stat-meter-fill, .hbar-fill, .pareto-fill, .stock-cap-fill')
+    .forEach((fill) => {
     const targetW = fill.dataset.fillWidth || fill.style.width;
     const targetH = fill.dataset.fillHeight || fill.style.height;
     if (targetW) {

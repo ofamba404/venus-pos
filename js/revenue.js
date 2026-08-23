@@ -460,6 +460,42 @@ export function itemOwnerRevenue(item) {
   return Number(item?.line_total) || 0;
 }
 
+/**
+ * Owner revenue split across flavors in a line (qty-weighted joints; cookie profit split).
+ * @returns {{ catId: string, qty: number, revenue: number }[]}
+ */
+export function itemFlavorOwnerShares(item) {
+  const entries = cookieFlavorEntriesFromItem(item);
+  if (entries.length) {
+    const revenue = Math.max(0, Number(item?.line_total) || 0);
+    const allocs = allocateCookieLineRevenue(entries, revenue, cookieProductKind(item));
+    return entries.map((e, i) => {
+      const alloc = allocs[i];
+      const cost = e.qty * e.wholesale;
+      const profit = alloc - cost;
+      return {
+        catId: e.catId,
+        qty: e.qty,
+        revenue: profit > 0 ? profit * COOKIE_OWNER_SHARE : 0,
+      };
+    });
+  }
+
+  const breakdown = normalizeInventoryBreakdown(item?.breakdown);
+  const jointEntries = Object.entries(breakdown).filter(([catId, qty]) => {
+    if (isCookieCategoryId(catId)) return false;
+    return Number.isFinite(qty) && qty > 0;
+  });
+  const totalQty = jointEntries.reduce((sum, [, qty]) => sum + qty, 0);
+  if (!totalQty) return [];
+  const lineRev = Math.max(0, Number(item?.line_total) || 0);
+  return jointEntries.map(([catId, qty]) => ({
+    catId,
+    qty,
+    revenue: lineRev * (qty / totalQty),
+  }));
+}
+
 /** Full owner revenue for a sale (ignores credit settlement). */
 export function saleOwnerRevenue(sale) {
   const items = sale?.items;
