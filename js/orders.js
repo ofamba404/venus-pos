@@ -38,6 +38,7 @@ import {
   wireProductConfigView,
   wireProductPickButtons,
 } from './product-config.js';
+import { applyToCartLines } from './flavored-cookie-pricing.js';
 import {
   animateCheckoutProcessing,
   animateCheckoutSuccess,
@@ -69,6 +70,14 @@ import {
   getClientOutstandingCredit,
   sumCreditOwed,
 } from './credit.js';
+
+/** Persist cart after applying flavored-cookie bulk pricing (4+ → 22% off). */
+function commitCart(cart) {
+  const next = Array.isArray(cart) ? cart : [];
+  applyToCartLines(next);
+  setCart(next);
+  return next;
+}
 
 let modalMode = 'cart';
 let configProduct = null;
@@ -159,7 +168,7 @@ export function captureComposeDraft() {
 function restoreComposeDraft() {
   resetDraftStock();
   if (composeDraft) {
-    setCart(cloneCartLines(composeDraft.cart));
+    commitCart(cloneCartLines(composeDraft.cart));
     setOrderMeta({ ...emptyOrderMeta(), ...composeDraft.meta, storeOrderId: '' });
     applyCheckoutDeliverySnapshot(composeDraft.checkout);
   } else {
@@ -839,7 +848,7 @@ function closeOrderModal() {
     adjustDraftForItem(editingCartItem, -1);
     const cart = getCart();
     cart.push(editingCartItem);
-    setCart(cart);
+    commitCart(cart);
     editingCartKey = null;
     editingCartItem = null;
     updateFabBadge();
@@ -1713,7 +1722,7 @@ function wireCartItemButtons(root) {
       clearManualQtyEdit();
       adjustDraftForItem(item, 1);
       currentCart.splice(idx, 1);
-      setCart(currentCart);
+      commitCart(currentCart);
       updateFabBadge();
       modalMode = 'config';
       renderOrderModal();
@@ -1728,7 +1737,7 @@ function wireCartItemButtons(root) {
         const item = currentCart[idx];
         adjustDraftForItem(item, 1);
         currentCart.splice(idx, 1);
-        setCart(currentCart);
+        commitCart(currentCart);
       }
       updateFabBadge();
       syncCartViewAfterItemsChange();
@@ -2155,6 +2164,7 @@ function renderConfigView() {
     closeId: 'orderClose',
     backId: 'backBtn',
     confirmId: 'addToOrderBtn',
+    otherLines: getCart(),
   });
   wireConfigEvents();
 
@@ -2195,7 +2205,7 @@ function wireConfigEvents() {
         adjustDraftForItem(editingCartItem, -1);
         const currentCart = getCart();
         currentCart.push(editingCartItem);
-        setCart(currentCart);
+        commitCart(currentCart);
         editingCartKey = null;
         editingCartItem = null;
         updateFabBadge();
@@ -2217,7 +2227,9 @@ function addConfiguredItemToCart() {
     editingCartItem = null;
   }
 
-  const { breakdown, lineTotal, detail } = buildLineFromConfig(p, configSelection);
+  const { breakdown, lineTotal, detail } = buildLineFromConfig(p, configSelection, {
+    otherLines: getCart(),
+  });
 
   adjustDraftForItem({ breakdown, stockDeferred: false }, -1);
 
@@ -2230,7 +2242,7 @@ function addConfiguredItemToCart() {
     breakdown,
     lineTotal,
   });
-  setCart(cart);
+  commitCart(cart);
   updateFabBadge();
   modalMode = 'cart';
   renderOrderModal();

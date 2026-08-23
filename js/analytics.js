@@ -11,6 +11,7 @@ import {
   wireProductConfigView,
   wireProductPickButtons,
 } from './product-config.js';
+import { applyToCartLines } from './flavored-cookie-pricing.js';
 import { applyActiveHighlight, getActiveStatusHighlight } from './inventory.js';
 import { animateAccordionPanel, animateFlavorMeter, animateModalContent, applyBarFillWidths, isModalOpen, readFlavorMeterScale, setAccordionPanelInstant } from './animations.js';
 import {
@@ -1002,6 +1003,7 @@ function renderEditSaleMainView() {
       const idx = parseInt(btn.dataset.removeSaleItem, 10);
       if (idx >= 0 && idx < editSaleItems.length) {
         editSaleItems.splice(idx, 1);
+        applyToCartLines(editSaleItems);
         renderEditSaleModal();
       }
     });
@@ -1059,11 +1061,20 @@ function renderEditSaleConfigView() {
   const hadMeter = Boolean(prevMeter);
 
   const draftStock = getEditSaleDraftStock(editingSaleItemIdx ?? -1);
+  const otherLines = editSaleItems
+    .filter((_, i) => i !== editingSaleItemIdx)
+    .map((item) => ({
+      productId: item.product_id,
+      breakdown: item.breakdown,
+      isReward: item.is_reward,
+      quantity: item.quantity,
+    }));
   body.innerHTML = renderProductConfigView(
     editConfigProduct,
     editConfigSelection,
     draftStock,
     editingSaleItemIdx !== null,
+    { otherLines },
   );
 
   if (!hadMeter) animateEditModalBody(body);
@@ -1115,7 +1126,17 @@ function confirmEditSaleConfig() {
   const product = editConfigProduct;
   if (!product) return;
 
-  const { breakdown, lineTotal, detail } = buildLineFromConfig(product, editConfigSelection);
+  const otherLines = editSaleItems
+    .filter((_, i) => i !== editingSaleItemIdx)
+    .map((item) => ({
+      productId: item.product_id,
+      breakdown: item.breakdown,
+      isReward: item.is_reward,
+      quantity: item.quantity,
+    }));
+  const { breakdown, lineTotal, detail } = buildLineFromConfig(product, editConfigSelection, {
+    otherLines,
+  });
   const saleItem = {
     product_id: product.id,
     product_name: cookieLineDisplayName(product.id, breakdown, product.name),
@@ -1129,6 +1150,7 @@ function confirmEditSaleConfig() {
   } else {
     editSaleItems.push(saleItem);
   }
+  applyToCartLines(editSaleItems);
 
   editConfigProduct = null;
   editConfigSelection = {};

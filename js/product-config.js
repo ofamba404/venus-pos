@@ -1,12 +1,18 @@
 import {
   CAT_MAP,
   COOKIE_FLAVOR_POOL,
-  cookieUnitPrice,
   FLAVOR_POOL,
   PRODUCTS,
   SPLIFF_POOL,
   normalizeInventoryBreakdown,
 } from './config.js';
+import {
+  cookieUnitPriceForCount,
+  getProgress,
+  isCookiePackProduct,
+  lineTotalForCookieProduct,
+  sumFlavoredCookies,
+} from './flavored-cookie-pricing.js';
 import { escapeHtml, fmtUGX } from './utils.js';
 
 export function findProduct(productId) {
@@ -95,15 +101,13 @@ export function breakdownToConfigSelection(product, breakdown) {
   return {};
 }
 
-function cookieLineTotalFromSelection(selection) {
-  return COOKIE_FLAVOR_POOL.reduce((sum, id) => {
-    const qty = selection[id] || 0;
-    return sum + qty * cookieUnitPrice(id);
-  }, 0);
-}
-
 export function configTotalSelected(configSelection) {
   return Object.values(configSelection).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+}
+
+/** Other cart/sale lines used for 4+ flavored cookie bulk pricing. */
+function pricingOtherLines(options = {}) {
+  return Array.isArray(options.otherLines) ? options.otherLines : [];
 }
 
 /** Near-white flavors (coconut, pale bangis) need a husk-warm accent so selection chrome isn't invisible. */
@@ -127,14 +131,22 @@ function flavorStyle(color) {
   return `--flavor:${color};--flavor-accent:${flavorAccent(color)}`;
 }
 
-export function buildLineFromConfig(product, configSelection) {
+/**
+ * @param {object} product
+ * @param {object} configSelection
+ * @param {{ otherLines?: Array<object> }} [options] — other cart/sale lines for cookie bulk pricing
+ */
+export function buildLineFromConfig(product, configSelection, options = {}) {
   let breakdown = {};
   let lineTotal = 0;
   let detail = '';
+  const otherLines = pricingOtherLines(options);
 
   if (product.rule === 'choose_any') {
     breakdown = { ...configSelection };
-    lineTotal = product.price;
+    lineTotal = isCookiePackProduct(product.id)
+      ? lineTotalForCookieProduct(product, breakdown, otherLines)
+      : product.price;
     detail = Object.entries(breakdown)
       .filter(([, qty]) => qty > 0)
       .map(([id, qty]) => `${CAT_MAP[id]?.name || id} x${qty}`)
@@ -144,7 +156,9 @@ export function buildLineFromConfig(product, configSelection) {
     const pool = varietyFlavorPool(product);
     const fixedCat = CAT_MAP[fixedId];
     breakdown = { ...configSelection, [fixedId]: 1 };
-    lineTotal = product.price;
+    lineTotal = isCookiePackProduct(product.id)
+      ? lineTotalForCookieProduct(product, breakdown, otherLines)
+      : product.price;
     const choices = pool
       .filter((id) => configSelection[id] > 0)
       .map((id) => `${CAT_MAP[id]?.name || id} x${configSelection[id]}`)
@@ -169,7 +183,7 @@ export function buildLineFromConfig(product, configSelection) {
     COOKIE_FLAVOR_POOL.forEach((id) => {
       if (configSelection[id] > 0) breakdown[id] = configSelection[id];
     });
-    lineTotal = cookieLineTotalFromSelection(breakdown);
+    lineTotal = lineTotalForCookieProduct(product, breakdown, otherLines);
     detail = Object.entries(breakdown)
       .map(([id, qty]) => `${CAT_MAP[id]?.name || id} x${qty}`)
       .join(', ');
@@ -289,9 +303,29 @@ export function renderProductConfigView(
     closeId = 'productConfigClose',
     backId = 'productConfigBack',
     confirmId = 'productConfigConfirm',
+    otherLines = [],
   } = {},
 ) {
   if (!product) return '';
+
+  const pricingLines = Array.isArray(otherLines) ? otherLines : [];
+  const draftCookieLine = {
+    productId: product.id,
+    breakdown:
+      product.rule === 'choose_variety'
+        ? { ...configSelection, [varietyFixedFlavor(product)]: 1 }
+        : { ...configSelection },
+    quantity: 1,
+  };
+  const combinedForDisplay =
+    sumFlavoredCookies(pricingLines) +
+    (isCookiePackProduct(product.id) || product.rule === 'cookie_qty'
+      ? sumFlavoredCookies([draftCookieLine])
+      : 0);
+  const cookieProgress =
+    isCookiePackProduct(product.id) || product.rule === 'cookie_qty'
+      ? getProgress([...pricingLines, draftCookieLine])
+      : null;
 
   let inner = `
     <div class="modal-header">
@@ -302,7 +336,13 @@ export function renderProductConfigView(
   if (product.rule === 'choose_any') {
     const selected = configTotalSelected(configSelection);
     const pool = varietyFlavorPool(product);
-    inner += `<div class="modal-price">${fmtUGX(product.price)}</div>`;
+    const displayPrice = isCookiePackProduct(product.id)
+      ? lineTotalForCookieProduct(product, { ...configSelection }, pricingLines)
+      : product.price;
+    inner += `<div class="modal-price">${fmtUGX(displayPrice)}</div>`;
+    if (cookieProgress?.hasAny) {
+      inner += `<div class="modal-progress">${escapeHtml(cookieProgress.message)}</div>`;
+    }
     inner += jointSlotsHtml(selected, product.joints, slotNoun(product));
     inner += flavorPaletteHtml(configSelection, draftStock, product.joints, '', pool);
     inner += configFooterHtml({
@@ -334,7 +374,14 @@ export function renderProductConfigView(
         </div>
         <span class="flavor-fixed__badge ${fixedOk ? 'ok' : 'no'}">${fixedOk ? '×1' : 'Out'}</span>
       </div>`;
-    inner += `<div class="modal-price">${fmtUGX(product.price)}</div>`;
+    const varietyBreakdown = { ...configSelection, [fixedId]: 1 };
+    const displayPrice = isCookiePackProduct(product.id)
+      ? lineTotalForCookieProduct(product, varietyBreakdown, pricingLines)
+      : product.price;
+    inner += `<div class="modal-price">${fmtUGX(displayPrice)}</div>`;
+    if (cookieProgress?.hasAny) {
+      inner += `<div class="modal-progress">${escapeHtml(cookieProgress.message)}</div>`;
+    }
     inner += jointSlotsHtml(meterSelected, product.joints, noun);
     inner += flavorPaletteHtml(configSelection, draftStock, flavorTarget, plainFixedHtml, pool);
     inner += configFooterHtml({
@@ -401,7 +448,10 @@ export function renderProductConfigView(
       confirmId,
     });
   } else if (product.rule === 'cookie_qty') {
-    inner += `<div class="modal-progress">Enter quantity for each flavor</div>`;
+    const progressLine = cookieProgress?.hasAny
+      ? cookieProgress.message
+      : 'Enter quantity for each flavor';
+    inner += `<div class="modal-progress">${escapeHtml(progressLine)}</div>`;
     inner += `<div class="flavor-list">`;
     COOKIE_FLAVOR_POOL.forEach((id) => {
       const cat = CAT_MAP[id];
@@ -416,11 +466,11 @@ export function renderProductConfigView(
         canAdd: qty < stock,
         canRemove: qty > 0,
         editable: true,
-        priceLabel: fmtUGX(cookieUnitPrice(id)),
+        priceLabel: fmtUGX(cookieUnitPriceForCount(id, combinedForDisplay)),
       });
     });
     inner += `</div>`;
-    const lineTotal = cookieLineTotalFromSelection(configSelection);
+    const lineTotal = lineTotalForCookieProduct(product, { ...configSelection }, pricingLines);
     inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX(lineTotal)}</div>`;
     const overStock = COOKIE_FLAVOR_POOL.some((id) => (configSelection[id] || 0) > (draftStock[id] || 0));
     const totalQty = COOKIE_FLAVOR_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);

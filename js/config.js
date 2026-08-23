@@ -190,7 +190,7 @@ export const PRODUCTS = [
   {
     id: 'cookie_trio',
     name: 'Cookie Trio',
-    price: 20000,
+    price: 21000,
     joints: 3,
     rule: 'choose_any',
     flavorPool: COOKIE_CHOICE_POOL,
