@@ -278,7 +278,7 @@ export function cookieBatchProductLines(units) {
 }
 
 export function cookieBatchLineTitle(row) {
-  if (row.kind === 'single') return `single ${flavorName(row.flavorId)}`;
+  if (row.kind === 'single') return flavorName(row.flavorId);
   const pack = row.kind === 'quartet' ? 'Quartet' : row.kind === 'trio' ? 'Trio' : 'Duet';
   if (!row.complete) return `${pack} · ${row.cookieQty} of ${row.lineCookieQty}`;
   return pack;
