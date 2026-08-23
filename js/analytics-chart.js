@@ -548,10 +548,13 @@ export function computeSalesPatterns(sales) {
   const activeHours = hours
     .map((rev, h) => ({ h, rev, orders: hourOrders[h] }))
     .filter((x) => x.rev > 0 || x.orders > 0);
-  const minH = activeHours.length ? Math.min(...activeHours.map((x) => x.h)) : 8;
-  const maxH = activeHours.length ? Math.max(...activeHours.map((x) => x.h)) : 22;
-  const hourStart = Math.max(0, minH - 1);
-  const hourEnd = Math.min(23, maxH + 1);
+  let hourStart = activeHours.length ? Math.min(...activeHours.map((x) => x.h)) : 8;
+  let hourEnd = activeHours.length ? Math.max(...activeHours.map((x) => x.h)) : 22;
+  // Keep the grid compact — pad one hour only when the window is still narrow.
+  if (hourEnd - hourStart < 12) {
+    hourStart = Math.max(0, hourStart - 1);
+    hourEnd = Math.min(23, hourEnd + 1);
+  }
   const hourCols = [];
   for (let h = hourStart; h <= hourEnd; h++) hourCols.push(h);
 

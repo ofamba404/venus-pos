@@ -2100,6 +2100,7 @@
     grid-template-columns: 1fr;
     gap: var(--list-gap);
     margin-bottom: var(--space-2);
+    min-width: 0;
   }
 
   @media (min-width: 640px) {
@@ -2126,6 +2127,8 @@
     border-radius: var(--radius-md);
     padding: var(--space-4);
     box-shadow: var(--shadow-sm);
+    min-width: 0;
+    overflow: hidden;
   }
 
   .pattern-card-head {
@@ -2210,20 +2213,31 @@
   }
 
   /* Hour × weekday heatmap */
+  .pattern-heat {
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .heat-map {
     display: flex;
     flex-direction: column;
     gap: 3px;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    padding-bottom: 2px;
   }
 
   .heat-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    min-width: 0;
   }
 
   .heat-day {
-    width: 28px;
+    width: 26px;
     flex-shrink: 0;
     font-size: 10px;
     font-weight: 700;
@@ -2236,7 +2250,7 @@
     flex: 1;
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: 1fr;
+    grid-auto-columns: minmax(12px, 1fr);
     gap: 2px;
     min-width: 0;
   }
@@ -2256,8 +2270,9 @@
 
   .heat-cell {
     aspect-ratio: 1;
-    min-height: 14px;
-    max-height: 22px;
+    min-height: 12px;
+    max-height: 20px;
+    width: 100%;
     border: 0;
     border-radius: 3px;
     padding: 0;
@@ -3420,7 +3435,7 @@
 
   .donut-leg-row {
     display: grid;
-    grid-template-columns: 8px minmax(0, 1fr) 32px auto;
+    grid-template-columns: 8px minmax(0, 1fr) auto;
     align-items: center;
     gap: 6px;
   }
@@ -3439,13 +3454,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .donut-leg-share {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--text-dim);
-    text-align: right;
   }
 
   .donut-leg-val {
@@ -3469,10 +3477,6 @@
   }
 
   .pareto-row:last-child { border-bottom: none; }
-
-  .pareto-row.is-pareto-cut {
-    border-bottom-color: color-mix(in srgb, var(--gold) 45%, var(--panel-edge-subtle));
-  }
 
   .pareto-rank {
     font-family: var(--font-mono);
@@ -3523,14 +3527,6 @@
     font-weight: 700;
     color: var(--gold);
   }
-
-  .pareto-cum {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--text-dim);
-  }
-
-  .pareto-row.is-pareto-cut .pareto-cum { color: var(--gold); font-weight: 600; }
 
   /* Stock: exception-first + capacity fill */
   .stock-alerts {
@@ -3680,6 +3676,108 @@
   }
   .stock-cap-row.glow-low .stock-cap-fill { animation-name: glowLow; }
   .stock-cap-row.glow-out .stock-cap-fill { animation-name: glowOut; }
+
+  @media (max-width: 520px) {
+    .pattern-card {
+      padding: var(--space-3);
+    }
+
+    .pattern-card-head {
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .pattern-hint {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .heat-day {
+      width: 22px;
+      font-size: 9px;
+    }
+
+    .heat-cells {
+      grid-auto-columns: minmax(11px, 1fr);
+      gap: 1.5px;
+    }
+
+    .heat-cell {
+      min-height: 11px;
+      max-height: 16px;
+      border-radius: 2px;
+    }
+
+    .heat-legend {
+      margin-top: var(--space-2);
+    }
+
+    .flavor-donut-panel {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--space-3);
+    }
+
+    .donut-container.analytics-donut {
+      align-self: center;
+      width: 76px;
+      height: 76px;
+    }
+
+    .donut-container.analytics-donut .donut-hole { inset: 14px; }
+
+    .hbar-row,
+    .stock-cap-row {
+      grid-template-columns: minmax(64px, 34%) 1fr auto;
+      gap: 6px;
+    }
+
+    .hbar-meta {
+      min-width: 44px;
+    }
+
+    .hbar-sub {
+      display: none;
+    }
+
+    .section-title-row {
+      gap: var(--space-2);
+    }
+
+    .insight-period-pills .rev-range-btn {
+      padding: 4px 8px;
+    }
+
+    .ao-tiles {
+      gap: var(--space-2);
+    }
+
+    .ao-tile {
+      padding: var(--space-3);
+    }
+
+    .ao-hero-value {
+      font-size: clamp(1.5rem, 8vw, 1.85rem);
+    }
+
+    .stock-alert-chips {
+      gap: 5px;
+    }
+
+    .stock-alert-chip {
+      padding: 4px 7px;
+      font-size: 11px;
+    }
+
+    .rev-stats {
+      gap: var(--space-2);
+    }
+
+    .rev-stat-val {
+      font-size: var(--text-sm);
+    }
+  }
 
   .bar-track {
     flex: 1;

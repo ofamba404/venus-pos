@@ -291,7 +291,8 @@ function topProductForSales(sales) {
   const productTotals = {};
   sales.forEach((s) =>
     (s.items || []).forEach((i) => {
-      productTotals[i.product_name] = (productTotals[i.product_name] || 0) + 1;
+      const name = canonicalProductName(i.product_name);
+      productTotals[name] = (productTotals[name] || 0) + 1;
     }),
   );
   let topProduct = '—';
@@ -618,9 +619,12 @@ function categoryLabel(c, { shortCookie = false } = {}) {
   return c.sub ? `${c.name} ${c.sub}` : c.name;
 }
 
-function sharePct(part, total) {
-  if (!(total > 0)) return 0;
-  return Math.round((part / total) * 100);
+/** Collapse storefront aliases into POS product titles for analytics. */
+function canonicalProductName(name) {
+  const n = String(name || '').trim();
+  if (!n) return 'Unknown';
+  if (/^plain(\s+joint)?$/i.test(n)) return 'Plain';
+  return n;
 }
 
 /** Soft full shelf for joints — fill is vs capacity, not vs the fullest SKU. */
@@ -670,12 +674,10 @@ function flavorDonutHtml(rows, { caption = 'cookies' } = {}) {
   const legend = rows
     .map((r) => {
       const qty = Math.round(r.qty);
-      const share = sharePct(r.revenue, total);
       return `
       <div class="donut-leg-row" title="${escapeHtml(`${fmtUGX(r.revenue)} · ${qty} sold`)}">
         <span class="donut-leg-swatch" style="background:${r.color}"></span>
         <span class="donut-leg-name">${escapeHtml(r.label)}</span>
-        <span class="donut-leg-share">${share}%</span>
         <span class="donut-leg-val">${fmtCompact(r.revenue)}</span>
       </div>`;
     })
@@ -695,17 +697,12 @@ function flavorDonutHtml(rows, { caption = 'cookies' } = {}) {
 }
 
 function paretoRowsHtml(sortedEntries) {
-  const total = sortedEntries.reduce((sum, [, rev]) => sum + rev, 0);
   const max = Math.max(1, ...sortedEntries.map(([, rev]) => rev));
-  let cum = 0;
   return sortedEntries
     .map(([name, rev], i) => {
-      cum += rev;
-      const cumPct = sharePct(cum, total);
       const barPct = Math.round((rev / max) * 100);
-      const hit80 = cumPct >= 80 && (i === 0 || sharePct(cum - rev, total) < 80);
       return `
-      <div class="pareto-row${hit80 ? ' is-pareto-cut' : ''}" title="${escapeHtml(`${fmtUGX(rev)} · ${cumPct}% cumulative`)}">
+      <div class="pareto-row" title="${escapeHtml(fmtUGX(rev))}">
         <div class="pareto-rank">${i + 1}</div>
         <div class="pareto-main">
           <div class="pareto-name">${escapeHtml(name)}</div>
@@ -713,10 +710,25 @@ function paretoRowsHtml(sortedEntries) {
         </div>
         <div class="pareto-side">
           <span class="pareto-val">${fmtCompact(rev)}</span>
-          <span class="pareto-cum">${cumPct}% cum</span>
         </div>
       </div>`;
     })
+    .join('');
+}
+
+function clientRankRowsHtml(clients) {
+  return clients
+    .map(
+      (c, i) => `
+    <div class="rank-row">
+      <div class="rank-row-mark">${i + 1}</div>
+      <div class="rank-row-main">
+        <div class="rank-row-name">${escapeHtml(c.name)}</div>
+        <div class="rank-row-meta">${c.orders} order${c.orders > 1 ? 's' : ''}</div>
+      </div>
+      <div class="rank-row-val is-money">${fmtUGX(c.revenue)}</div>
+    </div>`,
+    )
     .join('');
 }
 
@@ -812,8 +824,8 @@ function renderInsightLists() {
   periodSales.forEach((s) => {
     const ratio = salePaidRatio(s);
     (s.items || []).forEach((i) => {
-      productRevenueMap[i.product_name] =
-        (productRevenueMap[i.product_name] || 0) + itemOwnerRevenue(i) * ratio;
+      const name = canonicalProductName(i.product_name);
+      productRevenueMap[name] = (productRevenueMap[name] || 0) + itemOwnerRevenue(i) * ratio;
     });
   });
   const sortedProducts = Object.entries(productRevenueMap).sort((a, b) => b[1] - a[1]);
@@ -838,11 +850,10 @@ function renderInsightLists() {
   const rankedClients = Object.entries(clientTotals)
     .map(([id, data]) => ({
       name: clients.find((c) => c.id === id)?.name || 'Unknown',
-      label: clients.find((c) => c.id === id)?.name || 'Unknown',
       ...data,
     }))
     .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
+    .slice(0, 10);
   const topClientsEl = document.getElementById('topClients');
   if (topClientsEl) {
     topClientsEl.innerHTML =
@@ -850,12 +861,7 @@ function renderInsightLists() {
         ? showPlaceholder('sales', periodSales.length)
           ? rankRowPlaceholders(3)
           : `<div class="receipt-empty">No client-attributed sales ${period.id === 'all' ? 'yet' : `this ${periodSuffix}`}</div>`
-        : hbarRowsHtml(rankedClients, {
-            valueFmt: (v) => fmtUGX(v),
-            metaOf: (c) => `${c.orders} order${c.orders > 1 ? 's' : ''}`,
-            colorOf: () => 'var(--jade)',
-          });
-    applyBarFillWidths(topClientsEl);
+        : clientRankRowsHtml(rankedClients);
   }
 }
 
