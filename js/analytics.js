@@ -527,42 +527,130 @@ async function ensureCookiePartnerSynced(totalCookies) {
   return cookiePartnerSyncPromise;
 }
 
-function wireCookiePartnerSwipe(viewport, onIndex) {
+function cookiePartnerCycleLabel(page) {
+  if (!page) return 'No cookie sales yet';
+  if (page.status === 'sent') return `Batch ${page.historyIndex} · sent`;
+  if (page.status === 'ready') return `${page.cookieCount} cookies ready to settle`;
+  if (page.status === 'queued') return `Batch ${page.historyIndex} · queued`;
+  return `${page.cookieCount} of ${page.every} toward next send`;
+}
+
+function setCookiePartnerTrackOffset(track, pageIndex, dragPx = 0) {
+  if (!track) return;
+  if (dragPx) {
+    track.style.transform = `translate3d(calc(-${pageIndex * 100}% + ${dragPx}px),0,0)`;
+    return;
+  }
+  track.style.transform = `translate3d(-${pageIndex * 100}%,0,0)`;
+}
+
+function applyCookiePartnerPageChrome(root, s, pages, pageIndex) {
+  const page = pages[pageIndex] || null;
+  const viewingLive = page?.status === 'ready' || page?.status === 'progress' || page?.status === 'queued';
+  const ready = s.readyCount > 0 && page?.status === 'ready';
+  const progressPct = Math.min(100, Math.round((s.towardNext / s.every) * 100));
+  const card = root.querySelector('.cookie-partner-card');
+  if (card) {
+    card.classList.toggle('is-ready', !!ready);
+    card.classList.toggle('is-sent', page?.status === 'sent');
+  }
+
+  const title = root.querySelector('.cookie-partner-title');
+  if (title) title.textContent = cookiePartnerCycleLabel(page);
+
+  let progress = root.querySelector('.cookie-partner-track');
+  if (viewingLive && page?.status !== 'queued') {
+    if (!progress) {
+      const head = root.querySelector('.cookie-partner-head');
+      progress = document.createElement('div');
+      progress.className = 'cookie-partner-track';
+      progress.setAttribute('aria-hidden', 'true');
+      progress.innerHTML = '<div class="cookie-partner-fill"></div>';
+      head?.after(progress);
+    }
+    const fill = progress.querySelector('.cookie-partner-fill');
+    if (fill) fill.style.width = `${ready ? 100 : progressPct}%`;
+  } else if (progress) {
+    progress.remove();
+  }
+
+  const vals = root.querySelectorAll('.cookie-partner-stat-val');
+  if (vals[0]) vals[0].textContent = fmtUGX(page ? page.ownerSplit : 0);
+  if (vals[1]) vals[1].textContent = fmtUGX(page ? page.partnerDue : 0);
+  const partnerLbl = root.querySelector('.cookie-partner-stat--partner .cookie-partner-stat-lbl');
+  if (partnerLbl) partnerLbl.textContent = page?.status === 'sent' ? 'Sent partner' : 'Send partner';
+
+  const prev = root.querySelector('[data-cookie-partner-prev]');
+  const next = root.querySelector('[data-cookie-partner-next]');
+  if (prev) prev.disabled = pageIndex <= 0;
+  if (next) next.disabled = pageIndex >= pages.length - 1;
+
+  root.querySelectorAll('[data-cookie-partner-dot]').forEach((btn) => {
+    const i = Number(btn.dataset.cookiePartnerDot);
+    btn.classList.toggle('is-active', i === pageIndex);
+  });
+
+  const head = root.querySelector('.cookie-partner-head');
+  let sendBtn = root.querySelector('[data-cookie-partner-send]');
+  if (ready && head) {
+    if (!sendBtn) {
+      sendBtn = document.createElement('button');
+      sendBtn.type = 'button';
+      sendBtn.className = 'credit-clear-btn cookie-partner-send';
+      sendBtn.dataset.cookiePartnerSend = '';
+      sendBtn.textContent = 'Mark sent';
+      head.appendChild(sendBtn);
+    }
+  } else if (sendBtn) {
+    sendBtn.remove();
+  }
+
+  return page;
+}
+
+function wireCookiePartnerSwipe(viewport, { getIndex, getCount, onCommit }) {
   if (!viewport) return;
+  const track = viewport.querySelector('.cookie-partner-track-x');
+  if (!track) return;
+
   let startX = 0;
   let startY = 0;
+  let startT = 0;
   let tracking = false;
   let locked = null;
+  let lastX = 0;
 
-  const onStart = (x, y) => {
-    startX = x;
-    startY = y;
-    tracking = true;
-    locked = null;
-  };
-  const onMove = (x, y, event) => {
-    if (!tracking) return;
-    const dx = x - startX;
-    const dy = y - startY;
-    if (locked == null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
-      locked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-    }
-    if (locked === 'x' && event?.cancelable) event.preventDefault();
-  };
-  const onEnd = (x) => {
+  const finishDrag = (x) => {
     if (!tracking) return;
     tracking = false;
-    if (locked !== 'x') return;
+    track.classList.remove('is-dragging');
+    if (locked !== 'x') {
+      setCookiePartnerTrackOffset(track, getIndex());
+      return;
+    }
     const dx = x - startX;
-    if (Math.abs(dx) < 48) return;
-    onIndex(dx < 0 ? 1 : -1);
+    const dt = Math.max(16, Date.now() - startT);
+    const velocity = dx / dt;
+    const index = getIndex();
+    const count = getCount();
+    let next = index;
+    if ((dx < -48 || velocity < -0.45) && index < count - 1) next = index + 1;
+    else if ((dx > 48 || velocity > 0.45) && index > 0) next = index - 1;
+    // Force a style flush so the settle transition runs from the dragged offset.
+    void track.offsetWidth;
+    onCommit(next);
   };
 
   viewport.addEventListener(
     'touchstart',
     (e) => {
       const t = e.changedTouches?.[0];
-      if (t) onStart(t.clientX, t.clientY);
+      if (!t) return;
+      startX = lastX = t.clientX;
+      startY = t.clientY;
+      startT = Date.now();
+      tracking = true;
+      locked = null;
     },
     { passive: true },
   );
@@ -570,7 +658,21 @@ function wireCookiePartnerSwipe(viewport, onIndex) {
     'touchmove',
     (e) => {
       const t = e.changedTouches?.[0];
-      if (t) onMove(t.clientX, t.clientY, e);
+      if (!t || !tracking) return;
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      if (locked == null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        locked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        if (locked === 'x') track.classList.add('is-dragging');
+      }
+      if (locked !== 'x') return;
+      if (e.cancelable) e.preventDefault();
+      lastX = t.clientX;
+      const index = getIndex();
+      const count = getCount();
+      let drag = dx;
+      if ((index <= 0 && drag > 0) || (index >= count - 1 && drag < 0)) drag *= 0.35;
+      setCookiePartnerTrackOffset(track, index, drag);
     },
     { passive: false },
   );
@@ -578,7 +680,14 @@ function wireCookiePartnerSwipe(viewport, onIndex) {
     'touchend',
     (e) => {
       const t = e.changedTouches?.[0];
-      if (t) onEnd(t.clientX);
+      finishDrag(t ? t.clientX : lastX);
+    },
+    { passive: true },
+  );
+  viewport.addEventListener(
+    'touchcancel',
+    () => {
+      finishDrag(lastX);
     },
     { passive: true },
   );
@@ -621,20 +730,7 @@ function renderCookiePartnerPanelFresh() {
   const viewingLive = page?.status === 'ready' || page?.status === 'progress' || page?.status === 'queued';
   const ready = s.readyCount > 0 && page?.status === 'ready';
   const progressPct = Math.min(100, Math.round((s.towardNext / s.every) * 100));
-
-  let cycleLabel;
-  if (!page) {
-    cycleLabel = 'No cookie sales yet';
-  } else if (page.status === 'sent') {
-    cycleLabel = `Batch ${page.historyIndex} · sent`;
-  } else if (page.status === 'ready') {
-    cycleLabel = `${page.cookieCount} cookies ready to settle`;
-  } else if (page.status === 'queued') {
-    cycleLabel = `Batch ${page.historyIndex} · queued`;
-  } else {
-    cycleLabel = `${page.cookieCount} of ${page.every} toward next send`;
-  }
-
+  const cycleLabel = cookiePartnerCycleLabel(page);
   const showOwner = page ? page.ownerSplit : 0;
   const showPartner = page ? page.partnerDue : 0;
   const canSwipe = pages.length > 1;
@@ -713,25 +809,44 @@ function renderCookiePartnerPanelFresh() {
       </div>
     </div>`;
 
+  const track = el.querySelector('.cookie-partner-track-x');
+
   const goTo = (nextIndex) => {
-    cookiePartnerPageIndex = Math.max(0, Math.min(pages.length - 1, nextIndex));
-    renderCookiePartnerPanelFresh();
+    const clamped = Math.max(0, Math.min(pages.length - 1, nextIndex));
+    const changed = clamped !== cookiePartnerPageIndex;
+    cookiePartnerPageIndex = clamped;
+    setCookiePartnerTrackOffset(track, clamped);
+    const currentPage = applyCookiePartnerPageChrome(el, s, pages, clamped);
+    if (changed) wireCookiePartnerSend(el, s);
+    return currentPage;
   };
 
-  el.querySelector('[data-cookie-partner-prev]')?.addEventListener('click', () => goTo(pageIndex - 1));
-  el.querySelector('[data-cookie-partner-next]')?.addEventListener('click', () => goTo(pageIndex + 1));
+  el.querySelector('[data-cookie-partner-prev]')?.addEventListener('click', () => goTo(cookiePartnerPageIndex - 1));
+  el.querySelector('[data-cookie-partner-next]')?.addEventListener('click', () => goTo(cookiePartnerPageIndex + 1));
   el.querySelectorAll('[data-cookie-partner-dot]').forEach((btn) => {
     btn.addEventListener('click', () => goTo(Number(btn.dataset.cookiePartnerDot)));
   });
-  wireCookiePartnerSwipe(el.querySelector('[data-cookie-partner-viewport]'), (dir) => goTo(pageIndex + dir));
+  wireCookiePartnerSwipe(el.querySelector('[data-cookie-partner-viewport]'), {
+    getIndex: () => cookiePartnerPageIndex,
+    getCount: () => pages.length,
+    onCommit: (next) => goTo(next),
+  });
 
   el.querySelector('[data-cookie-partner-copy]')?.addEventListener('click', () => {
-    const text = cookieBatchShareText(page);
+    const current = pages[cookiePartnerPageIndex];
+    const text = cookieBatchShareText(current);
     if (!text) return;
     void copyText(text, 'Copied for partner');
   });
 
-  el.querySelector('[data-cookie-partner-send]')?.addEventListener('click', async () => {
+  wireCookiePartnerSend(el, s);
+}
+
+function wireCookiePartnerSend(root, s) {
+  const btn = root.querySelector('[data-cookie-partner-send]');
+  if (!btn || btn.dataset.wired === '1') return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', async () => {
     const queued =
       s.queuedReadyBatches > 0
         ? ` ${s.queuedReadyBatches} more batch${s.queuedReadyBatches === 1 ? '' : 'es'} stay queued.`

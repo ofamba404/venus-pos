@@ -4,7 +4,7 @@ All delivery-fee calibration and scoring lives here. **venus-store only consumes
 
 ## Workflow
 
-1. Log quotes in POS **Delivery → Quote lab** (same pickup: Prisca Honey / Nkinzi Rd).
+1. Log quotes in POS **Delivery → Quote lab** (same pickup: Prisca Honey / Zoa Hostel).
 2. Export a golden snapshot: `npm run qa:export`
 3. Score coverage + model error: `npm run qa:score`
 4. Fill the **next recommended** cell (period × drop-off) until strong target (80) / stretch (120).

@@ -17,11 +17,11 @@ export const TEST_CLIENT_NAME = 'SafeBoda test';
 
 export const BASE_ORIGIN = {
   id: 'prisca-honey',
-  label: 'Prisca Honey Enterprises, Aryan Hostel, Nkinzi Road',
-  shortLabel: 'Prisca Honey · Nkinzi Rd',
-  // Google Places rooftop — Plot 29/30 Aryan Hostel, Shop 06 Nkinzi Rd.
-  lat: 0.3351426,
-  lng: 32.5737724,
+  label: 'Prisca Honey Enterprises, Zoa Hostel, 8HQC+V5J, Muganzi Awongererwa Rd, Kampala',
+  shortLabel: 'Prisca Honey · Zoa Hostel',
+  // Plus code 8HQC+V5J Kampala (6GGJ8HQC+V5J) — Muganzi Awongererwa Rd.
+  lat: 0.3397125,
+  lng: 32.5703906,
 };
 
 /**

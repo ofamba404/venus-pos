@@ -317,7 +317,7 @@ export function renderQuoteLab() {
       </p>
 
       <ol class="ql-howto">
-        <li>Same pickup every time: Prisca Honey / Aryan Hostel Nkinzi Rd.</li>
+        <li>Same pickup every time: Prisca Honey / Zoa Hostel Muganzi Awongererwa Rd.</li>
         <li>Pick a red preset <em>or</em> search a custom place (Pine Valley, Ganda Rd, …).</li>
         <li>In SafeBoda, set that exact drop-off and copy the fee here within this time band.</li>
         <li>Best signal: log the <em>same</em> route again in a different period (day vs evening vs night).</li>
