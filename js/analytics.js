@@ -35,15 +35,17 @@ import {
 import { settleClientCredit, settleSaleCredit } from './settle-credit.js';
 import {
   cookieBatchLineTitle,
+  cookieBatchShareText,
   cookieFlavorMixPhrase,
   cookiePartnerSettlementSummary,
-  cookiePartnerShareText,
+  getCookiePartnerSettledQty,
   itemFlavorOwnerShares,
   itemOwnerRevenue,
   markCookiePartnerBatchesSent,
   salePaidRatio,
   saleRecognizedOwnerRevenue,
   sumOwnerRevenue,
+  syncCookiePartnerSettledQty,
 } from './revenue.js';
 import { clients, inventory, salesCache } from './state.js';
 import {
@@ -488,45 +490,98 @@ function renderCookiePartnerSoldLines(batch) {
     .join('');
 }
 
-function renderCookiePartnerSold(s) {
-  const batches = s.batches || [];
-  if (!batches.length) return '';
+function cookiePartnerPageStatusLabel(page) {
+  if (page.status === 'sent') return 'Sent';
+  if (page.status === 'ready') return 'Ready to send';
+  if (page.status === 'queued') return 'Queued';
+  return `${page.cookieCount} of ${page.every}`;
+}
 
-  const soldLabel =
-    batches.length === 1
-      ? batches[0].complete
-        ? 'Sold this batch'
-        : 'Sold so far'
-      : 'Sold by batch';
-
-  const blocks = batches
-    .map((batch, i) => {
-      const kicker =
-        batches.length > 1
-          ? `<div class="cookie-partner-batch-kicker">${
-              batch.complete ? `Batch ${i + 1}` : `Next cycle · ${batch.cookieCount} of ${batch.every}`
-            }</div>`
-          : '';
-      return `
-        <div class="cookie-partner-batch">
-          ${kicker}
-          <div class="cookie-partner-lines">${renderCookiePartnerSoldLines(batch)}</div>
-          <div class="cookie-partner-sold-total">
-            <span>${batch.cookieCount} cookie${batch.cookieCount === 1 ? '' : 's'}</span>
-            <strong>${fmtPlainUgx(batch.revenue)}</strong>
-          </div>
-        </div>`;
-    })
-    .join('');
-
+function renderCookiePartnerPage(page) {
+  const status = cookiePartnerPageStatusLabel(page);
   return `
-    <div class="cookie-partner-sold">
-      <div class="cookie-partner-sold-head">
-        <div class="cookie-partner-sold-label">${soldLabel}</div>
-        <button type="button" class="cookie-partner-copy" data-cookie-partner-copy>Copy</button>
+    <div class="cookie-partner-slide" data-status="${escapeHtml(page.status || '')}">
+      <div class="cookie-partner-slide-kicker">
+        <span>Batch ${page.historyIndex}</span>
+        <span class="cookie-partner-slide-status">${escapeHtml(status)}</span>
       </div>
-      ${blocks}
+      <div class="cookie-partner-lines">${renderCookiePartnerSoldLines(page)}</div>
+      <div class="cookie-partner-sold-total">
+        <span>${page.cookieCount} cookie${page.cookieCount === 1 ? '' : 's'}</span>
+        <strong>${fmtPlainUgx(page.revenue)}</strong>
+      </div>
+      <div class="cookie-partner-slide-split">
+        <span>Yours <strong>${fmtPlainUgx(page.ownerSplit)}</strong></span>
+        <span>Partner <strong>${fmtPlainUgx(page.partnerDue)}</strong></span>
+      </div>
     </div>`;
+}
+
+let cookiePartnerPageIndex = null;
+let cookiePartnerSyncPromise = null;
+
+async function ensureCookiePartnerSynced(totalCookies) {
+  if (!cookiePartnerSyncPromise) {
+    cookiePartnerSyncPromise = syncCookiePartnerSettledQty(totalCookies).catch(() => null);
+  }
+  return cookiePartnerSyncPromise;
+}
+
+function wireCookiePartnerSwipe(viewport, onIndex) {
+  if (!viewport) return;
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+  let locked = null;
+
+  const onStart = (x, y) => {
+    startX = x;
+    startY = y;
+    tracking = true;
+    locked = null;
+  };
+  const onMove = (x, y, event) => {
+    if (!tracking) return;
+    const dx = x - startX;
+    const dy = y - startY;
+    if (locked == null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+      locked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    }
+    if (locked === 'x' && event?.cancelable) event.preventDefault();
+  };
+  const onEnd = (x) => {
+    if (!tracking) return;
+    tracking = false;
+    if (locked !== 'x') return;
+    const dx = x - startX;
+    if (Math.abs(dx) < 48) return;
+    onIndex(dx < 0 ? 1 : -1);
+  };
+
+  viewport.addEventListener(
+    'touchstart',
+    (e) => {
+      const t = e.changedTouches?.[0];
+      if (t) onStart(t.clientX, t.clientY);
+    },
+    { passive: true },
+  );
+  viewport.addEventListener(
+    'touchmove',
+    (e) => {
+      const t = e.changedTouches?.[0];
+      if (t) onMove(t.clientX, t.clientY, e);
+    },
+    { passive: false },
+  );
+  viewport.addEventListener(
+    'touchend',
+    (e) => {
+      const t = e.changedTouches?.[0];
+      if (t) onEnd(t.clientX);
+    },
+    { passive: true },
+  );
 }
 
 function renderCookiePartnerPanel() {
@@ -542,24 +597,57 @@ function renderCookiePartnerPanel() {
     return;
   }
 
-  const s = cookiePartnerSettlementSummary(salesCache);
-  const ready = s.readyBatches > 0;
-  const progressPct = Math.min(100, Math.round((s.towardNext / s.every) * 100));
-  const cycleLabel = ready
-    ? `${s.readyCount} cookie${s.readyCount === 1 ? '' : 's'} ready to settle`
-    : `${s.towardNext} of ${s.every} toward next send`;
+  const preview = cookiePartnerSettlementSummary(salesCache);
+  const before = getCookiePartnerSettledQty();
+  void ensureCookiePartnerSynced(preview.totalCookies).then((qty) => {
+    if (qty == null || qty === before) return;
+    if (document.getElementById('cookiePartnerPanel')) renderCookiePartnerPanelFresh();
+  });
+  renderCookiePartnerPanelFresh();
+}
 
-  const showOwner = ready ? s.readyOwnerSplit : s.batchOwnerSplit;
-  const showPartner = ready ? s.readyPartnerDue : s.batchPartnerDue;
-  const showRevenue = ready ? s.readyRevenue : s.batchRevenue;
+function renderCookiePartnerPanelFresh() {
+  const el = document.getElementById('cookiePartnerPanel');
+  if (!el || showPlaceholder('sales', salesCache.length)) return;
+
+  const s = cookiePartnerSettlementSummary(salesCache);
+  const pages = s.pages || [];
+  if (cookiePartnerPageIndex == null || cookiePartnerPageIndex >= pages.length) {
+    cookiePartnerPageIndex = Math.min(s.currentPageIndex, Math.max(0, pages.length - 1));
+  }
+  const pageIndex = Math.max(0, Math.min(cookiePartnerPageIndex, Math.max(0, pages.length - 1)));
+  cookiePartnerPageIndex = pageIndex;
+  const page = pages[pageIndex] || null;
+  const viewingLive = page?.status === 'ready' || page?.status === 'progress' || page?.status === 'queued';
+  const ready = s.readyCount > 0 && page?.status === 'ready';
+  const progressPct = Math.min(100, Math.round((s.towardNext / s.every) * 100));
+
+  let cycleLabel;
+  if (!page) {
+    cycleLabel = 'No cookie sales yet';
+  } else if (page.status === 'sent') {
+    cycleLabel = `Batch ${page.historyIndex} · sent`;
+  } else if (page.status === 'ready') {
+    cycleLabel = `${page.cookieCount} cookies ready to settle`;
+  } else if (page.status === 'queued') {
+    cycleLabel = `Batch ${page.historyIndex} · queued`;
+  } else {
+    cycleLabel = `${page.cookieCount} of ${page.every} toward next send`;
+  }
+
+  const showOwner = page ? page.ownerSplit : 0;
+  const showPartner = page ? page.partnerDue : 0;
+  const canSwipe = pages.length > 1;
 
   el.innerHTML = `
-    <div class="cookie-partner-card${ready ? ' is-ready' : ''}">
+    <div class="cookie-partner-card${ready ? ' is-ready' : ''}${page?.status === 'sent' ? ' is-sent' : ''}">
       <div class="cookie-partner-head">
         <div>
           <div class="cookie-partner-kicker">Settlement every ${s.every} cookies</div>
           <div class="cookie-partner-title">${cycleLabel}</div>
-          <div class="cookie-partner-sub">${s.unsettledCount} unsettled · ${s.totalCookies} since Wed Aug 12</div>
+          <div class="cookie-partner-sub">${s.unsettledCount} unsettled · ${s.totalCookies} since Wed Aug 12${
+            canSwipe ? ' · swipe for history' : ''
+          }</div>
         </div>
         ${
           ready
@@ -568,49 +656,94 @@ function renderCookiePartnerPanel() {
         }
       </div>
 
-      <div class="cookie-partner-track" aria-hidden="true">
-        <div class="cookie-partner-fill" style="width:${ready ? 100 : progressPct}%"></div>
-      </div>
+      ${
+        viewingLive && page?.status !== 'queued'
+          ? `<div class="cookie-partner-track" aria-hidden="true">
+              <div class="cookie-partner-fill" style="width:${ready ? 100 : progressPct}%"></div>
+            </div>`
+          : ''
+      }
 
       <div class="cookie-partner-grid">
         <div class="cookie-partner-stat">
           <div class="cookie-partner-stat-lbl">Your split</div>
           <div class="cookie-partner-stat-val">${fmtUGX(showOwner)}</div>
-          <div class="cookie-partner-stat-hint">All flavors 45% of profit</div>
+          <div class="cookie-partner-stat-hint">All flavors 40% of profit</div>
         </div>
         <div class="cookie-partner-stat cookie-partner-stat--partner">
-          <div class="cookie-partner-stat-lbl">Send partner</div>
+          <div class="cookie-partner-stat-lbl">${page?.status === 'sent' ? 'Sent partner' : 'Send partner'}</div>
           <div class="cookie-partner-stat-val">${fmtUGX(showPartner)}</div>
           <div class="cookie-partner-stat-hint">Their revenue (sale − your split)</div>
         </div>
       </div>
 
-      ${renderCookiePartnerSold(s)}
+      ${
+        pages.length
+          ? `<div class="cookie-partner-pager">
+              <button type="button" class="cookie-partner-nav" data-cookie-partner-prev aria-label="Previous batch" ${
+                pageIndex <= 0 ? 'disabled' : ''
+              }>‹</button>
+              <div class="cookie-partner-viewport" data-cookie-partner-viewport>
+                <div class="cookie-partner-track-x" style="transform:translate3d(-${pageIndex * 100}%,0,0)">
+                  ${pages.map((p) => renderCookiePartnerPage(p)).join('')}
+                </div>
+              </div>
+              <button type="button" class="cookie-partner-nav" data-cookie-partner-next aria-label="Next batch" ${
+                pageIndex >= pages.length - 1 ? 'disabled' : ''
+              }>›</button>
+            </div>
+            <div class="cookie-partner-dots" aria-hidden="true">
+              ${pages
+                .map(
+                  (p, i) =>
+                    `<button type="button" class="cookie-partner-dot-btn${i === pageIndex ? ' is-active' : ''}${
+                      p.status === 'sent' ? ' is-sent' : ''
+                    }" data-cookie-partner-dot="${i}" aria-label="Batch ${p.historyIndex}"></button>`,
+                )
+                .join('')}
+            </div>
+            <div class="cookie-partner-sold-head cookie-partner-sold-head--pager">
+              <button type="button" class="cookie-partner-copy" data-cookie-partner-copy>Copy</button>
+            </div>`
+          : ''
+      }
 
       <div class="cookie-partner-foot">
-        ${
-          s.batches?.length
-            ? ''
-            : `<span>Batch cookie sales <strong>${fmtCompact(showRevenue)}</strong></span>`
-        }
         <span>Lifetime yours <strong>${fmtCompact(s.lifetimeOwnerSplit)}</strong> · partner <strong>${fmtCompact(s.lifetimePartnerDue)}</strong></span>
       </div>
     </div>`;
 
+  const goTo = (nextIndex) => {
+    cookiePartnerPageIndex = Math.max(0, Math.min(pages.length - 1, nextIndex));
+    renderCookiePartnerPanelFresh();
+  };
+
+  el.querySelector('[data-cookie-partner-prev]')?.addEventListener('click', () => goTo(pageIndex - 1));
+  el.querySelector('[data-cookie-partner-next]')?.addEventListener('click', () => goTo(pageIndex + 1));
+  el.querySelectorAll('[data-cookie-partner-dot]').forEach((btn) => {
+    btn.addEventListener('click', () => goTo(Number(btn.dataset.cookiePartnerDot)));
+  });
+  wireCookiePartnerSwipe(el.querySelector('[data-cookie-partner-viewport]'), (dir) => goTo(pageIndex + dir));
+
   el.querySelector('[data-cookie-partner-copy]')?.addEventListener('click', () => {
-    const text = cookiePartnerShareText(s.batches);
+    const text = cookieBatchShareText(page);
     if (!text) return;
     void copyText(text, 'Copied for partner');
   });
 
   el.querySelector('[data-cookie-partner-send]')?.addEventListener('click', async () => {
+    const queued =
+      s.queuedReadyBatches > 0
+        ? ` ${s.queuedReadyBatches} more batch${s.queuedReadyBatches === 1 ? '' : 'es'} stay queued.`
+        : '';
     const ok = await showConfirm(
-      `Mark partner paid? Send ${fmtUGX(s.readyPartnerDue)} for ${s.readyCount} cookies (your split ${fmtUGX(s.readyOwnerSplit)}).`,
+      `Mark this batch sent? Send ${fmtUGX(s.readyPartnerDue)} for ${s.readyCount} cookies (your split ${fmtUGX(s.readyOwnerSplit)}).${queued}`,
     );
     if (!ok) return;
-    markCookiePartnerBatchesSent(salesCache);
+    await markCookiePartnerBatchesSent(salesCache);
+    cookiePartnerPageIndex = null;
     showToast('Cookie partner batch marked sent');
-    renderCookiePartnerPanel();
+    renderCookiePartnerPanelFresh();
   });
 }
 

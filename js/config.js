@@ -141,7 +141,7 @@ export const COOKIE_STOCK_CAPACITY = 100;
 export const COOKIE_LOW_PCT = 0.3;
 /**
  * Wholesale cost per cookie for partner settlement. Profit = sale allocation − this.
- * All flavors split profit 45/55 (you / partner).
+ * All flavors split profit 40/60 (you / partner).
  * Your cookie revenue is only your profit split; partner gets the rest (cost + their split).
  * Packs (Duet / Trio / Quartet) split pack price evenly across the cookies in the pack.
  */
@@ -156,9 +156,14 @@ export function cookieWholesaleUgx(categoryOrFlavorId) {
   return COOKIE_WHOLESALE_UGX;
 }
 /** Your share of cookie profit (all flavors). Partner gets 1 − this. */
-export const COOKIE_OWNER_SHARE = 0.45;
+export const COOKIE_OWNER_SHARE = 0.4;
 /** Settle with cookie partner every this many cookie units sold. */
 export const COOKIE_PARTNER_SETTLE_EVERY = 25;
+/**
+ * Cookies already paid to the partner (first 25-cookie / ~136k batch).
+ * Used when shared settle progress is missing or was corrupted to “all settled”.
+ */
+export const COOKIE_PARTNER_SETTLED_BASELINE = 25;
 /**
  * Partner settlement only counts cookie sales from this moment forward
  * (Africa/Kampala). Older sales are ignored until explicitly re-included.

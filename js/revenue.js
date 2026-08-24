@@ -2,6 +2,7 @@ import {
   COOKIE_FLAVORS,
   COOKIE_OWNER_SHARE,
   COOKIE_PARTNER_SETTLE_EVERY,
+  COOKIE_PARTNER_SETTLED_BASELINE,
   COOKIE_PARTNER_TRACK_FROM_MS,
   cookieFlavorIdFromCategory,
   cookieQtyFromBreakdown,
@@ -11,8 +12,8 @@ import {
   normalizeInventoryBreakdown,
 } from './config.js';
 
-/** v3 — track from Wed 12 Aug 2026; bumps key so prior settle progress clears. */
-const COOKIE_SETTLE_STORAGE_KEY = 'venus-cookie-partner-settled-qty-v3';
+/** v4 — shared blob + no destructive clamp; ignores corrupted v3 “all settled” local values. */
+const COOKIE_SETTLE_STORAGE_KEY = 'venus-cookie-partner-settled-qty-v4';
 
 /** Cookie qty on a sale line (any `cookie_*` or legacy `cookie` breakdown key). */
 export function cookieQtyFromItem(item) {
@@ -358,13 +359,20 @@ export function cookieUnitsChronological(sales) {
   return units;
 }
 
-export function getCookiePartnerSettledQty() {
+function readLocalSettledQty() {
   try {
-    const n = Number(localStorage.getItem(COOKIE_SETTLE_STORAGE_KEY));
-    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+    const raw = localStorage.getItem(COOKIE_SETTLE_STORAGE_KEY);
+    if (raw == null || raw === '') return COOKIE_PARTNER_SETTLED_BASELINE;
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+    return COOKIE_PARTNER_SETTLED_BASELINE;
   } catch {
-    return 0;
+    return COOKIE_PARTNER_SETTLED_BASELINE;
   }
+}
+
+export function getCookiePartnerSettledQty() {
+  return readLocalSettledQty();
 }
 
 export function setCookiePartnerSettledQty(qty) {
@@ -377,20 +385,114 @@ export function setCookiePartnerSettledQty(qty) {
   return n;
 }
 
+async function staffSettleToken() {
+  return (
+    (await window.VenusPosAuth?.getAccessToken?.().catch(() => '')) ||
+    window.VenusPosAuth?.peekAccessToken?.() ||
+    ''
+  );
+}
+
+/** Pull settled qty from Netlify blob (shared across devices). Returns null if unavailable. */
+export async function fetchCookiePartnerSettledQty() {
+  try {
+    const token = await staffSettleToken();
+    if (!token) return null;
+    const res = await fetch('/api/cookie-partner/settle', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    if (!data?.ok || data.settled_qty == null) return null;
+    const n = Math.max(0, Math.floor(Number(data.settled_qty) || 0));
+    return n;
+  } catch {
+    return null;
+  }
+}
+
+/** Persist settled qty locally and to the shared blob store. */
+export async function persistCookiePartnerSettledQty(qty) {
+  const n = setCookiePartnerSettledQty(qty);
+  try {
+    const token = await staffSettleToken();
+    if (!token) return n;
+    await fetch('/api/cookie-partner/settle', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ settled_qty: n }),
+      cache: 'no-store',
+    });
+  } catch {
+    /* local write still counts; sync can retry next mark */
+  }
+  return n;
+}
+
+/**
+ * Prefer the higher of local + server, but never keep a corrupted “all cookies
+ * settled” value that blanked the unpaid batch. Baseline = first paid batch.
+ */
+export async function syncCookiePartnerSettledQty(totalCookiesHint = 0) {
+  const local = readLocalSettledQty();
+  const remote = await fetchCookiePartnerSettledQty();
+  const total = Math.max(0, Math.floor(Number(totalCookiesHint) || 0));
+  const baseline = COOKIE_PARTNER_SETTLED_BASELINE;
+
+  const sanitize = (n) => {
+    if (!Number.isFinite(n) || n < 0) return baseline;
+    const q = Math.floor(n);
+    if (total > baseline && q >= total) return baseline;
+    return q;
+  };
+
+  if (remote == null) {
+    const fixed = sanitize(local);
+    if (fixed !== local) setCookiePartnerSettledQty(fixed);
+    return fixed;
+  }
+
+  let merged = Math.max(sanitize(local), sanitize(remote));
+  if (total > baseline && merged >= total) merged = baseline;
+
+  if (merged !== local) setCookiePartnerSettledQty(merged);
+  if (merged !== remote) {
+    try {
+      await persistCookiePartnerSettledQty(merged);
+    } catch {
+      /* keep merged local */
+    }
+  }
+  return merged;
+}
+
 /**
  * Partner settlement snapshot: progress toward every N cookies, your split, amount to send.
+ * Only the *next* complete batch is "ready" — further complete batches stay queued.
  */
 export function cookiePartnerSettlementSummary(sales) {
   const units = cookieUnitsChronological(sales);
   const totalCookies = units.length;
-  let settledQty = getCookiePartnerSettledQty();
-  if (settledQty > totalCookies) settledQty = setCookiePartnerSettledQty(totalCookies);
+  const settledRaw = getCookiePartnerSettledQty();
+  let settledQty = settledRaw;
+  if (totalCookies > 0 && settledQty > totalCookies) settledQty = totalCookies;
+  if (totalCookies > COOKIE_PARTNER_SETTLED_BASELINE && settledRaw >= totalCookies) {
+    settledQty = COOKIE_PARTNER_SETTLED_BASELINE;
+    setCookiePartnerSettledQty(COOKIE_PARTNER_SETTLED_BASELINE);
+  }
 
   const unsettled = units.slice(settledQty);
+  const settledUnits = units.slice(0, settledQty);
   const unsettledCount = unsettled.length;
   const every = COOKIE_PARTNER_SETTLE_EVERY;
   const readyBatches = Math.floor(unsettledCount / every);
-  const readyCount = readyBatches * every;
+  const readyCount = readyBatches > 0 ? every : 0;
+  const queuedReadyBatches = Math.max(0, readyBatches - 1);
   const progressInCycle = unsettledCount % every;
   const towardNext = readyBatches > 0 ? every : progressInCycle;
 
@@ -419,6 +521,18 @@ export function cookiePartnerSettlementSummary(sales) {
     { ownerSplit: 0, partnerDue: 0, revenue: 0 },
   );
 
+  const settledBatches = cookiePartnerBatchesFromUnits(settledUnits, every).map((b, i) => ({
+    ...b,
+    status: 'sent',
+    historyIndex: i + 1,
+  }));
+  const openBatches = cookiePartnerBatchesFromUnits(unsettled, every).map((b, i) => ({
+    ...b,
+    status: b.complete ? (i === 0 ? 'ready' : 'queued') : 'progress',
+    historyIndex: settledBatches.length + i + 1,
+  }));
+  const pages = [...settledBatches, ...openBatches];
+
   return {
     every,
     totalCookies,
@@ -426,27 +540,29 @@ export function cookiePartnerSettlementSummary(sales) {
     unsettledCount,
     readyBatches,
     readyCount,
+    queuedReadyBatches,
     towardNext,
-    /** Open batch (everything not yet marked sent). */
     batchOwnerSplit: Math.round(unsettledTotals.ownerSplit),
     batchPartnerDue: Math.round(unsettledTotals.partnerDue),
     batchRevenue: Math.round(unsettledTotals.revenue),
-    /** Complete settlement chunks ready to send now. */
     readyOwnerSplit: Math.round(readyTotals.ownerSplit),
     readyPartnerDue: Math.round(readyTotals.partnerDue),
     readyRevenue: Math.round(readyTotals.revenue),
     lifetimeOwnerSplit: Math.round(lifetime.ownerSplit),
     lifetimePartnerDue: Math.round(lifetime.partnerDue),
     lifetimeRevenue: Math.round(lifetime.revenue),
-    batches: cookiePartnerBatchesFromUnits(unsettled, every),
+    batches: openBatches,
+    settledBatches,
+    pages,
+    currentPageIndex: settledBatches.length,
   };
 }
 
-/** Mark the next complete settlement batch(es) as sent to partner. */
-export function markCookiePartnerBatchesSent(sales) {
+/** Mark only the next complete settlement batch as sent to partner. */
+export async function markCookiePartnerBatchesSent(sales) {
   const summary = cookiePartnerSettlementSummary(sales);
   if (summary.readyCount <= 0) return summary;
-  setCookiePartnerSettledQty(summary.settledQty + summary.readyCount);
+  await persistCookiePartnerSettledQty(summary.settledQty + summary.readyCount);
   return cookiePartnerSettlementSummary(sales);
 }
 
