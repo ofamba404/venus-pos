@@ -141,7 +141,7 @@ export const COOKIE_STOCK_CAPACITY = 100;
 export const COOKIE_LOW_PCT = 0.3;
 /**
  * Wholesale cost per cookie for partner settlement. Profit = sale allocation − this.
- * All flavors split profit 40/60 (you / partner).
+ * All flavors split profit 45/55 (you / partner).
  * Your cookie revenue is only your profit split; partner gets the rest (cost + their split).
  * Packs (Duet / Trio / Quartet) split pack price evenly across the cookies in the pack.
  */
@@ -156,7 +156,7 @@ export function cookieWholesaleUgx(categoryOrFlavorId) {
   return COOKIE_WHOLESALE_UGX;
 }
 /** Your share of cookie profit (all flavors). Partner gets 1 − this. */
-export const COOKIE_OWNER_SHARE = 0.4;
+export const COOKIE_OWNER_SHARE = 0.45;
 /** Settle with cookie partner every this many cookie units sold. */
 export const COOKIE_PARTNER_SETTLE_EVERY = 25;
 /**

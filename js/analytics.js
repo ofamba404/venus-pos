@@ -1,6 +1,6 @@
 import { dataStore } from './store/index.js';
 import { sbDelete, sbFetch } from './api.js';
-import { CATEGORIES, COOKIE_FLAVORS, COOKIE_STOCK_CAPACITY, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName, normalizeInventoryBreakdown } from './config.js';
+import { CATEGORIES, COOKIE_FLAVORS, COOKIE_OWNER_SHARE, COOKIE_STOCK_CAPACITY, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName, normalizeInventoryBreakdown } from './config.js';
 import {
   breakdownToConfigSelection,
   buildLineFromConfig,
@@ -764,7 +764,7 @@ function renderCookiePartnerPanelFresh() {
         <div class="cookie-partner-stat">
           <div class="cookie-partner-stat-lbl">Your split</div>
           <div class="cookie-partner-stat-val">${fmtUGX(showOwner)}</div>
-          <div class="cookie-partner-stat-hint">All flavors 40% of profit</div>
+          <div class="cookie-partner-stat-hint">All flavors ${Math.round(COOKIE_OWNER_SHARE * 100)}% of profit</div>
         </div>
         <div class="cookie-partner-stat cookie-partner-stat--partner">
           <div class="cookie-partner-stat-lbl">${page?.status === 'sent' ? 'Sent partner' : 'Send partner'}</div>
