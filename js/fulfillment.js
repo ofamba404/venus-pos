@@ -312,37 +312,6 @@ export function formatSuggestRangeLabel(status = cache) {
   return `until ${formatClockHHmm(end)}`;
 }
 
-/**
- * At-a-glance open / closed / busy for the register.
- * @returns {{ kind: 'open' | 'closed' | 'busy', label: string, hoursLabel: string, detail: string }}
- */
-export function describeFulfillmentState(status = cache, now = new Date()) {
-  const hoursLabel = formatOpenHoursLabel(status);
-  if (isBusyActive(status, now)) {
-    const until = formatBusyUntilLabel(status);
-    return {
-      kind: 'busy',
-      label: 'Busy',
-      hoursLabel,
-      detail: until ? `Free ${until}` : 'Paused for orders',
-    };
-  }
-  if (!isWithinOpenHours(now, status)) {
-    return {
-      kind: 'closed',
-      label: 'Closed',
-      hoursLabel,
-      detail: `Opens ${formatUntilClock(nextOpenAt(now, status), now)}`,
-    };
-  }
-  return {
-    kind: 'open',
-    label: 'Open',
-    hoursLabel,
-    detail: hoursLabel,
-  };
-}
-
 export async function loadFulfillmentStatus() {
   const epoch = mutationEpoch;
   const res = await sbFetch(`store_fulfillment?id=eq.${ROW_ID}&select=*`, {

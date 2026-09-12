@@ -1,14 +1,11 @@
 /**
- * Register-home busy widget.
- * Same store_fulfillment busy_until as Admin → Hours — presets first, open hours tucked away.
+ * Register-home busy widget — one clock, one apply.
+ * Writes store_fulfillment.busy_until via saveFulfillmentStatus.
  */
 import {
   busyUntilFromNow,
-  describeFulfillmentState,
   formatBusyUntilLabel,
-  formatOpenHoursLabel,
   getFulfillmentStatus,
-  hasBusyUntil,
   hasFulfillmentSnapshot,
   isBusyActive,
   loadFulfillmentStatus,
@@ -21,7 +18,8 @@ import { escapeHtml, showToast } from './utils.js';
 let loadError = '';
 let loading = false;
 let saving = false;
-let hoursOpen = false;
+/** @type {string} HH:mm draft in the setter */
+let draftClock = '';
 let wired = false;
 
 function pad2(n) {
@@ -32,7 +30,7 @@ function clockValue(date) {
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
-function defaultUntilClock(status, now = new Date()) {
+function seedClock(status, now = new Date()) {
   if (isBusyActive(status, now) && status.busyUntil) {
     const until = new Date(status.busyUntil);
     if (Number.isFinite(until.getTime())) return clockValue(until);
@@ -47,109 +45,107 @@ function untilFromClock(hhmm, now = new Date()) {
   const d = new Date(now);
   d.setHours(h, m, 0, 0);
   if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
-  return d.toISOString();
+  return d;
+}
+
+function dayLabel(date, now = new Date()) {
+  if (!date || !Number.isFinite(date.getTime())) return '';
+  const startToday = new Date(now);
+  startToday.setHours(0, 0, 0, 0);
+  const startTomorrow = new Date(startToday);
+  startTomorrow.setDate(startTomorrow.getDate() + 1);
+  const startDayAfter = new Date(startTomorrow);
+  startDayAfter.setDate(startDayAfter.getDate() + 1);
+  if (date >= startTomorrow && date < startDayAfter) return 'Tomorrow';
+  if (date >= startToday && date < startTomorrow) return 'Today';
+  return date.toLocaleDateString(undefined, { weekday: 'short' });
+}
+
+function formatFace(date) {
+  if (!date || !Number.isFinite(date.getTime())) return '—';
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+function currentDraftDate(now = new Date()) {
+  return untilFromClock(draftClock || seedClock(getFulfillmentStatus(), now), now);
+}
+
+function paintClock(root) {
+  const date = currentDraftDate();
+  const face = root.querySelector('[data-hours-clock-face]');
+  const day = root.querySelector('[data-hours-clock-day]');
+  const input = root.querySelector('[data-hours-busy-until-time]');
+  if (face) face.textContent = formatFace(date);
+  if (day) day.textContent = dayLabel(date);
+  if (input && draftClock) input.value = draftClock;
+}
+
+function setDraft(root, hhmm) {
+  const next = toHHmm(hhmm);
+  if (!next) return;
+  draftClock = next;
+  paintClock(root);
 }
 
 function widgetHtml() {
   const ready = hasFulfillmentSnapshot();
   const status = getFulfillmentStatus();
   const now = new Date();
-  const state = describeFulfillmentState(status, now);
   const busy = isBusyActive(status, now);
-  const hasBusy = hasBusyUntil(status);
   const pending = !ready && loading && !loadError;
-  const tone = pending ? '' : state.kind === 'busy' ? 'is-busy' : state.kind === 'closed' ? 'is-closed' : 'is-open';
-  const badge = pending ? 'Busy' : state.label;
-  const untilLine = pending
+  if (!draftClock) draftClock = seedClock(status, now);
+  const date = currentDraftDate(now);
+  const disabled = saving ? 'disabled' : '';
+  const note = pending
     ? 'Loading…'
-    : busy
-      ? `Free ${formatBusyUntilLabel(status) || 'later'}`
-      : state.kind === 'closed'
-        ? state.detail
-        : formatOpenHoursLabel(status);
-  const copy = pending
-    ? 'Checking availability'
     : loadError
       ? ready
-        ? 'Couldn’t refresh — showing last saved status'
-        : 'Couldn’t load availability'
+        ? 'Couldn’t refresh'
+        : 'Couldn’t load'
       : busy
-        ? 'Customers can’t book until then'
-        : state.kind === 'closed'
-          ? state.detail
-          : 'Tap a time to pause new orders';
-  const openTime = status.openTime || '07:00';
-  const closeTime = status.closeTime || '22:00';
-  const customClock = defaultUntilClock(status, now);
-  const disabled = saving ? 'disabled' : '';
+        ? `Busy · free ${formatBusyUntilLabel(status) || 'later'}`
+        : '';
 
   return `
-    <div class="hours-card__status ${tone}">
-      <div class="hours-card__status-row">
-        <span class="hours-card__badge${pending ? ' is-pending' : ''}">${escapeHtml(badge)}</span>
-        <span class="hours-card__until${pending ? ' is-pending' : ''}">${escapeHtml(untilLine)}</span>
-      </div>
-      <div class="hours-card__copy">${escapeHtml(copy)}</div>
+    <div class="hours-card__hero${busy ? ' is-busy' : ''}">
+      <label class="hours-card__clock">
+        <span class="hours-card__kicker">Free again</span>
+        <span class="hours-card__time${pending ? ' is-pending' : ''}" data-hours-clock-face>${escapeHtml(pending ? '—' : formatFace(date))}</span>
+        <span class="hours-card__day" data-hours-clock-day>${escapeHtml(pending ? '' : dayLabel(date, now))}</span>
+        <input
+          type="time"
+          class="hours-card__native"
+          data-hours-busy-until-time
+          value="${escapeHtml(draftClock)}"
+          step="300"
+          aria-label="Free again"
+          ${disabled}
+        />
+      </label>
     </div>
 
+    <div class="hours-card__nudge" role="group" aria-label="Jump the clock">
+      <button type="button" class="hours-card__nudge-btn" data-hours-nudge-mins="30" ${disabled}>+30m</button>
+      <button type="button" class="hours-card__nudge-btn" data-hours-nudge-mins="60" ${disabled}>+1h</button>
+      <button type="button" class="hours-card__nudge-btn" data-hours-nudge-mins="120" ${disabled}>+2h</button>
+      <button type="button" class="hours-card__nudge-btn" data-hours-nudge-mins="180" ${disabled}>+3h</button>
+    </div>
+
+    <button type="button" class="hours-card__apply" data-hours-busy-until ${disabled}>
+      ${saving ? 'Saving…' : busy ? 'Update busy' : 'Set busy'}
+    </button>
     ${
-      busy || hasBusy
-        ? `<button type="button" class="hours-card__end" data-hours-clear-busy ${disabled}>
-            ${saving ? 'Saving…' : busy ? 'End busy now' : 'Clear expired busy'}
-          </button>`
+      busy
+        ? `<button type="button" class="hours-card__quiet" data-hours-clear-busy ${disabled}>End now</button>`
         : ''
     }
-
-    <div class="hours-card__presets">
-      <div class="hours-card__presets-label">${busy ? 'Extend' : 'Busy for'}</div>
-      <div class="hours-card__chips" role="group" aria-label="Busy presets">
-        <button type="button" class="admin-hours__chip" data-hours-busy-mins="30" ${disabled}>30 min</button>
-        <button type="button" class="admin-hours__chip" data-hours-busy-mins="60" ${disabled}>1 hour</button>
-        <button type="button" class="admin-hours__chip" data-hours-busy-mins="120" ${disabled}>2 hours</button>
-        <button type="button" class="admin-hours__chip" data-hours-busy-mins="180" ${disabled}>3 hours</button>
-      </div>
-    </div>
-
-    <div class="hours-card__custom">
-      <label class="hours-card__custom-field">
-        <span class="hours-card__custom-label">Until</span>
-        <input type="time" class="admin-hours__input" data-hours-busy-until-time value="${escapeHtml(customClock)}" step="300" ${disabled} />
-      </label>
-      <button type="button" class="hours-card__set" data-hours-busy-until ${disabled}>
-        ${busy ? 'Update' : 'Set busy'}
-      </button>
-    </div>
-
-    <details class="hours-card__more" data-hours-edit ${hoursOpen ? 'open' : ''}>
-      <summary class="hours-card__more-sum">
-        <span>Open hours</span>
-        <span class="hours-card__more-meta">${escapeHtml(formatOpenHoursLabel(status))}</span>
-      </summary>
-      <div class="hours-card__more-body">
-        <p class="hours-card__hint">Daily window — storefront blocks times outside it.</p>
-        <div class="admin-hours__range">
-          <label class="admin-hours__field">
-            <span class="admin-hours__field-label">Opens</span>
-            <input type="time" class="admin-hours__input" data-hours-open-time value="${escapeHtml(openTime)}" step="300" ${disabled} />
-          </label>
-          <label class="admin-hours__field">
-            <span class="admin-hours__field-label">Closes</span>
-            <input type="time" class="admin-hours__input" data-hours-close-time value="${escapeHtml(closeTime)}" step="300" ${disabled} />
-          </label>
-        </div>
-        <button type="button" class="admin-tool-btn" data-hours-save ${disabled}>
-          ${saving ? 'Saving…' : 'Save open hours'}
-        </button>
-      </div>
-    </details>
+    ${note ? `<div class="hours-card__note">${escapeHtml(note)}</div>` : ''}
   `;
 }
 
 export function renderHoursWidget() {
   const root = document.getElementById('hoursWidget');
   if (!root) return;
-  const details = root.querySelector('[data-hours-edit]');
-  if (details) hoursOpen = details.open;
   root.innerHTML = widgetHtml();
 }
 
@@ -160,6 +156,8 @@ async function withSaving(work) {
     await work();
     loadError = '';
     saving = false;
+    const status = getFulfillmentStatus();
+    draftClock = seedClock(status);
     renderHoursWidget();
   } catch (e) {
     saving = false;
@@ -168,61 +166,26 @@ async function withSaving(work) {
   }
 }
 
-function readOpenClose(root) {
-  const openEl = root.querySelector('[data-hours-open-time]');
-  const closeEl = root.querySelector('[data-hours-close-time]');
-  return {
-    openTime: toHHmm(openEl?.value) || '',
-    closeTime: toHHmm(closeEl?.value) || '',
-  };
-}
-
 function onRootClick(event) {
   const root = event.currentTarget;
 
-  const saveHours = event.target.closest?.('[data-hours-save]');
-  if (saveHours) {
-    const form = readOpenClose(root);
-    if (!form.openTime || !form.closeTime) {
-      showToast('Set both open and close times', true);
-      return;
-    }
-    if (form.openTime === form.closeTime) {
-      showToast('Open and close can’t be the same — pick a window', true);
-      return;
-    }
-    void withSaving(async () => {
-      await saveFulfillmentStatus(form);
-      showToast(`Open hours saved · ${formatOpenHoursLabel(getFulfillmentStatus())}`);
-    });
-    return;
-  }
-
-  const preset = event.target.closest?.('[data-hours-busy-mins]');
-  if (preset) {
-    const mins = Number(preset.getAttribute('data-hours-busy-mins') || 0);
+  const nudge = event.target.closest?.('[data-hours-nudge-mins]');
+  if (nudge) {
+    const mins = Number(nudge.getAttribute('data-hours-nudge-mins') || 0);
     if (!mins) return;
-    void withSaving(async () => {
-      await saveFulfillmentStatus({
-        busyUntil: busyUntilFromNow(mins),
-        busyFor: getFulfillmentStatus().busyFor || 'both',
-      });
-      showToast(`Busy for ${mins >= 60 ? `${mins / 60}h` : `${mins}m`}`);
-    });
+    setDraft(root, clockValue(new Date(busyUntilFromNow(mins))));
     return;
   }
 
-  const custom = event.target.closest?.('[data-hours-busy-until]');
-  if (custom) {
-    const raw = root.querySelector('[data-hours-busy-until-time]')?.value;
-    const until = untilFromClock(raw);
+  if (event.target.closest?.('[data-hours-busy-until]')) {
+    const until = untilFromClock(draftClock);
     if (!until) {
       showToast('Pick a free-again time', true);
       return;
     }
     void withSaving(async () => {
       await saveFulfillmentStatus({
-        busyUntil: until,
+        busyUntil: until.toISOString(),
         busyFor: getFulfillmentStatus().busyFor || 'both',
       });
       showToast(`Busy until ${formatBusyUntilLabel(getFulfillmentStatus()) || 'later'}`);
@@ -230,18 +193,18 @@ function onRootClick(event) {
     return;
   }
 
-  const clearBtn = event.target.closest?.('[data-hours-clear-busy]');
-  if (clearBtn) {
+  if (event.target.closest?.('[data-hours-clear-busy]')) {
     void withSaving(async () => {
       await saveFulfillmentStatus({ busyUntil: null });
+      draftClock = seedClock(getFulfillmentStatus());
       showToast('Busy period ended — open for orders');
     });
   }
 }
 
-function onRootToggle(event) {
-  const details = event.target.closest?.('[data-hours-edit]');
-  if (details) hoursOpen = details.open;
+function onRootInput(event) {
+  if (!event.target.closest?.('[data-hours-busy-until-time]')) return;
+  setDraft(event.currentTarget, event.target.value);
 }
 
 export function wireHoursWidget() {
@@ -249,9 +212,11 @@ export function wireHoursWidget() {
   if (!root || wired) return;
   wired = true;
   root.addEventListener('click', onRootClick);
-  root.addEventListener('toggle', onRootToggle, true);
+  root.addEventListener('input', onRootInput);
+  root.addEventListener('change', onRootInput);
   onFulfillmentChange(() => {
     if (saving) return;
+    draftClock = seedClock(getFulfillmentStatus());
     renderHoursWidget();
   });
 }
@@ -262,6 +227,7 @@ export async function refreshHoursWidget() {
   try {
     await loadFulfillmentStatus();
     loadError = '';
+    draftClock = seedClock(getFulfillmentStatus());
   } catch (e) {
     loadError = e?.message || 'Could not load hours';
   } finally {

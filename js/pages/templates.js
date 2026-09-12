@@ -23,13 +23,12 @@ export const PAGE_TEMPLATES = {
         </button>
       </div>
 
-      <section class="hours-card" id="hoursWidget" aria-label="Store busy">
-        <div class="hours-card__status">
-          <div class="hours-card__status-row">
-            <span class="hours-card__badge is-pending">Busy</span>
-            <span class="hours-card__until is-pending">Loading…</span>
+      <section class="hours-card" id="hoursWidget" aria-label="Busy until">
+        <div class="hours-card__hero">
+          <div class="hours-card__clock">
+            <span class="hours-card__kicker">Free again</span>
+            <span class="hours-card__time is-pending">—</span>
           </div>
-          <div class="hours-card__copy">Checking availability</div>
         </div>
       </section>
 
