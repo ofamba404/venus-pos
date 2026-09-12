@@ -102,9 +102,7 @@ function widgetHtml() {
       ? ready
         ? 'Couldn’t refresh'
         : 'Couldn’t load'
-      : busy
-        ? `Busy · free ${formatBusyUntilLabel(status) || 'later'}`
-        : '';
+      : '';
 
   return `
     <div class="hours-card__hero${busy ? ' is-busy' : ''}">
