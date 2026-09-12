@@ -23,6 +23,16 @@ export const PAGE_TEMPLATES = {
         </button>
       </div>
 
+      <section class="hours-card" id="hoursWidget" aria-label="Store hours">
+        <div class="hours-card__status">
+          <div class="hours-card__status-row">
+            <span class="hours-card__badge is-pending">Hours</span>
+            <span class="hours-card__today is-pending">Today —</span>
+          </div>
+          <div class="hours-card__copy">Checking store hours</div>
+        </div>
+      </section>
+
       <div class="stock-card stock-summary" id="stockGlance" tabindex="0" aria-label="View inventory">
         <div class="sg-joints">
           <div class="donut-container mini">

@@ -18,17 +18,22 @@ const loaders = {
   home: async () => {
     const { renderStockGlance } = await import('../inventory.js');
     const { renderProductList } = await import('../orders.js');
-    const { updateTodayStrip, wireHomePage } = await import('../home.js');
+    const { paintHomePage, updateTodayStrip, wireHomePage } = await import('../home.js');
+    const { renderHoursWidget, refreshHoursWidget } = await import('../hours-widget.js');
     return {
       wire: wireHomePage,
       paint: () => {
         renderProductList();
-        updateTodayStrip();
+        paintHomePage();
         renderStockGlance();
       },
       slices: {
         sales: updateTodayStrip,
         inventory: renderStockGlance,
+      },
+      onActivate: () => {
+        void refreshHoursWidget();
+        renderHoursWidget();
       },
     };
   },

@@ -2,7 +2,8 @@
  * Storefront pickup/delivery availability — POS writes, store reads.
  * Singleton row in public.store_fulfillment (id = 'default').
  *
- * Busy window (busy_until) + daily open/close hours.
+ * Busy window (busy_until) + daily open/close hours (same window every day).
+ * Last successful snapshot is cached in localStorage for instant POS paint.
  * Default open 07:00–22:00 (closed 22:00–07:00 overnight).
  */
 import { sbFetch } from './api.js';
@@ -10,6 +11,7 @@ import { sbFetch } from './api.js';
 const ROW_ID = 'default';
 const DEFAULT_OPEN = '07:00';
 const DEFAULT_CLOSE = '22:00';
+const STORAGE_KEY = 'venus.pos.fulfillment';
 
 /** @typedef {'both' | 'delivery' | 'pickup'} BusyFor */
 
@@ -37,6 +39,8 @@ const EMPTY = {
 
 /** @type {FulfillmentStatus} */
 let cache = { ...EMPTY };
+/** True after a network load/save or a local snapshot hydrate. */
+let snapshotReady = false;
 /** Bumped on successful save so in-flight loads cannot overwrite fresher cache. */
 let mutationEpoch = 0;
 /** @type {Array<(s: FulfillmentStatus) => void>} */
@@ -83,7 +87,42 @@ function normalizeRow(row) {
   };
 }
 
+function persistCache() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+  } catch {
+    /* private mode */
+  }
+}
+
+function hydrateFromStore() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return;
+    cache = {
+      busyUntil: parsed.busyUntil ? String(parsed.busyUntil) : null,
+      busyFor:
+        parsed.busyFor === 'delivery' || parsed.busyFor === 'pickup' || parsed.busyFor === 'both'
+          ? parsed.busyFor
+          : 'both',
+      suggestStart: toHHmm(parsed.suggestStart),
+      suggestEnd: toHHmm(parsed.suggestEnd),
+      openTime: toHHmm(parsed.openTime) || DEFAULT_OPEN,
+      closeTime: toHHmm(parsed.closeTime) || DEFAULT_CLOSE,
+      updatedAt: parsed.updatedAt ? String(parsed.updatedAt) : null,
+    };
+    snapshotReady = true;
+  } catch {
+    /* ignore corrupt snapshot */
+  }
+}
+
+hydrateFromStore();
+
 function notify() {
+  persistCache();
   listeners.forEach((fn) => {
     try {
       fn(cache);
@@ -95,6 +134,10 @@ function notify() {
 
 export function getFulfillmentStatus() {
   return { ...cache };
+}
+
+export function hasFulfillmentSnapshot() {
+  return snapshotReady;
 }
 
 export function onFulfillmentChange(fn) {
@@ -249,29 +292,68 @@ export function formatBusyUntilLabel(status = cache) {
   return formatUntilClock(status.busyUntil);
 }
 
+export function formatClockHHmm(hhmm) {
+  const [h, m] = String(hhmm || '').split(':').map(Number);
+  const d = new Date();
+  d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0);
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
 export function formatOpenHoursLabel(status = cache) {
-  const fmt = (hhmm) => {
-    const [h, m] = String(hhmm || '').split(':').map(Number);
-    const d = new Date();
-    d.setHours(h || 0, m || 0, 0, 0);
-    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  };
-  return `${fmt(status.openTime || DEFAULT_OPEN)} – ${fmt(status.closeTime || DEFAULT_CLOSE)}`;
+  return `${formatClockHHmm(status.openTime || DEFAULT_OPEN)} – ${formatClockHHmm(status.closeTime || DEFAULT_CLOSE)}`;
 }
 
 export function formatSuggestRangeLabel(status = cache) {
   const start = status?.suggestStart;
   const end = status?.suggestEnd;
   if (!start && !end) return '';
-  const fmt = (hhmm) => {
-    const [h, m] = String(hhmm).split(':').map(Number);
-    const d = new Date();
-    d.setHours(h || 0, m || 0, 0, 0);
-    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  if (start && end) return `${formatClockHHmm(start)} – ${formatClockHHmm(end)}`;
+  if (start) return `from ${formatClockHHmm(start)}`;
+  return `until ${formatClockHHmm(end)}`;
+}
+
+/** Compact “7a–10p” label for the week strip. */
+export function formatHoursCompact(status = cache) {
+  const compact = (hhmm) => {
+    const [h, m] = String(hhmm || '').split(':').map(Number);
+    const hour = Number.isFinite(h) ? h : 0;
+    const minute = Number.isFinite(m) ? m : 0;
+    const suffix = hour < 12 ? 'a' : 'p';
+    const h12 = hour % 12 || 12;
+    return minute ? `${h12}:${pad2(minute)}${suffix}` : `${h12}${suffix}`;
   };
-  if (start && end) return `${fmt(start)} – ${fmt(end)}`;
-  if (start) return `from ${fmt(start)}`;
-  return `until ${fmt(end)}`;
+  return `${compact(status.openTime || DEFAULT_OPEN)}–${compact(status.closeTime || DEFAULT_CLOSE)}`;
+}
+
+/**
+ * At-a-glance open / closed / busy for the register.
+ * @returns {{ kind: 'open' | 'closed' | 'busy', label: string, hoursLabel: string, detail: string }}
+ */
+export function describeFulfillmentState(status = cache, now = new Date()) {
+  const hoursLabel = formatOpenHoursLabel(status);
+  if (isBusyActive(status, now)) {
+    const until = formatBusyUntilLabel(status);
+    return {
+      kind: 'busy',
+      label: 'Busy',
+      hoursLabel,
+      detail: until ? `Free ${until}` : 'Paused for orders',
+    };
+  }
+  if (!isWithinOpenHours(now, status)) {
+    return {
+      kind: 'closed',
+      label: 'Closed',
+      hoursLabel,
+      detail: `Opens ${formatUntilClock(nextOpenAt(now, status), now)}`,
+    };
+  }
+  return {
+    kind: 'open',
+    label: 'Open',
+    hoursLabel,
+    detail: hoursLabel,
+  };
 }
 
 export async function loadFulfillmentStatus() {
@@ -288,6 +370,7 @@ export async function loadFulfillmentStatus() {
   // A save completed while we were in flight — keep the local cache.
   if (epoch !== mutationEpoch) return getFulfillmentStatus();
   cache = normalizeRow(Array.isArray(rows) ? rows[0] : null);
+  snapshotReady = true;
   notify();
   return getFulfillmentStatus();
 }
@@ -343,6 +426,7 @@ export async function saveFulfillmentStatus(patch = {}) {
   }
   mutationEpoch += 1;
   cache = normalizeRow(rows[0]);
+  snapshotReady = true;
   notify();
   return getFulfillmentStatus();
 }

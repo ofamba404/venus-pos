@@ -1,4 +1,5 @@
 import { isCookieCategoryId } from './config.js';
+import { refreshHoursWidget, renderHoursWidget, wireHoursWidget } from './hours-widget.js';
 import { isDataPending, revealLoaded } from './pending.js';
 import { navigate } from './router.js';
 import { sumOwnerRevenue } from './revenue.js';
@@ -40,7 +41,14 @@ export function updateTodayStrip() {
   }
 }
 
+export function paintHomePage() {
+  updateTodayStrip();
+  renderHoursWidget();
+}
+
 export function wireHomePage() {
+  wireHoursWidget();
+  void refreshHoursWidget();
   const stockGlance = document.getElementById('stockGlance');
   const goInventory = () => {
     void navigate('inventory');
