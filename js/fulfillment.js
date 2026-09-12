@@ -312,19 +312,6 @@ export function formatSuggestRangeLabel(status = cache) {
   return `until ${formatClockHHmm(end)}`;
 }
 
-/** Compact “7a–10p” label for the week strip. */
-export function formatHoursCompact(status = cache) {
-  const compact = (hhmm) => {
-    const [h, m] = String(hhmm || '').split(':').map(Number);
-    const hour = Number.isFinite(h) ? h : 0;
-    const minute = Number.isFinite(m) ? m : 0;
-    const suffix = hour < 12 ? 'a' : 'p';
-    const h12 = hour % 12 || 12;
-    return minute ? `${h12}:${pad2(minute)}${suffix}` : `${h12}${suffix}`;
-  };
-  return `${compact(status.openTime || DEFAULT_OPEN)}–${compact(status.closeTime || DEFAULT_CLOSE)}`;
-}
-
 /**
  * At-a-glance open / closed / busy for the register.
  * @returns {{ kind: 'open' | 'closed' | 'busy', label: string, hoursLabel: string, detail: string }}
