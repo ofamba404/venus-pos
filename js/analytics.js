@@ -2,10 +2,10 @@ import { dataStore } from './store/index.js';
 import { sbDelete, sbFetch } from './api.js';
 import { CATEGORIES, COOKIE_FLAVORS, COOKIE_OWNER_SHARE, COOKIE_STOCK_CAPACITY, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName, normalizeInventoryBreakdown } from './config.js';
 import {
-  breakdownToConfigSelection,
   buildLineFromConfig,
   clearManualQtyEdit,
   findProduct,
+  itemToConfigSelection,
   renderProductConfigView,
   renderProductPickList,
   wireProductConfigView,
@@ -1474,7 +1474,7 @@ function renderEditSaleMainView() {
       }
       editingSaleItemIdx = idx;
       editConfigProduct = product;
-      editConfigSelection = breakdownToConfigSelection(product, item.breakdown);
+      editConfigSelection = itemToConfigSelection(product, item);
       clearManualQtyEdit();
       editSaleMode = 'config';
       renderEditSaleModal();
@@ -1541,6 +1541,9 @@ function renderEditSaleConfigView() {
   const prevMeter = body.querySelector('.flavor-meter__fill');
   const fromMeter = prevMeter ? readFlavorMeterScale(prevMeter) : 0;
   const hadMeter = Boolean(prevMeter);
+  const wholesaleEl = body.querySelector('[data-wholesale-unit]');
+  const wholesaleFocused = document.activeElement === wholesaleEl;
+  const wholesaleCaret = wholesaleFocused ? [wholesaleEl.selectionStart, wholesaleEl.selectionEnd] : null;
 
   const draftStock = getEditSaleDraftStock(editingSaleItemIdx ?? -1);
   const otherLines = editSaleItems
@@ -1565,10 +1568,16 @@ function renderEditSaleConfigView() {
   if (nextList) nextList.scrollTop = scrollTop;
 
   const qtyEdit = body.querySelector('[data-qty-edit]');
+  const nextWholesale = body.querySelector('[data-wholesale-unit]');
   if (qtyEdit) {
     qtyEdit.focus({ preventScroll: true });
     const len = qtyEdit.value.length;
     qtyEdit.setSelectionRange(len, len);
+  } else if (wholesaleFocused && nextWholesale) {
+    nextWholesale.focus({ preventScroll: true });
+    const start = wholesaleCaret?.[0] ?? nextWholesale.value.length;
+    const end = wholesaleCaret?.[1] ?? nextWholesale.value.length;
+    nextWholesale.setSelectionRange(start, end);
   } else if (activeFlavor != null) {
     const sel = activeStep != null
       ? `button.flavor-step[data-pick="${activeFlavor}"][data-pdir="${activeStep}"]`
@@ -1616,7 +1625,7 @@ function confirmEditSaleConfig() {
       isReward: item.is_reward,
       quantity: item.quantity,
     }));
-  const { breakdown, lineTotal, detail } = buildLineFromConfig(product, editConfigSelection, {
+  const { breakdown, lineTotal, detail, wholesaleUnitPrice } = buildLineFromConfig(product, editConfigSelection, {
     otherLines,
   });
   const saleItem = {
@@ -1625,6 +1634,7 @@ function confirmEditSaleConfig() {
     detail,
     line_total: lineTotal,
     breakdown,
+    ...(wholesaleUnitPrice ? { wholesale_unit_price: wholesaleUnitPrice } : {}),
   };
 
   if (editingSaleItemIdx !== null) {

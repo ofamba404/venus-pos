@@ -4,6 +4,7 @@ import {
   FLAVOR_POOL,
   PRODUCTS,
   SPLIFF_POOL,
+  cookieQtyFromBreakdown,
   normalizeInventoryBreakdown,
 } from './config.js';
 import {
@@ -34,7 +35,9 @@ function slotNoun(product) {
 }
 
 export function productDetailLabel(p) {
-  if (p.rule === 'single_qty' || p.rule === 'cookie_qty') return p.unitLabel;
+  if (p.rule === 'single_qty' || p.rule === 'cookie_qty' || p.rule === 'cookie_wholesale') {
+    return p.unitLabel;
+  }
   if (p.rule === 'spliff_qty') return 'per joint';
   const noun = slotNoun(p);
   const n = p.joints || 0;
@@ -45,9 +48,25 @@ const PACK_PRODUCTS = PRODUCTS.filter((p) => p.rule === 'choose_any' || p.rule =
 const SINGLE_PRODUCTS = PRODUCTS.filter(
   (p) => p.rule === 'single_qty' || p.rule === 'spliff_qty' || p.rule === 'cookie_qty',
 );
+const WHOLESALE_PRODUCTS = PRODUCTS.filter((p) => p.rule === 'cookie_wholesale');
+const UNIT_PRICE_KEY = '_unitPrice';
+
+export function wholesaleUnitPriceFromItem(item) {
+  const stored = Number(item?.wholesaleUnitPrice ?? item?.wholesale_unit_price);
+  if (Number.isFinite(stored) && stored > 0) return Math.round(stored);
+  const qty = cookieQtyFromBreakdown(item?.breakdown);
+  const total = Number(item?.lineTotal ?? item?.line_total) || 0;
+  if (qty > 0 && total > 0) return Math.round(total / qty);
+  return 0;
+}
+
+export function wholesaleUnitPriceFromSelection(configSelection) {
+  return Math.max(0, Math.round(Number(configSelection?.[UNIT_PRICE_KEY]) || 0));
+}
+
 export function productPickButtonHtml(p) {
   const amount = p.price != null ? p.price : p.unitPrice;
-  const priceLabel = p.priceFrom ? `from ${fmtUGX(amount)}` : fmtUGX(amount);
+  const priceLabel = p.priceLabel || (p.priceFrom ? `from ${fmtUGX(amount)}` : fmtUGX(amount));
   return `
     <button class="product-row pick-product-card" type="button" data-product="${p.id}">
       <div class="pick-product-card__main">
@@ -75,6 +94,16 @@ export function renderProductPickPanel() {
           ${SINGLE_PRODUCTS.map(productPickButtonHtml).join('')}
         </div>
       </section>
+      ${
+        WHOLESALE_PRODUCTS.length
+          ? `<section class="pick-product-section" aria-label="Wholesale">
+        <div class="pick-product-section-label">Wholesale</div>
+        <div class="pick-product-list">
+          ${WHOLESALE_PRODUCTS.map(productPickButtonHtml).join('')}
+        </div>
+      </section>`
+          : ''
+      }
     </div>`;
 }
 
@@ -87,7 +116,12 @@ export function wireProductPickButtons(root, onPick) {
 export function breakdownToConfigSelection(product, breakdown) {
   if (!product) return {};
   const normalized = normalizeInventoryBreakdown(breakdown);
-  if (product.rule === 'choose_any' || product.rule === 'spliff_qty' || product.rule === 'cookie_qty') {
+  if (
+    product.rule === 'choose_any' ||
+    product.rule === 'spliff_qty' ||
+    product.rule === 'cookie_qty' ||
+    product.rule === 'cookie_wholesale'
+  ) {
     return { ...normalized };
   }
   if (product.rule === 'choose_variety') {
@@ -102,7 +136,20 @@ export function breakdownToConfigSelection(product, breakdown) {
 }
 
 export function configTotalSelected(configSelection) {
-  return Object.values(configSelection).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+  return Object.entries(configSelection || {}).reduce((sum, [key, value]) => {
+    if (String(key).startsWith('_')) return sum;
+    return sum + (typeof value === 'number' ? value : 0);
+  }, 0);
+}
+
+/** Restore flavor qty (+ wholesale unit price) when editing a cart/sale line. */
+export function itemToConfigSelection(product, item) {
+  const sel = breakdownToConfigSelection(product, item?.breakdown);
+  if (product?.rule === 'cookie_wholesale') {
+    const unit = wholesaleUnitPriceFromItem(item);
+    if (unit > 0) sel[UNIT_PRICE_KEY] = unit;
+  }
+  return sel;
 }
 
 /** Other cart/sale lines used for 4+ flavored cookie bulk pricing. */
@@ -187,9 +234,27 @@ export function buildLineFromConfig(product, configSelection, options = {}) {
     detail = Object.entries(breakdown)
       .map(([id, qty]) => `${CAT_MAP[id]?.name || id} x${qty}`)
       .join(', ');
+  } else if (product.rule === 'cookie_wholesale') {
+    COOKIE_FLAVOR_POOL.forEach((id) => {
+      if (configSelection[id] > 0) breakdown[id] = configSelection[id];
+    });
+    const unitPrice = wholesaleUnitPriceFromSelection(configSelection);
+    const totalQty = Object.values(breakdown).reduce((a, b) => a + b, 0);
+    lineTotal = totalQty * unitPrice;
+    const mix = Object.entries(breakdown)
+      .map(([id, qty]) => `${CAT_MAP[id]?.name || id} x${qty}`)
+      .join(', ');
+    detail = unitPrice > 0 ? `${mix} · ${fmtUGX(unitPrice)} each` : mix;
   }
 
-  return { breakdown, lineTotal, detail };
+  return {
+    breakdown,
+    lineTotal,
+    detail,
+    ...(product.rule === 'cookie_wholesale'
+      ? { wholesaleUnitPrice: wholesaleUnitPriceFromSelection(configSelection) }
+      : {}),
+  };
 }
 
 export function renderProductPickList({ backId = 'productPickBack', backLabel = 'Back' } = {}) {
@@ -481,6 +546,61 @@ export function renderProductConfigView(
       backId,
       confirmId,
     });
+  } else if (product.rule === 'cookie_wholesale') {
+    inner += `<div class="modal-progress">Flavors, then a unit price for this lot</div>`;
+    inner += `<div class="flavor-list">`;
+    COOKIE_FLAVOR_POOL.forEach((id) => {
+      const cat = CAT_MAP[id];
+      const qty = configSelection[id] || 0;
+      const stock = draftStock[id] || 0;
+      inner += flavorSwatchHtml({
+        id,
+        label: cat?.name || id,
+        color: cat?.color || '#D4A355',
+        chosen: qty,
+        stock,
+        canAdd: qty < stock,
+        canRemove: qty > 0,
+        editable: true,
+      });
+    });
+    inner += `</div>`;
+    const unitPrice = wholesaleUnitPriceFromSelection(configSelection);
+    const totalQty = COOKIE_FLAVOR_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);
+    const overStock = COOKIE_FLAVOR_POOL.some((id) => (configSelection[id] || 0) > (draftStock[id] || 0));
+    const qtyOk = totalQty > 0 && !overStock;
+    const lineTotal = totalQty * unitPrice;
+    const unitValue = unitPrice > 0 ? String(unitPrice) : '';
+    inner += `
+      <div class="wholesale-unit" id="qtyLinePrice" data-cookie-qty="${totalQty}" data-qty-ok="${qtyOk ? 'true' : 'false'}">
+        <div class="wholesale-unit__row">
+          <label class="wholesale-unit__label" for="wholesaleUnitPrice">Unit price</label>
+          <div class="wholesale-unit__field">
+            <span class="wholesale-unit__prefix">UGX</span>
+            <input
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              id="wholesaleUnitPrice"
+              class="wholesale-unit__input"
+              data-wholesale-unit
+              value="${escapeHtml(unitValue)}"
+              placeholder="0"
+              autocomplete="off"
+              aria-label="Wholesale unit price in UGX"
+            />
+            <span class="wholesale-unit__suffix">each</span>
+          </div>
+        </div>
+        <div class="wholesale-unit__total" data-wholesale-total>${fmtUGX(lineTotal)}</div>
+      </div>`;
+    inner += configFooterHtml({
+      ready: qtyOk && unitPrice > 0,
+      isEditing,
+      closeId,
+      backId,
+      confirmId,
+    });
   }
 
   return inner;
@@ -545,11 +665,33 @@ export function wireProductConfigView(
     // Defer: DOM detach during re-render fires blur; ignore if a qty input is still focused.
     inputEl.addEventListener('blur', () => {
       setTimeout(() => {
-        if (document.activeElement?.matches?.('[data-qty-edit]')) return;
+        if (document.activeElement?.matches?.('[data-qty-edit], [data-wholesale-unit]')) return;
         if (manualQtyEditKey == null) return;
         clearManualQtyEdit();
         onRerender();
       }, 0);
+    });
+  });
+
+  container.querySelectorAll('[data-wholesale-unit]').forEach((inputEl) => {
+    inputEl.addEventListener('input', () => {
+      inputEl.value = inputEl.value.replace(/[^0-9]/g, '');
+      const next = parseInt(inputEl.value, 10) || 0;
+      if (next > 0) configSelection[UNIT_PRICE_KEY] = next;
+      else delete configSelection[UNIT_PRICE_KEY];
+      const wrap = inputEl.closest('.wholesale-unit');
+      const qty = Math.max(0, parseInt(wrap?.dataset.cookieQty, 10) || 0);
+      const qtyOk = wrap?.dataset.qtyOk === 'true';
+      const totalEl = wrap?.querySelector('[data-wholesale-total]');
+      if (totalEl) totalEl.textContent = fmtUGX(qty * next);
+      const confirmBtn = container.querySelector(`#${confirmId}`);
+      if (confirmBtn) confirmBtn.disabled = !(qtyOk && next > 0);
+    });
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        inputEl.blur();
+      }
     });
   });
 

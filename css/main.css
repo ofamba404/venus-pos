@@ -4627,6 +4627,83 @@
     line-height: var(--leading-snug);
   }
 
+  .wholesale-unit {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--panel-edge-subtle);
+  }
+
+  .wholesale-unit__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .wholesale-unit__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-weight: 700;
+    flex: 0 0 auto;
+  }
+
+  .wholesale-unit__field {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .wholesale-unit__prefix,
+  .wholesale-unit__suffix {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  .wholesale-unit__input {
+    width: 7.25rem;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--gold);
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 700;
+    text-align: right;
+    box-sizing: border-box;
+  }
+
+  .wholesale-unit__input:focus {
+    outline: 2px solid var(--jade);
+    outline-offset: 0;
+    border-color: transparent;
+  }
+
+  .wholesale-unit__total {
+    font-family: var(--font-mono);
+    color: var(--gold);
+    font-size: var(--text-base);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-align: right;
+    line-height: var(--leading-tight);
+  }
+
   /* ---------- Flavor selector (pack config) ---------- */
   .flavor-meter {
     display: grid;
@@ -4914,7 +4991,8 @@
   }
 
   .modal:has(.flavor-list) .config-footer,
-  .modal:has(.flavor-list) #qtyLinePrice {
+  .modal:has(.flavor-list) #qtyLinePrice,
+  .modal:has(.flavor-list) .wholesale-unit {
     flex-shrink: 0;
   }
 

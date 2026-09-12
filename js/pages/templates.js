@@ -136,6 +136,15 @@ export const PAGE_TEMPLATES = {
             <div class="pprice">from UGX 5,000</div>
           </div>
         </button>
+        <button class="product-row" type="button" data-product="cookie_wholesale">
+          <div>
+            <div class="pname">Wholesale cookies</div>
+            <div class="pcount">per cookie</div>
+          </div>
+          <div class="p-right">
+            <div class="pprice">set unit price</div>
+          </div>
+        </button>
       </div>
     </div>
   `,

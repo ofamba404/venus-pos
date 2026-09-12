@@ -30,6 +30,7 @@ import { notifyCreditSale, notifyStockCrossing } from './notifications.js';
 import {
   buildLineFromConfig,
   clearManualQtyEdit,
+  itemToConfigSelection,
   productDetailLabel,
   productPickButtonHtml,
   renderProductConfigView,
@@ -751,19 +752,7 @@ function adjustDraftForItem(item, direction) {
 
 function cartItemToConfigSelection(item) {
   const p = PRODUCTS.find((pr) => pr.id === item.productId);
-  if (!p) return {};
-  if (p.rule === 'choose_any' || p.rule === 'spliff_qty' || p.rule === 'cookie_qty') {
-    return { ...item.breakdown };
-  }
-  if (p.rule === 'choose_variety') {
-    const sel = { ...item.breakdown };
-    delete sel[varietyFixedFlavor(p)];
-    return sel;
-  }
-  if (p.rule === 'single_qty') {
-    return { qty: item.breakdown[p.categoryId] || 0 };
-  }
-  return {};
+  return itemToConfigSelection(p, item);
 }
 
 function resetCheckoutDelivery() {
@@ -2159,6 +2148,9 @@ function renderConfigView() {
   const prevMeter = orderModalBody.querySelector('.flavor-meter__fill');
   const fromMeter = prevMeter ? readFlavorMeterScale(prevMeter) : 0;
   const hadMeter = Boolean(prevMeter);
+  const wholesaleEl = orderModalBody.querySelector('[data-wholesale-unit]');
+  const wholesaleFocused = document.activeElement === wholesaleEl;
+  const wholesaleCaret = wholesaleFocused ? [wholesaleEl.selectionStart, wholesaleEl.selectionEnd] : null;
 
   orderModalBody.innerHTML = renderProductConfigView(p, configSelection, draftStock, Boolean(editingCartKey), {
     closeId: 'orderClose',
@@ -2172,10 +2164,16 @@ function renderConfigView() {
   if (nextList) nextList.scrollTop = scrollTop;
 
   const qtyEdit = orderModalBody.querySelector('[data-qty-edit]');
+  const nextWholesale = orderModalBody.querySelector('[data-wholesale-unit]');
   if (qtyEdit) {
     qtyEdit.focus({ preventScroll: true });
     const len = qtyEdit.value.length;
     qtyEdit.setSelectionRange(len, len);
+  } else if (wholesaleFocused && nextWholesale) {
+    nextWholesale.focus({ preventScroll: true });
+    const start = wholesaleCaret?.[0] ?? nextWholesale.value.length;
+    const end = wholesaleCaret?.[1] ?? nextWholesale.value.length;
+    nextWholesale.setSelectionRange(start, end);
   } else if (activeFlavor != null) {
     const sel = activeStep != null
       ? `button.flavor-step[data-pick="${activeFlavor}"][data-pdir="${activeStep}"]`
@@ -2227,7 +2225,7 @@ function addConfiguredItemToCart() {
     editingCartItem = null;
   }
 
-  const { breakdown, lineTotal, detail } = buildLineFromConfig(p, configSelection, {
+  const { breakdown, lineTotal, detail, wholesaleUnitPrice } = buildLineFromConfig(p, configSelection, {
     otherLines: getCart(),
   });
 
@@ -2241,6 +2239,7 @@ function addConfiguredItemToCart() {
     detail,
     breakdown,
     lineTotal,
+    ...(wholesaleUnitPrice ? { wholesaleUnitPrice } : {}),
   });
   commitCart(cart);
   updateFabBadge();
@@ -2464,6 +2463,9 @@ async function checkout() {
             reward_key: String(i.rewardKey || ''),
             points_cost: Math.max(0, Math.round(Number(i.pointsCost) || 0)),
           }
+        : {}),
+      ...(i.wholesaleUnitPrice
+        ? { wholesale_unit_price: Math.round(Number(i.wholesaleUnitPrice) || 0) }
         : {}),
     }));
 

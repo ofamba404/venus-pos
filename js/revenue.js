@@ -49,6 +49,7 @@ function cookieProductKind(item) {
     .toLowerCase()
     .replace(/-/g, '_');
   const name = String(item?.product_name || item?.name || '').toLowerCase();
+  if (id.includes('wholesale') || name.includes('wholesale')) return 'wholesale';
   if (id.includes('quartet') || name.includes('quartet')) return 'quartet';
   if (id.includes('trio') || name.includes('trio')) return 'trio';
   if (id.includes('duet') || name.includes('duet')) return 'duet';
@@ -64,7 +65,7 @@ export function allocateCookieLineRevenue(entries, revenue, productKind = 'singl
   const list = entries || [];
   if (!list.length || revenue <= 0) return list.map(() => 0);
 
-  if (productKind === 'quartet' || productKind === 'trio' || productKind === 'duet') {
+  if (productKind === 'quartet' || productKind === 'trio' || productKind === 'duet' || productKind === 'wholesale') {
     const totalQty = list.reduce((sum, e) => sum + e.qty, 0) || 1;
     return list.map((e) => revenue * (e.qty / totalQty));
   }

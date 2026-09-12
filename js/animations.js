@@ -452,7 +452,7 @@ export function animateModalContent(container) {
   if (!container || !hasGsap() || prefersReducedMotion()) return;
 
   const items = container.querySelectorAll(
-    '.modal-header, .cart-section, .cart-details, .cart-item, .cart-empty, .cart-total-row, .pick-product-card, .pick-product-section, .flavor-meter, .flavor-row, .flavor-fixed, .pick-row, .fixed-item, .modal-btns, .modal-price, .modal-progress, .qty-input, .qty-mini-input, .mini-step, .flavor-step, .cart-tool, .add-item-btn, .client-search-wrap, .client-autocomplete-dropdown > *, .credit-warning, .debug-note, .debug-log-text, .checkout-success-badges, .checkout-delivery-summary',
+    '.modal-header, .cart-section, .cart-details, .cart-item, .cart-empty, .cart-total-row, .pick-product-card, .pick-product-section, .flavor-meter, .flavor-row, .flavor-fixed, .pick-row, .fixed-item, .modal-btns, .modal-price, .modal-progress, .wholesale-unit, .qty-input, .qty-mini-input, .mini-step, .flavor-step, .cart-tool, .add-item-btn, .client-search-wrap, .client-autocomplete-dropdown > *, .credit-warning, .debug-note, .debug-log-text, .checkout-success-badges, .checkout-delivery-summary',
   );
 
   gsap().from(items.length ? items : container.children, {

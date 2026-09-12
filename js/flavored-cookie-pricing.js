@@ -179,6 +179,8 @@ export function applyToCartLines(lines) {
 
     if (id === 'cookie_single') {
       next = singleLineTotalUgx(line.breakdown, total);
+    } else if (id === 'cookie_wholesale') {
+      return;
     } else if (PACK_IDS.has(id)) {
       const qty = Math.max(1, Math.floor(Number(line.quantity) || 1));
       next = packPriceUgx(id, total, line.breakdown) * qty;

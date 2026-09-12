@@ -77,6 +77,7 @@ export function cookieLineDisplayName(productId, breakdown, fallback = 'Cookies'
   if (id === 'cookie_duet') return 'Cookie Duet';
   if (id === 'cookie_trio') return 'Cookie Trio';
   if (id === 'cookie_quartet') return 'Cookie Quartet';
+  if (id === 'cookie_wholesale') return 'Wholesale cookies';
   if (id !== 'cookie_single') return fallback;
 
   const flavors = Object.entries(breakdown || {})
@@ -220,6 +221,13 @@ export const PRODUCTS = [
     rule: 'cookie_qty',
     unitLabel: 'per cookie',
     priceFrom: true,
+  },
+  {
+    id: 'cookie_wholesale',
+    name: 'Wholesale cookies',
+    rule: 'cookie_wholesale',
+    unitLabel: 'per cookie',
+    priceLabel: 'set unit price',
   },
 ];
 
