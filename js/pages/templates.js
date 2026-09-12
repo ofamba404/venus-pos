@@ -23,14 +23,7 @@ export const PAGE_TEMPLATES = {
         </button>
       </div>
 
-      <section class="hours-card" id="hoursWidget" aria-label="Busy until">
-        <div class="hours-card__hero">
-          <div class="hours-card__clock">
-            <span class="hours-card__kicker">Free again</span>
-            <span class="hours-card__time is-pending">—</span>
-          </div>
-        </div>
-      </section>
+      <section class="hours-card" id="hoursWidget" aria-label="Busy until"></section>
 
       <div class="stock-card stock-summary" id="stockGlance" tabindex="0" aria-label="View inventory">
         <div class="sg-joints">
