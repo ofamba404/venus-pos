@@ -23,6 +23,8 @@ export const PAGE_TEMPLATES = {
         </button>
       </div>
 
+      <section class="hours-card" id="hoursWidget" aria-label="Busy until"></section>
+
       <div class="stock-card stock-summary" id="stockGlance" tabindex="0" aria-label="View inventory">
         <div class="sg-joints">
           <div class="donut-container mini">

@@ -699,6 +699,34 @@
   .sg-cookie-row[data-state='out'] .sg-cookie-qty { color: var(--danger); }
   .sg-cookie-row[data-state='out'] .sg-cookie-name { color: var(--text-dim); }
 
+  /* ---------- Home busy widget ---------- */
+  .hours-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border: 1px solid color-mix(in srgb, #c45c26 28%, var(--panel-edge));
+    border-radius: var(--radius-lg);
+    padding: 14px 12px 16px;
+    box-shadow: var(--shadow-sm);
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, #c45c26 8%, var(--surface)) 0%,
+        var(--surface) 42%
+      );
+  }
+
+  .hours-card .hours-dial {
+    gap: 10px;
+  }
+
+  .hours-card__note {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+
   .donut-container {
     position: relative;
     width: 88px;
