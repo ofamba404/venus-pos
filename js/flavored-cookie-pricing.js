@@ -3,8 +3,8 @@
  * Mirrors venus-store/js/shared/flavored-cookie-pricing.js so POS manual
  * orders match storefront: any mix of singles + flavored cookies inside
  * packs totaling ≥ 4 unlocks:
- *   - Singles: UGX 8,000 → 6,250 (~22% off)
- *   - Packs: 6,250 × flavored cookies in the pack
+ *   - Singles: UGX 8,000 → 6,500 (~19% off)
+ *   - Packs: 6,500 × flavored cookies in the pack
  * Butterscotch singles and non-cookie lines are never discounted.
  */
 
@@ -32,8 +32,8 @@ const PACK_BASE_UGX = {
 };
 
 const SINGLE_UNIT_UGX = 8000;
-/** Exact bulk unit: 21.875% off 8,000 → 6,250. Badge/copy round to 22%. */
-const SINGLE_BULK_UGX = 6250;
+/** Exact bulk unit: 18.75% off 8,000 → 6,500. Badge/copy round to 19%. */
+const SINGLE_BULK_UGX = 6500;
 const THRESHOLD = 4;
 
 export function isCookiePackProduct(productId) {
@@ -117,7 +117,7 @@ export function packBaseUgx(productId) {
 }
 
 /**
- * Pack line UGX. Below threshold: catalog. At 4+: 6,250 × flavored cookies in pack.
+ * Pack line UGX. Below threshold: catalog. At 4+: 6,500 × flavored cookies in pack.
  */
 export function packPriceUgx(productId, combinedCookieCount, breakdown) {
   const base = packBaseUgx(productId);
@@ -217,10 +217,10 @@ export function getProgress(lines) {
   let message = '';
   if (hasAny) {
     if (unlocked) {
-      message = "You've gotten 22% off!";
+      message = "You've gotten 19% off!";
     } else {
       const unit = remaining === 1 ? 'cookie' : 'cookies';
-      message = `${remaining} more ${unit} to get 22% off`;
+      message = `${remaining} more ${unit} to get 19% off`;
     }
   }
 

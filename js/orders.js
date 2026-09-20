@@ -72,7 +72,7 @@ import {
   sumCreditOwed,
 } from './credit.js';
 
-/** Persist cart after applying flavored-cookie bulk pricing (4+ → 22% off). */
+/** Persist cart after applying flavored-cookie bulk pricing (4+ → 19% off). */
 function commitCart(cart) {
   const next = Array.isArray(cart) ? cart : [];
   applyToCartLines(next);
