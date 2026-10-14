@@ -148,6 +148,14 @@ Deno.serve(async (req: Request) => {
       return { user: data.user };
     }
 
+    if (action.startsWith("admin_")) {
+      const auth = await requireUser();
+      if (auth.error) return auth.error;
+      if (auth.user.app_metadata?.role !== "pos_admin") {
+        return json({ error: "Admin access required." }, 403);
+      }
+    }
+
     if (action === "admin_list_users") {
       const { data, error } = await admin
         .from("store_accounts")
