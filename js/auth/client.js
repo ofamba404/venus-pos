@@ -10,7 +10,7 @@
   if (!cfg) return;
 
   const ROLES = cfg.roles || { admin: 'pos_admin', staff: 'pos_staff' };
-  const STAFF_PAGES = new Set(cfg.staffPages || ['home', 'inventory']);
+  const STAFF_PAGES = new Set(cfg.staffPages || ['home', 'inventory', 'delivery', 'history']);
   const AUTH_TIMEOUT_MS = 6000;
   const REFRESH_SKEW_S = 60;
   const REFRESH_POLL_MS = 30_000;

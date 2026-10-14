@@ -206,6 +206,16 @@ function wireSignOut() {
       /* ignore */
     }
     try {
+      // Stop order alerts on this device for the signed-out user (needs the session, so first).
+      const { syncWebPushPrefs } = await import('./notifications.js');
+      await Promise.race([
+        syncWebPushPrefs({ unsubscribe: true }),
+        new Promise((r) => setTimeout(r, 2500)),
+      ]);
+    } catch {
+      /* ignore */
+    }
+    try {
       await window.VenusPosAuth?.signOut?.();
     } catch {
       /* still leave */

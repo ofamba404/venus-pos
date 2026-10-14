@@ -377,7 +377,13 @@ export function renderOrderHistory() {
   wireHeaderBodyAccordions(list, { headerSelector: '.order-week-header' });
   wireHeaderBodyAccordions(list, { headerSelector: '.order-day-header' });
 
+  const staffReadOnly = window.VenusPosAuth?.isStaffOnly?.() === true;
   list.querySelectorAll('[data-edit-sale]').forEach((btn) => {
+    if (staffReadOnly) {
+      btn.classList.add('is-readonly');
+      btn.setAttribute('aria-disabled', 'true');
+      return;
+    }
     btn.addEventListener('click', async () => {
       const { openEditSale } = await import('./analytics.js');
       openEditSale(btn.dataset.editSale);

@@ -7,18 +7,33 @@ import { env, json, sendToAllStaff } from './_shared/push.mjs';
  *
  * Body: { type, title, body?, url?, tag?, requireInteraction? }
  *
- * Optional Netlify env `PUSH_NOTIFY_SECRET` — when set, require header
- * `X-Venus-Push-Secret`. Leave unset for open notify (small-shop default).
+ * Requires Netlify env `PUSH_NOTIFY_SECRET` + matching `X-Venus-Push-Secret` header
+ * (sent server-side by the storefront's /api/pos-alert function). Fails closed.
+ *
+ * Audience: storefront-order / order-cancelled → every POS device (admin + staff);
+ * everything else (signups, reviews, …) → admin devices only.
  */
+const ALL_STAFF_TYPES = new Set(['storefront-order', 'order-cancelled']);
+
+async function orderExists(orderId) {
+  const url = (env('SUPABASE_URL') || 'https://xiangrykfxlnacthjcad.supabase.co').replace(/\/$/, '');
+  const key = env('SUPABASE_SERVICE_ROLE_KEY');
+  if (!key) return true; // cannot verify; secret already checked
+  const res = await fetch(
+    `${url}/rest/v1/store_orders?id=eq.${encodeURIComponent(orderId)}&select=id`,
+    { headers: { apikey: key, Authorization: `Bearer ${key}` } },
+  ).catch(() => null);
+  if (!res?.ok) return true; // fail open on lookup errors so real orders still alert
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) && rows.length > 0;
+}
 export default async (req) => {
   if (req.method === 'OPTIONS') return json({ ok: true });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   const secret = env('PUSH_NOTIFY_SECRET');
-  if (secret) {
-    const provided = req.headers.get('x-venus-push-secret') || '';
-    if (provided !== secret) return json({ error: 'Unauthorized' }, 401);
-  }
+  const provided = req.headers.get('x-venus-push-secret') || '';
+  if (!secret || provided !== secret) return json({ error: 'Unauthorized' }, 401);
 
   let body;
   try {
@@ -40,7 +55,16 @@ export default async (req) => {
     body.url ||
     (orderId ? `/#load-store-order=${encodeURIComponent(orderId)}` : '/#store-orders');
 
+  if (body.dryRun === true) {
+    return json({ ok: true, dryRun: true, type, audience: ALL_STAFF_TYPES.has(type) ? 'all' : 'admin' });
+  }
+
+  if (ALL_STAFF_TYPES.has(type) && orderId && !(await orderExists(orderId))) {
+    return json({ error: 'Unknown order' }, 404);
+  }
+
   const result = await sendToAllStaff({
+    audience: ALL_STAFF_TYPES.has(type) ? 'all' : 'admin',
     type,
     title: body.title,
     body: body.body || '',

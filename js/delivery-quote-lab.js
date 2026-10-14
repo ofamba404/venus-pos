@@ -265,6 +265,11 @@ function reminderStatusHtml() {
 export function renderQuoteLab() {
   const root = document.getElementById('deliveryTestBench');
   if (!root) return;
+  if (window.VenusPosAuth?.isStaffOnly?.() === true) {
+    root.hidden = true;
+    root.innerHTML = '';
+    return;
+  }
 
   const coverage = analyzeCoverage(deliveries);
   selectedDropId = preferNextDrop(coverage);

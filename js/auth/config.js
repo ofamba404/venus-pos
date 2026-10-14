@@ -17,6 +17,6 @@ window.VENUS_POS = {
     staff: 'pos_staff',
   },
   /** Pages staff may open. Admin sees every page. */
-  staffPages: ['home', 'inventory'],
+  staffPages: ['home', 'inventory', 'delivery', 'history'],
   authGateEnabled: true,
 };

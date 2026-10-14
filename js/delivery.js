@@ -59,10 +59,39 @@ export function restoreDeliveriesFromCache() {
 }
 
 export async function loadDeliveries() {
+  if (window.VenusPosAuth?.isStaffOnly?.() === true) void loadSharedQuoteRows();
   await dataStore.fetch('deliveries');
 }
 
+/** Staff only see their own deliveries (RLS); fit the fee model on the shared quote view instead. */
+let sharedQuoteRows = null;
+let sharedQuotePromise = null;
+let sharedQuoteModel = null;
+function loadSharedQuoteRows() {
+  if (sharedQuotePromise) return sharedQuotePromise;
+  sharedQuotePromise = sbFetch('delivery_fee_quotes?select=*&order=created_at.desc&limit=500')
+    .then((res) => (res.ok ? res.json() : []))
+    .then((rows) => {
+      sharedQuoteRows = Array.isArray(rows) ? rows : [];
+      sharedQuoteModel = null;
+      return sharedQuoteRows;
+    })
+    .catch(() => {
+      sharedQuoteRows = [];
+      return sharedQuoteRows;
+    });
+  return sharedQuotePromise;
+}
+
 export function getDeliveryFeeModel() {
+  if (window.VenusPosAuth?.isStaffOnly?.() === true) {
+    if (sharedQuoteRows == null) {
+      void loadSharedQuoteRows();
+      return fitDeliveryFeeModel(deliveries);
+    }
+    if (!sharedQuoteModel) sharedQuoteModel = fitDeliveryFeeModel(sharedQuoteRows);
+    return sharedQuoteModel;
+  }
   return fitDeliveryFeeModel(deliveries);
 }
 
@@ -471,7 +500,13 @@ function renderDeliveryLog(model) {
 
   wireHeaderBodyAccordions(listEl, { headerSelector: '.delivery-day-header' });
 
+  const staffReadOnly = window.VenusPosAuth?.isStaffOnly?.() === true;
   listEl.querySelectorAll('[data-edit-delivery]').forEach((btn) => {
+    if (staffReadOnly) {
+      btn.classList.add('is-readonly');
+      btn.setAttribute('aria-disabled', 'true');
+      return;
+    }
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       openEditDelivery(btn.dataset.editDelivery);

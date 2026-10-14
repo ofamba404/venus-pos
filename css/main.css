@@ -10111,3 +10111,6 @@
 .commission-table th, .commission-table td { padding: 4px 0; text-align: right; }
 .commission-table th[scope="row"], .commission-table thead th:first-child { text-align: left; font-weight: 500; }
 .commission-pay { margin-top: 10px; width: 100%; padding: 10px; border: 0; border-radius: 10px; background: #059669; color: #fff; font-weight: 700; }
+
+/* Staff: read-only rows on Delivery / History */
+.delivery-trip.is-readonly, .receipt-order.is-readonly { cursor: default; }
