@@ -25,6 +25,8 @@ export const PAGE_TEMPLATES = {
 
       <section class="hours-card" id="hoursWidget" aria-label="Busy until"></section>
 
+      <section class="commission-card" id="commissionCard" aria-label="Commission" hidden></section>
+
       <div class="stock-card stock-summary" id="stockGlance" tabindex="0" aria-label="View inventory">
         <div class="sg-joints">
           <div class="donut-container mini">

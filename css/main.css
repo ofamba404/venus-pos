@@ -10097,3 +10097,17 @@
 #invGrid.is-readonly button.step { display: none; }
 #invGrid.is-readonly .count { cursor: default; }
 .inv-readonly-note { margin: 0 0 12px; font-size: 13px; opacity: .75; }
+
+/* Commission card */
+.commission-card { background: var(--card, #fff); border-radius: 16px; padding: 14px 16px; margin: 12px 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.commission-title { font-size: 15px; font-weight: 700; margin: 0 0 8px; }
+.commission-staff + .commission-staff { border-top: 1px solid rgba(0,0,0,.08); margin-top: 12px; padding-top: 12px; }
+.commission-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.commission-name { font-weight: 700; }
+.commission-sub, .commission-note, .commission-balance__lbl { font-size: 12px; opacity: .7; }
+.commission-balance { text-align: right; }
+.commission-balance__val { font-size: 18px; font-weight: 800; }
+.commission-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.commission-table th, .commission-table td { padding: 4px 0; text-align: right; }
+.commission-table th[scope="row"], .commission-table thead th:first-child { text-align: left; font-weight: 500; }
+.commission-pay { margin-top: 10px; width: 100%; padding: 10px; border: 0; border-radius: 10px; background: #059669; color: #fff; font-weight: 700; }

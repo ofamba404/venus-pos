@@ -34,6 +34,10 @@ const loaders = {
       onActivate: () => {
         void refreshHoursWidget();
         renderHoursWidget();
+        void import('../commission.js').then(({ renderCommissionCard, wireCommissionCard }) => {
+          wireCommissionCard();
+          return renderCommissionCard();
+        });
       },
     };
   },
