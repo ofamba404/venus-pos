@@ -230,6 +230,11 @@ export default async (req) => {
 
   const user = await requireStaffUser(req, { url, anonKey });
   if (!user) return json({ error: 'Unauthorized' }, 401);
+  const role = user.app_metadata?.role;
+  if (role !== 'pos_admin' && role !== 'pos_staff') {
+    return json({ error: 'Forbidden' }, 403);
+  }
+  const isAdmin = role === 'pos_admin';
 
   const body = await readJsonBody(req);
   if (!body || typeof body !== 'object') {
@@ -239,6 +244,18 @@ export default async (req) => {
   const op = String(body?.op || 'set').toLowerCase();
 
   try {
+    if ((op === 'ensure' || op === 'list') && !isAdmin) {
+      // Staff: read-only. Sale deductions go through rpc apply_sale_stock.
+      const ids = [...ALLOWED];
+      const rows = await readRows(url, serviceKey, ids);
+      const byId = Object.fromEntries(rows.map((r) => [r.category_id, clampStock(r.stock)]));
+      return json({ ok: true, rows: ids.map((category_id) => ({ category_id, stock: byId[category_id] || 0 })) });
+    }
+
+    if (!isAdmin) {
+      return json({ error: 'Staff inventory is read-only' }, 403);
+    }
+
     if (op === 'ensure' || op === 'list') {
       const rows = await ensureRows(url, serviceKey);
       return json({ ok: true, rows });
@@ -254,12 +271,30 @@ export default async (req) => {
     }
 
     let stock;
+    let delta;
     if (op === 'delta') {
-      stock = await applyDelta(url, serviceKey, categoryId, body?.delta);
+      delta = Math.trunc(Number(body?.delta) || 0);
+      stock = await applyDelta(url, serviceKey, categoryId, delta);
     } else if (op === 'set') {
+      const before = (await readRows(url, serviceKey, [categoryId]))[0];
       stock = await upsertStock(url, serviceKey, categoryId, clampStock(body?.stock));
+      delta = stock - (before ? clampStock(before.stock) : 0);
     } else {
       return json({ error: `Unknown op: ${op}` }, 400);
+    }
+    if (delta) {
+      // Best-effort audit row; never block the stock write on it.
+      await restJson(url, serviceKey, 'inventory_adjustments', {
+        method: 'POST',
+        body: {
+          user_id: user.id,
+          category_id: categoryId,
+          delta,
+          stock_after: stock,
+          reason: op === 'set' ? 'set' : String(body?.reason || 'manual').slice(0, 40),
+          sale_id: body?.sale_id || null,
+        },
+      }).catch(() => null);
     }
     return json({ ok: true, category_id: categoryId, stock });
   } catch (err) {

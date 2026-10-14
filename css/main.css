@@ -10092,3 +10092,8 @@
   color: var(--text-dim);
   font-size: 0.95rem;
 }
+
+/* Staff: inventory is view-only */
+#invGrid.is-readonly button.step { display: none; }
+#invGrid.is-readonly .count { cursor: default; }
+.inv-readonly-note { margin: 0 0 12px; font-size: 13px; opacity: .75; }

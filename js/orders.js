@@ -2247,9 +2247,9 @@ function addConfiguredItemToCart() {
   renderOrderModal();
 }
 
-async function patchInventoryRemote(soldById) {
+async function patchInventoryRemote(soldById, saleId) {
   const { persistSoldBreakdown } = await import('./inventory.js');
-  await persistSoldBreakdown(soldById);
+  await persistSoldBreakdown(soldById, saleId);
 }
 
 async function resolveCheckoutClientId(orderClientName) {
@@ -2316,7 +2316,7 @@ async function finishCheckoutBackground({
 
   if (soldById && Object.keys(soldById).length) {
     try {
-      await patchInventoryRemote(soldById);
+      await patchInventoryRemote(soldById, saleId);
       void dataStore.persistCurrent('inventory');
     } catch (e) {
       console.error('inventory sync failed', e);
