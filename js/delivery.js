@@ -238,7 +238,7 @@ function renderDeliveryModel(model) {
       <div class="dl-model-card empty">
         <div class="dl-model-icon" aria-hidden="true">${ICON_ROUTE}</div>
         <div class="dl-model-title">Decode SafeBoda pricing</div>
-        <div class="dl-model-copy">Log SafeBoda quotes at checkout or use the Quote lab below with preset routes from Prisca Honey. Venus fits distance, travel time, and time of day so estimates stay accurate day and night.</div>
+        <div class="dl-model-copy">Log SafeBoda quotes at checkout or use the Quote lab below with preset routes from Pine Valley. Venus fits distance, travel time, and time of day so estimates stay accurate day and night.</div>
         ${
           sampleCount > 0
             ? `<div class="dl-progress">
