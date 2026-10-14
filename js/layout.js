@@ -58,6 +58,10 @@ function fabMenuActionItems(currentPage, isAdmin) {
       <span class="fab-badge" id="debugBadge" style="display:none;">0</span>
     </button>`);
   }
+  items.push(`<a class="fab-menu-item fab-menu-item--action" id="changePasswordBtn" href="${getAssetHref('').replace(/assets\/?$/, '')}auth.html?change=1" aria-label="Change password" title="Change password">
+    ${iconSvg(ACTION_ICONS.signOut)}
+    <span class="fab-menu-item-label">Change password</span>
+  </a>`);
   items.push(`<button class="fab-menu-item fab-menu-item--action fab-menu-item--danger" id="signOutBtn" aria-label="Sign out" title="Sign out" type="button">
     ${iconSvg(ACTION_ICONS.signOut)}
     <span class="fab-menu-item-label">Sign out</span>
