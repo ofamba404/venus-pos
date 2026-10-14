@@ -151,7 +151,9 @@ Deno.serve(async (req: Request) => {
     if (action.startsWith("admin_")) {
       const auth = await requireUser();
       if (auth.error) return auth.error;
-      if (auth.user.app_metadata?.role !== "pos_admin") {
+      const role = auth.user.app_metadata?.role;
+      const staffAllowed = action === "admin_list_pos_labels" && role === "pos_staff";
+      if (role !== "pos_admin" && !staffAllowed) {
         return json({ error: "Admin access required." }, 403);
       }
     }

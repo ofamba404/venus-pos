@@ -119,13 +119,24 @@ function setTab(tab, { syncHash = true } = {}) {
   }
 }
 
+/** Signed-in POS session token — store-auth admin actions require it. */
+async function sessionToken() {
+  const token =
+    (await window.VenusPosAuth?.getAccessToken?.().catch(() => '')) ||
+    window.VenusPosAuth?.peekAccessToken?.() ||
+    '';
+  if (!token) throw new Error('Session expired — sign in again');
+  return token;
+}
+
 async function storeAuth(action, body = {}) {
+  const token = await sessionToken();
   const res = await fetch(STORE_AUTH_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       apikey: SUPABASE_ANON_JWT,
-      Authorization: `Bearer ${SUPABASE_ANON_JWT}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ action, ...body }),
     cache: 'no-store',
