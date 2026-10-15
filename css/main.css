@@ -10192,3 +10192,11 @@ html.pos-staff [data-product="cookie_wholesale"] { display: none !important; }
 .sa2-list li { display: flex; justify-content: space-between; padding: 10px 0; font-size: 15px; color: var(--text); }
 .sa2-list li + li { border-top: 1px solid var(--panel-edge-subtle); }
 .sa2-empty { font-size: 14px; color: var(--text-dim); margin: 0; }
+
+/* Staff Home: swipeable product carousels */
+#productList.is-staff-carousel { display: flex; flex-direction: column; gap: 18px; }
+.staff-carousel__label { font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; margin: 0 2px 8px; }
+.staff-carousel__track { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scrollbar-width: none; padding: 2px 2px 8px; margin: 0 -2px; scroll-padding-left: 2px; }
+.staff-carousel__track::-webkit-scrollbar { display: none; }
+.staff-carousel__track > .product-row { flex: 0 0 72%; max-width: 260px; min-height: 104px; scroll-snap-align: start; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; margin: 0; text-align: left; }
+.staff-carousel__track > .product-row .p-right { align-self: stretch; text-align: left; margin-top: 10px; }
