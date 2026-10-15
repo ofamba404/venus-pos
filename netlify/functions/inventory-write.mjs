@@ -20,7 +20,6 @@ const CATEGORY_META = {
   coconut: { display_name: 'Coconut', category_sub: '', color: '#ffffff' },
   melon: { display_name: 'Melon', category_sub: '', color: '#ff8c1a' },
   classic: { display_name: 'Plain', category_sub: '', color: '#e3cba7' },
-  spliff5050: { display_name: 'Bangis', category_sub: '50/50', color: '#ffd400' },
   spliff7030: { display_name: 'Bangis', category_sub: '70/30', color: '#FFFFA5' },
   cookie_butterscotch: { display_name: 'Butterscotch', category_sub: 'Cookie', color: '#D4A355' },
   cookie_chocolate: { display_name: 'Chocolate', category_sub: 'Cookie', color: '#5c2e1f' },

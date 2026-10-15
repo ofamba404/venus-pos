@@ -110,14 +110,19 @@ export const CATEGORIES = [
   { id: 'coconut', name: 'Coconut', sub: '', color: '#ffffff' },
   { id: 'melon', name: 'Melon', sub: '', color: '#ff8c1a' },
   { id: 'classic', name: 'Plain', sub: '', color: '#e3cba7' },
-  { id: 'spliff5050', name: 'Bangis', sub: '50/50', color: '#ffd400' },
   { id: 'spliff7030', name: 'Bangis', sub: '70/30', color: '#FFFFA5' },
   ...COOKIE_CATEGORIES,
 ];
 
-export const CAT_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
+/** Discontinued categories — never sold/stocked, kept only so past sales display and report. */
+export const LEGACY_CATEGORIES = [
+  { id: 'spliff5050', name: 'Bangis', sub: '50/50', color: '#ffd400', legacy: true },
+];
+/** Active + legacy, for sales reports over history. */
+export const REPORT_CATEGORIES = [...CATEGORIES, ...LEGACY_CATEGORIES];
+export const CAT_MAP = Object.fromEntries(REPORT_CATEGORIES.map((c) => [c.id, c]));
 export const FLAVOR_POOL = ['mint', 'strawberry', 'blueberry', 'watermelon', 'grape', 'coconut', 'melon'];
-export const SPLIFF_POOL = ['spliff5050', 'spliff7030'];
+export const SPLIFF_POOL = ['spliff7030'];
 /** POS inventory keys for cookie flavors — order matches COOKIE_FLAVORS. */
 export const COOKIE_FLAVOR_POOL = COOKIE_CATEGORIES.map((c) => c.id);
 /** Non-butterscotch cookie flavors — Duet picks 2; Trio picks 3. */

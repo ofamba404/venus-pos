@@ -1,6 +1,6 @@
 import { dataStore } from './store/index.js';
 import { sbDelete, sbFetch } from './api.js';
-import { CATEGORIES, COOKIE_FLAVORS, COOKIE_OWNER_SHARE, COOKIE_STOCK_CAPACITY, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName, normalizeInventoryBreakdown } from './config.js';
+import { CATEGORIES, REPORT_CATEGORIES, COOKIE_FLAVORS, COOKIE_OWNER_SHARE, COOKIE_STOCK_CAPACITY, LOW_STOCK_THRESHOLD, isCookieCategoryId, cookieLineDisplayName, normalizeInventoryBreakdown } from './config.js';
 import {
   buildLineFromConfig,
   clearManualQtyEdit,
@@ -1040,8 +1040,8 @@ function renderInsightLists() {
         .filter(Boolean)
         .sort((a, b) => b.revenue - a.revenue);
 
-    const jointRows = toRows(CATEGORIES.filter((c) => !isCookieCategoryId(c.id)));
-    const cookieRows = toRows(CATEGORIES.filter((c) => isCookieCategoryId(c.id)));
+    const jointRows = toRows(REPORT_CATEGORIES.filter((c) => !isCookieCategoryId(c.id)));
+    const cookieRows = toRows(REPORT_CATEGORIES.filter((c) => isCookieCategoryId(c.id)));
 
     const jointBars =
       jointRows.length === 0
