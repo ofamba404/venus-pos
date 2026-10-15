@@ -10114,3 +10114,4 @@
 
 /* Staff: read-only rows on Delivery / History */
 .delivery-trip.is-readonly, .receipt-order.is-readonly { cursor: default; }
+.commission-split { margin-top: 4px; opacity: .85; }

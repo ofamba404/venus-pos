@@ -4,6 +4,7 @@ import { wireDebugPanel } from './debug.js';
 import { mountShell } from './layout.js';
 import { wireOrders } from './orders.js';
 import { bootPwa } from './pwa.js';
+import { loadCookieEconomics } from './cookie-economics.js';
 import { startReviewsRuntime } from './reviews.js';
 import { startStoreOrdersRuntime } from './store-orders.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -51,6 +52,7 @@ export async function finishAppInit() {
 
 export async function initApp(page) {
   mountAppOnce(page);
+  void loadCookieEconomics();
   await finishAppInit();
 }
 

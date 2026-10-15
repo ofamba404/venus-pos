@@ -1,6 +1,7 @@
 /**
  * Commission card (home page).
- *   pos_staff — "My commission": earned / paid / balance for week, month, all time.
+ *   pos_staff — "My commission": earned / paid / balance for week, month, all time,
+ *               with a joints-vs-cookies earned breakdown (credit counts once paid).
  *   pos_admin — per-staff summary + "Record payout" (writes staff_settlements).
  * Data: views staff_commission_summary (RLS-scoped) and rpc pos_staff_directory.
  */
@@ -22,6 +23,10 @@ function statRow(label, earned, paid) {
   return `<tr><th scope="row">${label}</th><td>${fmtUGX(earned)}</td><td>${fmtUGX(paid)}</td></tr>`;
 }
 
+function splitRow(label, joints, cookies) {
+  return `<tr><th scope="row">${label}</th><td>${fmtUGX(joints || 0)}</td><td>${fmtUGX(cookies || 0)}</td></tr>`;
+}
+
 function staffBlock(row, name, isAdmin) {
   const rate = Math.round(Number(row.rate || 0) * 100);
   return `
@@ -29,7 +34,7 @@ function staffBlock(row, name, isAdmin) {
       <div class="commission-head">
         <div>
           <div class="commission-name">${escapeHtml(name)}</div>
-          <div class="commission-sub">${rate}% of joint profit · ${Number(row.joint_units_all || 0)} joints</div>
+          <div class="commission-sub">${rate}% of joint profit · ${rate}% of your cookie share · ${Number(row.joint_units_all || 0)} joints · ${Number(row.cookie_units_all || 0)} cookies</div>
         </div>
         <div class="commission-balance">
           <div class="commission-balance__val">${fmtUGX(row.balance)}</div>
@@ -42,6 +47,14 @@ function staffBlock(row, name, isAdmin) {
           ${statRow('This week', row.earned_week, row.paid_week)}
           ${statRow('This month', row.earned_month, row.paid_month)}
           ${statRow('All time', row.earned_all, row.paid_all)}
+        </tbody>
+      </table>
+      <table class="commission-table commission-split">
+        <thead><tr><th></th><th scope="col">Joints</th><th scope="col">Cookies</th></tr></thead>
+        <tbody>
+          ${splitRow('This week', row.joint_earned_week, row.cookie_earned_week)}
+          ${splitRow('This month', row.joint_earned_month, row.cookie_earned_month)}
+          ${splitRow('All time', row.joint_earned_all, row.cookie_earned_all)}
         </tbody>
       </table>
       ${Number(row.pending_credit) > 0 ? `<p class="commission-note">+ ${fmtUGX(row.pending_credit)} pending on unpaid credit sales</p>` : ''}

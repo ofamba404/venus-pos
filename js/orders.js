@@ -1704,6 +1704,10 @@ function wireCartItemButtons(root) {
       const idx = currentCart.findIndex((i) => i.key === key);
       if (idx === -1) return;
       const item = currentCart[idx];
+      if (!PRODUCTS.some((p) => p.id === item.productId)) {
+        showToast('This product is discontinued — remove the line instead of editing it.', true);
+        return;
+      }
       editingCartKey = key;
       editingCartItem = { ...item, breakdown: { ...item.breakdown } };
       configProduct = PRODUCTS.find((p) => p.id === item.productId);

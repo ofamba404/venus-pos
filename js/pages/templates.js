@@ -104,15 +104,6 @@ export const PAGE_TEMPLATES = {
             <div class="pprice">UGX 21,000</div>
           </div>
         </button>
-        <button class="product-row" type="button" data-product="cookie_quartet">
-          <div>
-            <div class="pname">Cookie Quartet</div>
-            <div class="pcount">4 cookies</div>
-          </div>
-          <div class="p-right">
-            <div class="pprice">UGX 25,000</div>
-          </div>
-        </button>
         <button class="product-row" type="button" data-product="plain_single">
           <div>
             <div class="pname">Plain</div>

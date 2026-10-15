@@ -20,7 +20,7 @@ export function findProduct(productId) {
   return PRODUCTS.find((p) => p.id === productId);
 }
 
-/** Fixed flavor for choose_variety packs (Plain for joints; butterscotch for Cookie Quartet). */
+/** Fixed flavor for choose_variety packs (Plain for joints; fixedFlavor when a pack defines one). */
 export function varietyFixedFlavor(product) {
   return product?.fixedFlavor || 'classic';
 }

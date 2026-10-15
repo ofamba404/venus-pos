@@ -50,6 +50,7 @@ function cookieProductKind(item) {
     .replace(/-/g, '_');
   const name = String(item?.product_name || item?.name || '').toLowerCase();
   if (id.includes('wholesale') || name.includes('wholesale')) return 'wholesale';
+  // Discontinued Cookie Quartet: kept so historical sales still settle/report.
   if (id.includes('quartet') || name.includes('quartet')) return 'quartet';
   if (id.includes('trio') || name.includes('trio')) return 'trio';
   if (id.includes('duet') || name.includes('duet')) return 'duet';
