@@ -151,9 +151,7 @@ function commissionSection() {
             )
             .join('')}</ul>`
         : '<p class="sa-empty">No payouts yet.</p>'
-    }
-    <div class="section-title">Commission per item</div>
-    ${rateTable(rate, commissionData.jointCosts, commissionData.cookieCosts, COOKIE_OWNER_SHARE)}`;
+    }`;
 }
 
 function salesSection() {
@@ -217,10 +215,96 @@ function salesSection() {
     ${hbars(topFlavors)}`;
 }
 
+function weekSales(sales) {
+  const cutoff = Date.now() - 7 * 86400000;
+  return sales.filter((s) => new Date(s.created_at).getTime() >= cutoff);
+}
+
+function v2Hero(r) {
+  if (!r) return `<section class="sa2-hero"><div class="sa2-hero__lbl">Commission</div><div class="sa2-hero__empty">No commission rate set yet.</div></section>`;
+  const j = Number(r.joint_earned_all) || 0;
+  const c = Number(r.cookie_earned_all) || 0;
+  const jp = j + c > 0 ? Math.round((j / (j + c)) * 100) : 50;
+  return `<section class="sa2-hero">
+      <div class="sa2-hero__lbl">Balance owed to you</div>
+      <div class="sa2-hero__val">${fmtUGX(r.balance)}</div>
+      <div class="sa2-hero__sub">${fmtUGX(r.earned_week)} earned this week${Number(r.pending_credit) > 0 ? ` · ${fmtUGX(r.pending_credit)} pending credit` : ''}</div>
+      <div class="sa2-split" aria-label="Joints vs cookies, all time">
+        <div class="sa2-split__bar"><span style="width:${jp}%"></span></div>
+        <div class="sa2-split__legend"><span><i class="j"></i>Joints ${fmtUGX(j)}</span><span><i class="c"></i>Cookies ${fmtUGX(c)}</span></div>
+      </div>
+    </section>`;
+}
+
+function v2Tile(label, value) {
+  return `<div class="sa2-tile"><div class="sa2-tile__val">${value}</div><div class="sa2-tile__lbl">${label}</div></div>`;
+}
+
+function v2Chart(sales) {
+  const now = Date.now();
+  const days = [];
+  for (let i = 6; i >= 0; i -= 1) {
+    const d = new Date(now - i * 86400000);
+    days.push({ key: kampalaDayKey(d), label: d.toLocaleDateString(undefined, { weekday: 'narrow', timeZone: KAMPALA }), value: 0 });
+  }
+  const idx = new Map(days.map((d, k) => [d.key, k]));
+  for (const s of sales) {
+    const k = idx.get(kampalaDayKey(s.created_at));
+    if (k != null) days[k].value += 1;
+  }
+  const max = Math.max(1, ...days.map((d) => d.value));
+  return `<section class="sa2-section">
+      <h3 class="sa2-h">Sales · last 7 days</h3>
+      <div class="sa2-chart">${days
+        .map(
+          (d, k) => `<div class="sa2-col${k === 6 ? ' is-today' : ''}"><span class="sa2-col__n">${d.value || ''}</span><span class="sa2-col__bar" style="height:${Math.max(4, Math.round((d.value / max) * 100))}%"></span><span class="sa2-col__d">${escapeHtml(d.label)}</span></div>`,
+        )
+        .join('')}</div>
+    </section>`;
+}
+
+function v2TopProducts(sales) {
+  const m = new Map();
+  for (const s of sales) for (const it of Array.isArray(s.items) ? s.items : []) {
+    const n = it?.product_name || it?.product_id || 'Item';
+    m.set(n, (m.get(n) || 0) + (Number(it?.quantity) || 1));
+  }
+  const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  return `<section class="sa2-section">
+      <h3 class="sa2-h">Top products</h3>
+      ${top.length ? `<ol class="sa2-list">${top.map(([n, q]) => `<li><span>${escapeHtml(n)}</span><span class="sa2-dim">${q} sold</span></li>`).join('')}</ol>` : '<p class="sa2-empty">No sales yet</p>'}
+    </section>`;
+}
+
+function v2Payouts(r, payouts) {
+  const list = (payouts || []).slice(0, 3);
+  return `<section class="sa2-section">
+      <h3 class="sa2-h">Payouts${r ? `<span class="sa2-dim">${fmtUGX(r.paid_all)} of ${fmtUGX(r.earned_all)} paid</span>` : ''}</h3>
+      ${list.length ? `<ul class="sa2-list">${list.map((p) => `<li><span>${new Date(p.paid_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: KAMPALA })}</span><span>${fmtUGX(p.amount_ugx)}</span></li>`).join('')}</ul>` : '<p class="sa2-empty">No payouts yet</p>'}
+    </section>`;
+}
+
 export function paintStaffAnalytics() {
   const el = document.getElementById('staffAnalytics');
   if (!el) return;
-  el.innerHTML = `<div class="section-title">My commission</div>${commissionSection()}${salesSection()}`;
+  const r = commissionData?.summary || null;
+  const sales = mySales();
+  const wk = weekSales(sales);
+  const total = sales.reduce((n, s) => n + (Number(s.total_ugx) || 0), 0);
+  const dels = myDeliveries();
+  el.innerHTML = `
+    <div class="sa2">
+      ${commissionData ? v2Hero(r) : '<section class="sa2-hero"><div class="sa2-hero__lbl">Balance owed to you</div><div class="sa2-hero__val sa2-skel">—</div></section>'}
+      <div class="sa2-tiles">
+        ${v2Tile('Earned this month', r ? fmtCompact(r.earned_month) : '—')}
+        ${v2Tile('Sales this week', wk.length)}
+        ${v2Tile('Average order', sales.length ? fmtCompact(Math.round(total / sales.length)) : '—')}
+        ${v2Tile('Deliveries', dels.length)}
+      </div>
+      ${v2Chart(sales)}
+      ${v2TopProducts(sales)}
+      ${commissionData ? v2Payouts(r, commissionData.payouts) : ''}
+    </div>`;
 }
 
 export function renderStaffAnalytics() {

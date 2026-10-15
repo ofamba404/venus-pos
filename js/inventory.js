@@ -506,6 +506,7 @@ export function renderInventoryGrid() {
     }
     invGrid.appendChild(card);
   });
+  if (readOnly) invGrid.parentElement?.querySelectorAll('.page-hint').forEach((el) => el.remove());
   if (readOnly && !document.getElementById('invReadonlyNote')) {
     const note = document.createElement('p');
     note.id = 'invReadonlyNote';

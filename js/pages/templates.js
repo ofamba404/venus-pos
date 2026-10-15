@@ -228,6 +228,10 @@ export const PAGE_TEMPLATES = {
 
 /** pos_staff-only page bodies (admin always gets PAGE_TEMPLATES). */
 export const STAFF_PAGE_TEMPLATES = {
+  // No stock-editing hint for staff (inventory is read-only for them).
+  inventory: `
+    <div class="grid" id="invGrid"></div>
+  `,
   analytics: `
     <div class="staff-analytics" id="staffAnalytics"></div>
   `,

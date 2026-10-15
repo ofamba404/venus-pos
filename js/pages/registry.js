@@ -29,8 +29,8 @@ const loaders = {
     return {
       wire: () => {
         wireHomePage();
-        // Staff: commission card on first load too (admin keeps its existing behaviour).
-        if (window.VenusPosAuth?.isStaffOnly?.() === true) {
+        // Commission card on first load (onActivate only runs on return visits).
+        {
           void import('../commission.js').then(({ renderCommissionCard, wireCommissionCard }) => {
             wireCommissionCard();
             return renderCommissionCard();

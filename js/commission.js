@@ -24,14 +24,13 @@ function statRow(label, earned, paid) {
   return `<tr><th scope="row">${label}</th><td>${fmtUGX(earned)}</td><td>${fmtUGX(paid)}</td></tr>`;
 }
 
-/** Staff home: minimal — balance owed + this week, details live on the staff Analytics page. */
+/** Staff home: minimal — balance owed, details live on the staff Analytics page. */
 function staffMiniCard(row) {
   return `
     <div class="commission-mini">
       <div class="commission-mini__main">
-        <div class="commission-mini__lbl">Commission owed</div>
         <div class="commission-mini__val">${fmtUGX(row.balance)}</div>
-        <div class="commission-mini__sub">${fmtUGX(row.earned_week)} earned this week</div>
+        <div class="commission-mini__lbl">Commission owed</div>
       </div>
       <a class="commission-mini__link" href="${getPageHref('analytics')}" data-spa-page="analytics">See details ›</a>
     </div>`;
