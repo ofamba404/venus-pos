@@ -6,6 +6,7 @@
  * Data: views staff_commission_summary (RLS-scoped) and rpc pos_staff_directory.
  */
 import { sbFetch } from './api.js';
+import { getPageHref } from './config.js';
 import { escapeHtml, fmtUGX, showToast } from './utils.js';
 
 let loading = null;
@@ -21,6 +22,19 @@ async function getJson(path, options) {
 
 function statRow(label, earned, paid) {
   return `<tr><th scope="row">${label}</th><td>${fmtUGX(earned)}</td><td>${fmtUGX(paid)}</td></tr>`;
+}
+
+/** Staff home: minimal — balance owed + this week, details live on the staff Analytics page. */
+function staffMiniCard(row) {
+  return `
+    <div class="commission-mini">
+      <div class="commission-mini__main">
+        <div class="commission-mini__lbl">Commission owed</div>
+        <div class="commission-mini__val">${fmtUGX(row.balance)}</div>
+        <div class="commission-mini__sub">${fmtUGX(row.earned_week)} earned this week</div>
+      </div>
+      <a class="commission-mini__link" href="${getPageHref('analytics')}" data-spa-page="analytics">See details ›</a>
+    </div>`;
 }
 
 function splitRow(label, joints, cookies) {
@@ -111,6 +125,10 @@ export async function renderCommissionCard({ force = false } = {}) {
         return;
       }
       el.hidden = false;
+      if (isStaff) {
+        el.innerHTML = staffMiniCard(rows[0]);
+        return;
+      }
       el.innerHTML = `
         <h2 class="commission-title">${isAdmin ? 'Staff commission' : 'My commission'}</h2>
         ${rows.map((r) => staffBlock(r, isAdmin ? names[r.staff_id] || 'Staff' : 'You', isAdmin)).join('')}`;

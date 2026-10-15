@@ -79,6 +79,11 @@ export function productPickButtonHtml(p) {
     </button>`;
 }
 
+/** Staff (pos_staff) cannot sell wholesale cookies; admin unaffected. */
+export function staffBlocksProduct(productId) {
+  return productId === 'cookie_wholesale' && window.VenusPosAuth?.isStaffOnly?.() === true;
+}
+
 export function renderProductPickPanel() {
   return `
     <div class="pick-product-panel">
@@ -95,7 +100,7 @@ export function renderProductPickPanel() {
         </div>
       </section>
       ${
-        WHOLESALE_PRODUCTS.length
+        WHOLESALE_PRODUCTS.length && !staffBlocksProduct('cookie_wholesale')
           ? `<section class="pick-product-section" aria-label="Wholesale">
         <div class="pick-product-section-label">Wholesale</div>
         <div class="pick-product-list">
@@ -109,6 +114,10 @@ export function renderProductPickPanel() {
 
 export function wireProductPickButtons(root, onPick) {
   root.querySelectorAll('[data-product]').forEach((row) => {
+    if (staffBlocksProduct(row.dataset.product)) {
+      row.hidden = true;
+      return;
+    }
     row.addEventListener('click', () => onPick(row.dataset.product, row));
   });
 }

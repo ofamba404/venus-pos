@@ -33,6 +33,7 @@ import {
   itemToConfigSelection,
   productDetailLabel,
   productPickButtonHtml,
+  staffBlocksProduct,
   renderProductConfigView,
   renderProductPickPanel,
   varietyFixedFlavor,
@@ -2774,7 +2775,7 @@ export function renderProductList() {
   const productList = document.getElementById('productList');
   if (!productList) return;
 
-  productList.innerHTML = PRODUCTS.map((p) => productPickButtonHtml(p)).join('');
+  productList.innerHTML = PRODUCTS.filter((p) => !staffBlocksProduct(p.id)).map((p) => productPickButtonHtml(p)).join('');
 
   wireProductPickButtons(productList, (productId, row) => {
     pressButton(row);

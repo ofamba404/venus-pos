@@ -10115,3 +10115,48 @@
 /* Staff: read-only rows on Delivery / History */
 .delivery-trip.is-readonly, .receipt-order.is-readonly { cursor: default; }
 .commission-split { margin-top: 4px; opacity: .85; }
+
+/* ── Staff-only (pos_staff) ─────────────────────────── */
+html.pos-staff #hoursWidget { display: none !important; }
+html.pos-staff [data-page-view="inventory"] .page-hint { display: none; }
+html.pos-staff [data-product="cookie_wholesale"] { display: none !important; }
+.commission-mini { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.commission-mini__lbl { font-size: 12px; opacity: .65; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.commission-mini__val { font-size: 28px; font-weight: 800; line-height: 1.15; margin: 2px 0; }
+.commission-mini__sub { font-size: 13px; opacity: .7; }
+.commission-mini__link { font-size: 14px; font-weight: 700; color: inherit; text-decoration: none; padding: 8px 12px; border-radius: 999px; background: rgba(0,0,0,.06); white-space: nowrap; }
+.staff-analytics { display: flex; flex-direction: column; gap: 4px; }
+.sa-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; background: var(--card, #fff); border-radius: 16px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.sa-hero__val { font-size: 30px; font-weight: 800; }
+.sa-hero__lbl { font-size: 13px; opacity: .7; }
+.sa-hero__side { text-align: right; font-weight: 700; font-size: 14px; }
+.sa-hero__side span { display: block; font-weight: 400; font-size: 12px; opacity: .7; }
+.sa-commission th, .sa-commission td, .sa-rates th, .sa-rates td { padding: 6px 4px; }
+.sa-commission, .sa-rates { background: var(--card, #fff); border-radius: 12px; }
+.sa-note, .sa-empty { font-size: 12px; opacity: .7; margin: 6px 0; }
+.sa-payouts { list-style: none; margin: 0; padding: 0; }
+.sa-payouts li { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,.07); font-size: 14px; }
+.sa-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.sa-stat { background: var(--card, #fff); border-radius: 14px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.sa-stat__val { font-size: 20px; font-weight: 800; }
+.sa-stat__lbl { font-size: 12px; opacity: .7; }
+.sa-stat__sub { font-size: 12px; opacity: .55; }
+.sa-chart { margin-top: 8px; }
+.sa-chart__title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.sa-bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
+.sa-bar { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.sa-bar__track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+.sa-bar__fill { width: 100%; background: currentColor; opacity: .8; border-radius: 6px 6px 2px 2px; min-height: 2px; }
+.sa-bar__val { font-size: 11px; font-weight: 700; min-height: 14px; }
+.sa-bar__lbl { font-size: 10px; opacity: .6; white-space: nowrap; }
+.sa-hbars { display: flex; flex-direction: column; gap: 6px; }
+.sa-hbar { display: grid; grid-template-columns: 120px 1fr 40px; align-items: center; gap: 8px; font-size: 13px; }
+.sa-hbar__lbl { display: flex; align-items: center; gap: 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sa-hbar__lbl i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,.15); flex: none; }
+.sa-hbar__track { height: 8px; background: rgba(0,0,0,.06); border-radius: 99px; overflow: hidden; }
+.sa-hbar__track span { display: block; height: 100%; background: currentColor; opacity: .75; }
+.sa-hbar__val { text-align: right; font-weight: 700; }
+.sa-deliveries { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sa-delivery { background: var(--card, #fff); border-radius: 14px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.sa-delivery__top { display: flex; justify-content: space-between; font-weight: 700; }
+.sa-delivery__meta, .sa-delivery__sale { font-size: 12px; opacity: .7; margin-top: 2px; }

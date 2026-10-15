@@ -10,7 +10,7 @@
   if (!cfg) return;
 
   const ROLES = cfg.roles || { admin: 'pos_admin', staff: 'pos_staff' };
-  const STAFF_PAGES = new Set(cfg.staffPages || ['home', 'inventory', 'delivery', 'history']);
+  const STAFF_PAGES = new Set(cfg.staffPages || ['home', 'inventory', 'delivery', 'history', 'analytics']);
   const AUTH_TIMEOUT_MS = 6000;
   const REFRESH_SKEW_S = 60;
   const REFRESH_POLL_MS = 30_000;
@@ -200,6 +200,10 @@
 
   function isAdmin() {
     return cachedRole === ROLES.admin;
+  }
+
+  function getUserId() {
+    return userFromSession(readStoredSession())?.id || null;
   }
 
   function isStaffOnly() {
@@ -508,6 +512,7 @@
     getRole,
     isAdmin,
     isStaffOnly,
+    getUserId,
     signIn,
     signOut,
     requestPasswordReset,

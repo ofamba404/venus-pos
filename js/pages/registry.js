@@ -14,6 +14,12 @@ export const ROUTE_ENTITIES = {
   reviews: [],
 };
 
+/** pos_staff overrides (admin uses ROUTE_ENTITIES unchanged). */
+const STAFF_ROUTE_ENTITIES = {
+  delivery: ['deliveries', 'sales'],
+  analytics: ['sales', 'deliveries'],
+};
+
 const loaders = {
   home: async () => {
     const { renderStockGlance } = await import('../inventory.js');
@@ -21,7 +27,16 @@ const loaders = {
     const { paintHomePage, updateTodayStrip, wireHomePage } = await import('../home.js');
     const { renderHoursWidget, refreshHoursWidget } = await import('../hours-widget.js');
     return {
-      wire: wireHomePage,
+      wire: () => {
+        wireHomePage();
+        // Staff: commission card on first load too (admin keeps its existing behaviour).
+        if (window.VenusPosAuth?.isStaffOnly?.() === true) {
+          void import('../commission.js').then(({ renderCommissionCard, wireCommissionCard }) => {
+            wireCommissionCard();
+            return renderCommissionCard();
+          });
+        }
+      },
       paint: () => {
         renderProductList();
         paintHomePage();
@@ -66,6 +81,10 @@ const loaders = {
   },
 
   delivery: async () => {
+    if (window.VenusPosAuth?.isStaffOnly?.() === true) {
+      const { renderStaffDeliveries } = await import('../staff-analytics.js');
+      return { paint: renderStaffDeliveries, slices: { deliveries: renderStaffDeliveries, sales: renderStaffDeliveries } };
+    }
     const { renderDeliveryAnalysis } = await import('../delivery.js');
     return {
       paint: renderDeliveryAnalysis,
@@ -82,6 +101,14 @@ const loaders = {
   },
 
   analytics: async () => {
+    if (window.VenusPosAuth?.isStaffOnly?.() === true) {
+      const { renderStaffAnalytics, paintStaffAnalytics, refreshStaffAnalytics } = await import('../staff-analytics.js');
+      return {
+        paint: renderStaffAnalytics,
+        slices: { sales: paintStaffAnalytics, deliveries: paintStaffAnalytics },
+        onActivate: refreshStaffAnalytics,
+      };
+    }
     const {
       renderAnalytics,
       renderAnalyticsCharts,
@@ -151,5 +178,6 @@ export async function loadPageModule(pageId) {
 }
 
 export function getPageEntities(pageId) {
+  if (window.VenusPosAuth?.isStaffOnly?.() === true && STAFF_ROUTE_ENTITIES[pageId]) return STAFF_ROUTE_ENTITIES[pageId];
   return ROUTE_ENTITIES[pageId] ?? [];
 }

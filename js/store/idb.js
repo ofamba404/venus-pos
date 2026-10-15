@@ -5,6 +5,13 @@ const SESSION_PREFIX = 'venus-pos-cache:';
 
 let dbPromise = null;
 
+/** Staff caches are namespaced per user so a shared device never shows another login's data. Admin keys unchanged. */
+function scoped(key) {
+  const auth = globalThis.VenusPosAuth;
+  if (auth?.isStaffOnly?.() === true) return `staff:${auth.getUserId?.() || 'unknown'}:${key}`;
+  return key;
+}
+
 function idbRequest(req) {
   return new Promise((resolve, reject) => {
     req.onsuccess = () => resolve(req.result);
@@ -71,7 +78,7 @@ export async function idbRead(key, maxAge = Infinity) {
   try {
     const db = await openDb();
     const tx = db.transaction(STORE, 'readonly');
-    const row = await idbRequest(tx.objectStore(STORE).get(key));
+    const row = await idbRequest(tx.objectStore(STORE).get(scoped(key)));
     if (!row?.data) return null;
     if (maxAge >= 0 && Date.now() - row.ts > maxAge) return null;
     return { ts: row.ts, data: row.data };
@@ -88,7 +95,7 @@ export async function idbWrite(key, data) {
   try {
     const db = await openDb();
     const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put({ key, ts: Date.now(), data });
+    tx.objectStore(STORE).put({ key: scoped(key), ts: Date.now(), data });
     await idbTx(tx);
   } catch {
     /* storage full or unavailable */
@@ -99,7 +106,7 @@ export async function idbClear(key) {
   try {
     const db = await openDb();
     const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).delete(key);
+    tx.objectStore(STORE).delete(scoped(key));
     await idbTx(tx);
   } catch {
     /* ignore */

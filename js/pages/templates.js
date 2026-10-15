@@ -226,6 +226,19 @@ export const PAGE_TEMPLATES = {
   `,
 };
 
+/** pos_staff-only page bodies (admin always gets PAGE_TEMPLATES). */
+export const STAFF_PAGE_TEMPLATES = {
+  analytics: `
+    <div class="staff-analytics" id="staffAnalytics"></div>
+  `,
+  delivery: `
+    <div class="staff-deliveries">
+      <div class="section-title">My deliveries</div>
+      <div id="staffDeliveryList"></div>
+    </div>
+  `,
+};
+
 export const PAGE_TITLES = {
   home: 'Venus POS',
   inventory: 'Inventory · Venus POS',

@@ -323,16 +323,21 @@ export function renderOrderHistory() {
   const list = document.getElementById('orderHistoryList');
   if (!list) return;
 
-  renderHistoryHero(salesCache);
+  // Staff: only their own sales, even if a cache from another login is still around.
+  const isStaff = window.VenusPosAuth?.isStaffOnly?.() === true;
+  const myId = isStaff ? window.VenusPosAuth?.getUserId?.() : null;
+  const sales = isStaff ? salesCache.filter((s) => !myId || s.seller_id === myId) : salesCache;
 
-  if (salesCache.length === 0) {
+  renderHistoryHero(sales);
+
+  if (sales.length === 0) {
     list.innerHTML = showPlaceholder('sales')
       ? receiptListPlaceholder()
       : `<div class="receipt-empty">No orders yet — ring one up on the Home tab</div>`;
     return;
   }
 
-  const { thisWeekDays, recentWeeks, months } = buildOrderHistoryTree(salesCache);
+  const { thisWeekDays, recentWeeks, months } = buildOrderHistoryTree(sales);
 
   const sections = [];
 

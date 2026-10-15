@@ -2,7 +2,7 @@ import { finishAppInit, mountAppOnce, revealApp } from './app.js';
 import { getPageHref } from './config.js';
 import { setActiveNav } from './layout.js';
 import { applyPendingFlags, clearPendingFlags } from './pending.js';
-import { PAGE_TEMPLATES, PAGE_TITLES } from './pages/templates.js';
+import { PAGE_TEMPLATES, PAGE_TITLES, STAFF_PAGE_TEMPLATES } from './pages/templates.js';
 import { getPageEntities, loadPageModule } from './pages/registry.js';
 import { navigate, resolvePageFromLocation, setActivateHandler, wireSpaNavigation } from './router.js';
 import { resetPageDataSettled, setPageDataSettled } from './state.js';
@@ -71,6 +71,7 @@ function canAccessOrBounce(pageId) {
 
 function syncDocumentChrome(pageId) {
   document.body.dataset.page = pageId;
+  document.documentElement.classList.toggle('pos-staff', window.VenusPosAuth?.isStaffOnly?.() === true);
   const title = PAGE_TITLES[pageId];
   if (title) document.title = title;
   setActiveNav(pageId);
@@ -122,7 +123,8 @@ export async function activatePage(pageId, { replace = false, fromPop = false, h
     const entities = getPageEntities(target);
 
     if (!hasPageView(target)) {
-      const html = PAGE_TEMPLATES[target];
+      const isStaff = window.VenusPosAuth?.isStaffOnly?.() === true;
+      const html = (isStaff && STAFF_PAGE_TEMPLATES[target]) || PAGE_TEMPLATES[target];
       if (!html) throw new Error(`No template for page: ${target}`);
       createPageView(target, html);
     }
