@@ -28,11 +28,11 @@ function statRow(label, earned, paid) {
 function staffMiniCard(row) {
   return `
     <div class="commission-mini">
-      <div class="commission-mini__main">
-        <div class="commission-mini__lbl">Commission owed</div>
+      <div class="commission-mini__lbl">Commission owed</div>
+      <div class="commission-mini__row">
         <div class="commission-mini__val">${fmtUGX(row.balance)}</div>
+        <a class="commission-mini__link" href="${getPageHref('analytics')}" data-spa-page="analytics">See details ›</a>
       </div>
-      <a class="commission-mini__link" href="${getPageHref('analytics')}" data-spa-page="analytics">See details ›</a>
     </div>`;
 }
 

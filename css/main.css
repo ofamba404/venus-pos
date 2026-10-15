@@ -10120,7 +10120,8 @@
 html.pos-staff #hoursWidget { display: none !important; }
 html.pos-staff [data-page-view="inventory"] .page-hint { display: none; }
 html.pos-staff [data-product="cookie_wholesale"] { display: none !important; }
-.commission-mini { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.commission-mini { display: block; }
+.commission-mini__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .commission-mini__lbl { font-size: 12px; opacity: .65; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
 .commission-mini__val { font-size: 28px; font-weight: 800; line-height: 1.15; margin: 2px 0; }
 .commission-mini__sub { font-size: 13px; opacity: .7; }
