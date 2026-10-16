@@ -75,6 +75,41 @@ function staffBlock(row, name, isAdmin) {
     </div>`;
 }
 
+let lastRows = [];
+
+function adminRow(row, name) {
+  const id = escapeHtml(row.staff_id);
+  return `
+    <div class="cc-row" role="button" tabindex="0" data-cc-open="${id}" aria-label="Commission details for ${escapeHtml(name)}">
+      <div class="cc-who">
+        <div class="cc-name">${escapeHtml(name)}</div>
+        <div class="cc-week">${fmtUGX(row.earned_week || 0)} this week</div>
+      </div>
+      <div class="cc-amt">
+        <div class="cc-bal">${fmtUGX(row.balance)}</div>
+        <button type="button" class="cc-pay" data-record-payout="${id}" data-staff-name="${escapeHtml(name)}" data-balance="${Number(row.balance || 0)}">Record payout</button>
+      </div>
+    </div>`;
+}
+
+function openDetail(staffId) {
+  const hit = lastRows.find((r) => r.row.staff_id === staffId);
+  if (!hit) return;
+  document.querySelector('.cc-sheet')?.remove();
+  const ov = document.createElement('div');
+  ov.className = 'cc-sheet';
+  ov.innerHTML = `<div class="cc-sheet__panel" role="dialog" aria-modal="true" aria-label="Commission details">
+      <button type="button" class="cc-sheet__close" data-cc-close aria-label="Close">✕</button>
+      ${staffBlock(hit.row, hit.name, true)}
+    </div>`;
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov || e.target.closest('[data-cc-close]')) { ov.remove(); return; }
+    const btn = e.target.closest('[data-record-payout]');
+    if (btn) { ov.remove(); void recordPayout(btn.dataset.recordPayout, btn.dataset.staffName || 'staff', Number(btn.dataset.balance) || 0); }
+  });
+  document.body.appendChild(ov);
+}
+
 async function recordPayout(staffId, name, balance) {
   const raw = window.prompt(`Payout amount (UGX) to ${name}`, balance > 0 ? String(balance) : '');
   if (raw == null) return;
@@ -134,9 +169,14 @@ export async function renderCommissionCard({ force = false } = {}) {
         el.innerHTML = staffMiniCard(rows[0]);
         return;
       }
+      // Admin: compact card placed right after the stock card; full breakdown in a sheet.
+      const stock = document.getElementById('stockGlance');
+      if (stock && stock.nextElementSibling !== el) stock.after(el);
+      el.classList.add('cc-admin');
+      lastRows = rows.map((r) => ({ row: r, name: names[r.staff_id] || 'Staff' }));
       el.innerHTML = `
-        <h2 class="commission-title">${isAdmin ? 'Staff commission' : 'My commission'}</h2>
-        ${rows.map((r) => staffBlock(r, isAdmin ? names[r.staff_id] || 'Staff' : 'You', isAdmin)).join('')}`;
+        <h2 class="cc-title">Staff commission</h2>
+        ${lastRows.map(({ row, name }) => adminRow(row, name)).join('')}`;
     } catch (e) {
       // Migrations not applied yet, or offline — keep the home page clean.
       console.warn('commission card unavailable', e?.message || e);
@@ -149,12 +189,20 @@ export async function renderCommissionCard({ force = false } = {}) {
 }
 
 export function wireCommissionCard() {
+  document.getElementById('commissionCard')?.addEventListener('keydown', (e) => {
+    const row = e.target.closest?.('[data-cc-open]');
+    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openDetail(row.dataset.ccOpen); }
+  });
   const el = document.getElementById('commissionCard');
   if (!el || el.dataset.wired) return;
   el.dataset.wired = '1';
   el.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-record-payout]');
-    if (!btn) return;
+    if (!btn) {
+      const row = e.target.closest('[data-cc-open]');
+      if (row) openDetail(row.dataset.ccOpen);
+      return;
+    }
     void recordPayout(btn.dataset.recordPayout, btn.dataset.staffName || 'staff', Number(btn.dataset.balance) || 0);
   });
 }
