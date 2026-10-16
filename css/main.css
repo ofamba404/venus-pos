@@ -9312,6 +9312,7 @@
 
   .admin-user-row__verify,
   .admin-user-row__rename,
+  .admin-user-row__reset,
   .admin-user-row__delete {
     display: inline-flex;
     align-items: center;
@@ -9329,7 +9330,8 @@
     display: block;
   }
 
-  .admin-user-row__rename {
+  .admin-user-row__rename,
+  .admin-user-row__reset {
     border: 1px solid color-mix(in srgb, var(--panel-edge) 80%, transparent);
     background: transparent;
     color: var(--text-dim);
@@ -10201,3 +10203,12 @@ html.pos-staff [data-product="cookie_wholesale"] { display: none !important; }
 .staff-carousel__track::-webkit-scrollbar { display: none; }
 .staff-carousel__track > .product-row { flex: 0 0 72%; max-width: 260px; min-height: 104px; scroll-snap-align: start; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; margin: 0; text-align: left; }
 .staff-carousel__track > .product-row .p-right { align-self: stretch; text-align: left; margin-top: 10px; }
+
+/* Admin: one-time storefront reset code dialog */
+.reset-code-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.reset-code-card { background: var(--surface); border-radius: var(--radius-xl); padding: 22px; width: 100%; max-width: 360px; box-shadow: var(--shadow-lg); }
+.reset-code-card__title { font-weight: 700; font-size: 16px; color: var(--text); }
+.reset-code-card__code { margin: 16px 0 10px; font-family: ui-monospace, Menlo, monospace; font-size: 32px; font-weight: 800; letter-spacing: .12em; text-align: center; padding: 14px; border-radius: var(--radius-md); background: var(--jade-dim); color: var(--jade); user-select: all; }
+.reset-code-card__note { font-size: 13px; color: var(--text-dim); margin: 0 0 16px; line-height: 1.45; }
+.reset-code-card__btns { display: flex; gap: 10px; }
+.reset-code-card__btns .modal-btn { flex: 1; }

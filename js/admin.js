@@ -70,6 +70,7 @@ let usersLoadEpoch = 0;
 
 const ADMIN_ICON_VERIFY = `<svg class="admin-user-row__icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.4 11.6 2.8 8l1.2-1.2 2.4 2.4 5.2-5.2L12.8 5.2z"/></svg>`;
 const ADMIN_ICON_RENAME = `<svg class="admin-user-row__icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M11.7 2.3a1 1 0 0 1 1.4 1.4L6.4 10.4 3.5 11l.6-2.9 6.7-6.8zM2.5 13h11v1.5h-11z"/></svg>`;
+const ADMIN_ICON_RESET = `<svg class="admin-user-row__icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M10.5 1.5a4 4 0 0 0-3.8 5.3L1.5 12v2.5H4V13h1.5v-1.5H7l1.2-1.2A4 4 0 1 0 10.5 1.5zm1 2a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>`;
 const ADMIN_ICON_DELETE = `<svg class="admin-user-row__icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.2 2.5h3.6l.4 1H13V5H3V3.5h2.8l.4-1zM4.5 6h7l-.5 7.2a1 1 0 0 1-1 .8H6a1 1 0 0 1-1-.8L4.5 6zm2 1.5V12h1.2V7.5H6.5zm2.8 0V12H10.5V7.5H9.3z"/></svg>`;
 
 function userPosLabel(user) {
@@ -284,6 +285,7 @@ function usersListHtml() {
               <div class="admin-user-row__actions">
                 <button type="button" class="admin-user-row__rename" data-rename-store-user="${escapeHtml(String(user.id || ''))}" title="Set POS name" aria-label="Set POS name">${ADMIN_ICON_RENAME}</button>
                 <button type="button" class="admin-user-row__verify ${isVerified ? 'is-verified' : ''}" data-verify-store-user="${escapeHtml(String(user.id || ''))}" data-verified="${isVerified ? '1' : '0'}" title="${verifyLabel}" aria-label="${verifyLabel}" aria-pressed="${isVerified ? 'true' : 'false'}">${ADMIN_ICON_VERIFY}</button>
+                <button type="button" class="admin-user-row__reset" data-reset-store-user="${escapeHtml(String(user.id || ''))}" title="Reset password" aria-label="Reset password">${ADMIN_ICON_RESET}</button>
                 <button type="button" class="admin-user-row__delete" data-delete-store-user="${escapeHtml(String(user.id || ''))}" title="Delete account" aria-label="Delete account">${ADMIN_ICON_DELETE}</button>
               </div>
               ${
@@ -942,6 +944,25 @@ function wireUserActions(root) {
     });
   });
 
+  root.querySelectorAll('[data-reset-store-user]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-reset-store-user');
+      if (!id) return;
+      const user = storeUsers.find((u) => String(u.id) === id);
+      const label = userPosLabel(user);
+      const ok = await showConfirm(
+        `Create a one-time password reset code for ${label}? Any earlier code for this account stops working.`,
+      );
+      if (!ok) return;
+      try {
+        const data = await storeAuth('admin_issue_reset_code', { user_id: id });
+        showResetCodeDialog(label, data);
+      } catch (e) {
+        showToast(e?.message || 'Could not create reset code', true);
+      }
+    });
+  });
+
   root.querySelectorAll('[data-delete-store-user]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const id = btn.getAttribute('data-delete-store-user');
@@ -961,6 +982,36 @@ function wireUserActions(root) {
       }
     });
   });
+}
+
+/** Shows the one-time code once. It is not stored anywhere in the POS. */
+function showResetCodeDialog(label, data) {
+  const code = String(data?.code || '');
+  const expires = data?.expires_at ? new Date(data.expires_at) : null;
+  const wrap = document.createElement('div');
+  wrap.className = 'reset-code-overlay';
+  wrap.setAttribute('role', 'dialog');
+  wrap.setAttribute('aria-modal', 'true');
+  wrap.setAttribute('aria-label', 'Password reset code');
+  wrap.innerHTML = `
+    <div class="reset-code-card">
+      <div class="reset-code-card__title">Reset code for ${escapeHtml(label)}</div>
+      <div class="reset-code-card__code" data-reset-code>${escapeHtml(code)}</div>
+      <p class="reset-code-card__note">Give this to the customer privately. It works once and expires ${
+        expires ? escapeHtml(expires.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })) : 'in 24 hours'
+      }. On the store sign-in page they tap “Have a reset code from Venus?”. You won't see this code again.</p>
+      <div class="reset-code-card__btns">
+        <button type="button" class="modal-btn confirm" data-reset-copy>Copy code</button>
+        <button type="button" class="modal-btn cancel" data-reset-close>Done</button>
+      </div>
+    </div>`;
+  const close = () => wrap.remove();
+  wrap.querySelector('[data-reset-close]').addEventListener('click', close);
+  wrap.addEventListener('click', (e) => {
+    if (e.target === wrap) close();
+  });
+  wrap.querySelector('[data-reset-copy]').addEventListener('click', () => copyText(code, 'Code copied'));
+  document.body.appendChild(wrap);
 }
 
 function wireClientActions(root) {
