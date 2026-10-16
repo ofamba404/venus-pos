@@ -23,7 +23,7 @@ export const PAGE_TEMPLATES = {
         </button>
       </div>
 
-      <section class="hours-card" id="hoursWidget" aria-label="Busy until"></section>
+      <!-- Busy/hours control lives in Admin → Hours (removed from Home). -->
 
       <section class="commission-card" id="commissionCard" aria-label="Commission" hidden></section>
 

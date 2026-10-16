@@ -2775,12 +2775,13 @@ export function renderProductList() {
   const productList = document.getElementById('productList');
   if (!productList) return;
 
-  if (window.VenusPosAuth?.isStaffOnly?.() === true) {
-    // Staff: swipeable carousels grouped Joints → Packs → Cookies (same buttons + wiring as admin list).
+  {
+    // Swipeable carousels (staff + admin) grouped Joints → Packs → Cookies (same buttons + wiring as admin list).
     const groups = [
       ['Joints', ['plain_single', 'spliff_single']],
       ['Packs', ['scout', 'pilot', 'commander', 'variety']],
       ['Cookies', ['cookie_single', 'cookie_duet', 'cookie_trio']],
+      ['Wholesale', ['cookie_wholesale']], // admin only; staffBlocksProduct hides it for staff
     ];
     const used = new Set(groups.flatMap(([, ids]) => ids));
     const extra = PRODUCTS.filter((p) => !used.has(p.id) && !staffBlocksProduct(p.id)).map((p) => p.id);
@@ -2798,8 +2799,6 @@ export function renderProductList() {
           : '';
       })
       .join('');
-  } else {
-    productList.innerHTML = PRODUCTS.filter((p) => !staffBlocksProduct(p.id)).map((p) => productPickButtonHtml(p)).join('');
   }
 
   wireProductPickButtons(productList, (productId, row) => {

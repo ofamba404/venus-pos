@@ -112,7 +112,13 @@ export async function renderCommissionCard({ force = false } = {}) {
 
   loading = (async () => {
     try {
-      const rows = await getJson('staff_commission_summary?select=*');
+      let rows = await getJson('staff_commission_summary?select=*');
+      if (isAdmin) {
+        // Hide test/hidden staff from the owner's summary (flag lives in staff_commission_rates.is_hidden).
+        const flags = await getJson('staff_commission_rates?select=user_id,is_hidden').catch(() => []);
+        const hidden = new Set((flags || []).filter((f) => f.is_hidden).map((f) => f.user_id));
+        rows = rows.filter((r) => !hidden.has(r.staff_id));
+      }
       let names = {};
       if (isAdmin) {
         const dir = await getJson('rpc/pos_staff_directory', { method: 'POST', body: '{}' }).catch(() => []);
