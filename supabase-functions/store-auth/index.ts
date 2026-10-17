@@ -32,6 +32,13 @@ function snapchatToEmail(snapchatName: string): string {
   return `${b64}@accounts.venus-store.local`;
 }
 
+/** Must match store_accounts.snapchat_name_norm: lower(btrim(regexp_replace(name,'\s+',' ','g'))). */
+function normName(name: string): string {
+  return String(name || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+const NOT_FOUND_MSG = "No account with that Snapchat name. Check the spelling, or create an account.";
+
 function normalizeRecoveryKey(key: string): string {
   return key.replace(/[-\s]/g, "").toUpperCase();
 }
@@ -304,7 +311,7 @@ Deno.serve(async (req: Request) => {
       if (newPassword.length < 6) return json({ error: "New password must be at least 6 characters." }, 400);
 
       let { data: acct } = await admin.from("store_accounts")
-        .select("id, snapchat_name").eq("snapchat_name", identifier).maybeSingle();
+        .select("id, snapchat_name").eq("snapchat_name_norm", normName(identifier)).maybeSingle();
       if (!acct) {
         const digits = identifier.replace(/\D/g, "").replace(/^256/, "").replace(/^0+/, "");
         if (digits.length >= 7) {
@@ -456,7 +463,7 @@ Deno.serve(async (req: Request) => {
         const { data: clash, error: clashErr } = await admin
           .from("store_accounts")
           .select("id")
-          .eq("snapchat_name", nextName)
+          .eq("snapchat_name_norm", normName(nextName))
           .neq("id", user.id)
           .maybeSingle();
 
@@ -513,6 +520,17 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Referral code must look like VENUS-XXXX." }, 400);
       }
 
+      const { data: existing, error: existingErr } = await admin
+        .from("store_accounts")
+        .select("id")
+        .eq("snapchat_name_norm", normName(snapchatName))
+        .maybeSingle();
+
+      if (existingErr) return json({ error: existingErr.message }, 500);
+      if (existing) {
+        return json({ error: "That Snapchat name already has an account." }, 409);
+      }
+
       const { data: referrer, error: referrerErr } = await admin
         .from("store_accounts")
         .select("id, snapchat_name")
@@ -522,17 +540,6 @@ Deno.serve(async (req: Request) => {
       if (referrerErr) return json({ error: referrerErr.message }, 500);
       if (!referrer) {
         return json({ error: "That referral code is not valid." }, 400);
-      }
-
-      const { data: existing, error: existingErr } = await admin
-        .from("store_accounts")
-        .select("id")
-        .eq("snapchat_name", snapchatName)
-        .maybeSingle();
-
-      if (existingErr) return json({ error: existingErr.message }, 500);
-      if (existing) {
-        return json({ error: "That Snapchat name already has an account." }, 409);
       }
 
       const plainRecoveryKey = generateRecoveryKey();
@@ -592,21 +599,26 @@ Deno.serve(async (req: Request) => {
 
       const { data: account, error: accountErr } = await admin
         .from("store_accounts")
-        .select("id")
-        .eq("snapchat_name", snapchatName)
+        .select(`id, ${PROFILE_COLS}`)
+        .eq("snapchat_name_norm", normName(snapchatName))
         .maybeSingle();
 
       if (accountErr) return json({ error: accountErr.message }, 500);
       if (!account) {
-        return json({ error: "No account found for that Snapchat name." }, 404);
+        return json({ error: NOT_FOUND_MSG }, 404);
       }
 
-      const { data, error } = await anon.auth.signInWithPassword({ email, password });
+      // Auth email is derived from the STORED name, not what was typed.
+      const { data, error } = await anon.auth.signInWithPassword({
+        email: snapchatToEmail(account.snapchat_name),
+        password,
+      });
       if (error || !data.session) {
-        return json({ error: "Wrong Snapchat name or password." }, 401);
+        return json({ error: "Wrong password for that Snapchat name." }, 401);
       }
 
-      return json({ session: data.session, snapchat_name: snapchatName });
+      // Profile rides along so the client doesn't need follow-up get_profile calls.
+      return json({ session: data.session, snapchat_name: account.snapchat_name, profile: profilePayload(account) });
     }
 
     if (action === "reset") {
@@ -617,13 +629,13 @@ Deno.serve(async (req: Request) => {
 
       const { data: account, error: accountErr } = await admin
         .from("store_accounts")
-        .select("id, recovery_key_hash")
-        .eq("snapchat_name", snapchatName)
+        .select("id, snapchat_name, recovery_key_hash")
+        .eq("snapchat_name_norm", normName(snapchatName))
         .maybeSingle();
 
       if (accountErr) return json({ error: accountErr.message }, 500);
       if (!account) {
-        return json({ error: "No account found for that Snapchat name." }, 404);
+        return json({ error: NOT_FOUND_MSG }, 404);
       }
 
       const providedHash = await sha256Hex(normalizeRecoveryKey(recoveryKey));
@@ -637,7 +649,7 @@ Deno.serve(async (req: Request) => {
       if (updateErr) return json({ error: updateErr.message }, 500);
 
       const { data, error } = await anon.auth.signInWithPassword({
-        email,
+        email: snapchatToEmail(account.snapchat_name),
         password: newPassword,
       });
 
@@ -645,7 +657,7 @@ Deno.serve(async (req: Request) => {
         return json({ ok: true, session: null, message: "Password updated. Please log in." });
       }
 
-      return json({ ok: true, session: data.session, snapchat_name: snapchatName });
+      return json({ ok: true, session: data.session, snapchat_name: account.snapchat_name });
     }
 
     return json({ error: "Unknown action." }, 400);
