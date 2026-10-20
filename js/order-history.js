@@ -1,3 +1,4 @@
+import { formatOrderWhen } from './date-label.js';
 import { wireHeaderBodyAccordions } from './animations.js';
 import { mondayOfWeek } from './analytics-chart.js';
 import { clients, salesCache } from './state.js';
@@ -196,11 +197,7 @@ function fulfillmentMetaBits(s) {
 
 function renderOrderRow(s) {
   const t = new Date(s.created_at);
-  const time = t.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
+  const time = formatOrderWhen(t);
   const itemLines = (s.items || [])
     .map((i) => {
       const free = Boolean(i.is_reward);

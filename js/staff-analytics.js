@@ -4,6 +4,7 @@
  *   - Delivery: own delivery history only (no pricing model / quote tools).
  * Data is RLS-scoped server-side; we also filter by seller/deliverer id client-side as defence.
  */
+import { formatOrderWhen } from './date-label.js';
 import { sbFetch } from './api.js';
 import { CAT_MAP, PRODUCTS, COOKIE_OWNER_SHARE, isCookieCategoryId } from './config.js';
 import { deliveries, salesCache } from './state.js';
@@ -329,7 +330,7 @@ export function renderStaffDeliveries() {
   const saleIds = new Set(mySales().map((s) => s.id));
   el.innerHTML = `<ul class="sa-deliveries">${rows
     .map((d) => {
-      const when = new Date(d.created_at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: KAMPALA });
+      const when = formatOrderWhen(d.created_at);
       const who = d.client_name || 'No client';
       const where = d.dest_label || 'Drop-off';
       const sale = d.sale_id ? (saleIds.has(d.sale_id) ? `Sale #${String(d.sale_id).slice(0, 6)}` : 'Linked sale') : 'No sale';

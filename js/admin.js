@@ -3,6 +3,7 @@
  * Header shield icon links here via getPageHref('admin').
  */
 
+import { setActiveNav } from './layout.js';
 import { CATEGORIES, LOW_STOCK_THRESHOLD, SUPABASE_ANON_JWT, SUPABASE_URL, getPageHref } from './config.js';
 import { sbFetch } from './api.js';
 import {
@@ -200,6 +201,17 @@ function tabButtonsSync() {
     btn.classList.toggle('is-active', on);
     btn.setAttribute('aria-selected', on ? 'true' : 'false');
   });
+  // Users is its own menu item: show it as a standalone page (no Admin tab bar).
+  const usersView = activeTab === 'users';
+  const pageEl = document.querySelector('.admin-page');
+  pageEl?.classList.toggle('is-users-view', usersView);
+  const hint = pageEl?.previousElementSibling;
+  if (hint?.classList.contains('page-hint')) {
+    hint.textContent = usersView
+      ? 'Storefront customer accounts'
+      : 'Storefront accounts, pickup & delivery hours, and maintenance';
+  }
+  if (document.body.dataset.page === 'admin') setActiveNav('admin');
 }
 
 function filteredUsers() {

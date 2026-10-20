@@ -1,3 +1,4 @@
+import { formatOrderWhen } from './date-label.js';
 import { sbFetch } from './api.js';
 import { dataStore } from './store/index.js';
 import { animateModalContent, isModalOpen, wireHeaderBodyAccordions } from './animations.js';
@@ -460,7 +461,7 @@ function renderDeliveryLog(model) {
           }
           // Prefer checkout-time outcome when logged; live "vs model" is secondary for older rows.
           modelNote = tripEstimateOutcomeNote(d, modelNote);
-          const meta = `${!isNaN(km) ? `${km.toFixed(1)} km` : '—'}${effectiveKm != null ? ` · ${fmtUGX(effectiveKm)}/km` : ''}${dur != null ? ` · ~${dur} min` : ''} · ${periodLabel}`;
+          const meta = `${d.created_at ? `${formatOrderWhen(d.created_at)} · ` : ''}${!isNaN(km) ? `${km.toFixed(1)} km` : '—'}${effectiveKm != null ? ` · ${fmtUGX(effectiveKm)}/km` : ''}${dur != null ? ` · ~${dur} min` : ''} · ${periodLabel}`;
 
           return `<button class="delivery-trip${testRow ? ' is-test' : ''}" type="button" data-edit-delivery="${d.id}">
             <div class="delivery-trip-route" aria-hidden="true">

@@ -157,7 +157,7 @@ export async function renderCommissionCard({ force = false } = {}) {
       let names = {};
       if (isAdmin) {
         const dir = await getJson('rpc/pos_staff_directory', { method: 'POST', body: '{}' }).catch(() => []);
-        names = Object.fromEntries((dir || []).map((d) => [d.user_id, (d.email || '').split('@')[0]]));
+        names = Object.fromEntries((dir || []).map((d) => [d.user_id, d.display_name || (d.email || '').split('@')[0]]));
       }
       if (!rows.length) {
         el.hidden = !isStaff;

@@ -3,6 +3,7 @@
  * Cart lines from the store do not reserve draft stock; inventory deducts on Checkout only.
  */
 
+import { formatOrderWhen } from './date-label.js';
 import { sbFetch } from './api.js';
 import { PRODUCTS, cookieLineDisplayName } from './config.js';
 import { notifyOrderCancelled, notifyStorefrontOrder } from './notifications.js';
@@ -311,13 +312,8 @@ function deliveryLabel(order) {
 function orderTimeLabel(order) {
   const raw = order?.created_at;
   if (!raw) return '';
-  const t = new Date(raw);
-  if (Number.isNaN(t.getTime())) return '';
-  return t.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
+  // Date + time so orders left open past a day are obvious.
+  return formatOrderWhen(raw);
 }
 
 function orderTitle(order) {

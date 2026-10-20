@@ -10226,3 +10226,6 @@ html.pos-staff [data-product="cookie_wholesale"] { display: none !important; }
 .cc-sheet { position: fixed; inset: 0; z-index: 1000; background: rgba(15,23,42,.35); display: flex; align-items: flex-end; justify-content: center; }
 .cc-sheet__panel { position: relative; width: 100%; max-width: 520px; max-height: 85vh; overflow: auto; background: var(--surface, #fff); border-radius: 20px 20px 0 0; padding: 22px 18px calc(18px + env(safe-area-inset-bottom)); }
 .cc-sheet__close { position: absolute; top: 10px; right: 12px; background: none; border: 0; font-size: 18px; cursor: pointer; }
+
+/* Users = its own menu item: hide the Admin tab bar in that view */
+.admin-page.is-users-view .admin-tabs { display: none; }

@@ -245,6 +245,8 @@ export const PRODUCTS = [
 
 export const PAGES = [
   { id: 'home', label: 'Home', minRole: 'staff' },
+  // Owner-only shortcut: the Admin page's Users view as its own menu item.
+  { id: 'users', label: 'Users', minRole: 'admin', target: 'admin', hash: '#users' },
   { id: 'inventory', label: 'Inventory', minRole: 'staff' },
   { id: 'clients', label: 'Clients', minRole: 'admin' },
   { id: 'reviews', label: 'Reviews', minRole: 'admin' },

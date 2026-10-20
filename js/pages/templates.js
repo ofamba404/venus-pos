@@ -216,7 +216,6 @@ export const PAGE_TEMPLATES = {
     <div class="admin-page">
       <div class="admin-tabs" role="tablist" aria-label="Admin sections">
         <button type="button" class="admin-tab is-active" data-admin-tab="overview" role="tab" aria-selected="true">Overview</button>
-        <button type="button" class="admin-tab" data-admin-tab="users" role="tab" aria-selected="false">Users</button>
         <button type="button" class="admin-tab" data-admin-tab="clients" role="tab" aria-selected="false">Clients</button>
         <button type="button" class="admin-tab" data-admin-tab="hours" role="tab" aria-selected="false">Hours</button>
         <button type="button" class="admin-tab" data-admin-tab="tools" role="tab" aria-selected="false">Tools</button>
