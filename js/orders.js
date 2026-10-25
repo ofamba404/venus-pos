@@ -62,6 +62,8 @@ import {
   getCart,
   getOrderMeta,
   inventory,
+  isInventoryHydrated,
+  isInventoryReady,
   resetDraftStock,
   salesCache,
   setCart,
@@ -1499,8 +1501,65 @@ function cartDetailHtml(detailText) {
   return `<div class="ci-detail" title="${escapeHtml(text)}">${escapeHtml(display)}</div>`;
 }
 
-function cartItemHtml(item, { readonly = false } = {}) {
+/**
+ * Categories where the cart needs more than the system shelf count.
+ * Only categories the inventory actually tracks; empty until inventory has loaded.
+ * @returns {{ id: string, name: string, need: number, have: number, short: number }[]}
+ */
+function cartStockShortfalls(cart = getCart()) {
+  if (!isInventoryHydrated() && !isInventoryReady()) return [];
+  const need = {};
+  (cart || []).forEach((item) => {
+    Object.entries(normalizeInventoryBreakdown(item.breakdown)).forEach(([id, qty]) => {
+      need[id] = (need[id] || 0) + qty;
+    });
+  });
+  return Object.entries(need)
+    .filter(([id, n]) => Object.hasOwn(inventory, id) && n > Math.max(0, Number(inventory[id]) || 0))
+    .map(([id, n]) => {
+      const have = Math.max(0, Number(inventory[id]) || 0);
+      return { id, name: stockCatLabel(id), need: n, have, short: n - have };
+    });
+}
+
+function stockCatLabel(id) {
+  const cat = CAT_MAP[id];
+  if (!cat) return id;
+  if (id.startsWith('spliff')) return `Bangis${cat.sub ? ` ${cat.sub}` : ''}`;
+  return cat.name || id;
+}
+
+/** "Short: Plain (need 2, have 0)" chip for a cart line, or ''. */
+function cartItemStockShortHtml(item, shortfalls) {
+  if (!shortfalls?.length) return '';
+  const ids = new Set(Object.keys(normalizeInventoryBreakdown(item.breakdown)));
+  const hits = shortfalls.filter((s) => ids.has(s.id));
+  if (!hits.length) return '';
+  const text = hits.map((s) => `${s.name} (need ${s.need}, have ${s.have})`).join(', ');
+  return `<div class="ci-stock-short" title="Not enough in the system — you'll be asked to confirm at checkout">Short: ${escapeHtml(text)}</div>`;
+}
+
+/** Who is confirming a "Sell anyway" (recorded on the sale + oversold log). */
+async function currentPosActor() {
+  const auth = window.VenusPosAuth;
+  let user = null;
+  try {
+    user = (await auth?.getSession?.())?.user || null;
+  } catch {
+    user = null;
+  }
+  const meta = user?.user_metadata || {};
+  const role = auth?.getRole?.() || null;
+  const name =
+    String(meta.pos_display_name || meta.display_name || meta.full_name || meta.name || '').trim() ||
+    String(user?.email || '').split('@')[0] ||
+    String(role || 'staff');
+  return { by: user?.id || auth?.getUserId?.() || null, by_name: name, role };
+}
+
+function cartItemHtml(item, { readonly = false, shortfalls = cartStockShortfalls() } = {}) {
   const product = PRODUCTS.find((p) => p.id === item.productId);
+  const stockShortHtml = cartItemStockShortHtml(item, shortfalls);
   const flavors = cartFlavorEntries(item.breakdown);
   const swatchesHtml = cartFlavorSwatchesHtml(flavors, {
     fixedFlavorId: product?.rule === 'choose_variety' ? varietyFixedFlavor(product) : null,
@@ -1529,6 +1588,7 @@ function cartItemHtml(item, { readonly = false } = {}) {
           ${priceHtml}
         </div>
         ${detailHtml}
+        ${stockShortHtml}
       </div>
     </div>`;
   }
@@ -1552,6 +1612,7 @@ function cartItemHtml(item, { readonly = false } = {}) {
       <div class="ci-main">
         ${nameHtml}
         ${detailHtml}
+        ${stockShortHtml}
       </div>
       <div class="cart-item-actions">
         ${priceHtml}
@@ -2162,6 +2223,8 @@ function renderConfigView() {
     backId: 'backBtn',
     confirmId: 'addToOrderBtn',
     otherLines: getCart(),
+    // Selling past system stock is allowed; checkout asks "Sell anyway?".
+    allowOversell: true,
   });
   wireConfigEvents();
 
@@ -2422,6 +2485,28 @@ async function checkout() {
     }
   }
 
+  // System shows less than we're selling: confirm, don't block (admin + staff).
+  const shortfalls = cartStockShortfalls(cart);
+  let stockOverride = null;
+  if (shortfalls.length) {
+    const lines = shortfalls
+      .map((s) => `• ${s.name}: selling ${s.need}, system has ${s.have} (short ${s.short})`)
+      .join('\n');
+    const ok = await showConfirm(
+      `Sell anyway?\n\nNot enough stock in the system:\n${lines}\n\nStock will go to 0 and the shortfall is logged under your name.`,
+      { okLabel: 'Sell anyway', multiline: true },
+    );
+    if (!ok) return;
+    if (checkoutInFlight) return;
+    const actor = await currentPosActor();
+    stockOverride = {
+      ...actor,
+      at: new Date().toISOString(),
+      short: Object.fromEntries(shortfalls.map((s) => [s.id, s.short])),
+    };
+  }
+  const shortIds = new Set(shortfalls.map((s) => s.id));
+
   checkoutInFlight = true;
 
   const total = cartTotal(cart);
@@ -2471,6 +2556,10 @@ async function checkout() {
         : {}),
       ...(i.wholesaleUnitPrice
         ? { wholesale_unit_price: Math.round(Number(i.wholesaleUnitPrice) || 0) }
+        : {}),
+      ...(stockOverride &&
+      Object.keys(normalizeInventoryBreakdown(i.breakdown)).some((id) => shortIds.has(id))
+        ? { stock_override: stockOverride }
         : {}),
     }));
 
