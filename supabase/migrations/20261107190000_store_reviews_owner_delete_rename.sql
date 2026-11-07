@@ -47,8 +47,17 @@ begin
     new.status := 'pending';
     new.moderated_at := null;
     new.moderated_by := null;
-    new.display_name := pg_catalog.btrim(coalesce(new.display_name, ''));
+    -- The live storefront (before venus-store PR #1 ships) sends only
+    -- customer_name, so fall back to it, then to 'Customer'.
+    new.display_name := pg_catalog.btrim(coalesce(
+      nullif(pg_catalog.btrim(coalesce(new.display_name, '')), ''),
+      pg_catalog.left(pg_catalog.btrim(coalesce(new.customer_name, '')), 40),
+      ''
+    ));
     new.display_name := pg_catalog.regexp_replace(new.display_name, '\s+', ' ', 'g');
+    if new.display_name = '' then
+      new.display_name := 'Customer';
+    end if;
     new.customer_name := new.display_name;
     new.body := pg_catalog.btrim(coalesce(new.body, ''));
     new.page_path := nullif(pg_catalog.left(pg_catalog.btrim(coalesce(new.page_path, '')), 240), '');

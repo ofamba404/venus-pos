@@ -1,6 +1,6 @@
 # Handoff: review moderation in the POS (branch cursor/review-moderation-fe82, PR #2)
 
-Status as of 2026-11-07. Nothing is merged and no migration has been applied to Supabase project xiangrykfxlnacthjcad. The storefront side is venus-store PR #1, branch cursor/store-reviews-4226, which has its own HANDOFF-reviews.md.
+Status as of 2026-11-07. LIVE as of 2026-11-07 ~19:00 EAT: both migrations applied to xiangrykfxlnacthjcad, branch merged to master, POS deployed to production (owner approved). The storefront side is venus-store PR #1, branch cursor/store-reviews-4226, which has its own HANDOFF-reviews.md.
 
 ## Done
 - A Reviews page in the POS (pages/reviews.html, js/pages/reviews.js, js/reviews.js) where the owner approves or hides store reviews.
@@ -20,7 +20,7 @@ Status as of 2026-11-07. Nothing is merged and no migration has been applied to 
 - Verified with a mocked owner session and mocked API, with no real reviews touched. Screenshots are in /workspace/nov07/pos-reviews-*.png on the agent box.
 
 ## Remaining
-- The owner needs to approve applying both migrations, in order, then merging PR #2 and deploying.
+- Nothing on the POS side. The guard keeps the live storefront footer (which sends only customer_name plus account_id) working: display_name falls back to customer_name, then to 'Customer'. New reviews now arrive as pending and need Approve.
 
 ## Rules
 Don't merge, apply migrations or deploy without the owner's explicit approval.
