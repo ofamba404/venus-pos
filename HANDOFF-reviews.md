@@ -6,10 +6,21 @@ Status as of 2026-11-07. Nothing is merged and no migration has been applied to 
 - A Reviews page in the POS (pages/reviews.html, js/pages/reviews.js, js/reviews.js) where the owner approves or hides store reviews.
 - Migration supabase/migrations/20261107120000_store_reviews_moderation.sql. It is written but not applied.
 
-## Next: requested by the owner
-1. **Delete a review.** Add a Delete action on each review with a confirm step, because it can't be undone. It needs an owner-only RLS delete policy, or an owner-checked RPC, in a new migration.
-2. **Edit the customer's display name.** Make the display name editable inline on each review and save it to the review row (not the customer's account). Trim it, cap the length to match the storefront limit, and reject an empty name. It needs an owner-only update path for display_name.
-- Keep approve and hide as they are. The storefront only shows approved reviews, so an edit or delete should show up there on the next load.
+## Done on 2026-11-07: delete and rename (code only; the migration is NOT applied)
+- **Delete:** each review has a Delete button for the owner only. It opens a confirm ("…This can't be undone.", button "Delete"), then sends a DELETE. The row is dropped from the list and the counts refresh. Realtime DELETE events also remove the row on other open POS tabs.
+- **Display name edit:** owner only. Tap the name (✎) to edit it inline, then Save or Enter to keep it, or Cancel or Esc to discard. The name is trimmed and spaces are collapsed. It's capped at 40 characters (`maxlength` plus a check), the same as the storefront form and the DB check. An empty name is rejected with a toast. Saving PATCHes `display_name` on the review row only; the customer's account is untouched.
+- Approve and hide are unchanged. Staff still see a read-only list (no Delete, no edit).
+- **New migration, not applied:** supabase/migrations/20261107190000_store_reviews_owner_delete_rename.sql. Apply it after 20261107120000.
+  - Grants DELETE and adds the RLS policy `store_reviews_admin_delete`, which allows only `is_pos_admin()`.
+  - Grants UPDATE (display_name).
+  - Replaces `private.store_reviews_guard()` so that an admin UPDATE may change display_name. It enforces trim, collapse and 1–40 characters, and syncs customer_name. Every other column is still pinned.
+- Until both migrations are applied, Delete and rename fail with "Could not delete/save" toasts on live, because RLS/grants block them.
+- The storefront only lists approved rows, so a rename or delete shows up there on the next load.
+- POS SW is now v109.
+- Verified with a mocked owner session and mocked API, with no real reviews touched. Screenshots are in /workspace/nov07/pos-reviews-*.png on the agent box.
+
+## Remaining
+- The owner needs to approve applying both migrations, in order, then merging PR #2 and deploying.
 
 ## Rules
 Don't merge, apply migrations or deploy without the owner's explicit approval.

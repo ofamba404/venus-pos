@@ -10267,6 +10267,65 @@
   transform: scale(0.98);
 }
 
+.reviews-action.is-delete {
+  margin-left: auto;
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--panel-edge));
+}
+
+.reviews-action.is-delete:active:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+
+button.reviews-card__name.is-editable {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.reviews-card__name-edit {
+  font-size: 12px;
+  opacity: 0.5;
+}
+
+button.reviews-card__name.is-editable:hover .reviews-card__name-edit,
+button.reviews-card__name.is-editable:focus-visible .reviews-card__name-edit {
+  opacity: 1;
+}
+
+.reviews-name-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.reviews-name-edit__input {
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.reviews-name-edit__input:focus {
+  outline: 2px solid color-mix(in srgb, var(--jade) 55%, transparent);
+  outline-offset: 1px;
+}
+
 .reviews-action:disabled {
   cursor: default;
   opacity: 0.6;

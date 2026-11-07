@@ -2,13 +2,16 @@ import { sbFetch } from './api.js';
 import { getPageHref } from './config.js';
 import { notifyStoreReview } from './notifications.js';
 import { getRealtimeClient } from './realtime-client.js';
-import { escapeHtml, showToast } from './utils.js';
+import { escapeHtml, showConfirm, showToast } from './utils.js';
 
 const TABS = [
   { id: 'pending', label: 'Pending', empty: 'No reviews waiting.' },
   { id: 'approved', label: 'Approved', empty: 'No approved reviews yet.' },
   { id: 'hidden', label: 'Hidden', empty: 'Nothing hidden.' },
 ];
+
+/** Same cap as the storefront review form and the store_reviews check. */
+export const DISPLAY_NAME_MAX = 40;
 
 const STATUS_LABEL = {
   pending: 'Pending',
@@ -31,9 +34,18 @@ let counts = { pending: null, approved: null, hidden: null };
 const notifiedReviewIds = new Set();
 /** @type {{ unsubscribe?: () => void } | null} */
 let reviewsRealtimeChannel = null;
+/** Review whose display name is being edited inline. */
+let editingNameId = '';
+let editingNameDraft = '';
+let savingName = false;
 
 function isOwner() {
   return window.VenusPosAuth?.isAdmin?.() === true;
+}
+
+/** Trim + collapse spaces; '' when empty. Mirrors the database guard. */
+export function normalizeDisplayName(value) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
 function reviewName(row) {
@@ -147,8 +159,24 @@ function actionsHtml(row) {
     status === 'hidden'
       ? ''
       : `<button type="button" class="reviews-action is-hide" data-review-action="hidden" data-review-id="${id}">Hide</button>`;
-  if (!approve && !hide) return '';
-  return `<div class="reviews-card__actions">${approve}${hide}</div>`;
+  const del = `<button type="button" class="reviews-action is-delete" data-review-delete="${id}">Delete</button>`;
+  return `<div class="reviews-card__actions">${approve}${hide}${del}</div>`;
+}
+
+function nameHtml(row) {
+  const name = reviewName(row);
+  if (!isOwner() || legacySchema || !row?.id) {
+    return `<span class="reviews-card__name">${escapeHtml(name)}</span>`;
+  }
+  const id = escapeHtml(row.id);
+  if (editingNameId === row.id) {
+    return `<form class="reviews-name-edit" data-review-name-form="${id}">
+      <input class="reviews-name-edit__input" type="text" name="display_name" maxlength="${DISPLAY_NAME_MAX}" value="${escapeHtml(editingNameDraft)}" aria-label="Display name" autocomplete="off" ${savingName ? 'disabled' : ''} />
+      <button type="submit" class="reviews-action is-approve" ${savingName ? 'disabled' : ''}>${savingName ? 'Saving…' : 'Save'}</button>
+      <button type="button" class="reviews-action" data-review-name-cancel ${savingName ? 'disabled' : ''}>Cancel</button>
+    </form>`;
+  }
+  return `<button type="button" class="reviews-card__name is-editable" data-review-rename="${id}" title="Edit display name" aria-label="Edit display name: ${escapeHtml(name)}">${escapeHtml(name)}<span class="reviews-card__name-edit" aria-hidden="true">✎</span></button>`;
 }
 
 export function renderReviews() {
@@ -194,7 +222,6 @@ export function renderReviews() {
 
   list.innerHTML = reviews
     .map((row) => {
-      const name = reviewName(row);
       const body = String(row.body || '').trim();
       const when = relativeTime(row.created_at);
       const path = String(row.page_path || '').trim();
@@ -210,7 +237,7 @@ export function renderReviews() {
           </div>
           <p class="reviews-card__body">${escapeHtml(body)}</p>
           <div class="reviews-card__foot">
-            <span class="reviews-card__name">${escapeHtml(name)}</span>
+            ${nameHtml(row)}
             ${pathHtml}
           </div>
           ${actionsHtml(row)}
@@ -218,6 +245,143 @@ export function renderReviews() {
       `;
     })
     .join('');
+}
+
+function focusNameInput() {
+  const input = document.querySelector('.reviews-name-edit__input');
+  if (!input) return;
+  input.focus();
+  const end = input.value.length;
+  try {
+    input.setSelectionRange(end, end);
+  } catch {
+    /* ignore */
+  }
+}
+
+function startNameEdit(id) {
+  const row = reviews.find((item) => item.id === id);
+  if (!row || !isOwner()) return;
+  editingNameId = id;
+  editingNameDraft = reviewName(row) === 'Guest' ? '' : reviewName(row);
+  savingName = false;
+  renderReviews();
+  focusNameInput();
+}
+
+function cancelNameEdit() {
+  editingNameId = '';
+  editingNameDraft = '';
+  savingName = false;
+  renderReviews();
+}
+
+async function saveDisplayName(id, raw) {
+  if (!isOwner()) {
+    showToast('Only the owner can edit reviews', true);
+    return;
+  }
+  const name = normalizeDisplayName(raw);
+  if (!name) {
+    showToast('Display name can’t be empty', true);
+    focusNameInput();
+    return;
+  }
+  if (name.length > DISPLAY_NAME_MAX) {
+    showToast(`Keep it to ${DISPLAY_NAME_MAX} characters or fewer`, true);
+    focusNameInput();
+    return;
+  }
+  const row = reviews.find((item) => item.id === id);
+  if (row && normalizeDisplayName(row.display_name) === name) {
+    cancelNameEdit();
+    return;
+  }
+  editingNameDraft = name;
+  savingName = true;
+  renderReviews();
+  try {
+    const res = await sbFetch(`store_reviews?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ display_name: name }),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(text || `Supabase ${res.status}`);
+    let rows = [];
+    try {
+      rows = text ? JSON.parse(text) : [];
+    } catch {
+      rows = [];
+    }
+    if (!Array.isArray(rows) || !rows.length) throw new Error('Only the owner can edit reviews');
+    reviews = reviews.map((item) => (item.id === id ? { ...item, ...rows[0] } : item));
+    editingNameId = '';
+    editingNameDraft = '';
+    savingName = false;
+    renderReviews();
+    showToast('Name updated');
+  } catch (err) {
+    console.error('rename review failed', err);
+    savingName = false;
+    renderReviews();
+    focusNameInput();
+    showToast('Could not save that name', true);
+  }
+}
+
+async function deleteReview(id, button) {
+  if (!isOwner()) {
+    showToast('Only the owner can delete reviews', true);
+    return;
+  }
+  const row = reviews.find((item) => item.id === id);
+  if (!row) return;
+  const ok = await showConfirm(
+    `Delete this review from ${reviewName(row)}?\n\nIt will be removed from the shop and the POS. This can’t be undone.`,
+    { okLabel: 'Delete', multiline: true },
+  );
+  if (!ok) return;
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Deleting…';
+  }
+  try {
+    const res = await sbFetch(`store_reviews?id=eq.${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { Prefer: 'return=representation' },
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(text || `Supabase ${res.status}`);
+    let rows = [];
+    try {
+      rows = text ? JSON.parse(text) : [];
+    } catch {
+      rows = [];
+    }
+    if (!Array.isArray(rows) || !rows.length) throw new Error('Only the owner can delete reviews');
+    reviews = reviews.filter((item) => item.id !== id);
+    if (editingNameId === id) editingNameId = '';
+    renderReviews();
+    showToast('Review deleted');
+    if (!legacySchema) void loadCounts(loadSeq);
+  } catch (err) {
+    console.error('delete review failed', err);
+    showToast('Could not delete that review', true);
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.textContent = 'Delete';
+    }
+  }
+}
+
+function applyRealtimeDelete(oldRow) {
+  if (!oldRow?.id || !document.getElementById('reviewsList')) return;
+  if (!reviews.some((item) => item.id === oldRow.id)) return;
+  reviews = reviews.filter((item) => item.id !== oldRow.id);
+  if (editingNameId === oldRow.id) editingNameId = '';
+  renderReviews();
+  if (!legacySchema) void loadCounts(loadSeq);
 }
 
 function applyRealtimeRow(row) {
@@ -311,7 +475,22 @@ export function wireReviewsPage() {
       const next = tabBtn.getAttribute('data-review-tab') || 'pending';
       if (!TABS.some((tab) => tab.id === next) || next === reviewTab) return;
       reviewTab = next;
+      editingNameId = '';
       void loadReviews();
+      return;
+    }
+    const renameBtn = event.target?.closest?.('[data-review-rename]');
+    if (renameBtn) {
+      startNameEdit(renameBtn.getAttribute('data-review-rename'));
+      return;
+    }
+    if (event.target?.closest?.('[data-review-name-cancel]')) {
+      cancelNameEdit();
+      return;
+    }
+    const delBtn = event.target?.closest?.('[data-review-delete]');
+    if (delBtn) {
+      void deleteReview(delBtn.getAttribute('data-review-delete'), delBtn);
       return;
     }
     const action = event.target?.closest?.('[data-review-action]');
@@ -331,6 +510,23 @@ export function wireReviewsPage() {
     const btn = event.target?.closest?.('#reviewsRefreshBtn');
     if (!btn) return;
     void loadReviews();
+  });
+  root.addEventListener('submit', (event) => {
+    const form = event.target?.closest?.('[data-review-name-form]');
+    if (!form) return;
+    event.preventDefault();
+    const id = form.getAttribute('data-review-name-form');
+    const input = form.querySelector('input[name="display_name"]');
+    void saveDisplayName(id, input?.value);
+  });
+  root.addEventListener('input', (event) => {
+    if (event.target?.matches?.('.reviews-name-edit__input')) editingNameDraft = event.target.value;
+  });
+  root.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && event.target?.matches?.('.reviews-name-edit__input')) {
+      event.preventDefault();
+      cancelNameEdit();
+    }
   });
 }
 
@@ -354,6 +550,13 @@ async function startReviewsRealtime() {
         { event: 'UPDATE', schema: 'public', table: 'store_reviews' },
         (payload) => {
           applyRealtimeRow(payload?.new);
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'store_reviews' },
+        (payload) => {
+          applyRealtimeDelete(payload?.old);
         },
       );
 
