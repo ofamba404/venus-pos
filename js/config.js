@@ -249,7 +249,7 @@ export const PAGES = [
   { id: 'users', label: 'Users', minRole: 'admin', target: 'admin', hash: '#users' },
   { id: 'inventory', label: 'Inventory', minRole: 'staff' },
   { id: 'clients', label: 'Clients', minRole: 'admin' },
-  { id: 'reviews', label: 'Reviews', minRole: 'admin' },
+  { id: 'reviews', label: 'Reviews', minRole: 'staff' },
   { id: 'delivery', label: 'Delivery', minRole: 'admin' },
   { id: 'history', label: 'History', minRole: 'admin' },
   { id: 'analytics', label: 'Analytics', minRole: 'admin' },
