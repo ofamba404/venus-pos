@@ -1,10 +1,13 @@
 import { getStore } from '@netlify/blobs';
+import { normalizeSettledBatches } from '../../js/cookie-partner-batches.js';
 import { json } from './_shared/push.mjs';
 import { requireStaffUser, supabaseConfig } from './_shared/supabase-admin.mjs';
 
 const BLOB_STORE = 'venus-cookie-partner';
-/** v4 — ignore corrupted v3 value that marked every cookie settled. */
+/** v4 — plain integer string. Do not change this value's format. */
 const BLOB_KEY = 'settled-qty-v4';
+/** Optional send sizes that sum to settled qty. Ignored when they do not match. */
+const BATCHES_KEY = 'settled-batches-v1';
 /**
  * First 25-cookie batch (~136k) already paid. Seed when this key is empty.
  */
@@ -36,6 +39,25 @@ async function writeSettledQty(qty) {
   const n = clampQty(qty);
   await settleStore().set(BLOB_KEY, String(n));
   return n;
+}
+
+async function readBatches() {
+  try {
+    const raw = await settleStore().get(BATCHES_KEY, { type: 'text' });
+    if (raw == null || raw === '') return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function writeBatches(batches) {
+  await settleStore().set(BATCHES_KEY, JSON.stringify(batches));
+}
+
+function batchesForQty(raw, qty) {
+  if (qty == null) return null;
+  return normalizeSettledBatches(raw, qty);
 }
 
 function requestMethod(req) {
@@ -74,7 +96,8 @@ export default async (req) => {
   try {
     if (method === 'GET') {
       const settled_qty = await readSettledQty();
-      return json({ ok: true, settled_qty });
+      const batches = batchesForQty(await readBatches(), settled_qty);
+      return json({ ok: true, settled_qty, batches });
     }
 
     if (method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -84,8 +107,15 @@ export default async (req) => {
       return json({ error: 'Missing settled_qty' }, 400);
     }
     const next = clampQty(body.settled_qty ?? body.qty);
+    let batches = null;
+    if (body.batches != null) {
+      batches = normalizeSettledBatches(body.batches, next);
+      if (!batches) return json({ error: 'Invalid batches' }, 400);
+      await writeBatches(batches);
+    }
     const settled_qty = await writeSettledQty(next);
-    return json({ ok: true, settled_qty, updated_by: user.id || null });
+    if (!batches) batches = batchesForQty(await readBatches(), settled_qty);
+    return json({ ok: true, settled_qty, batches, updated_by: user.id || null });
   } catch (err) {
     console.error('cookie-partner-settle', err);
     return json({ error: err?.message || 'Settle sync failed' }, 500);
