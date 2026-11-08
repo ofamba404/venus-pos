@@ -263,79 +263,56 @@
     transition: border-color 0.15s, color 0.15s, background 0.15s;
   }
 
-  /* ---------- Header nav: one horizontal, scrollable row on every screen ---------- */
-  .tabs {
-    position: relative;
-    display: flex;
-    flex-wrap: nowrap;
-    gap: var(--space-1);
+  /* ---------- Header nav: discovery-style rail of pill chips ---------- */
+  .rail {
     min-width: 0;
+    margin-left: calc(-1 * var(--space-1));
+    margin-right: calc(-1 * var(--space-1));
+    padding: 0 var(--space-1);
+  }
+
+  .rail-track {
+    display: flex;
+    gap: 0.4rem;
     overflow-x: auto;
     overflow-y: hidden;
+    padding: 2px 0 0.35rem;
+    scrollbar-width: thin;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
-    scroll-behavior: smooth;
-    scroll-padding-inline: 6px;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    background: var(--surface);
-    border: 1px solid var(--panel-edge);
-    border-radius: var(--radius-lg);
-    padding: 6px;
-    box-shadow: var(--shadow-sm);
   }
 
-  .tabs::-webkit-scrollbar { display: none; }
-
-  /* Soft fade on the edge that still has tabs past it. */
-  .tabs.is-scrollable.has-more-right {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-  }
-
-  .tabs.is-scrollable.has-more-left {
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 28px);
-    mask-image: linear-gradient(to right, transparent, #000 28px);
-  }
-
-  .tabs.is-scrollable.has-more-left.has-more-right {
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
-  }
-
-  .tab-btn {
+  .rail-chip {
     flex: 0 0 auto;
-    min-width: 5.25rem;
-    padding: 11px 16px;
-    white-space: nowrap;
-    text-align: center;
-    border-radius: var(--radius-md);
-    border: none;
-    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid var(--panel-edge);
+    background: var(--surface);
     color: var(--text-dim);
+    border-radius: 999px;
+    padding: 0.45rem 0.9rem;
     font-family: var(--font-sans);
     font-size: var(--text-sm);
     font-weight: 600;
     letter-spacing: 0.01em;
     line-height: var(--leading-snug);
+    white-space: nowrap;
+    text-decoration: none;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-    text-decoration: none;
-    display: block;
-    transition: background 0.15s, color 0.15s;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
 
-  /* Few tabs on a wide screen: share the row instead of hugging the left. */
-  @media (min-width: 768px) {
-    .tab-btn { flex: 1 0 auto; }
+  .rail-chip:not(.on):hover {
+    border-color: color-mix(in srgb, var(--jade) 45%, var(--panel-edge));
+    color: var(--text-secondary);
   }
 
-  .tab-btn:hover { color: var(--text-secondary); }
-
-  .tab-btn.active {
+  .rail-chip.on {
     background: var(--jade);
+    border-color: var(--jade);
     color: #052e1f;
-    box-shadow: 0 2px 8px var(--jade-glow);
   }
 
   .nav-divider {
@@ -8540,9 +8517,9 @@
     color: var(--jade);
   }
 
-  .tab-btn:focus-visible {
-    color: var(--jade);
-    outline-offset: -2px;
+  .rail-chip:focus-visible {
+    outline: 2px solid var(--jade);
+    outline-offset: -1px;
   }
 
   /* Data-loading skeleton placeholders */

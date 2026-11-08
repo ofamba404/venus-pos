@@ -26,7 +26,8 @@ function navAttrs(page) {
 
 function navLink(page, currentPage) {
   const active = page.id === navKey(currentPage) ? ' active' : '';
-  return `<a class="tab-btn${active}" ${navAttrs(page)} aria-current="${active ? 'page' : 'false'}">${page.label}</a>`;
+  const on = active ? ' on' : '';
+  return `<a class="tab-btn rail-chip${active}${on}" ${navAttrs(page)} aria-current="${active ? 'page' : 'false'}">${page.label}</a>`;
 }
 
 function fabMenuActionItems(currentPage, isAdmin) {
@@ -90,8 +91,10 @@ export function renderShell(currentPage) {
         </div>
       </div>
       </div>
-      <nav class="tabs header-nav" id="headerNav" aria-label="Main navigation">
-        ${navTabs}
+      <nav class="tabs rail header-nav" aria-label="Main navigation">
+        <div class="rail-track" id="headerNav">
+          ${navTabs}
+        </div>
       </nav>
     </header>
   `;
@@ -216,6 +219,7 @@ export function setActiveNav(currentPage) {
     const id = el.getAttribute('data-nav-key') || el.getAttribute('data-spa-page');
     const active = id === key;
     el.classList.toggle('active', active);
+    el.classList.toggle('on', active);
     el.setAttribute('aria-current', active ? 'page' : 'false');
   });
 
@@ -229,7 +233,7 @@ export function setActiveNav(currentPage) {
   scrollActiveTabIntoView();
 }
 
-/** Centre the active tab in the scrollable header nav (horizontal only — never moves the page). */
+/** Centre the active chip in the header rail (horizontal only — never moves the page). */
 export function scrollActiveTabIntoView({ smooth = true } = {}) {
   const nav = document.getElementById('headerNav');
   if (!nav) return;
@@ -249,24 +253,13 @@ export function scrollActiveTabIntoView({ smooth = true } = {}) {
         nav.scrollLeft = left;
       }
     }
-    updateNavEdges(nav);
   };
   window.requestAnimationFrame(run);
-}
-
-/** Soft fade on whichever edge still has tabs hidden past it. */
-function updateNavEdges(nav) {
-  const max = nav.scrollWidth - nav.clientWidth;
-  nav.classList.toggle('is-scrollable', max > 1);
-  nav.classList.toggle('has-more-left', nav.scrollLeft > 1);
-  nav.classList.toggle('has-more-right', nav.scrollLeft < max - 1);
 }
 
 function wireHeaderNav() {
   const nav = document.getElementById('headerNav');
   if (!nav) return;
-  nav.addEventListener('scroll', () => updateNavEdges(nav), { passive: true });
-  window.addEventListener('resize', () => updateNavEdges(nav), { passive: true });
   window.addEventListener('hashchange', () => scrollActiveTabIntoView());
   if (document.fonts?.ready) {
     document.fonts.ready.then(() => scrollActiveTabIntoView({ smooth: false })).catch(() => {});
