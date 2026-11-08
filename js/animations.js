@@ -310,7 +310,7 @@ export function animatePageEntrance() {
   }
 
   const targets = [
-    ...root.querySelectorAll('.header, .tabs, .bottom-dock'),
+    ...root.querySelectorAll('.header, .bottom-dock'),
     ...page.querySelectorAll(PAGE_CONTENT_SELECTOR),
   ];
 
