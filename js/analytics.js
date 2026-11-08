@@ -535,6 +535,22 @@ function cookiePartnerCycleLabel(page) {
   return `${page.cookieCount} of ${page.every} toward next send`;
 }
 
+/** Ready full batch, or the in-progress batch when it is the next unsettled prefix. */
+function cookiePartnerSendKind(summary, page) {
+  if (!summary || !page) return '';
+  if (page.status === 'ready' && summary.readyCount > 0) return 'ready';
+  if (
+    page.status === 'progress' &&
+    page.cookieCount > 0 &&
+    summary.readyCount === 0 &&
+    page.cookieCount < summary.every &&
+    page.cookieCount === summary.unsettledCount
+  ) {
+    return 'partial';
+  }
+  return '';
+}
+
 function setCookiePartnerTrackOffset(track, pageIndex, dragPx = 0) {
   if (!track) return;
   if (dragPx) {
@@ -592,14 +608,17 @@ function applyCookiePartnerPageChrome(root, s, pages, pageIndex) {
 
   const head = root.querySelector('.cookie-partner-head');
   let sendBtn = root.querySelector('[data-cookie-partner-send]');
-  if (ready && head) {
+  const sendKind = cookiePartnerSendKind(s, page);
+  if (sendKind && head) {
     if (!sendBtn) {
       sendBtn = document.createElement('button');
       sendBtn.type = 'button';
       sendBtn.className = 'credit-clear-btn cookie-partner-send';
-      sendBtn.dataset.cookiePartnerSend = '';
+      sendBtn.dataset.cookiePartnerSend = sendKind;
       sendBtn.textContent = 'Mark sent';
       head.appendChild(sendBtn);
+    } else {
+      sendBtn.dataset.cookiePartnerSend = sendKind;
     }
   } else if (sendBtn) {
     sendBtn.remove();
@@ -729,6 +748,7 @@ function renderCookiePartnerPanelFresh() {
   const page = pages[pageIndex] || null;
   const viewingLive = page?.status === 'ready' || page?.status === 'progress' || page?.status === 'queued';
   const ready = s.readyCount > 0 && page?.status === 'ready';
+  const sendKind = cookiePartnerSendKind(s, page);
   const progressPct = Math.min(100, Math.round((s.towardNext / s.every) * 100));
   const cycleLabel = cookiePartnerCycleLabel(page);
   const showOwner = page ? page.ownerSplit : 0;
@@ -746,8 +766,8 @@ function renderCookiePartnerPanelFresh() {
           }</div>
         </div>
         ${
-          ready
-            ? `<button type="button" class="credit-clear-btn cookie-partner-send" data-cookie-partner-send>Mark sent</button>`
+          sendKind
+            ? `<button type="button" class="credit-clear-btn cookie-partner-send" data-cookie-partner-send="${sendKind}">Mark sent</button>`
             : ''
         }
       </div>
@@ -817,7 +837,7 @@ function renderCookiePartnerPanelFresh() {
     cookiePartnerPageIndex = clamped;
     setCookiePartnerTrackOffset(track, clamped);
     const currentPage = applyCookiePartnerPageChrome(el, s, pages, clamped);
-    if (changed) wireCookiePartnerSend(el, s);
+    if (changed) wireCookiePartnerSend(el, s, pages);
     return currentPage;
   };
 
@@ -839,23 +859,35 @@ function renderCookiePartnerPanelFresh() {
     void copyText(text, 'Copied for partner');
   });
 
-  wireCookiePartnerSend(el, s);
+  wireCookiePartnerSend(el, s, pages);
 }
 
-function wireCookiePartnerSend(root, s) {
+function wireCookiePartnerSend(root, s, pages) {
   const btn = root.querySelector('[data-cookie-partner-send]');
   if (!btn || btn.dataset.wired === '1') return;
   btn.dataset.wired = '1';
   btn.addEventListener('click', async () => {
-    const queued =
-      s.queuedReadyBatches > 0
-        ? ` ${s.queuedReadyBatches} more batch${s.queuedReadyBatches === 1 ? '' : 'es'} stay queued.`
-        : '';
-    const ok = await showConfirm(
-      `Mark this batch sent? Send ${fmtUGX(s.readyPartnerDue)} for ${s.readyCount} cookies (your split ${fmtUGX(s.readyOwnerSplit)}).${queued}`,
-    );
+    const page = pages[cookiePartnerPageIndex];
+    const kind = cookiePartnerSendKind(s, page);
+    if (!kind) return;
+    let message;
+    if (kind === 'ready') {
+      const queued =
+        s.queuedReadyBatches > 0
+          ? ` ${s.queuedReadyBatches} more batch${s.queuedReadyBatches === 1 ? '' : 'es'} stay queued.`
+          : '';
+      message = `Mark this batch sent? Send ${fmtUGX(s.readyPartnerDue)} for ${s.readyCount} cookies (your split ${fmtUGX(s.readyOwnerSplit)}).${queued}`;
+    } else {
+      message = `Mark this batch sent? Send ${fmtUGX(page.partnerDue)} for ${page.cookieCount} cookies (your split ${fmtUGX(page.ownerSplit)}).`;
+    }
+    const ok = await showConfirm(message);
     if (!ok) return;
-    await markCookiePartnerBatchesSent(salesCache);
+    const beforeQty = getCookiePartnerSettledQty();
+    await markCookiePartnerBatchesSent(salesCache, kind === 'partial' ? { partial: true } : {});
+    if (getCookiePartnerSettledQty() === beforeQty) {
+      showToast('Could not mark this batch sent', true);
+      return;
+    }
     cookiePartnerPageIndex = null;
     showToast('Cookie partner batch marked sent');
     renderCookiePartnerPanelFresh();
