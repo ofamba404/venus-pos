@@ -134,6 +134,7 @@ export function StockPage() {
         <Field
           label="Count"
           inputMode="numeric"
+          data-testid="stock-set-count"
           value={editQty}
           onInput={(e) => setEditQty((e.target as HTMLInputElement).value)}
         />

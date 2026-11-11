@@ -21,4 +21,5 @@ Update at the end of every session.
 | 2026-11-12 | 0/1/2 | Vite/Preact placeholder + credit dual-run | `cbf8ed8` |
 | 2026-11-12 | 4–7 | Checkoutable `/next` shell + Sell/Orders/Stock/back office | `387c0fd` |
 | 2026-11-12 | UI | Icon/stepper/list quirks pass | `2e62867` |
-| 2026-11-12 | 0/6/7 | S01–S50 defs · Today · fee draft · set-count · settle · SW unit | _(this commit)_ |
+| 2026-11-12 | 0/6/7 | S01–S50 defs · Today · fee draft · set-count · settle · SW unit | `e0b916e` |
+| 2026-11-12 | 0/6/7 | Playwright next driver S01/S02/S07/S30 · fee model port · quote lab · partner UI | _(this commit)_ |

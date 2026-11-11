@@ -134,7 +134,9 @@ export async function installMockBackend(
 
     // Allow same-origin app assets
     const u = new URL(url);
-    if (u.origin === 'http://127.0.0.1:4173' || u.origin === 'http://localhost:4173') {
+    const local =
+      u.hostname === '127.0.0.1' || u.hostname === 'localhost';
+    if (local && (u.port === '4173' || u.port === '5173' || u.port === '')) {
       if (!u.pathname.startsWith('/api/')) {
         await route.continue();
         return;
@@ -229,7 +231,7 @@ export async function installMockBackend(
       }
       writes.push({ method, url, headers: {}, body });
       if (body.op === 'ensure') {
-        await fulfillJson(route, 200, { inventory: db.table('inventory') });
+        await fulfillJson(route, 200, { rows: db.table('inventory') });
         return;
       }
       // delta: { category_id, delta } or array
@@ -239,8 +241,11 @@ export async function installMockBackend(
         const delta = Number((d as Row).delta || 0);
         const row = db.table('inventory').find((r) => r.category_id === id);
         if (row) row.stock = Number(row.stock || 0) + delta;
+        else if (id) {
+          db.table('inventory').push({ category_id: id, stock: Math.max(0, delta) });
+        }
       }
-      await fulfillJson(route, 200, { ok: true, inventory: db.table('inventory') });
+      await fulfillJson(route, 200, { ok: true, rows: db.table('inventory') });
       return;
     }
 

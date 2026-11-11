@@ -1,6 +1,15 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { sbFetch } from '../../data/api';
+import {
+  fitDeliveryFeeModel,
+  modelConfidence,
+  predictSafeBodaFee,
+  predictSafeBodaFeeRange,
+} from '../../domain/delivery-fee';
+import { setCheckoutDraft } from '../../data/checkout-draft';
 import { Money } from '../../ui/Money';
+import { Field } from '../../ui/Field';
+import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
 
 type DeliveryRow = {
@@ -8,16 +17,20 @@ type DeliveryRow = {
   client_name?: string;
   fee_ugx?: number;
   distance_km?: number;
+  duration_min?: number;
   created_at?: string;
+  location_lat?: number;
+  location_lng?: number;
 };
 
 export function DeliveryPage() {
   const [rows, setRows] = useState<DeliveryRow[]>([]);
+  const [km, setKm] = useState('4');
 
   useEffect(() => {
     void (async () => {
       try {
-        const res = await sbFetch('deliveries?select=*&order=created_at.desc&limit=50');
+        const res = await sbFetch('deliveries?select=*&order=created_at.desc&limit=100');
         if (!res.ok) throw new Error(`deliveries ${res.status}`);
         setRows((await res.json()) as DeliveryRow[]);
       } catch (e) {
@@ -26,9 +39,70 @@ export function DeliveryPage() {
     })();
   }, []);
 
+  const model = useMemo(() => fitDeliveryFeeModel(rows), [rows]);
+  const confidence = modelConfidence(model);
+  const kmNum = Number(km);
+  const point =
+    Number.isFinite(kmNum) && kmNum >= 0 ? predictSafeBodaFee(kmNum, model) : null;
+  const range =
+    Number.isFinite(kmNum) && kmNum >= 0 ? predictSafeBodaFeeRange(kmNum, model) : null;
+
+  function applyToCheckout() {
+    if (point == null) {
+      showToast('Need more logged quotes to predict');
+      return;
+    }
+    setCheckoutDraft({
+      feeValue: String(point),
+      distanceKm: kmNum,
+      predictedFee: point,
+      feeManuallyEdited: false,
+      destText: `${kmNum.toFixed(1)} km quote lab`,
+    });
+    showToast(`Fee ${point.toLocaleString('en-UG')} UGX ready for checkout`);
+  }
+
   return (
     <section>
       <h1 class="page-title">Delivery</h1>
+
+      <div class="v-order-card" style={{ display: 'grid', gap: 12 }}>
+        <div class="v-list-row__title">Quote lab</div>
+        <div class="v-muted">
+          {model
+            ? `${confidence.label} · R² ${Math.round((model.r2 || 0) * 100)}% · ${rows.length} trips`
+            : 'Log SafeBoda quotes to unlock estimates'}
+        </div>
+        <Field
+          label="Distance (km)"
+          inputMode="decimal"
+          value={km}
+          onInput={(e) => setKm((e.target as HTMLInputElement).value)}
+        />
+        <div class="v-stat-grid">
+          <div class="v-stat">
+            <div class="v-stat__label">Estimate</div>
+            <div class="v-stat__value">{point != null ? <Money value={point} /> : '—'}</div>
+          </div>
+          <div class="v-stat">
+            <div class="v-stat__label">Range</div>
+            <div class="v-stat__value" style={{ font: 'var(--t-title-sm)' }}>
+              {range ? (
+                <>
+                  <Money value={range.feeMinUgx} />–<Money value={range.feeMaxUgx} />
+                </>
+              ) : (
+                '—'
+              )}
+            </div>
+          </div>
+        </div>
+        <Button variant="secondary" onClick={applyToCheckout}>
+          Use estimate on next sale
+        </Button>
+      </div>
+
+      <div class="v-section-label">Trips</div>
       {rows.map((r) => (
         <div class="v-list-row" key={r.id}>
           <div class="v-list-row__main">

@@ -93,6 +93,51 @@ export function allocateCookieLineRevenue(
   return list.map((e) => revenue * ((e.unitPrice * e.qty) / weightSum));
 }
 
+/**
+ * Expand a cookie line into per-unit shares (for settlement batches).
+ * Amounts are scaled by `paidRatio` (credit collections).
+ * Zero-revenue lines (rewards) are omitted from partner settlement.
+ */
+export function expandCookieUnitsFromItem(item: SaleItemLike | null | undefined, paidRatio = 1) {
+  const entries = cookieFlavorEntriesFromItem(item);
+  const cookieQty = entries.reduce((sum, e) => sum + e.qty, 0);
+  if (cookieQty <= 0) return [];
+
+  const revenue = Math.max(0, Number(item?.line_total) || 0) * paidRatio;
+  if (revenue <= 0) return [];
+
+  const kind = cookieProductKind(item);
+  const allocs = allocateCookieLineRevenue(entries, revenue, kind);
+  const units: Array<{
+    flavorId: string;
+    ownerSplit: number;
+    partnerDue: number;
+    revenue: number;
+    productKind: string;
+  }> = [];
+
+  for (let i = 0; i < entries.length; i += 1) {
+    const e = entries[i]!;
+    const alloc = allocs[i] || 0;
+    const cost = e.qty * e.wholesale * paidRatio;
+    const profit = alloc - cost;
+    const ownerTotal = profit > 0 ? profit * COOKIE_OWNER_SHARE : 0;
+    const partnerTotal = Math.max(0, alloc - ownerTotal);
+    const ownerEach = ownerTotal / e.qty;
+    const partnerEach = partnerTotal / e.qty;
+    for (let u = 0; u < e.qty; u += 1) {
+      units.push({
+        flavorId: e.flavorId,
+        ownerSplit: ownerEach,
+        partnerDue: partnerEach,
+        revenue: alloc / e.qty,
+        productKind: kind,
+      });
+    }
+  }
+  return units;
+}
+
 export function itemCookieSettlement(item: SaleItemLike | null | undefined) {
   const entries = cookieFlavorEntriesFromItem(item);
   const cookieQty = entries.reduce((sum, e) => sum + e.qty, 0);

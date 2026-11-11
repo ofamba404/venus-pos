@@ -7,7 +7,10 @@ import {
   groupOutstandingByClient,
   sumCreditOwed,
 } from '../../domain/credit';
+import { cookieBatchShareText, openPartnerBatches } from '../../domain/partner';
+import { KEYS } from '../../data/keys';
 import { Money } from '../../ui/Money';
+import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
 
 export function InsightsPage() {
@@ -35,6 +38,27 @@ export function InsightsPage() {
       groups: groupOutstandingByClient(open, clients.value).slice(0, 5),
     };
   }, [sales.value, clients.value]);
+
+  const partnerBatches = useMemo(() => {
+    let settled = 25;
+    try {
+      const raw = localStorage.getItem(KEYS.partnerSettled);
+      if (raw != null && raw !== '') settled = Math.max(0, Math.round(Number(raw) || 0));
+    } catch {
+      /* private mode */
+    }
+    return openPartnerBatches(sales.value as Parameters<typeof openPartnerBatches>[0], settled);
+  }, [sales.value]);
+
+  function copyBatch(index: number) {
+    const batch = partnerBatches[index];
+    if (!batch) return;
+    const text = cookieBatchShareText(batch);
+    void navigator.clipboard?.writeText(text).then(
+      () => showToast('Batch text copied'),
+      () => showToast(text),
+    );
+  }
 
   return (
     <section>
@@ -79,9 +103,31 @@ export function InsightsPage() {
         <p class="v-muted">No outstanding credit</p>
       )}
 
+      <div class="v-section-label">Cookie partner</div>
+      {partnerBatches.length ? (
+        partnerBatches.slice(0, 3).map((b, i) => (
+          <div class="v-list-row" key={b.index}>
+            <div class="v-list-row__main">
+              <div class="v-list-row__title">
+                Batch {b.index} · {b.cookieCount}/{b.every}
+                {b.complete ? '' : ' (open)'}
+              </div>
+              <div class="v-list-row__meta">
+                Partner <Money value={b.partnerDue} /> · you <Money value={b.ownerSplit} />
+              </div>
+            </div>
+            <Button variant="ghost" size="md" onClick={() => copyBatch(i)}>
+              Copy
+            </Button>
+          </div>
+        ))
+      ) : (
+        <p class="v-muted">No open partner batches</p>
+      )}
+
       <p class="v-muted" style={{ marginTop: 16, color: 'var(--fg-2)' }}>
-        Owner revenue uses the v1 recognition rules (paid + partial credit cash). Partner batches and
-        charts continue porting.
+        Owner revenue uses the v1 recognition rules (paid + partial credit cash). Charts still
+        porting.
       </p>
     </section>
   );

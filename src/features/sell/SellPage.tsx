@@ -162,6 +162,7 @@ export function SellPage() {
       <div style={{ display: 'grid', gap: 'var(--s-3)', marginTop: 'var(--s-4)' }}>
         <Field
           label="Customer"
+          data-testid="cart-client"
           value={meta.clientName}
           placeholder="Name"
           onInput={(e) =>
@@ -342,7 +343,7 @@ export function SellPage() {
         title={configProduct?.name || 'Configure'}
         onClose={() => setConfigProduct(null)}
         footer={
-          <Button size="xl" onClick={addConfigured}>
+          <Button size="xl" data-testid="config-add" onClick={addConfigured}>
             Add to sale
           </Button>
         }
@@ -471,11 +472,21 @@ function FlavorRow({
         {cat?.name || id}
       </span>
       <div class="stepper">
-        <button type="button" aria-label={`Fewer ${cat?.name || id}`} onClick={() => onBump(id, -1)}>
+        <button
+          type="button"
+          aria-label={`Fewer ${cat?.name || id}`}
+          data-testid={`config-flavor-${id}-dec`}
+          onClick={() => onBump(id, -1)}
+        >
           <IconMinus size={18} />
         </button>
         <span class="stepper__n">{count}</span>
-        <button type="button" aria-label={`More ${cat?.name || id}`} onClick={() => onBump(id, 1)}>
+        <button
+          type="button"
+          aria-label={`More ${cat?.name || id}`}
+          data-testid={`config-flavor-${id}-inc`}
+          onClick={() => onBump(id, 1)}
+        >
           <IconPlus size={18} />
         </button>
       </div>

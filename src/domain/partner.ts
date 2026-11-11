@@ -1,8 +1,19 @@
 /**
  * Cookie partner batching helpers — pure slice of `legacy/js/revenue.js`.
- * Full unit expansion + storage stay for a later slice.
  */
-import { COOKIE_PARTNER_SETTLE_EVERY } from './catalog';
+import {
+  COOKIE_PARTNER_SETTLE_EVERY,
+  COOKIE_PARTNER_SETTLED_BASELINE,
+  COOKIE_PARTNER_TRACK_FROM_MS,
+} from './catalog';
+import {
+  expandCookieUnitsFromItem,
+  salePaidRatio,
+  type SaleLike,
+  type SaleItemLike,
+} from './revenue';
+
+export { expandCookieUnitsFromItem } from './revenue';
 
 export type PartnerUnit = {
   revenue?: number;
@@ -68,4 +79,30 @@ export function cookieBatchShareText(batch: PartnerBatch & { lines?: Array<{ tex
   lines.push(`Your split — ${Math.round(batch.ownerSplit)}`);
   lines.push(`Send partner — ${Math.round(batch.partnerDue)}`);
   return lines.join('\n');
+}
+
+export function expandPartnerUnitsFromSales(sales: SaleLike[] | null | undefined): PartnerUnit[] {
+  const units: PartnerUnit[] = [];
+  for (const sale of sales || []) {
+    const created = new Date(sale.created_at || 0).getTime();
+    if (!Number.isFinite(created) || created < COOKIE_PARTNER_TRACK_FROM_MS) continue;
+    const paidRatio = salePaidRatio(sale);
+    for (const item of sale.items || []) {
+      for (const unit of expandCookieUnitsFromItem(item as SaleItemLike, paidRatio)) {
+        units.push(unit);
+      }
+    }
+  }
+  return units;
+}
+
+/** Open (unsettled) batches after the baseline of already-settled cookies. */
+export function openPartnerBatches(
+  sales: SaleLike[] | null | undefined,
+  settledQty: number = COOKIE_PARTNER_SETTLED_BASELINE,
+): PartnerBatch[] {
+  const units = expandPartnerUnitsFromSales(sales);
+  const settled = Math.max(0, Math.round(Number(settledQty) || 0));
+  const unsettled = units.slice(settled);
+  return cookiePartnerBatchesFromUnits(unsettled, COOKIE_PARTNER_SETTLE_EVERY);
 }
