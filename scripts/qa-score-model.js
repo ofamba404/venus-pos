@@ -9,7 +9,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { SUPABASE_URL, SUPABASE_ANON_JWT, SUPABASE_KEY } from '../js/config.js';
+import { SUPABASE_URL, SUPABASE_ANON_JWT, SUPABASE_KEY } from '../legacy/js/config.js';
 import {
   fitDeliveryFeeModel,
   predictSafeBodaFee,
@@ -17,7 +17,7 @@ import {
   modelConfidence,
   PERIODS,
   MIN_FARE_UGX,
-} from '../js/delivery-fee-model.js';
+} from '../legacy/js/delivery-fee-model.js';
 
 // delivery-test-routes.js calls getPageHref at load (needs location)
 globalThis.location = globalThis.location || { pathname: '/pages/delivery.html' };

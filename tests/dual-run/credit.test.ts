@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import * as fc from 'fast-check';
-import * as legacy from '../../js/credit.js';
+import * as legacy from '../../legacy/js/credit.js';
 import * as next from '../../src/domain/credit.ts';
 
 const arbSale = fc.record({

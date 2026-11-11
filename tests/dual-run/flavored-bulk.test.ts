@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import * as fc from 'fast-check';
-import * as legacy from '../../js/flavored-cookie-pricing.js';
+import * as legacy from '../../legacy/js/flavored-cookie-pricing.js';
 import * as next from '../../src/domain/pricing/flavored-bulk.ts';
 
 type Line = {

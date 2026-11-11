@@ -93,7 +93,8 @@ function Invoke-GitPush {
 
 function Update-ServiceWorkerCacheVersion {
     # Bump CACHE_VERSION so clients install a new SW, drop old caches, and reload — only on deploy.
-    $swPath = Join-Path $Root "sw.js"
+    $swPath = Join-Path $Root "legacy\sw.js"
+    if (-not (Test-Path $swPath)) { $swPath = Join-Path $Root "sw.js" }
     if (-not (Test-Path $swPath)) { return }
     $content = [System.IO.File]::ReadAllText($swPath)
     if ($content -notmatch "CACHE_VERSION = '([^']+)-v(\d+)'") { return }

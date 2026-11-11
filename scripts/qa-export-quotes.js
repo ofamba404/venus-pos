@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { SUPABASE_URL, SUPABASE_ANON_JWT, SUPABASE_KEY } from '../js/config.js';
+import { SUPABASE_URL, SUPABASE_ANON_JWT, SUPABASE_KEY } from '../legacy/js/config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const posRoot = path.resolve(__dirname, '..');

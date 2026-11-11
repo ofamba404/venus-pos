@@ -1,6 +1,13 @@
 [build]
-  publish = "."
+  command = "npm run build"
+  publish = "dist"
   functions = "netlify/functions"
+
+# v2 parallel app (Phases 1–9). Cutover removes this in favour of root SPA fallback.
+[[redirects]]
+  from = "/next/*"
+  to = "/next/index.html"
+  status = 200
 
 [functions]
   node_bundler = "esbuild"

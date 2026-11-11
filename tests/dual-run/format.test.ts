@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import * as fc from 'fast-check';
-import { fmtUGX, fmtCompact, clientInitials, escapeHtml } from '../../js/utils.js';
+import { fmtUGX, fmtCompact, clientInitials, escapeHtml } from '../../legacy/js/utils.js';
 import {
   formatUGX,
   formatCompact,

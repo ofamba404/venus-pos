@@ -4,8 +4,8 @@
 import {
   canonicalInventoryCategoryId,
   normalizeInventoryBreakdown,
-} from '../js/config.js';
-import { applyInventoryRows } from '../js/store/repository.js';
+} from '../legacy/js/config.js';
+import { applyInventoryRows } from '../legacy/js/store/repository.js';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);

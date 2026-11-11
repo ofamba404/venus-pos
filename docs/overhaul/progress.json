@@ -1,9 +1,9 @@
 {
-  "phase": "0 + early 1/2",
+  "phase": "1 — strangler layout (in progress)",
   "branch": "overhaul",
   "commit": "pending",
-  "next": "More dual-runs · E2E scenarios · design tokens",
-  "status": "24 tests green · Vite/Preact placeholder builds · credit/format/catalog/bulk/stock ported",
+  "next": "Design tokens + shell · more domain dual-runs · E2E scenarios",
+  "status": "24 tests green · legacy/ frozen · Vite /next builds · copy-legacy works",
   "items": [
     { "id": "p0-branch", "label": "Phase 0: branch + v1-baseline tag", "state": "done" },
     { "id": "p0-tooling", "label": "Phase 0: Vitest / Playwright / TS tooling", "state": "done" },
@@ -12,7 +12,7 @@
     { "id": "p0-dual", "label": "Phase 0: dual-run characterizations", "state": "run" },
     { "id": "p0-scenarios", "label": "Phase 0: S01–S50 + goldens", "state": "wait" },
     { "id": "p0-baseline", "label": "Phase 0: screenshots + perf + CI", "state": "wait" },
-    { "id": "p1", "label": "Phase 1: Vite + legacy/ strangler", "state": "run" },
+    { "id": "p1", "label": "Phase 1: Vite + legacy/ strangler", "state": "done" },
     { "id": "p2", "label": "Phase 2: domain port", "state": "run" },
     { "id": "p3", "label": "Phase 3: data / auth / realtime", "state": "wait" },
     { "id": "p4", "label": "Phase 4: design system + shell", "state": "wait" },

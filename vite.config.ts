@@ -27,8 +27,8 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, 'index.next.html'),
-        auth: path.resolve(__dirname, 'auth.next.html'),
+        main: path.resolve(__dirname, 'index.html'),
+        auth: path.resolve(__dirname, 'auth.html'),
       },
     },
   },
@@ -36,4 +36,5 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
   },
+  publicDir: 'public',
 });

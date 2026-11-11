@@ -16,7 +16,7 @@ import {
   CATEGORIES,
   COOKIE_PARTNER_SETTLE_EVERY,
   COOKIE_OWNER_SHARE,
-} from '../../js/config.js';
+} from '../../legacy/js/config.js';
 import * as next from '../../src/domain/catalog.ts';
 
 describe('catalog dual-run', () => {

@@ -10,7 +10,7 @@
     "qa:export": "node scripts/qa-export-quotes.js",
     "qa:score": "node scripts/qa-score-model.js",
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/copy-legacy.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
