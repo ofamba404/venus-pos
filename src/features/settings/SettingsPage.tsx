@@ -32,31 +32,20 @@ export function SettingsPage() {
   return (
     <section>
       <h1 class="page-title">Settings</h1>
-      <div
-        style={{
-          background: 'var(--surface)',
-          borderRadius: 'var(--r-lg)',
-          boxShadow: 'inset 0 0 0 1px var(--line)',
-          padding: 16,
-          display: 'grid',
-          gap: 12,
-        }}
-      >
+      <div class="v-order-card" style={{ display: 'grid', gap: 12, marginBottom: 0 }}>
         <div>
-          <div style={{ font: 'var(--t-meta)', color: 'var(--fg-3)' }}>Account</div>
-          <div style={{ font: 'var(--t-title-sm)' }}>
+          <div class="v-muted">Account</div>
+          <div class="v-list-row__title">
             {authSession.value?.user?.email || (allowDevBypass() ? 'Dev session' : 'Signed in')}
           </div>
-          <div style={{ font: 'var(--t-meta)', color: 'var(--fg-2)' }}>
+          <div class="v-muted" style={{ color: 'var(--fg-2)' }}>
             Role: {authRole.value || 'none'}
           </div>
         </div>
         <Button variant="secondary" onClick={toggleHaptics}>
           Haptics: {haptics ? 'On' : 'Off'}
         </Button>
-        <div style={{ font: 'var(--t-meta)', color: 'var(--fg-3)' }}>
-          Build {typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'}
-        </div>
+        <div class="v-muted">Build {typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'}</div>
         <Button variant="danger" onClick={logout}>
           Sign out
         </Button>

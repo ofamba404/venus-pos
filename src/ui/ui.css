@@ -1,3 +1,31 @@
+.v-icon-btn {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--fg);
+  line-height: 0;
+}
+
+.v-icon-btn--sm {
+  width: 40px;
+  height: 40px;
+}
+
+.v-icon-btn svg {
+  display: block;
+  margin: 0;
+}
+
+.v-icon-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
 .v-btn {
   display: inline-flex;
   align-items: center;
@@ -7,6 +35,7 @@
   padding: 0 var(--s-4);
   border-radius: var(--r-md);
   font: var(--t-label);
+  line-height: 1;
   transition: transform var(--d-instant) var(--ease-out), background var(--d-fast);
 }
 
@@ -55,20 +84,24 @@
 .v-money {
   font: var(--t-money);
   font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .v-money--xl {
   font: var(--t-money-xl);
+  line-height: 1;
 }
 
 .v-tag {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   min-height: 28px;
   padding: 0 10px;
   border-radius: var(--r-pill);
   font: var(--t-meta);
+  line-height: 1;
   background: var(--surface-sunk);
   color: var(--fg-2);
 }
@@ -98,7 +131,7 @@
   height: 10px;
   border-radius: var(--r-pill);
   background: var(--flavor);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--flavor) 25%, var(--ink-700));
   flex: 0 0 auto;
 }
 
@@ -156,11 +189,15 @@
 }
 
 .v-field__input {
+  display: block;
+  width: 100%;
+  height: var(--hit);
   min-height: var(--hit);
   padding: 0 var(--s-3);
   border-radius: var(--r-md);
   background: var(--surface-sunk);
   border: 1px solid transparent;
+  line-height: var(--hit);
 }
 
 .v-field__input:focus {
@@ -180,10 +217,14 @@
 }
 
 .v-seg__btn {
+  display: grid;
+  place-items: center;
   min-height: 40px;
+  padding: 0 var(--s-2);
   border-radius: calc(var(--r-md) - 2px);
   font: var(--t-label);
   color: var(--fg-2);
+  line-height: 1;
 }
 
 .v-seg__btn.is-on {
@@ -227,7 +268,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
-  padding: var(--s-3) var(--s-4);
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4);
+}
+
+.v-sheet__head .v-icon-btn {
+  color: var(--fg-2);
 }
 
 .v-sheet__title {
@@ -315,13 +360,38 @@
   text-align: left;
 }
 
+.v-list-row__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.v-list-row__chevron {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--fg-3);
+  flex: 0 0 auto;
+  line-height: 0;
+}
+
+.v-list-row__chevron svg {
+  display: block;
+}
+
 .v-list-row__title {
   font: var(--t-title-sm);
+  line-height: 1.2;
 }
 
 .v-list-row__meta {
   font: var(--t-meta);
   color: var(--fg-3);
+  line-height: 1.3;
+}
+
+.v-list-row .v-icon-btn {
+  margin-inline-end: -8px;
 }
 
 .v-section-label {
@@ -330,4 +400,69 @@
   text-transform: uppercase;
   color: var(--fg-3);
   margin: var(--s-4) 0 var(--s-2);
+}
+
+.v-muted {
+  color: var(--fg-3);
+  font: var(--t-meta);
+}
+
+.v-order-card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: var(--s-4);
+  margin-bottom: var(--s-3);
+}
+
+.v-order-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+
+.v-order-card__actions {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.v-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.v-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+.v-stat {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: inset 0 0 0 1px var(--line);
+  padding: var(--s-4);
+}
+
+.v-stat__label {
+  font: var(--t-mono-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  line-height: 1;
+}
+
+.v-stat__value {
+  margin-top: var(--s-2);
+  font: var(--t-money-xl);
+  line-height: 1;
+}
+
+.v-stat__value--display {
+  font: var(--t-display);
 }

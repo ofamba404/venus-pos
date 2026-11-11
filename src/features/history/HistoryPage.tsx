@@ -16,7 +16,7 @@ export function HistoryPage() {
       <h1 class="page-title">History</h1>
       {sales.value.map((s) => (
         <div class="v-list-row" key={s.id}>
-          <div style={{ flex: 1 }}>
+          <div class="v-list-row__main">
             <div class="v-list-row__title">
               {new Date(s.created_at || '').toLocaleString('en-GB', {
                 day: '2-digit',

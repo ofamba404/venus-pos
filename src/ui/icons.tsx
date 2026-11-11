@@ -9,9 +9,11 @@ function base({ size = 24, ...rest }: IconProps) {
     viewBox: '0 0 24 24',
     fill: 'none',
     stroke: 'currentColor',
-    'stroke-width': 1.75,
-    'stroke-linecap': 'round' as const,
-    'stroke-linejoin': 'round' as const,
+    strokeWidth: 1.75,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true as const,
+    focusable: 'false' as const,
     ...rest,
   };
 }
@@ -47,9 +49,9 @@ export function IconStock(p: IconProps) {
 export function IconMore(p: IconProps) {
   return (
     <svg {...base(p)}>
-      <circle cx="6" cy="12" r="1.2" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
-      <circle cx="18" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="6" cy="12" r="1.35" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.35" fill="currentColor" stroke="none" />
+      <circle cx="18" cy="12" r="1.35" fill="currentColor" stroke="none" />
     </svg>
   );
 }
@@ -66,7 +68,7 @@ export function IconInsights(p: IconProps) {
 export function IconClose(p: IconProps) {
   return (
     <svg {...base(p)}>
-      <path d="M6 6l12 12M18 6 6 18" />
+      <path d="M7 7l10 10M17 7 7 17" />
     </svg>
   );
 }
@@ -74,7 +76,7 @@ export function IconClose(p: IconProps) {
 export function IconPlus(p: IconProps) {
   return (
     <svg {...base(p)}>
-      <path d="M12 5v14M5 12h14" />
+      <path d="M12 7v10M7 12h10" />
     </svg>
   );
 }
@@ -82,7 +84,7 @@ export function IconPlus(p: IconProps) {
 export function IconMinus(p: IconProps) {
   return (
     <svg {...base(p)}>
-      <path d="M5 12h14" />
+      <path d="M7 12h10" />
     </svg>
   );
 }
@@ -98,7 +100,15 @@ export function IconCheck(p: IconProps) {
 export function IconChevronLeft(p: IconProps) {
   return (
     <svg {...base(p)}>
-      <path d="M15 5 8 12l7 7" />
+      <path d="M14.5 6 9 12l5.5 6" />
+    </svg>
+  );
+}
+
+export function IconChevronRight(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M9.5 6 15 12l-5.5 6" />
     </svg>
   );
 }
@@ -115,8 +125,8 @@ export function IconUser(p: IconProps) {
 export function IconSync(p: IconProps) {
   return (
     <svg {...base(p)}>
-      <path d="M20 12a8 8 0 1 1-2.2-5.5" />
-      <path d="M20 5v5h-5" />
+      <path d="M19.5 12a7.5 7.5 0 1 1-2.1-5.2" />
+      <path d="M19.5 4.5v5h-5" />
     </svg>
   );
 }

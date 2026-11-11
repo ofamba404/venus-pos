@@ -23,7 +23,8 @@ import { Field } from '../../ui/Field';
 import { Segmented } from '../../ui/Segmented';
 import { FlavorDot } from '../../ui/FlavorDot';
 import { showToast } from '../../ui/ToastHost';
-import { IconCheck, IconMinus, IconPlus } from '../../ui/icons';
+import { IconButton } from '../../ui/IconButton';
+import { IconCheck, IconClose, IconMinus, IconPlus } from '../../ui/icons';
 
 const PACKS = PRODUCTS.filter((p) => p.rule === 'choose_any' || p.rule === 'choose_variety');
 const SINGLES = PRODUCTS.filter(
@@ -117,14 +118,14 @@ export function SellPage() {
         <div>
           {lines.map((line) => (
             <div class="v-list-row" key={line.key}>
-              <div style={{ flex: 1 }}>
+              <div class="v-list-row__main">
                 <div class="v-list-row__title">{line.name}</div>
                 <div class="v-list-row__meta">{line.detail}</div>
               </div>
               <Money value={line.isReward ? 0 : line.lineTotal} />
-              <button
-                type="button"
-                aria-label={`Remove ${line.name}`}
+              <IconButton
+                size="sm"
+                label={`Remove ${line.name}`}
                 onClick={() => {
                   dispatchCart({ type: 'remove_line', key: line.key });
                   showToast('Removed', {
@@ -133,8 +134,8 @@ export function SellPage() {
                   });
                 }}
               >
-                ✕
-              </button>
+                <IconClose size={18} />
+              </IconButton>
             </div>
           ))}
           {progress.hasAny ? (
@@ -156,7 +157,7 @@ export function SellPage() {
           }
         />
         {recentClients.length ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div class="v-chip-row">
             {recentClients.map((c) => (
               <button
                 key={c.id}
@@ -177,8 +178,8 @@ export function SellPage() {
             { id: 'credit', label: 'On credit' },
           ]}
         />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <span style={{ font: 'var(--t-label)', color: 'var(--fg-2)' }}>Total</span>
+        <div class="cart-total">
+          <span class="cart-total__label">Total</span>
           <Money value={cartSum.value} size="xl" />
         </div>
       </div>
@@ -217,7 +218,7 @@ export function SellPage() {
             <button key={p.id} type="button" class="v-tile" onClick={() => openConfig(p)}>
               <span class="v-tile__name">{p.name}</span>
               <span class="v-tile__meta">
-                {p.joints} {p.slotNoun || 'joints'}
+                {p.joints} {p.slotNoun || (Number(p.joints) === 1 ? 'joint' : 'joints')}
               </span>
               <span class="v-tile__price">{productPriceLabel(p)}</span>
             </button>
@@ -341,11 +342,19 @@ function ConfigBody({
       <div class="config-flavor">
         <span>Quantity</span>
         <div class="stepper">
-          <button type="button" onClick={() => onQty(Math.max(0, (selection.qty || 0) - 1))}>
+          <button
+            type="button"
+            aria-label="Decrease quantity"
+            onClick={() => onQty(Math.max(0, (selection.qty || 0) - 1))}
+          >
             <IconMinus size={18} />
           </button>
-          <strong style={{ minWidth: 24, textAlign: 'center' }}>{selection.qty || 0}</strong>
-          <button type="button" onClick={() => onQty((selection.qty || 0) + 1)}>
+          <span class="stepper__n">{selection.qty || 0}</span>
+          <button
+            type="button"
+            aria-label="Increase quantity"
+            onClick={() => onQty((selection.qty || 0) + 1)}
+          >
             <IconPlus size={18} />
           </button>
         </div>
@@ -397,7 +406,7 @@ function FlavorRow({
   const cat = CAT_MAP[id];
   return (
     <div class="config-flavor">
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <span class="config-flavor__label">
         <FlavorDot color={cat?.color || '#ccc'} size="lg" />
         {cat?.name || id}
       </span>
@@ -405,7 +414,7 @@ function FlavorRow({
         <button type="button" aria-label={`Fewer ${cat?.name || id}`} onClick={() => onBump(id, -1)}>
           <IconMinus size={18} />
         </button>
-        <strong style={{ minWidth: 24, textAlign: 'center' }}>{count}</strong>
+        <span class="stepper__n">{count}</span>
         <button type="button" aria-label={`More ${cat?.name || id}`} onClick={() => onBump(id, 1)}>
           <IconPlus size={18} />
         </button>

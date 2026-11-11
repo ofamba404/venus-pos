@@ -7,6 +7,7 @@ import { go } from '../../app/router';
 import { Button } from '../../ui/Button';
 import { Tag } from '../../ui/Tag';
 import { Money } from '../../ui/Money';
+import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
 import { formatUGX } from '../../domain/format';
 
@@ -65,26 +66,19 @@ export function OrdersPage() {
   return (
     <section>
       <h1 class="page-title">Orders</h1>
-      <div class="v-seg" style={{ marginBottom: 16 }}>
-        {(
-          [
-            ['waiting', 'Waiting'],
-            ['in_sale', 'In sale'],
-            ['closed', 'Closed'],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            class={`v-seg__btn ${seg === id ? 'is-on' : ''}`}
-            onClick={() => setSeg(id)}
-          >
-            {label}
-          </button>
-        ))}
+      <div style={{ marginBottom: 16 }}>
+        <Segmented
+          value={seg}
+          onChange={setSeg}
+          options={[
+            { id: 'waiting', label: 'Waiting' },
+            { id: 'in_sale', label: 'In sale' },
+            { id: 'closed', label: 'Closed' },
+          ]}
+        />
       </div>
 
-      {loading ? <p style={{ color: 'var(--fg-3)' }}>Loading…</p> : null}
+      {loading ? <p class="v-muted">Loading…</p> : null}
       {!loading && !list.length ? (
         <div class="v-empty">
           <p class="v-empty__title">No orders here</p>
@@ -94,26 +88,17 @@ export function OrdersPage() {
 
       <div>
         {list.map((o) => (
-          <article
-            key={o.id}
-            style={{
-              background: 'var(--surface)',
-              borderRadius: 'var(--r-lg)',
-              boxShadow: 'inset 0 0 0 1px var(--line)',
-              padding: 16,
-              marginBottom: 12,
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <article key={o.id} class="v-order-card">
+            <div class="v-order-card__top">
               <div>
-                <div style={{ font: 'var(--t-title-sm)' }}>{orderTitle(o)}</div>
-                <div style={{ font: 'var(--t-meta)', color: 'var(--fg-3)' }}>
+                <div class="v-list-row__title">{orderTitle(o)}</div>
+                <div class="v-list-row__meta">
                   {o.status} · {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
                 </div>
               </div>
               <Money value={orderTotal(o)} />
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+            <div class="v-order-card__actions">
               <Tag tone={o.delivery_enabled === false ? 'default' : 'paid'}>
                 {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
               </Tag>
@@ -129,7 +114,7 @@ export function OrdersPage() {
               ) : null}
             </div>
             {o.location_label ? (
-              <p style={{ font: 'var(--t-meta)', color: 'var(--fg-2)', margin: '8px 0 0' }}>
+              <p class="v-muted" style={{ margin: '8px 0 0' }}>
                 {String(o.location_label)}
                 {o.delivery_fee_ugx != null ? ` · ${formatUGX(Number(o.delivery_fee_ugx))}` : ''}
               </p>

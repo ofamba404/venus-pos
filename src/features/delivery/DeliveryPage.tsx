@@ -31,7 +31,7 @@ export function DeliveryPage() {
       <h1 class="page-title">Delivery</h1>
       {rows.map((r) => (
         <div class="v-list-row" key={r.id}>
-          <div style={{ flex: 1 }}>
+          <div class="v-list-row__main">
             <div class="v-list-row__title">{r.client_name || 'Trip'}</div>
             <div class="v-list-row__meta">
               {r.distance_km != null ? `${Number(r.distance_km).toFixed(1)} km · ` : ''}

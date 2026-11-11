@@ -43,6 +43,14 @@ svg {
   max-width: 100%;
 }
 
+/* Preact may serialize SVG stroke* as camelCase attrs; pin via CSS. */
+svg[stroke],
+svg[strokeWidth] {
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;

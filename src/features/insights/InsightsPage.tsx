@@ -25,43 +25,19 @@ export function InsightsPage() {
   return (
     <section>
       <h1 class="page-title">Insights</h1>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 12,
-        }}
-      >
-        <div
-          style={{
-            background: 'var(--surface)',
-            borderRadius: 'var(--r-lg)',
-            padding: 16,
-            boxShadow: 'inset 0 0 0 1px var(--line)',
-          }}
-        >
-          <div style={{ font: 'var(--t-mono-micro)', letterSpacing: '0.06em', color: 'var(--fg-3)' }}>
-            TODAY
-          </div>
-          <div style={{ font: 'var(--t-display)', marginTop: 8 }}>
+      <div class="v-stat-grid">
+        <div class="v-stat">
+          <div class="v-stat__label">Today</div>
+          <div class="v-stat__value v-stat__value--display">
             <Money value={stats.revenue} size="xl" />
           </div>
         </div>
-        <div
-          style={{
-            background: 'var(--surface)',
-            borderRadius: 'var(--r-lg)',
-            padding: 16,
-            boxShadow: 'inset 0 0 0 1px var(--line)',
-          }}
-        >
-          <div style={{ font: 'var(--t-mono-micro)', letterSpacing: '0.06em', color: 'var(--fg-3)' }}>
-            SALES
-          </div>
-          <div style={{ font: 'var(--t-money-xl)', marginTop: 8 }}>{stats.count}</div>
+        <div class="v-stat">
+          <div class="v-stat__label">Sales</div>
+          <div class="v-stat__value">{stats.count}</div>
         </div>
       </div>
-      <p style={{ color: 'var(--fg-2)', font: 'var(--t-meta)', marginTop: 16 }}>
+      <p class="v-muted" style={{ marginTop: 16, color: 'var(--fg-2)' }}>
         Full charts, partner batches, and heatmaps continue porting from v1 analytics. Today totals
         above use paid + partial credit cash.
       </p>

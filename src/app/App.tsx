@@ -3,7 +3,7 @@ import { bootRouter, currentRoute, go, routeId, ROUTES } from './router';
 import { hydrateAuth, allowDevBypass, canAccessPath, authReady } from '../data/auth';
 import { bootstrapEntities, syncLabel } from '../data/entities';
 import { ToastHost } from '../ui/ToastHost';
-import { IconSell, IconOrders, IconStock, IconMore, IconSync } from '../ui/icons';
+import { IconSell, IconOrders, IconStock, IconMore } from '../ui/icons';
 import { SellPage } from '../features/sell/SellPage';
 import { OrdersPage } from '../features/orders/OrdersPage';
 import { StockPage } from '../features/stock/StockPage';
@@ -62,8 +62,7 @@ export function App() {
         <div class="shell__brand">Venus POS</div>
         <div class="shell__sync" title={syncLabel.value}>
           <span class={`shell__sync-dot ${syncLabel.value === 'live' ? 'is-live' : ''}`} />
-          <IconSync size={16} />
-          <span>{route.title}</span>
+          <span class="shell__sync-label">{route.title}</span>
         </div>
       </header>
 

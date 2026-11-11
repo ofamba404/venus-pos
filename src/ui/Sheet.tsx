@@ -1,5 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { IconClose } from './icons';
+import { IconButton } from './IconButton';
 
 export function Sheet({
   open,
@@ -29,9 +30,9 @@ export function Sheet({
         <div class="v-sheet__handle" />
         <div class="v-sheet__head">
           <h2 class="v-sheet__title">{title}</h2>
-          <button type="button" aria-label="Close" onClick={onClose}>
-            <IconClose />
-          </button>
+          <IconButton label="Close" onClick={onClose}>
+            <IconClose size={22} />
+          </IconButton>
         </div>
         <div class="v-sheet__body">{children}</div>
         {footer ? <div class="v-sheet__foot">{footer}</div> : null}

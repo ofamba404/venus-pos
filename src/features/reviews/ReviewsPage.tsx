@@ -30,7 +30,7 @@ export function ReviewsPage() {
       <h1 class="page-title">Reviews</h1>
       {rows.map((r) => (
         <div class="v-list-row" key={r.id}>
-          <div style={{ flex: 1 }}>
+          <div class="v-list-row__main">
             <div class="v-list-row__title">
               {r.customer_name || 'Customer'} · {r.rating ?? '—'}★
             </div>

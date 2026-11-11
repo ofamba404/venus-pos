@@ -38,8 +38,8 @@ export function StockPage() {
     return (
       <div class="stock-row">
         <FlavorDot color={color} hollow={level === 'out'} size="lg" />
-        <div>
-          <div style={{ font: 'var(--t-title-sm)' }}>{name}</div>
+        <div class="stock-row__label">
+          <div class="stock-row__name">{name}</div>
           {level !== 'ok' ? <Tag tone={level === 'low' ? 'low' : 'out'}>{level}</Tag> : null}
         </div>
         <span class="stock-row__qty">{qty}</span>
@@ -50,7 +50,7 @@ export function StockPage() {
             aria-label={`Decrease ${name}`}
             onClick={() => void bump(id, -1)}
           >
-            <IconMinus size={18} />
+            <IconMinus size={18} aria-hidden="true" />
           </button>
           <button
             type="button"
@@ -58,7 +58,7 @@ export function StockPage() {
             aria-label={`Increase ${name}`}
             onClick={() => void bump(id, 1)}
           >
-            <IconPlus size={18} />
+            <IconPlus size={18} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -68,7 +68,7 @@ export function StockPage() {
   return (
     <section>
       <h1 class="page-title">Stock</h1>
-      {!inventoryReady.value ? <p style={{ color: 'var(--fg-3)' }}>Loading…</p> : null}
+      {!inventoryReady.value ? <p class="v-muted">Loading…</p> : null}
       <div class="v-section-label">Joints</div>
       <div class="stock-grid">
         {joints.map((c) => (

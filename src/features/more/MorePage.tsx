@@ -1,5 +1,6 @@
 import { go, ROUTES } from '../../app/router';
 import { isAdmin } from '../../data/auth';
+import { IconChevronRight } from '../../ui/icons';
 
 export function MorePage() {
   const links = ROUTES.filter((r) => r.nav === 'more').filter(
@@ -12,10 +13,12 @@ export function MorePage() {
       <div>
         {links.map((r) => (
           <button key={r.id} type="button" class="v-list-row" onClick={() => go(r.path)}>
-            <div style={{ flex: 1 }}>
+            <div class="v-list-row__main">
               <div class="v-list-row__title">{r.title}</div>
             </div>
-            <span aria-hidden="true">›</span>
+            <span class="v-list-row__chevron" aria-hidden="true">
+              <IconChevronRight size={18} />
+            </span>
           </button>
         ))}
       </div>

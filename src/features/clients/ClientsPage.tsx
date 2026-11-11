@@ -25,22 +25,22 @@ export function ClientsPage() {
         placeholder="Search"
         value={q}
         onInput={(e) => setQ((e.target as HTMLInputElement).value)}
-        style={{ width: '100%', marginBottom: 12 }}
+        style={{ marginBottom: 12 }}
       />
       {list.map((c) => {
         const owed = sumCreditOwed(getClientOutstandingCredit(sales.value, c.id));
         return (
           <div class="v-list-row" key={c.id}>
-            <div style={{ flex: 1 }}>
+            <div class="v-list-row__main">
               <div class="v-list-row__title">{c.name}</div>
               <div class="v-list-row__meta">{c.phone || c.id.slice(0, 8)}</div>
             </div>
             {owed > 0 ? (
-              <span style={{ color: 'var(--danger)' }}>
+              <span style={{ color: 'var(--danger)', lineHeight: 1 }}>
                 <Money value={owed} />
               </span>
             ) : (
-              <span style={{ color: 'var(--fg-3)', font: 'var(--t-meta)' }}>Clear</span>
+              <span class="v-muted">Clear</span>
             )}
           </div>
         );
