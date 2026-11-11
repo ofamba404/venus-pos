@@ -10494,3 +10494,80 @@ html.pos-staff [data-product="cookie_wholesale"] { display: none !important; }
 
 /* Users = its own menu item: hide the Admin tab bar in that view */
 .admin-page.is-users-view .admin-tabs { display: none; }
+
+/* =====================================================================
+   Staff UI pass 1: shared token layer + Her Voice-derived patterns.
+   Tokens are additive (new names only, nothing existing is redefined).
+   Every rule that changes how something looks is scoped to html.pos-staff,
+   so admin screens are untouched until Joshua approves them.
+   ===================================================================== */
+:root {
+  /* Touch + motion tokens (Her Voice: --tap, --d-*, --ease-*) */
+  --tap: 44px;
+  --d-instant: 90ms;
+  --d-fast: 180ms;
+  --d-base: 320ms;
+  --d-slow: 520ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-soft: cubic-bezier(.22, 1, .36, 1);
+  --ease-spring: cubic-bezier(.3, 1.35, .5, 1);
+  --press-scale: .965;
+  /* Status roles: tonal fill + readable ink (all >= 4.5:1 on their fill) */
+  --status-ok-bg: color-mix(in srgb, var(--jade) 12%, #fff);
+  --status-ok-fg: #047857;
+  --status-low-bg: color-mix(in srgb, var(--gold) 14%, #fff);
+  --status-low-fg: #92400e;
+  --status-out-bg: color-mix(in srgb, var(--danger) 10%, #fff);
+  --status-out-fg: #b91c1c;
+}
+
+/* Press physics: quick squeeze on touch, soft spring on release. Transform only. */
+html.pos-staff :is(.product-row, .kpi-card, .rail-chip, .stock-summary, .sg-pill, .commission-mini__link, .reviews-tab, #reviewsRefreshBtn) {
+  transition: transform var(--d-base) var(--ease-spring), border-color var(--d-fast), background-color var(--d-fast), color var(--d-fast), box-shadow var(--d-fast);
+}
+html.pos-staff :is(.product-row, .kpi-card, .rail-chip, .stock-summary, .sg-pill, .commission-mini__link, .reviews-tab, #reviewsRefreshBtn):active {
+  transform: scale(var(--press-scale));
+  transition-duration: var(--d-instant), var(--d-fast), var(--d-fast), var(--d-fast), var(--d-fast);
+}
+
+/* Reachable targets: the header chips get a little taller and an invisible halo so they reach 44px. */
+html.pos-staff .rail-chip { position: relative; padding-top: .6rem; padding-bottom: .6rem; }
+html.pos-staff .rail-chip::after { content: ""; position: absolute; inset: -5px -3px; } /* ::after is measured from the padding edge: ~44.7px tall after the track clips the top */
+html.pos-staff .commission-mini__link { position: relative; }
+html.pos-staff .commission-mini__link::after { content: ""; position: absolute; inset: -4px 0; }
+html.pos-staff .reviews-tab, html.pos-staff #reviewsRefreshBtn { min-height: var(--tap); }
+
+/* Stock glance: OK / Low / Out as tonal status pills with a readable label (was an 8px caption). */
+html.pos-staff .sg-pills { gap: 5px; }
+html.pos-staff .sg-pill { position: relative; min-width: 32px; padding: 5px 6px 4px; border-radius: 10px; gap: 2px; }
+html.pos-staff .sg-pill::after { content: ""; position: absolute; inset: -4px -1px; }
+html.pos-staff .sg-pill-n { font-size: .9375rem; }
+html.pos-staff .sg-pill-l { font-size: .625rem; font-weight: 700; letter-spacing: .02em; }
+html.pos-staff .sg-pill.sg-ok { background: var(--status-ok-bg); }
+html.pos-staff .sg-pill.sg-low { background: var(--status-low-bg); }
+html.pos-staff .sg-pill.sg-out { background: var(--status-out-bg); }
+html.pos-staff .sg-pill.sg-ok :is(.sg-pill-n, .sg-pill-l) { color: var(--status-ok-fg); }
+html.pos-staff .sg-pill.sg-low :is(.sg-pill-n, .sg-pill-l) { color: var(--status-low-fg); }
+html.pos-staff .sg-pill.sg-out :is(.sg-pill-n, .sg-pill-l) { color: var(--status-out-fg); }
+
+/* Staff Inventory (view only): say Low / Out in words, quiet the number when it is gone. */
+.inv-state { display: none; }
+html.pos-staff #invGrid .counter-row { align-items: center; min-height: 32px; }
+html.pos-staff #invGrid .inv-state {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
+  border-radius: 999px; font-size: .75rem; font-weight: 700; letter-spacing: .01em; white-space: nowrap;
+}
+html.pos-staff #invGrid .inv-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+html.pos-staff #invGrid .card[data-state="low"] .inv-state { background: var(--status-low-bg); color: var(--status-low-fg); }
+html.pos-staff #invGrid .card[data-state="out"] .inv-state { background: var(--status-out-bg); color: var(--status-out-fg); }
+html.pos-staff #invGrid .card[data-state="ok"] .inv-state { display: none; }
+html.pos-staff #invGrid .card[data-state="out"] .count { color: var(--text-dim); }
+html.pos-staff #invGrid .card[data-state="out"] { background: color-mix(in srgb, var(--surface-overlay) 70%, var(--surface)); border-color: var(--panel-edge); }
+html.pos-staff #invGrid .card[data-state="out"] .name-row { opacity: .75; }
+
+@media (prefers-reduced-motion: reduce) {
+  html.pos-staff :is(.product-row, .kpi-card, .rail-chip, .stock-summary, .sg-pill, .commission-mini__link, .reviews-tab, #reviewsRefreshBtn) {
+    transition: border-color var(--d-fast), background-color var(--d-fast), color var(--d-fast);
+  }
+  html.pos-staff :is(.product-row, .kpi-card, .rail-chip, .stock-summary, .sg-pill, .commission-mini__link, .reviews-tab, #reviewsRefreshBtn):active { transform: none; }
+}
