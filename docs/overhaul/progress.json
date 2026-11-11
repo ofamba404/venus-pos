@@ -1,7 +1,7 @@
 {
   "phase": "0 leftovers + 6/7 closeout in progress",
   "branch": "overhaul",
-  "commit": "pending",
+  "commit": "e0b916e",
   "next": "Drivers + goldens for S01–S50 · Maps fee predict · partner charts · owner gates 8–10",
   "status": "S01–S50 defs · Today strip · checkout fee draft · stock set-count · credit settle · SW routing unit tests",
   "items": [
