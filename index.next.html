@@ -6,7 +6,12 @@
     <meta name="theme-color" content="#f5f4f1" />
     <title>Venus POS</title>
     <script>
+      // Production gate (Phase 6+). Skip in Vite dev so the placeholder shell is visible.
       (function () {
+        if (location.port === '5173' || location.hostname === 'localhost' && location.pathname.indexOf('/next/') === 0) {
+          /* allow shell during overhaul; real gate returns with Phase 6 auth */
+          return;
+        }
         try {
           var raw = localStorage.getItem('venus-pos-auth');
           if (!raw) {
