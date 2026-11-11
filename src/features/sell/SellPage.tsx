@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'preact/hooks';
 import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
 import { formatUGX } from '../../domain/format';
-import { buildCartLine, cartTotal, clientReadyForCharge, isWalkInCheckout, WALK_IN_NAME } from '../../domain/cart';
+import {
+  buildCartLine,
+  cartTotal,
+  clientReadyForCharge,
+  isWalkInCheckout,
+  resumeHeldSale,
+  toHeldSale,
+  WALK_IN_NAME,
+  type HeldSale,
+} from '../../domain/cart';
 import { configFlavorPool, configTotalSelected } from '../../domain/pricing/pack-config';
 import { getProgress } from '../../domain/pricing/flavored-bulk';
 import { computeTodayStats } from '../../domain/today';
@@ -9,16 +18,19 @@ import {
   cartLines,
   cartSum,
   cartCount,
+  cartState,
   orderMeta,
   dispatchCart,
   setOrderMetaPatch,
   clearCartKeepMeta,
+  replaceCart,
 } from '../../data/session-cart';
 import { checkoutDraft, clearCheckoutDraft, setCheckoutDraft } from '../../data/checkout-draft';
 import { ensureDeliveryModel, quoteFeeForDest } from '../../data/delivery-model';
 import { runCheckout } from '../../data/checkout';
 import { features } from '../../data/env';
 import { deviceId } from '../../data/device-id';
+import { deleteHeld, listHeld, saveHeld } from '../../data/held';
 import { postStoreReserve } from '../../data/store-reserve';
 import { clients, ensureInventory, inventory, loadSales, sales, syncLabel } from '../../data/entities';
 import { counterSellable } from '../../domain/stock-reservation';
@@ -54,6 +66,7 @@ export function SellPage() {
   const [paying, setPaying] = useState(false);
   const [successTotal, setSuccessTotal] = useState<number | null>(null);
   const [payment, setPayment] = useState<'paid' | 'credit'>('paid');
+  const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
 
   const lines = cartLines.value;
   const meta = orderMeta.value;
@@ -63,6 +76,7 @@ export function SellPage() {
 
   useEffect(() => {
     void loadSales().catch(() => {});
+    void listHeld().then(setHeldSales).catch(() => {});
     void ensureDeliveryModel().catch(() => {});
     void ensureInventory().catch(() => {});
     const timer = window.setInterval(() => {
@@ -168,12 +182,63 @@ export function SellPage() {
     void loadSales().catch(() => {});
   }
 
+  async function parkSale() {
+    if (meta.storeOrderId) {
+      showToast('Store orders stay on the counter');
+      return;
+    }
+    const snap = toHeldSale(cartState.value);
+    if (!snap) return;
+    try {
+      await saveHeld(snap);
+    } catch {
+      showToast('Could not hold this sale');
+      return;
+    }
+    clearCartKeepMeta();
+    setOrderMetaPatch({ clientName: '', clientId: '', isCredit: false, storeOrderId: '' });
+    setHeldSales(await listHeld());
+    showToast('Held on this phone');
+  }
+
+  async function resumeSale(id: string) {
+    const row = (await listHeld()).find((item) => item.id === id);
+    if (!row) return;
+    if (lines.length && meta.storeOrderId) {
+      showToast('Finish the store order before resuming a hold');
+      return;
+    }
+    if (lines.length) {
+      const current = toHeldSale(cartState.value);
+      if (current) await saveHeld(current);
+    }
+    const next = resumeHeldSale(row);
+    replaceCart(next.lines, next.meta);
+    setPayment(next.meta.isCredit ? 'credit' : 'paid');
+    await deleteHeld(id);
+    setHeldSales(await listHeld());
+  }
+
   const recentClients = clients.value.slice(0, 6);
   const credit = payment === 'credit';
   const canCharge = clientReadyForCharge(meta, credit);
 
   const cartBody = (
     <>
+      {features.holdSale && heldSales.length ? (
+        <div class="v-chip-row" data-testid="held-sales">
+          {heldSales.map((sale) => (
+            <button
+              key={sale.id}
+              type="button"
+              class="v-tag"
+              onClick={() => void resumeSale(sale.id)}
+            >
+              {sale.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {lines.length === 0 ? (
         <div class="v-empty">
           <p class="v-empty__title">No items yet</p>
@@ -332,6 +397,11 @@ export function SellPage() {
           <span class="cart-total__label">Total</span>
           <Money value={cartSum.value} size="xl" />
         </div>
+        {features.holdSale && lines.length && !meta.storeOrderId ? (
+          <Button size="md" variant="secondary" data-testid="hold-sale" onClick={() => void parkSale()}>
+            Hold on this phone
+          </Button>
+        ) : null}
       </div>
     </>
   );
