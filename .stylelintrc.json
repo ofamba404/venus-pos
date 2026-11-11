@@ -1,0 +1,19 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "ignoreFiles": ["legacy/**", "dist/**", "docs/**", "vendor/**"],
+  "rules": {
+    "color-no-hex": true,
+    "declaration-no-important": true,
+    "function-disallowed-list": ["rgb", "rgba", "hsl", "hsla"],
+    "selector-class-pattern": "^v-[a-z0-9-]+$"
+  },
+  "overrides": [
+    {
+      "files": ["src/styles/tokens.css"],
+      "rules": {
+        "color-no-hex": null,
+        "function-disallowed-list": null
+      }
+    }
+  ]
+}

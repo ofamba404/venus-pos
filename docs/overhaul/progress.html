@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="refresh" content="8" />
+  <title>Venus POS overhaul — progress</title>
+  <style>
+    :root {
+      --bg: #f5f4f1;
+      --ink: #212121;
+      --muted: #575757;
+      --line: #e0dacf;
+      --ok: #16a34a;
+      --run: #92400e;
+      --wait: #6b7280;
+      --surface: #fff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 15px/1.45 system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      padding: 24px;
+      max-width: 720px;
+    }
+    h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin-bottom: 20px; font-size: 13px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .meta { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; font-size: 14px; }
+    .meta dt { color: var(--muted); }
+    .meta dd { margin: 0; font-family: ui-monospace, monospace; font-size: 13px; }
+    .bar {
+      height: 8px;
+      background: var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 12px 0 4px;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      background: var(--ink);
+      width: 0%;
+      transition: width .4s ease;
+    }
+    .pct { font-size: 13px; color: var(--muted); }
+    ol { list-style: none; padding: 0; margin: 0; }
+    li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 0;
+      border-top: 1px solid var(--line);
+      font-size: 14px;
+    }
+    li:first-child { border-top: 0; }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      margin-top: 5px; flex-shrink: 0;
+      background: var(--wait);
+    }
+    .dot.done { background: var(--ok); }
+    .dot.run { background: var(--run); box-shadow: 0 0 0 3px #fef3c7; }
+    .label { flex: 1; }
+    .tag {
+      font-size: 11px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .live { color: var(--ok); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Venus POS overhaul</h1>
+  <p class="sub">Auto-refreshes every 8s · <span class="live" id="clock"></span></p>
+
+  <div class="card">
+    <dl class="meta">
+      <dt>Phase</dt><dd id="phase">0 — not started</dd>
+      <dt>Branch</dt><dd id="branch">overhaul (pending)</dd>
+      <dt>Last commit</dt><dd id="commit">—</dd>
+      <dt>Next step</dt><dd id="next">Phase 0, task 1</dd>
+      <dt>Status</dt><dd id="status">Waiting for agent</dd>
+    </dl>
+    <div class="bar"><span id="fill"></span></div>
+    <div class="pct" id="pct">0 / 15 slices</div>
+  </div>
+
+  <div class="card">
+    <ol id="list"></ol>
+  </div>
+
+  <script>
+    // Updated by the agent as work progresses. Keep in sync with PROGRESS.md.
+    const STATE = {
+      phase: "0 — not started",
+      branch: "overhaul (to be created)",
+      commit: "—",
+      next: "Phase 0, task 1 — create branch + tooling",
+      status: "Agent starting Phase 0",
+      items: [
+        { id: "p0-branch", label: "Phase 0: branch + v1-baseline tag", state: "run" },
+        { id: "p0-tooling", label: "Phase 0: Vitest / Playwright / TS tooling", state: "wait" },
+        { id: "p0-mock", label: "Phase 0: mock backend + fixtures", state: "wait" },
+        { id: "p0-exports", label: "Phase 0: export legacy helpers", state: "wait" },
+        { id: "p0-dual", label: "Phase 0: dual-run characterizations", state: "wait" },
+        { id: "p0-scenarios", label: "Phase 0: S01–S50 + goldens", state: "wait" },
+        { id: "p0-baseline", label: "Phase 0: screenshots + perf + CI", state: "wait" },
+        { id: "p1", label: "Phase 1: Vite + legacy/ strangler", state: "wait" },
+        { id: "p2", label: "Phase 2: domain port", state: "wait" },
+        { id: "p3", label: "Phase 3: data / auth / realtime", state: "wait" },
+        { id: "p4", label: "Phase 4: design system + shell", state: "wait" },
+        { id: "p5", label: "Phase 5: Sell + checkout + Orders", state: "wait" },
+        { id: "p6", label: "Phase 6: Stock + Settings + Auth + PWA", state: "wait" },
+        { id: "p7", label: "Phase 7: back office", state: "wait" },
+        { id: "p8-10", label: "Phases 8–10: owner-gated (improvements, parallel, cutover)", state: "wait" },
+      ],
+    };
+
+    function render() {
+      document.getElementById("phase").textContent = STATE.phase;
+      document.getElementById("branch").textContent = STATE.branch;
+      document.getElementById("commit").textContent = STATE.commit;
+      document.getElementById("next").textContent = STATE.next;
+      document.getElementById("status").textContent = STATE.status;
+      document.getElementById("clock").textContent = "updated " + new Date().toLocaleTimeString();
+
+      const done = STATE.items.filter((i) => i.state === "done").length;
+      const total = STATE.items.length;
+      document.getElementById("fill").style.width = Math.round((done / total) * 100) + "%";
+      document.getElementById("pct").textContent = done + " / " + total + " slices complete";
+
+      const list = document.getElementById("list");
+      list.innerHTML = "";
+      for (const item of STATE.items) {
+        const li = document.createElement("li");
+        const tag =
+          item.state === "done" ? "done" : item.state === "run" ? "in progress" : "queued";
+        li.innerHTML =
+          '<span class="dot ' +
+          item.state +
+          '"></span><span class="label">' +
+          item.label +
+          '</span><span class="tag">' +
+          tag +
+          "</span>";
+        list.appendChild(li);
+      }
+    }
+
+    render();
+
+    // Optional: if progress.json is served alongside, prefer that.
+    fetch("progress.json?t=" + Date.now())
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        Object.assign(STATE, data);
+        render();
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>
