@@ -1,9 +1,9 @@
 {
   "phase": "5–7 — working /next app (checkoutable)",
   "branch": "overhaul",
-  "commit": "uncommitted",
-  "next": "Polish delivery checkout Maps · finish revenue/hours dual-runs · E2E goldens · owner gates 8–10",
-  "status": "58 tests · Sell/Orders/Stock/Settings/More/back-office live at /next · auth page ready",
+  "commit": "pending",
+  "next": "Wire fee model fit into checkout · S02–S50 drivers · owner gates 8–10",
+  "status": "69 tests · hours/revenue/partner/delivery-fee/history domain landed",
   "items": [
     { "id": "p0-branch", "label": "Phase 0: branch + v1-baseline tag", "state": "done" },
     { "id": "p0-tooling", "label": "Phase 0: Vitest / Playwright / TS tooling", "state": "done" },
