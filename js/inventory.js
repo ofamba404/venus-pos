@@ -481,6 +481,32 @@ export function buildInvCard(cat) {
   return card;
 }
 
+/** Staff (view-only) cards: say Low / Out in words. State is read from the count itself, so every code path that updates it is covered. */
+function paintStaffInvState(card, countEl) {
+  const raw = (countEl?.textContent || '').trim();
+  if (!/^\d+$/.test(raw)) {
+    delete card.dataset.state;
+    return;
+  }
+  card.dataset.state = stockState(Number(raw));
+  const pill = card.querySelector('.inv-state');
+  if (pill) pill.textContent = card.dataset.state === 'out' ? 'Out' : card.dataset.state === 'low' ? 'Low' : '';
+}
+
+function attachStaffInvState(card, countEl) {
+  if (!countEl) return;
+  const row = card.querySelector('.counter-row');
+  if (row && !row.querySelector('.inv-state')) {
+    const pill = document.createElement('span');
+    pill.className = 'inv-state';
+    pill.setAttribute('role', 'status');
+    row.appendChild(pill);
+  }
+  const paint = () => paintStaffInvState(card, countEl);
+  new MutationObserver(paint).observe(countEl, { childList: true, characterData: true, subtree: true });
+  paint();
+}
+
 export function renderInventoryGrid() {
   const invGrid = document.getElementById('invGrid');
   if (!invGrid) return;
@@ -497,6 +523,7 @@ export function renderInventoryGrid() {
       countEl.textContent = '··';
     }
     if (readOnly) {
+      attachStaffInvState(card, countEl);
       card.querySelectorAll('button.step').forEach((b) => {
         b.disabled = true;
         b.setAttribute('aria-hidden', 'true');
