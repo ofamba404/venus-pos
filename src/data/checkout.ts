@@ -1,5 +1,6 @@
 import type { CartLine, OrderMeta } from '../domain/cart';
-import { cartTotal } from '../domain/cart';
+import { cartTotal, isWalkInCheckout } from '../domain/cart';
+import { features } from './env';
 import { applySoldToInventory, mergeSoldBreakdown } from '../domain/inventory-delta';
 import { categoryLabel, soldExcludingHold } from '../domain/stock-reservation';
 import { buildSalePostBody, type CheckoutDeliveryInput } from '../domain/sale-payload';
@@ -57,7 +58,11 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
   if (inFlight) return { ok: false, error: 'Checkout already in progress', restored: false };
   if (!input.lines.length) return { ok: false, error: 'Cart is empty', restored: false };
   const clientName = String(input.meta.clientName || '').trim();
-  if (!clientName) return { ok: false, error: 'Add a customer to continue', restored: false };
+  const walkIn = features.walkInClient && isWalkInCheckout(input.meta, input.isCredit);
+  if (input.isCredit && isWalkInCheckout(input.meta, false)) {
+    return { ok: false, error: 'Credit needs a client name', restored: false };
+  }
+  if (!clientName && !walkIn) return { ok: false, error: 'Add a customer to continue', restored: false };
 
   inFlight = true;
   let holdOrderId = '';
@@ -120,7 +125,9 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
   inventory.value = applySoldToInventory(inventory.value, sold);
 
   try {
-    const clientId = await resolveClientId(clientName, input.clientId || input.meta.clientId);
+    const clientId = walkIn
+      ? null
+      : await resolveClientId(clientName, input.clientId || input.meta.clientId);
     const body = buildSalePostBody({
       lines: input.lines,
       meta: input.meta,

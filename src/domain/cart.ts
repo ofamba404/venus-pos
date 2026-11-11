@@ -62,6 +62,36 @@ export type CartAction =
   | { type: 'reset_meta' }
   | { type: 'replace_all'; state: CartState };
 
+export const WALK_IN_NAME = 'Walk-in';
+
+/** Paid sale with the Walk-in chip: no client row, `client_id` stays null. */
+export function isWalkInCheckout(
+  meta: Pick<OrderMeta, 'clientName' | 'clientId'>,
+  isCredit: boolean,
+): boolean {
+  if (isCredit) return false;
+  if (String(meta.clientId || '').trim()) return false;
+  return String(meta.clientName || '').trim().toLowerCase() === WALK_IN_NAME.toLowerCase();
+}
+
+/** Credit never accepts the Walk-in chip. Paid accepts it or any other name. */
+export function clientReadyForCharge(
+  meta: Pick<OrderMeta, 'clientName' | 'clientId'>,
+  isCredit: boolean,
+): boolean {
+  if (isWalkInCheckout(meta, isCredit)) return true;
+  const name = String(meta.clientName || '').trim();
+  if (!name) return false;
+  if (
+    isCredit &&
+    !String(meta.clientId || '').trim() &&
+    name.toLowerCase() === WALK_IN_NAME.toLowerCase()
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function defaultOrderMeta(): OrderMeta {
   return {
     clientName: '',

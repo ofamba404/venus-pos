@@ -9,6 +9,6 @@ export const VAPID_PUBLIC_KEY =
 
 export const features = {
   paymentMethod: false,
-  walkInClient: false,
+  walkInClient: true,
   holdSale: true,
 } as const;

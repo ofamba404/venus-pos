@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
 import { formatUGX } from '../../domain/format';
-import { buildCartLine, cartTotal } from '../../domain/cart';
+import { buildCartLine, cartTotal, clientReadyForCharge, isWalkInCheckout, WALK_IN_NAME } from '../../domain/cart';
 import { configFlavorPool, configTotalSelected } from '../../domain/pricing/pack-config';
 import { getProgress } from '../../domain/pricing/flavored-bulk';
 import { computeTodayStats } from '../../domain/today';
@@ -17,6 +17,7 @@ import {
 import { checkoutDraft, clearCheckoutDraft, setCheckoutDraft } from '../../data/checkout-draft';
 import { ensureDeliveryModel, quoteFeeForDest } from '../../data/delivery-model';
 import { runCheckout } from '../../data/checkout';
+import { features } from '../../data/env';
 import { deviceId } from '../../data/device-id';
 import { postStoreReserve } from '../../data/store-reserve';
 import { clients, ensureInventory, inventory, loadSales, sales, syncLabel } from '../../data/entities';
@@ -168,6 +169,8 @@ export function SellPage() {
   }
 
   const recentClients = clients.value.slice(0, 6);
+  const credit = payment === 'credit';
+  const canCharge = clientReadyForCharge(meta, credit);
 
   const cartBody = (
     <>
@@ -235,8 +238,20 @@ export function SellPage() {
             })
           }
         />
-        {recentClients.length ? (
+        {features.walkInClient || recentClients.length ? (
           <div class="v-chip-row">
+            {features.walkInClient && !credit ? (
+              <button
+                type="button"
+                class={isWalkInCheckout(meta, false) ? 'v-tag is-active' : 'v-tag'}
+                data-testid="walk-in"
+                onClick={() =>
+                  setOrderMetaPatch({ clientName: WALK_IN_NAME, clientId: '', isCredit: false })
+                }
+              >
+                Walk-in
+              </button>
+            ) : null}
             {recentClients.map((c) => (
               <button
                 key={c.id}
@@ -251,7 +266,12 @@ export function SellPage() {
         ) : null}
         <Segmented
           value={payment}
-          onChange={setPayment}
+          onChange={(id) => {
+            setPayment(id);
+            if (id === 'credit' && isWalkInCheckout(meta, false)) {
+              setOrderMetaPatch({ clientName: '', clientId: '' });
+            }
+          }}
           options={[
             { id: 'paid', label: 'Paid' },
             { id: 'credit', label: 'On credit' },
@@ -417,7 +437,7 @@ export function SellPage() {
           <Button
             size="xl"
             data-testid="charge"
-            disabled={!lines.length || !meta.clientName.trim() || paying}
+            disabled={!lines.length || !canCharge || paying}
             onClick={() => void charge()}
           >
             {paying
@@ -469,7 +489,7 @@ export function SellPage() {
           <Button
             size="xl"
             data-testid="charge"
-            disabled={!lines.length || !meta.clientName.trim() || paying}
+            disabled={!lines.length || !canCharge || paying}
             onClick={() => void charge()}
           >
             {paying

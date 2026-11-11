@@ -7,6 +7,8 @@ import {
   toHeldSale,
   resumeHeldSale,
   defaultOrderMeta,
+  isWalkInCheckout,
+  clientReadyForCharge,
 } from '../../src/domain/cart';
 import { findProduct } from '../../src/domain/pricing/pack-config';
 
@@ -103,6 +105,15 @@ describe('cart reducer', () => {
       meta: { storeOrderId: 'abc' },
     });
     expect(toHeldSale(storeCart)).toBeNull();
+  });
+
+  it('walk-in is a paid sale with no client id', () => {
+    expect(isWalkInCheckout({ clientName: 'Walk-in', clientId: '' }, false)).toBe(true);
+    expect(isWalkInCheckout({ clientName: 'walk-in', clientId: '' }, true)).toBe(false);
+    expect(isWalkInCheckout({ clientName: 'Walk-in', clientId: 'c1' }, false)).toBe(false);
+    expect(clientReadyForCharge({ clientName: 'Walk-in', clientId: '' }, false)).toBe(true);
+    expect(clientReadyForCharge({ clientName: 'Walk-in', clientId: '' }, true)).toBe(false);
+    expect(clientReadyForCharge({ clientName: 'Amina', clientId: '' }, true)).toBe(true);
   });
 
   it('defaultOrderMeta matches v1 keys', () => {
