@@ -17,4 +17,5 @@ export const KEYS = {
   idbName: 'venus-pos',
   idbCacheStore: 'cache',
   idbHeldStore: 'held',
+  idbOutboxStore: 'outbox',
 } as const;

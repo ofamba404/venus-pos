@@ -31,6 +31,7 @@ import { runCheckout } from '../../data/checkout';
 import { features } from '../../data/env';
 import { deviceId } from '../../data/device-id';
 import { deleteHeld, listHeld, saveHeld } from '../../data/held';
+import { flushOutbox, listOutbox, outboxCountLabel } from '../../data/outbox';
 import { postStoreReserve } from '../../data/store-reserve';
 import { clients, ensureInventory, inventory, loadSales, sales, syncLabel } from '../../data/entities';
 import { counterSellable } from '../../domain/stock-reservation';
@@ -67,6 +68,8 @@ export function SellPage() {
   const [successTotal, setSuccessTotal] = useState<number | null>(null);
   const [payment, setPayment] = useState<'paid' | 'credit'>('paid');
   const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
+  const [waiting, setWaiting] = useState(0);
+  const [queuedNote, setQueuedNote] = useState(false);
 
   const lines = cartLines.value;
   const meta = orderMeta.value;
@@ -77,6 +80,16 @@ export function SellPage() {
   useEffect(() => {
     void loadSales().catch(() => {});
     void listHeld().then(setHeldSales).catch(() => {});
+    const refreshQueue = () => {
+      void flushOutbox()
+        .catch(() => {})
+        .finally(() => {
+          void listOutbox()
+            .then((rows) => setWaiting(rows.length))
+            .catch(() => {});
+        });
+    };
+    refreshQueue();
     void ensureDeliveryModel().catch(() => {});
     void ensureInventory().catch(() => {});
     const timer = window.setInterval(() => {
@@ -84,11 +97,20 @@ export function SellPage() {
     }, 15000);
     const onFocus = () => {
       void ensureInventory().catch(() => {});
+      refreshQueue();
+    };
+    const onOnline = () => refreshQueue();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshQueue();
     };
     window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener('focus', onFocus);
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 
@@ -166,6 +188,8 @@ export function SellPage() {
       return;
     }
     haptic(15);
+    setQueuedNote(Boolean(result.queued));
+    if (result.queued) setWaiting((n) => n + 1);
     setSuccessTotal(cartTotal(lines));
     clearCartKeepMeta();
     clearCheckoutDraft();
@@ -414,12 +438,17 @@ export function SellPage() {
         </div>
         <p class="success-total">{formatUGX(successTotal)}</p>
         <p style={{ textAlign: 'center', color: 'var(--fg-2)', marginBottom: 24 }}>
-          {payment === 'credit' ? 'Recorded on credit' : 'Sale recorded'}
+          {queuedNote
+            ? 'Saved on this phone. It will sync when the signal returns.'
+            : payment === 'credit'
+              ? 'Recorded on credit'
+              : 'Sale recorded'}
         </p>
         <Button
           size="xl"
           onClick={() => {
             setSuccessTotal(null);
+            setQueuedNote(false);
             setPayment('paid');
           }}
         >
@@ -432,6 +461,11 @@ export function SellPage() {
   return (
     <section class="sell-layout">
       <div>
+        {waiting > 0 ? (
+          <p class="v-muted" data-testid="sync-chip">
+            {outboxCountLabel(waiting)}
+          </p>
+        ) : null}
         <button type="button" class="today-pill" data-testid="today-pill">
           <span class="today-pill__kicker">Today</span>
           <span class="today-pill__value">

@@ -75,3 +75,6 @@ Phase 8 is in progress from the answers in `docs/overhaul/08-decisions.md`. Phas
 | 2026-11-12 | closeout | Maps place search + delivery quote · contract S01–S04, S07–S08, S10–S11, S30 · D1–D6 gate | `9693b36` |
 | 2026-11-12 | — | Owner answers D1 A, D2 B, D3 B, D4 B, D5 A, D6 A | `52f0d15` |
 | 2026-11-12 | D16 | Pending storefront orders claim sellable stock at place. Charge consumes the hold. Cancel releases it. 89 unit/dual-run | `c758760` |
+| 2026-11-12 | 8 | Walk-in chip on paid sales. Credit still needs a client | `cdc3a18` |
+| 2026-11-12 | 8 | Device-only hold | `cebddf6` |
+| 2026-11-12 | 8 | Offline sales outbox. `client_sale_id` SQL written, not applied | this commit |

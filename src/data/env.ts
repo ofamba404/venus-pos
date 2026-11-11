@@ -11,4 +11,5 @@ export const features = {
   paymentMethod: false,
   walkInClient: true,
   holdSale: true,
+  offlineQueue: true,
 } as const;

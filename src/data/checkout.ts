@@ -1,6 +1,7 @@
 import type { CartLine, OrderMeta } from '../domain/cart';
 import { cartTotal, isWalkInCheckout } from '../domain/cart';
 import { features } from './env';
+import { enqueueSale, shouldQueueSale } from './outbox';
 import { applySoldToInventory, mergeSoldBreakdown } from '../domain/inventory-delta';
 import { categoryLabel, soldExcludingHold } from '../domain/stock-reservation';
 import { buildSalePostBody, type CheckoutDeliveryInput } from '../domain/sale-payload';
@@ -18,7 +19,7 @@ export type CheckoutInput = {
 };
 
 export type CheckoutResult =
-  | { ok: true; sale: SaleRow }
+  | { ok: true; sale: SaleRow; queued?: boolean }
   | { ok: false; error: string; restored: boolean };
 
 let inFlight = false;
@@ -123,6 +124,7 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
 
   const snapshot = { ...inventory.value };
   inventory.value = applySoldToInventory(inventory.value, sold);
+  let saleBody: Record<string, unknown> | null = null;
 
   try {
     const clientId = walkIn
@@ -135,6 +137,7 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
       isCredit: input.isCredit,
       checkout: input.checkout,
     });
+    saleBody = body;
     const res = await sbFetch('sales', {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
@@ -172,6 +175,33 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
     void loadSales().catch(() => {});
     return { ok: true, sale };
   } catch (e) {
+    if (features.offlineQueue && saleBody && shouldQueueSale(e, input.meta.storeOrderId)) {
+      const clientSaleId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `sale-${Date.now()}`;
+      try {
+        await enqueueSale({
+          clientSaleId,
+          body: { ...saleBody, client_sale_id: clientSaleId },
+          deltas: sold,
+          createdAt: new Date().toISOString(),
+          label: clientName || 'Walk-in',
+        });
+        return {
+          ok: true,
+          queued: true,
+          sale: {
+            id: clientSaleId,
+            total_ugx: cartTotal(input.lines),
+            client_id: walkIn ? null : input.meta.clientId || null,
+            is_credit: input.isCredit,
+          },
+        };
+      } catch (queueError) {
+        console.warn('offline queue failed', queueError);
+      }
+    }
     inventory.value = snapshot;
     if (holdOrderId) {
       await postStoreReserve({ op: 'revert', id: holdOrderId, device_id: deviceId() }).catch(
