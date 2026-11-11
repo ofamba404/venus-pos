@@ -7,7 +7,7 @@ Update at the end of every session.
 | Current phase | Phase 8. D1–D6 answered 2026-11-12. Build walk-in, offline queue, device hold |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | typecheck clean · 82 unit/dual-run · 10 Playwright contract |
+| Tests passing | typecheck clean · 89 unit/dual-run · 10 Playwright contract |
 | Next step | Phase 8: walk-in chip (D2), offline sales queue (D4), device-only hold (D6). Skip receipt (D3) and shift close (D5). No deploy |
 | Open questions for the owner | None for Phase 8. D11 look, live Maps, and deploy stay blocked until the owner is back |
 
@@ -74,4 +74,4 @@ Phase 8 is in progress from the answers in `docs/overhaul/08-decisions.md`. Phas
 | 2026-11-12 | 0/6/7 | Playwright next driver S01/S02/S07/S30 · fee model port · quote lab · partner UI | `588f3fe` |
 | 2026-11-12 | closeout | Maps place search + delivery quote · contract S01–S04, S07–S08, S10–S11, S30 · D1–D6 gate | `9693b36` |
 | 2026-11-12 | — | Owner answers D1 A, D2 B, D3 B, D4 B, D5 A, D6 A | `52f0d15` |
-| 2026-11-12 | stock | Store-order hold: place claims, charge skips held units, cancel releases, one-phone claim | this commit |
+| 2026-11-12 | D16 | Pending storefront orders claim sellable stock at place. Charge consumes the hold. Cancel releases it. 89 unit/dual-run | `c758760` |

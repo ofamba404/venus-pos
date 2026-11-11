@@ -3,7 +3,7 @@
   "branch": "overhaul",
   "commit": "see git log -1",
   "next": "Phase 8: walk-in chip for paid sales (D2), offline sales queue (D4), device-only hold (D6). Do not build payment methods (D1), WhatsApp receipt (D3), or shift close (D5). Do not push or deploy. Phases 9–10 still need a deploy cue.",
-  "status": "D1–D6 recorded 2026-11-12. Store-order stock reservation is in the working tree: place claims, charge does not double-deduct, cancel releases, failed charge reverts to held, one phone can claim a store order. Storefront gates joints/Plain/Bangis when a stock row exists. Not deployed. Phase 0–7 exit criteria are still unmet (legacy driver, 2000-run dual-run gate, baselines, full S01–S50, parity rows). Typecheck clean. Reservation unit tests pass.",
+  "status": "D1–D6 recorded 2026-11-12. D16 store-order stock reservation is committed on overhaul and not deployed: place claims, charge does not double-deduct, cancel releases, failed charge reverts to held, one phone can claim a store order. Storefront gates joints/Plain/Bangis when a stock row exists. POS and storefront must ship together. 89 unit/dual-run. Typecheck clean.",
   "ownerGate": {
     "ready": "D1–D6 answered 2026-11-12. See docs/overhaul/08-decisions.md.",
     "phase8": "In progress. Build D2 walk-in, D4 offline queue, D6 device hold. Skip D3 and D5. D1 stays paid/credit.",
