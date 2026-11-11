@@ -8,15 +8,20 @@ export function stockLevel(
   opts?: { lowThreshold?: number; cookieCapacity?: number; cookieLowPct?: number },
 ): StockLevel {
   const n = Number(stock) || 0;
-  if (n <= 0) return 'out';
   if (isCookieCategoryId(categoryId)) {
+    // Match legacy cookieStockLevel: only exact 0 is out; negatives fall through as low.
+    if (n === 0) return 'out';
     const capacity = opts?.cookieCapacity ?? COOKIE_STOCK_CAPACITY;
     const pct = opts?.cookieLowPct ?? COOKIE_LOW_PCT;
-    if (n < capacity * pct) return 'low';
+    const threshold = opts?.lowThreshold ?? LOW_STOCK_THRESHOLD;
+    const lowCutoff = Math.max(threshold, Math.round(capacity * pct));
+    if (n < lowCutoff) return 'low';
     return 'ok';
   }
+  // Match legacy inventory.stockState / notifications: <=0 out, else strictly below threshold.
+  if (n <= 0) return 'out';
   const threshold = opts?.lowThreshold ?? LOW_STOCK_THRESHOLD;
-  if (n <= threshold) return 'low';
+  if (n < threshold) return 'low';
   return 'ok';
 }
 

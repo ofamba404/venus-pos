@@ -35,6 +35,14 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    proxy: {
+      // Talk to production functions while developing the /next shell locally.
+      '/api': {
+        target: 'https://posvenus.netlify.app',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
   publicDir: 'public',
 });

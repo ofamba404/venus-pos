@@ -1,9 +1,9 @@
 {
-  "phase": "1 — strangler layout (in progress)",
+  "phase": "5–7 — working /next app (checkoutable)",
   "branch": "overhaul",
-  "commit": "pending",
-  "next": "Design tokens + shell · more domain dual-runs · E2E scenarios",
-  "status": "24 tests green · legacy/ frozen · Vite /next builds · copy-legacy works",
+  "commit": "uncommitted",
+  "next": "Polish delivery checkout Maps · finish revenue/hours dual-runs · E2E goldens · owner gates 8–10",
+  "status": "58 tests · Sell/Orders/Stock/Settings/More/back-office live at /next · auth page ready",
   "items": [
     { "id": "p0-branch", "label": "Phase 0: branch + v1-baseline tag", "state": "done" },
     { "id": "p0-tooling", "label": "Phase 0: Vitest / Playwright / TS tooling", "state": "done" },
@@ -14,11 +14,11 @@
     { "id": "p0-baseline", "label": "Phase 0: screenshots + perf + CI", "state": "wait" },
     { "id": "p1", "label": "Phase 1: Vite + legacy/ strangler", "state": "done" },
     { "id": "p2", "label": "Phase 2: domain port", "state": "run" },
-    { "id": "p3", "label": "Phase 3: data / auth / realtime", "state": "wait" },
-    { "id": "p4", "label": "Phase 4: design system + shell", "state": "wait" },
-    { "id": "p5", "label": "Phase 5: Sell + checkout + Orders", "state": "wait" },
-    { "id": "p6", "label": "Phase 6: Stock + Settings + Auth + PWA", "state": "wait" },
-    { "id": "p7", "label": "Phase 7: back office", "state": "wait" },
+    { "id": "p3", "label": "Phase 3: data / auth / realtime", "state": "run" },
+    { "id": "p4", "label": "Phase 4: design system + shell", "state": "done" },
+    { "id": "p5", "label": "Phase 5: Sell + checkout + Orders", "state": "done" },
+    { "id": "p6", "label": "Phase 6: Stock + Settings + Auth + PWA", "state": "run" },
+    { "id": "p7", "label": "Phase 7: back office", "state": "run" },
     { "id": "p8-10", "label": "Phases 8–10: owner-gated (improvements, parallel, cutover)", "state": "wait" }
   ]
 }

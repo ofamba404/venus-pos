@@ -4,11 +4,11 @@ Update at the end of every session.
 
 | Field | Value |
 |-------|-------|
-| Current phase | 0 (safety net) + early 1/2 |
+| Current phase | 0 (safety net) + 2 (domain) |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
-| Last commit | `cbf8ed8` |
-| Tests passing | 24 (format, catalog, flavored-bulk, credit, stock-state, postgrest) |
-| Next step | More dual-runs · E2E scenario drivers · DESIGN tokens · remove `dist/` from git |
+| Last commit | `dd4a798` (+ uncommitted domain ports) |
+| Tests passing | 56 (through store-order-map) |
+| Next step | hours · revenue/partner · delivery-fee · E2E S01–S50 |
 | Open questions for the owner | See `08-decisions.md` (all at defaults) |
 
 ## Log

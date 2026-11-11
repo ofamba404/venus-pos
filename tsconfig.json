@@ -22,6 +22,6 @@
       "@platform/*": ["src/platform/*"]
     }
   },
-  "include": ["src", "tests", "sw", "scripts/**/*.ts"],
-  "exclude": ["legacy", "dist", "node_modules"]
+  "include": ["src"],
+  "exclude": ["legacy", "dist", "node_modules", "tests"]
 }

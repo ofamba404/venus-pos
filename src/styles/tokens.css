@@ -1,0 +1,97 @@
+:root {
+  --ink-900: #212121;
+  --ink-700: #575757;
+  --ink-500: #6b7280;
+  --ink-300: #d1d5db;
+  --paper-0: #ffffff;
+  --paper-50: #f5f4f1;
+  --paper-100: #ece9e2;
+  --paper-200: #e0dacf;
+  --stroke-400: #cdcdcd;
+  --red-700: #9c0f0f;
+  --green-600: #16a34a;
+  --amber-100: #fef3c7;
+  --amber-800: #92400e;
+
+  --bg: var(--paper-50);
+  --surface: var(--paper-0);
+  --surface-sunk: var(--paper-100);
+  --surface-selected: var(--paper-200);
+  --fg: var(--ink-900);
+  --fg-2: var(--ink-700);
+  --fg-3: var(--ink-500);
+  --fg-disabled: var(--ink-300);
+  --line: var(--paper-200);
+  --line-strong: var(--stroke-400);
+  --action: var(--ink-900);
+  --on-action: var(--paper-0);
+  --danger: var(--red-700);
+  --success: var(--green-600);
+  --warn-bg: var(--amber-100);
+  --warn-fg: var(--amber-800);
+  --scrim: rgb(33 33 33 / 0.32);
+  --focus: var(--ink-900);
+
+  --font-ui: 'Geograph', 'Segoe UI', sans-serif;
+  --font-mono: 'Akkurat Mono', ui-monospace, monospace;
+  --font-display: 'Self Modern', Georgia, serif;
+
+  --t-display: 400 32px/1.1 var(--font-display);
+  --t-title: 500 20px/1.25 var(--font-ui);
+  --t-title-sm: 500 17px/1.3 var(--font-ui);
+  --t-body: 400 16px/1.45 var(--font-ui);
+  --t-label: 500 14px/1.3 var(--font-ui);
+  --t-meta: 400 13px/1.35 var(--font-ui);
+  --t-money-xl: 400 28px/1.1 var(--font-mono);
+  --t-money: 400 16px/1.3 var(--font-mono);
+  --t-mono-micro: 400 11px/1.2 var(--font-mono);
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  --hit: 48px;
+  --hit-lg: 56px;
+  --hit-xl: 64px;
+
+  --r-lg: 20px;
+  --r-md: 12px;
+  --r-pill: 999px;
+
+  --e-0: none;
+  --e-1: 0 1px 2px rgb(33 33 33 / 0.06);
+  --e-2: 0 12px 32px rgb(33 33 33 / 0.14);
+
+  --d-instant: 80ms;
+  --d-fast: 140ms;
+  --d-base: 220ms;
+  --d-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --nav-h: calc(var(--hit-xl) + env(safe-area-inset-bottom, 0px));
+  --top-h: calc(52px + env(safe-area-inset-top, 0px));
+  --gutter: 16px;
+}
+
+@media (min-width: 600px) {
+  :root {
+    --gutter: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --d-instant: 1ms;
+    --d-fast: 1ms;
+    --d-base: 1ms;
+    --d-slow: 1ms;
+  }
+}

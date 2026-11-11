@@ -1,0 +1,31 @@
+@font-face {
+  font-family: 'Geograph';
+  src: url('/next/assets/fonts/geograph-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geograph';
+  src: url('/next/assets/fonts/geograph-medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Akkurat Mono';
+  src: url('/next/assets/fonts/akkurat-mono.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Self Modern';
+  src: url('/next/assets/fonts/self-modern_regular_web.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}

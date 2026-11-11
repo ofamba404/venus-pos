@@ -560,7 +560,7 @@ function buildDonutGradient(categories, total) {
   return stops.length ? `conic-gradient(${stops.join(', ')})` : 'var(--btn-bg)';
 }
 
-function stockState(qty) {
+export function stockState(qty) {
   if (qty <= 0) return 'out';
   if (qty < LOW_STOCK_THRESHOLD) return 'low';
   return 'ok';

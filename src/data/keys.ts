@@ -1,0 +1,19 @@
+/** Every browser storage key used by POS — keep identical to v1 where shared. */
+export const KEYS = {
+  auth: 'venus-pos-auth',
+  authBounce: 'venus.pos.auth.gate.bounce',
+  cart: 'venus-pos-cart',
+  orderMeta: 'venus-pos-order-meta',
+  storeOrdersPaint: 'venus-pos-store-orders-v1',
+  uiPrefs: 'venus.pos.ui.v1',
+  notifPrefs: 'venus.notif.prefs.v1',
+  notifFired: 'venus.notif.fired.v1',
+  notifStock: 'venus.notif.stock.v1',
+  fulfillment: 'venus.pos.fulfillment',
+  partnerSettled: 'venus-cookie-partner-settled-qty-v4',
+  chartRange: 'venus_chart_range',
+  insightPeriod: 'venus_insight_period',
+  idbName: 'venus-pos',
+  idbCacheStore: 'cache',
+  idbHeldStore: 'held',
+} as const;
