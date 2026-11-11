@@ -1,9 +1,9 @@
 {
   "phase": "0 — safety net (+ early domain ports)",
   "branch": "overhaul",
-  "commit": "pending commit",
-  "next": "Commit tooling + format/catalog/bulk dual-run; continue domain + mock",
-  "status": "11 dual-run/unit tests green · tooling installed",
+  "commit": "c0ee96c",
+  "next": "Mock backend + fixtures; more dual-run ports",
+  "status": "Tooling committed · format/catalog/bulk parity green",
   "items": [
     { "id": "p0-branch", "label": "Phase 0: branch + v1-baseline tag", "state": "done" },
     { "id": "p0-tooling", "label": "Phase 0: Vitest / Playwright / TS tooling", "state": "done" },
