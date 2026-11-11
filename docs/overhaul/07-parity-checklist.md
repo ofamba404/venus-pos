@@ -12,7 +12,7 @@ Legend: **S** = staff and admin, **A** = admin only.
 | [ ] | Pack flavour rules: `choose_any`, `choose_variety`, Quartet fixed butterscotch, cookie choice pool excludes butterscotch | S | `js/config.js:118-124`, `js/product-config.js` | dual-run pack-config, S03, S09 |
 | [ ] | Flavoured cookie bulk pricing (≥ 4 → 6,500; packs repriced) | S | `js/flavored-cookie-pricing.js:28-129` | dual-run, S04, S05 |
 | [ ] | Wholesale cookies with custom unit price | S | `js/product-config.js` | S06 |
-| [ ] | Draft stock shown in config; selling not blocked by draft stock | S | `js/orders.js` `draftStock` | S01, L4 |
+| [ ] | Draft stock shown in config; counter lines cap at refreshed on-hand stock (D16). A badge still does not block opening the product | S | `js/orders.js` `draftStock`, `SellPage` | S01, L4 |
 | [ ] | Edit a cart line with preserved config state | S | `js/orders.js:2142-2182` | S16 |
 | [ ] | Client autocomplete with "owes" hint | S | `js/client-autocomplete.js` | S01, S12 |
 | [ ] | Create client inline | S | `js/clients.js:212-216` | S10 |
@@ -45,7 +45,7 @@ Legend: **S** = staff and admin, **A** = admin only.
 | [ ] | Dismiss cancelled (`dismissed_at`) | S | `js/store-orders.js` | S23 |
 | [ ] | Multiple loaded orders + switcher | S | `.cart-order-switcher`, `js/orders.js:2646-2734` | S24 |
 | [ ] | Compose cart parking and restore | S | `js/orders.js:116-192`, `534-553` | S25 |
-| [ ] | Checkout links sale (`store_order_id`) and PATCHes `checked_out` + `sale_id` | S | `js/store-orders.js:439-457` | S21 |
+| [ ] | Checkout links sale (`store_order_id`) and PATCHes `checked_out` + `sale_id`. **D16:** if `delivery.stock_reservation` is `held` or `consumed`, charge does not deduct those units again | S | `js/store-orders.js`, `/api/store-order/reserve` | S21 |
 | [ ] | Release order from cart | S | `__venusReleaseStoreOrderFromCart` | L4 |
 | [ ] | Cancelled-while-in-cart banner (`store-order:cancelled`) | S | `js/orders.js:2618` | L4 |
 | [ ] | Deep link `#load-store-order=<id>` and `#store-orders` | S | `js/store-orders.js:1413-1416`, `sw.js:263-331` | S27, L4 |

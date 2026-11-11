@@ -17,7 +17,10 @@ import {
 import { checkoutDraft, clearCheckoutDraft, setCheckoutDraft } from '../../data/checkout-draft';
 import { ensureDeliveryModel, quoteFeeForDest } from '../../data/delivery-model';
 import { runCheckout } from '../../data/checkout';
-import { clients, loadSales, sales } from '../../data/entities';
+import { deviceId } from '../../data/device-id';
+import { postStoreReserve } from '../../data/store-reserve';
+import { clients, ensureInventory, inventory, loadSales, sales, syncLabel } from '../../data/entities';
+import { counterSellable } from '../../domain/stock-reservation';
 import { haptic } from '../../platform/haptics';
 import { Button } from '../../ui/Button';
 import { Money } from '../../ui/Money';
@@ -60,6 +63,18 @@ export function SellPage() {
   useEffect(() => {
     void loadSales().catch(() => {});
     void ensureDeliveryModel().catch(() => {});
+    void ensureInventory().catch(() => {});
+    const timer = window.setInterval(() => {
+      void ensureInventory().catch(() => {});
+    }, 15000);
+    const onFocus = () => {
+      void ensureInventory().catch(() => {});
+    };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   async function onPlacePick(place: { label: string; lat: number; lng: number }) {
@@ -81,14 +96,25 @@ export function SellPage() {
   }
 
   function openConfig(p: Product) {
+    void ensureInventory().catch(() => {});
     setConfigProduct(p);
     if (p.rule === 'single_qty') setSelection({ qty: 1 });
     else if (p.rule === 'cookie_wholesale') setSelection({ _unitPrice: 2500 });
     else setSelection({});
   }
 
+  function sellableNow() {
+    if (syncLabel.value !== 'live') return null;
+    return counterSellable(inventory.value, lines);
+  }
+
   function addConfigured() {
     if (!configProduct) return;
+    const sellable = sellableNow();
+    if (sellable && selectionOverStock(configProduct, selection, sellable)) {
+      showToast('Not enough in stock for that quantity');
+      return;
+    }
     const line = buildCartLine(configProduct, selection, { otherLines: lines });
     if (configTotalSelected(selection) <= 0 && configProduct.rule !== 'choose_variety') {
       showToast('Pick at least one');
@@ -163,10 +189,26 @@ export function SellPage() {
                 size="sm"
                 label={`Remove ${line.name}`}
                 onClick={() => {
+                  const storeId = meta.storeOrderId;
+                  const emptying = lines.length === 1 && Boolean(storeId);
                   dispatchCart({ type: 'remove_line', key: line.key });
+                  if (emptying && storeId) {
+                    void postStoreReserve({ op: 'unclaim', id: storeId, device_id: deviceId() });
+                    setOrderMetaPatch({ storeOrderId: '' });
+                  }
                   showToast('Removed', {
                     actionLabel: 'Undo',
-                    onAction: () => dispatchCart({ type: 'add_line', line }),
+                    onAction: () => {
+                      dispatchCart({ type: 'add_line', line });
+                      if (emptying && storeId) {
+                        setOrderMetaPatch({ storeOrderId: storeId });
+                        void postStoreReserve({
+                          op: 'claim',
+                          id: storeId,
+                          device_id: deviceId(),
+                        });
+                      }
+                    },
                   });
                 }}
               >
@@ -410,6 +452,7 @@ export function SellPage() {
           <ConfigBody
             product={configProduct}
             selection={selection}
+            sellable={sellableNow()}
             onBump={bumpFlavor}
             onQty={(qty) => setSelection({ qty })}
             onUnit={(n) => setSelection((s) => ({ ...s, _unitPrice: n }))}
@@ -443,38 +486,65 @@ export function SellPage() {
   );
 }
 
+function selectionOverStock(
+  product: Product,
+  selection: Record<string, number>,
+  sellable: Record<string, number>,
+) {
+  if (product.rule === 'single_qty') {
+    const id = product.categoryId || '';
+    return (selection.qty || 0) > (sellable[id] || 0);
+  }
+  if (product.rule === 'choose_variety') {
+    const fixed = product.fixedFlavor || 'classic';
+    if ((sellable[fixed] || 0) < 1) return true;
+  }
+  return Object.entries(selection).some(([id, qty]) => {
+    if (id === 'qty' || id === '_unitPrice' || qty <= 0) return false;
+    return qty > (sellable[id] || 0);
+  });
+}
+
 function ConfigBody({
   product,
   selection,
+  sellable,
   onBump,
   onQty,
   onUnit,
 }: {
   product: Product;
   selection: Record<string, number>;
+  sellable: Record<string, number> | null;
   onBump: (id: string, d: number) => void;
   onQty: (n: number) => void;
   onUnit: (n: number) => void;
 }) {
   if (product.rule === 'single_qty') {
+    const max = sellable && product.categoryId ? sellable[product.categoryId] ?? 0 : null;
+    const qty = selection.qty || 0;
     return (
       <div class="config-flavor">
-        <span>Quantity</span>
+        <span>
+          Quantity
+          {max != null ? <span class="v-muted"> · {max} in stock</span> : null}
+        </span>
         <div class="stepper">
           <button
             type="button"
             aria-label="Decrease quantity"
             data-testid="config-qty-dec"
-            onClick={() => onQty(Math.max(0, (selection.qty || 0) - 1))}
+            onClick={() => onQty(Math.max(0, qty - 1))}
           >
             <IconMinus size={18} />
           </button>
-          <span class="stepper__n">{selection.qty || 0}</span>
+          <span class="stepper__n">{qty}</span>
           <button
             type="button"
             aria-label="Increase quantity"
             data-testid="config-qty-inc"
-            onClick={() => onQty((selection.qty || 0) + 1)}
+            disabled={max != null && qty >= max}
+            onClick={() => onQty(qty + 1)}
           >
             <IconPlus size={18} />
           </button>
@@ -494,7 +564,13 @@ function ConfigBody({
           onInput={(e) => onUnit(Math.max(0, Math.round(Number((e.target as HTMLInputElement).value) || 0)))}
         />
         {pool.map((id) => (
-          <FlavorRow key={id} id={id} count={selection[id] || 0} onBump={onBump} />
+          <FlavorRow
+            key={id}
+            id={id}
+            count={selection[id] || 0}
+            max={sellable ? sellable[id] ?? 0 : null}
+            onBump={onBump}
+          />
         ))}
       </div>
     );
@@ -504,7 +580,13 @@ function ConfigBody({
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       {pool.map((id) => (
-        <FlavorRow key={id} id={id} count={selection[id] || 0} onBump={onBump} />
+        <FlavorRow
+          key={id}
+          id={id}
+          count={selection[id] || 0}
+          max={sellable ? sellable[id] ?? 0 : null}
+          onBump={onBump}
+        />
       ))}
       {product.rule === 'choose_variety' ? (
         <p style={{ font: 'var(--t-meta)', color: 'var(--fg-3)' }}>
@@ -518,20 +600,24 @@ function ConfigBody({
 function FlavorRow({
   id,
   count,
+  max,
   onBump,
 }: {
   id: string;
   count: number;
+  max: number | null;
   onBump: (id: string, d: number) => void;
 }) {
   const cat = CAT_MAP[id];
   const label =
     cat?.sub && cat.sub !== 'Cookie' ? `${cat.name} ${cat.sub}` : cat?.name || id;
+  const atCap = max != null && count >= max;
   return (
     <div class="config-flavor">
       <span class="config-flavor__label">
         <FlavorDot color={cat?.color || '#ccc'} size="lg" />
         {label}
+        {max != null ? <span class="v-muted"> · {max} in stock</span> : null}
       </span>
       <div class="stepper">
         <button
@@ -547,7 +633,11 @@ function FlavorRow({
           type="button"
           aria-label={`More ${label}`}
           data-testid={`config-flavor-${id}-inc`}
-          onClick={() => onBump(id, 1)}
+          disabled={atCap}
+          onClick={() => {
+            if (atCap) return;
+            onBump(id, 1);
+          }}
         >
           <IconPlus size={18} />
         </button>

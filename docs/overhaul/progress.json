@@ -1,12 +1,12 @@
 {
-  "phase": "closeout — owner answers D1–D6, then phases 8–10",
+  "phase": "8 — walk-in, offline queue, device hold (D1–D6 answered)",
   "branch": "overhaul",
-  "commit": "9693b36",
-  "next": "Owner answers D1–D6. Phase 8 only after those answers. Phases 9–10 wait for a deploy cue (scripts/ship.ps1). Do not push or deploy yet.",
-  "status": "Ready for D1–D6. 82 unit/dual-run · 10 Playwright contract (catalog + S01–S04, S07–S08, S10–S11, S30) · typecheck clean · Maps place search + driving-distance fee quote · S01.next.json recorded. Open before parallel run: unanswered D1–D6, remaining scenarios, and an explicit deploy cue.",
+  "commit": "see git log -1",
+  "next": "Phase 8: walk-in chip for paid sales (D2), offline sales queue (D4), device-only hold (D6). Do not build payment methods (D1), WhatsApp receipt (D3), or shift close (D5). Do not push or deploy. Phases 9–10 still need a deploy cue.",
+  "status": "D1–D6 recorded 2026-11-12. Store-order stock reservation is in the working tree: place claims, charge does not double-deduct, cancel releases, failed charge reverts to held, one phone can claim a store order. Storefront gates joints/Plain/Bangis when a stock row exists. Not deployed. Phase 0–7 exit criteria are still unmet (legacy driver, 2000-run dual-run gate, baselines, full S01–S50, parity rows). Typecheck clean. Reservation unit tests pass.",
   "ownerGate": {
-    "ready": "Answer D1–D6. Defaults in PROGRESS.md stay in force until then.",
-    "phase8": "Start only after D1–D6 are answered. Build only the approved options.",
+    "ready": "D1–D6 answered 2026-11-12. See docs/overhaul/08-decisions.md.",
+    "phase8": "In progress. Build D2 walk-in, D4 offline queue, D6 device hold. Skip D3 and D5. D1 stays paid/credit.",
     "phase9": "Needs a deploy cue. .\\scripts\\ship.ps1 — v1 at /, v2 at /next/. No production test sales unless asked.",
     "phase10": "Needs the owner to say ship, after the parallel run."
   },
@@ -25,6 +25,6 @@
     { "id": "p5", "label": "Phase 5: Sell + checkout + Orders", "state": "done" },
     { "id": "p6", "label": "Phase 6: Stock + Settings + Auth + PWA", "state": "run" },
     { "id": "p7", "label": "Phase 7: back office", "state": "run" },
-    { "id": "p8-10", "label": "Phases 8–10: owner-gated (D1–D6, then deploy cues)", "state": "wait" }
+    { "id": "p8-10", "label": "Phase 8 in progress (D2 walk-in, D4 offline queue, D6 device hold). Phases 9–10 wait for a deploy cue", "state": "run" }
   ]
 }

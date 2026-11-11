@@ -4,12 +4,12 @@ Update at the end of every session.
 
 | Field | Value |
 |-------|-------|
-| Current phase | Closeout. Owner answers D1–D6, then phases 8–10 |
+| Current phase | Phase 8. D1–D6 answered 2026-11-12. Build walk-in, offline queue, device hold |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
 | Tests passing | typecheck clean · 82 unit/dual-run · 10 Playwright contract |
-| Next step | Answer D1–D6 below. Phase 8 starts only after those answers. Phases 9–10 wait for a deploy cue |
-| Open questions for the owner | D1–D6 below. Defaults apply until you pick |
+| Next step | Phase 8: walk-in chip (D2), offline sales queue (D4), device-only hold (D6). Skip receipt (D3) and shift close (D5). No deploy |
+| Open questions for the owner | None for Phase 8. D11 look, live Maps, and deploy stay blocked until the owner is back |
 
 ## Ready vs open (before a parallel run)
 
@@ -17,7 +17,7 @@ Update at the end of every session.
 
 **Open before staff use v2 beside v1.**
 
-- D1–D6 are still unanswered. Phase 8 builds only the options you approve.
+- D1–D6 are answered in `08-decisions.md` (2026-11-12). Phase 8 builds walk-in, the offline sales queue, and device-only hold.
 - The Playwright slice that is green is the catalog plus S01, S02, S03, S04, S07, S08, S10, S11, and S30. The other scenarios are defined and not in this run yet.
 - Phase 9 needs you to say deploy. That is `.\scripts\ship.ps1` from `venus-pos` (v1 stays at `/`, v2 at `/next/`). No test sales on production unless you ask.
 - Phase 10 needs you to say ship, after the parallel run. Same script, after the cutover edits. Rollback stays the previous Netlify deploy.
@@ -58,7 +58,7 @@ Reply with the letter. The marked default is what the app does today.
 - A. Yes. Saved on the device only. No database change. **(default)**
 - B. No hold.
 
-Phase 8 does not start until these six answers are in `docs/overhaul/08-decisions.md`. Phases 9 and 10 do not start until you give the deploy cue above.
+Phase 8 is in progress from the answers in `docs/overhaul/08-decisions.md`. Phases 9 and 10 do not start until you give the deploy cue above.
 
 ## Log
 
@@ -73,3 +73,5 @@ Phase 8 does not start until these six answers are in `docs/overhaul/08-decision
 | 2026-11-12 | 0/6/7 | S01–S50 defs · Today · fee draft · set-count · settle · SW unit | `e0b916e` |
 | 2026-11-12 | 0/6/7 | Playwright next driver S01/S02/S07/S30 · fee model port · quote lab · partner UI | `588f3fe` |
 | 2026-11-12 | closeout | Maps place search + delivery quote · contract S01–S04, S07–S08, S10–S11, S30 · D1–D6 gate | `9693b36` |
+| 2026-11-12 | — | Owner answers D1 A, D2 B, D3 B, D4 B, D5 A, D6 A | `52f0d15` |
+| 2026-11-12 | stock | Store-order hold: place claims, charge skips held units, cancel releases, one-phone claim | this commit |

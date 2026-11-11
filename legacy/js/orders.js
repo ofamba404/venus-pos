@@ -25,7 +25,7 @@ import {
   setPlacesSearchOrigin,
   wireDeliveryPlacesInputs,
 } from './places-autocomplete.js';
-import { adjustStock, renderStockGlance } from './inventory.js';
+import { adjustStock, loadInventory, renderStockGlance } from './inventory.js';
 import { notifyCreditSale, notifyStockCrossing } from './notifications.js';
 import {
   buildLineFromConfig,
@@ -744,10 +744,16 @@ function setOrderDeliveryTimeLabel(label) {
 }
 
 function adjustDraftForItem(item, direction) {
-  if (!item || item.stockDeferred) return;
+  if (!item || item.stockDeferred || item.stockClaimed) return;
   Object.entries(item.breakdown || {}).forEach(([id, qty]) => {
     draftStock[id] = (draftStock[id] || 0) + direction * qty;
   });
+}
+
+/** Rebuild draft stock from server on-hand minus the open counter cart. */
+export function reapplyDraftFromCart() {
+  resetDraftStock();
+  getCart().forEach((item) => adjustDraftForItem(item, -1));
 }
 
 function cartItemToConfigSelection(item) {
@@ -2420,12 +2426,36 @@ async function checkout() {
   checkoutInFlight = true;
 
   const total = cartTotal(cart);
-  showCheckoutProcessing({
-    total,
-    itemCount: cart.length,
-    clientName: orderClientName,
-    isCredit: orderIsCredit,
-  });
+  let holdForRollback = false;
+  let holdClaimed = null;
+  let saleSaved = false;
+
+  let stockKnown = false;
+  try {
+    stockKnown = Boolean(await loadInventory());
+    reapplyDraftFromCart();
+  } catch (e) {
+    console.warn('sellable refresh before charge failed', e);
+  }
+
+  if (storeOrderId) {
+    try {
+      const { consumeStoreOrderReservation } = await import('./store-orders.js');
+      const hold = await consumeStoreOrderReservation(storeOrderId);
+      if (hold.blocked) {
+        checkoutInFlight = false;
+        showToast(hold.message || 'Could not lock this store order', true);
+        return;
+      }
+      holdForRollback = Boolean(hold.skipDeduct);
+      holdClaimed = hold.claimed || null;
+    } catch (e) {
+      console.error('consume store reservation failed', e);
+      checkoutInFlight = false;
+      showToast('Could not lock this store order', true);
+      return;
+    }
+  }
 
   const mergedBreakdown = {};
   cart.forEach((item) => {
@@ -2433,6 +2463,41 @@ async function checkout() {
       mergedBreakdown[id] = (mergedBreakdown[id] || 0) + qty;
     });
   });
+  if (holdClaimed) {
+    Object.entries(holdClaimed).forEach(([id, qty]) => {
+      const left = (mergedBreakdown[id] || 0) - Number(qty || 0);
+      if (left > 0) mergedBreakdown[id] = left;
+      else delete mergedBreakdown[id];
+    });
+  }
+
+  if (stockKnown) {
+    for (const [id, qty] of Object.entries(mergedBreakdown)) {
+      const have = inventory[id] || 0;
+      if (qty > have) {
+        if (holdForRollback && storeOrderId) {
+          try {
+            const { revertStoreOrderReservation } = await import('./store-orders.js');
+            await revertStoreOrderReservation(storeOrderId);
+          } catch (e) {
+            console.error('release store reservation failed', e);
+          }
+        }
+        checkoutInFlight = false;
+        const name = CAT_MAP[id]?.name || id;
+        showToast(`Not enough ${name} left (${have} in stock).`, true);
+        return;
+      }
+    }
+  }
+
+  showCheckoutProcessing({
+    total,
+    itemCount: cart.length,
+    clientName: orderClientName,
+    isCredit: orderIsCredit,
+  });
+
   const inventoryIds = Object.keys(mergedBreakdown);
   const inventorySnapshot = snapshotInventory(inventoryIds);
 
@@ -2485,6 +2550,7 @@ async function checkout() {
       }),
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
+    saleSaved = true;
     const saleRows = await res.json();
     if (saleRows?.[0]) void dataStore.appendSale(saleRows[0]);
 
@@ -2566,6 +2632,14 @@ async function checkout() {
     });
   } catch (e) {
     console.error('checkout failed', e);
+    if (holdForRollback && !saleSaved && storeOrderId) {
+      try {
+        const { revertStoreOrderReservation } = await import('./store-orders.js');
+        await revertStoreOrderReservation(storeOrderId);
+      } catch (releaseErr) {
+        console.error('release store reservation failed', releaseErr);
+      }
+    }
     applyInventorySnapshot(inventorySnapshot);
     resetDraftStock();
     renderStockGlance();
@@ -2640,8 +2714,8 @@ export function wireOrders() {
 }
 
 /**
- * Load a storefront order into the active cart without reserving draft stock.
- * Inventory only changes on Checkout.
+ * Load a storefront order into the active cart.
+ * Held store lines are already out of on-hand stock, so they do not draft again.
  */
 export function applyStorefrontOrderToCart({
   storeOrderId,

@@ -34,7 +34,12 @@ export type StoreOrderLike = {
   id?: string;
   phone_e164?: string;
   delivery_enabled?: boolean;
-  delivery?: { mode?: string; label?: string; deliverAt?: string };
+  delivery?: {
+    mode?: string;
+    label?: string;
+    deliverAt?: string;
+    stock_reservation?: { state?: string };
+  };
   delivery_fee_ugx?: number | null;
   delivery_distance_km?: number | null;
   delivery_duration_min?: number | null;
@@ -79,10 +84,11 @@ export function resolveStoreLineName(
 
 export function rowsToCartLines(
   items: StoreOrderLine[] | null | undefined,
-  opts: { now?: number; rand?: () => number } = {},
+  opts: { now?: number; rand?: () => number; stockClaimed?: boolean } = {},
 ): CartLine[] {
   const now = opts.now ?? Date.now();
   const rand = opts.rand ?? Math.random;
+  const stockClaimed = Boolean(opts.stockClaimed);
   return (Array.isArray(items) ? items : []).map((line, index) => {
     const productId = String(line.product_id || '');
     const product = PRODUCTS.find((p) => p.id === productId);
@@ -98,6 +104,7 @@ export function rowsToCartLines(
           : {},
       lineTotal: isReward ? 0 : Math.round(Number(line.line_total) || 0),
       stockDeferred: true,
+      ...(stockClaimed ? { stockClaimed: true } : {}),
       isReward,
       rewardKey: isReward ? String(line.reward_key || '') : '',
       pointsCost: isReward ? Math.max(0, Math.round(Number(line.points_cost) || 0)) : 0,
@@ -178,8 +185,11 @@ export function mapStoreOrderToCart(
     }
   }
 
+  const reservationState = order.delivery?.stock_reservation?.state;
+  const stockClaimed = reservationState === 'held' || reservationState === 'consumed';
+
   return {
-    lines: rowsToCartLines(order.items, { now: opts.now, rand: opts.rand }),
+    lines: rowsToCartLines(order.items, { now: opts.now, rand: opts.rand, stockClaimed }),
     meta,
     checkout,
   };

@@ -1,9 +1,12 @@
 import type { CartLine, OrderMeta } from '../domain/cart';
 import { cartTotal } from '../domain/cart';
 import { applySoldToInventory, mergeSoldBreakdown } from '../domain/inventory-delta';
+import { categoryLabel, soldExcludingHold } from '../domain/stock-reservation';
 import { buildSalePostBody, type CheckoutDeliveryInput } from '../domain/sale-payload';
 import { sbFetch, functionFetch } from './api';
-import { clients, inventory, loadSales, type SaleRow } from './entities';
+import { clients, ensureInventory, inventory, loadSales, syncLabel, type SaleRow } from './entities';
+import { deviceId } from './device-id';
+import { postStoreReserve } from './store-reserve';
 
 export type CheckoutInput = {
   lines: CartLine[];
@@ -57,7 +60,62 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
   if (!clientName) return { ok: false, error: 'Add a customer to continue', restored: false };
 
   inFlight = true;
-  const sold = mergeSoldBreakdown(input.lines);
+  let holdOrderId = '';
+  let holdClaimed: Record<string, number> | null = null;
+  let stockKnown = false;
+  try {
+    await ensureInventory();
+    stockKnown = syncLabel.value === 'live';
+  } catch (e) {
+    console.warn('inventory refresh before charge failed', e);
+  }
+
+  if (input.meta.storeOrderId) {
+    const hold = await postStoreReserve({
+      op: 'consume',
+      id: input.meta.storeOrderId,
+      device_id: deviceId(),
+    });
+    if (hold.unsupported) {
+      /* Function not deployed: deduct at charge, including store lines. */
+    } else if (hold.network || !hold.ok) {
+      inFlight = false;
+      return {
+        ok: false,
+        error: hold.network
+          ? 'No signal — this sale was not saved. Try again when you are back online.'
+          : hold.message || hold.error || 'Could not lock this store order',
+        restored: false,
+      };
+    } else if (hold.consumed || hold.reason === 'already_consumed') {
+      holdOrderId = input.meta.storeOrderId;
+      holdClaimed = hold.claimed && typeof hold.claimed === 'object' ? hold.claimed : {};
+    }
+  }
+
+  const gross = mergeSoldBreakdown(
+    input.lines.map((line) => ({ ...line, stockClaimed: false })),
+  );
+  const sold = holdClaimed ? soldExcludingHold(gross, holdClaimed) : gross;
+  if (stockKnown) {
+    for (const [id, qty] of Object.entries(sold)) {
+      const have = inventory.value[id] || 0;
+      if (qty > have) {
+        if (holdOrderId) {
+          await postStoreReserve({ op: 'revert', id: holdOrderId, device_id: deviceId() }).catch(
+            () => {},
+          );
+        }
+        inFlight = false;
+        return {
+          ok: false,
+          error: `Not enough ${categoryLabel(id)} left (${have} in stock).`,
+          restored: false,
+        };
+      }
+    }
+  }
+
   const snapshot = { ...inventory.value };
   inventory.value = applySoldToInventory(inventory.value, sold);
 
@@ -90,16 +148,31 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
     ).catch((e) => console.warn('persist sold failed', e));
 
     if (input.meta.storeOrderId) {
-      void sbFetch(`store_orders?id=eq.${encodeURIComponent(input.meta.storeOrderId)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'checked_out', sale_id: sale.id }),
-      }).catch((e) => console.warn('store order checkout patch failed', e));
+      try {
+        const marked = await sbFetch(
+          `store_orders?id=eq.${encodeURIComponent(input.meta.storeOrderId)}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({ status: 'checked_out', sale_id: sale.id }),
+          },
+        );
+        if (!marked.ok) console.warn('store order checkout patch failed', marked.status);
+      } catch (e) {
+        console.warn('store order checkout patch failed', e);
+      }
     }
 
     void loadSales().catch(() => {});
     return { ok: true, sale };
   } catch (e) {
     inventory.value = snapshot;
+    if (holdOrderId) {
+      await postStoreReserve({ op: 'revert', id: holdOrderId, device_id: deviceId() }).catch(
+        (err) => {
+          console.warn('revert store hold after failed charge', err);
+        },
+      );
+    }
     return {
       ok: false,
       error: e instanceof Error ? e.message : 'Could not save the sale',

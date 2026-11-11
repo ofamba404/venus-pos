@@ -8,5 +8,5 @@ Behaviour in v1 that looks odd but is replicated in v2 until the owner decides o
 | 2 | Joint / cookie-row low uses `qty < 5` (so 5 is **ok**); checklist wording said ≤5 | `legacy/js/inventory.js` `stockState` | Yes (`<`) | — |
 | 3 | Cookie **aggregate** dial uses 30% of capacity 100 (`cookieStockLevel`); per-flavour rows still use the joint `< 5` rule | `legacy/js/inventory.js` | Domain `stockLevel` for cookie ids follows aggregate rule | — |
 | 4 | `cookieStockLevel(-1)` returns `low` (only exact `0` is `out`); joint `stockState(-1)` returns `out` | `legacy/js/inventory.js` | Yes | — |
-| 5 | Store-order cart lines set `stockDeferred: true` (skip draft reservation) but checkout **still** deducts them via `mergedBreakdown` | `store-orders.js` / `orders.js` | Yes | — |
+| 5 | Store-order cart lines set `stockDeferred: true`. **D16:** a held reservation is already out of on-hand stock, so charge does not deduct those lines again. Older orders with no `stock_reservation` still deduct at charge | `store-order-reserve.mjs`, `orders.js`, `inventory-delta.ts` | Yes, with the D16 hold | **D16 — claim at place** (2026-11-12) |
 | 6 | `legacy/js/orders.js` cannot load in Vitest (`location` at import); sale-payload dual-run uses source-mirrored oracles | `orders.js` | — | — |

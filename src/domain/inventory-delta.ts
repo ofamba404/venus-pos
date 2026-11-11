@@ -9,14 +9,21 @@ export type Breakdown = Record<string, number>;
 export type CartLikeLine = {
   breakdown?: Record<string, unknown> | null;
   stockDeferred?: boolean;
+  /** Place-time hold already took these units out of on-hand stock. */
+  stockClaimed?: boolean;
 };
 
 const KNOWN_IDS = new Set(CATEGORIES.map((c) => c.id));
 
-/** Merge cart line breakdowns the way checkout builds `mergedBreakdown` (includes stockDeferred). */
+/**
+ * Merge cart line breakdowns the way checkout builds `mergedBreakdown`.
+ * `stockDeferred` lines still deduct (legacy orders that were not held at place).
+ * `stockClaimed` lines are skipped — the place-time hold already deducted them.
+ */
 export function mergeSoldBreakdown(lines: CartLikeLine[] | null | undefined): Breakdown {
   const merged: Breakdown = {};
   (Array.isArray(lines) ? lines : []).forEach((item) => {
+    if (item?.stockClaimed) return;
     Object.entries(normalizeInventoryBreakdown(item?.breakdown)).forEach(([id, qty]) => {
       merged[id] = (merged[id] || 0) + qty;
     });

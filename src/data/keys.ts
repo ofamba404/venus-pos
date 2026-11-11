@@ -13,6 +13,7 @@ export const KEYS = {
   partnerSettled: 'venus-cookie-partner-settled-qty-v4',
   chartRange: 'venus_chart_range',
   insightPeriod: 'venus_insight_period',
+  device: 'venus-pos-device',
   idbName: 'venus-pos',
   idbCacheStore: 'cache',
   idbHeldStore: 'held',

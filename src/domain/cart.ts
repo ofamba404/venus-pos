@@ -18,6 +18,8 @@ export type CartLine = {
   lineTotal: number;
   wholesaleUnitPrice?: number;
   stockDeferred?: boolean;
+  /** Inventory was claimed when the storefront order was placed. */
+  stockClaimed?: boolean;
   isReward?: boolean;
   rewardKey?: string;
   pointsCost?: number;

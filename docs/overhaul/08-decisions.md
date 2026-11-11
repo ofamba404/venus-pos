@@ -95,8 +95,8 @@ Local IndexedDB only (`held` store). No data leaves the device. Default on.
 
 1. On a successful place, `/api/store-order/reserve` compare-and-swaps those units out of `inventory.stock`. The hold lives on `delivery.stock_reservation` (`state: held`, `claimed`).
 2. Charging consumes the hold (`held` → `consumed`) and does not deduct those units again. Counter lines on the same sale still deduct.
-3. Cancel, or a charge that fails before the sale row exists, sets `released` and adds the units back. Dismissing an already-cancelled order retries that return. A checked-out order, or one with `sale_id`, does not return stock.
-4. Plain, Bangis, and joint packs use existing inventory ids (`classic`, flavour ids, `spliff7030`). The storefront gates them when a real stock row exists. A missing row is not treated as zero.
+3. Cancel sets `released` and adds the units back. A charge that fails before the sale row exists reverts `consumed` → `held` and leaves those units claimed. Dismissing an already-cancelled order retries the return. A checked-out order, or one with `sale_id`, does not return stock.
+4. Plain, Bangis, and joint packs use existing inventory ids (`classic`, flavour ids, `spliff7030`). The storefront gates them when a real stock row exists. A missing row is not treated as zero and is not claimed; those units still deduct once at charge if a row exists by then.
 5. Counter sellable stock is refreshed on-hand minus the open counter cart. Store lines are not drafted a second time.
 
 Orders placed before this hold have no `stock_reservation`. Those still deduct once, at charge.

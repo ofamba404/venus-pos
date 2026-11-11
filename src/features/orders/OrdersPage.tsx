@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
-import { loadStoreOrders, storeOrders, type StoreOrderRow } from '../../data/entities';
+import { loadStoreOrders, storeOrders, ensureInventory, type StoreOrderRow } from '../../data/entities';
+import { deviceId } from '../../data/device-id';
+import { postStoreReserve } from '../../data/store-reserve';
 import { mapStoreOrderToCart } from '../../domain/store-order-map';
-import { replaceCart, setOrderMetaPatch } from '../../data/session-cart';
+import { orderMeta, replaceCart, setOrderMetaPatch } from '../../data/session-cart';
 import { replaceCheckoutDraft } from '../../data/checkout-draft';
 import { sbFetch } from '../../data/api';
 import { go } from '../../app/router';
@@ -38,6 +40,7 @@ export function OrdersPage() {
 
   useEffect(() => {
     void loadStoreOrders()
+      .then(() => ensureInventory())
       .catch((e) => showToast(e instanceof Error ? e.message : 'Could not load orders'))
       .finally(() => setLoading(false));
   }, []);
@@ -45,6 +48,20 @@ export function OrdersPage() {
   const list = storeOrders.value.filter((o) => segmentOf(o) === seg);
 
   async function loadIntoSale(order: StoreOrderRow) {
+    const device_id = deviceId();
+    const previous = orderMeta.value.storeOrderId;
+    const claim = await postStoreReserve({ op: 'claim', id: order.id, device_id });
+    if (claim.network) {
+      showToast('No signal — open this order when you are back online');
+      return;
+    }
+    if (!claim.ok && !claim.unsupported) {
+      showToast(claim.message || claim.error || 'Another phone is ringing this order up');
+      return;
+    }
+    if (previous && previous !== order.id) {
+      void postStoreReserve({ op: 'unclaim', id: previous, device_id });
+    }
     const mapped = mapStoreOrderToCart(
       {
         ...order,
@@ -63,6 +80,28 @@ export function OrdersPage() {
     }
     showToast(`Loaded ${orderTitle(order)}`);
     go('/sell');
+  }
+
+  async function cancelOrder(order: StoreOrderRow) {
+    const result = await postStoreReserve({ op: 'release', id: order.id, cancel: true });
+    if (result.unsupported) {
+      const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(order.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        showToast('Could not cancel order');
+        return;
+      }
+    } else if (!result.ok) {
+      showToast(result.message || result.error || 'Could not cancel order');
+      return;
+    }
+    showToast(`Cancelled ${orderTitle(order)}`);
+    await Promise.allSettled([loadStoreOrders(), ensureInventory()]);
   }
 
   return (
@@ -105,9 +144,14 @@ export function OrdersPage() {
                 {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
               </Tag>
               {seg === 'waiting' ? (
-                <Button size="md" onClick={() => void loadIntoSale(o)}>
-                  Load into sale
-                </Button>
+                <>
+                  <Button size="md" onClick={() => void loadIntoSale(o)}>
+                    Load into sale
+                  </Button>
+                  <Button size="md" variant="secondary" onClick={() => void cancelOrder(o)}>
+                    Cancel
+                  </Button>
+                </>
               ) : null}
               {seg === 'in_sale' ? (
                 <Button size="md" variant="secondary" onClick={() => void loadIntoSale(o)}>

@@ -180,7 +180,7 @@ Phone: CartBar → Cart sheet (full height). Wide: always-open right pane.
 4. Stacked-credit confirmation if relevant.
 5. `awaitInventoryReady`; snapshot inventory; optimistic local decrement.
 6. `POST sales` with the full v1 body (see `07-parity-checklist.md §7`).
-7. On success, in v1's order: `persistSoldBreakdown` deltas to `/api/inventory/write`, `deliveries` POST when delivery is on, `store_orders` PATCH `status=checked_out, sale_id` for store orders, stock-crossing notifications.
+7. On success, in v1's order: `persistSoldBreakdown` deltas to `/api/inventory/write`, `deliveries` POST when delivery is on, `store_orders` PATCH `status=checked_out, sale_id` for store orders, stock-crossing notifications. **D16:** lines whose store order hold is `held` or `consumed` are left out of that delta. The hold was taken when the storefront order was placed. Cancel returns it.
 8. On failure: restore the inventory snapshot, keep the cart, show `Couldn't save the sale. Nothing was charged.` with **Retry**.
 
 **Processing state**: the Charge button shows a spinner and `Saving…` in place. No full-screen takeover.
