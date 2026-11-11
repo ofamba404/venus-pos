@@ -1,7 +1,7 @@
 {
   "phase": "closeout — owner answers D1–D6, then phases 8–10",
   "branch": "overhaul",
-  "commit": "588f3fe",
+  "commit": "9693b36",
   "next": "Owner answers D1–D6. Phase 8 only after those answers. Phases 9–10 wait for a deploy cue (scripts/ship.ps1). Do not push or deploy yet.",
   "status": "Ready for D1–D6. 82 unit/dual-run · 10 Playwright contract (catalog + S01–S04, S07–S08, S10–S11, S30) · typecheck clean · Maps place search + driving-distance fee quote · S01.next.json recorded. Open before parallel run: unanswered D1–D6, remaining scenarios, and an explicit deploy cue.",
   "ownerGate": {
