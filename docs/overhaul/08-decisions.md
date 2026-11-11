@@ -19,6 +19,7 @@ The implementer must not decide these. Each has a **default** that applies until
 | D13 | Require `pos_staff`/`pos_admin` in `/api/inventory/write` (security fix) | **Propose, don't apply** | — |
 | D14 | Make the push-notify secret mandatory (needs a coordinated storefront change) | **Propose, don't apply** | — |
 | D15 | Update the workspace ship rule wording once `ship.ps1` builds first | **Propose wording at Phase 1** | Phase 1 |
+| D16 | Pending storefront orders claim sellable stock immediately | **Yes — improve beyond v1** (owner, 2026-11-12) | — |
 
 ---
 
@@ -88,8 +89,34 @@ Local IndexedDB only (`held` store). No data leaves the device. Default on.
 - D13: in `netlify/functions/_shared/supabase-admin.mjs` `requireStaffUser`, reject tokens whose `app_metadata.role` is not `pos_staff` or `pos_admin`. One-line change plus a function test. Low risk, but it changes a live function, so it needs approval.
 - D14: make `PUSH_NOTIFY_SECRET` mandatory in `push-notify.mjs`, coordinated with a storefront release that sends it. Requires a change in `venus-store`, so it needs explicit approval and a joint deploy.
 
-## Answers log
+## D16 — Store order stock reservation
 
-| Date | ID | Answer | Notes |
-|------|----|--------|-------|
-| | | | |
+**Answered 2026-11-12: improve beyond v1.** A pending storefront order claims its units so a second customer or the counter cannot take the same last units while the order is uncharged.
+
+1. On a successful place, `/api/store-order/reserve` compare-and-swaps those units out of `inventory.stock`. The hold lives on `delivery.stock_reservation` (`state: held`, `claimed`).
+2. Charging consumes the hold (`held` → `consumed`) and does not deduct those units again. Counter lines on the same sale still deduct.
+3. Cancel, or a charge that fails before the sale row exists, sets `released` and adds the units back. Dismissing an already-cancelled order retries that return. A checked-out order, or one with `sale_id`, does not return stock.
+4. Plain, Bangis, and joint packs use existing inventory ids (`classic`, flavour ids, `spliff7030`). The storefront gates them when a real stock row exists. A missing row is not treated as zero.
+5. Counter sellable stock is refreshed on-hand minus the open counter cart. Store lines are not drafted a second time.
+
+Orders placed before this hold have no `stock_reservation`. Those still deduct once, at charge.
+
+This is not one database transaction. The stock compare-and-swap and the order insert are two requests. A crash between them can hold units with no order. Two different orders are serialized per category by `stock=eq.<current>`.
+
+## Recorded answers — 2026-11-12 (owner, overnight)
+
+These replace the defaults. Phase 8 builds only what is approved here. Do not ask again.
+
+| Date | ID | Answer | What it means |
+|------|----|--------|---------------|
+| 2026-11-12 | D1 | **A** | Paid / On credit only. Do not record cash, MoMo, Airtel, or a payment reference. No per-method UI. |
+| 2026-11-12 | D2 | **B** | Walk-in chip is allowed on paid sales (`client_id` null). Credit still requires a client name. |
+| 2026-11-12 | D3 | **B** | No WhatsApp receipt button. Do not ship the DRAFT receipt copy. |
+| 2026-11-12 | D4 | **B** | Offline sales queue: queue the sale on the device, sync when signal returns. |
+| 2026-11-12 | D5 | **A** | No end-of-day / shift close in v2.0. |
+| 2026-11-12 | D6 | **A** | Hold / park a counter sale on this device only. IndexedDB `held` store. No database change. |
+| 2026-11-12 | D16 | **Improve** | Pending storefront orders claim sellable stock at place. Charge consumes the hold. Cancel releases it. |
+
+Phase 8 scope from this log: walk-in chip (D2), offline sales queue + sync (D4), device-only hold/park (D6). Skip the receipt button (D3) and shift close (D5). D1 stays Paid / On credit.
+
+Migrations that D4 needs (`sales.client_sale_id`) are written as SQL files and are **not applied** until the owner approves a migration. D2 must be checked against `sales.client_id` nullability before any production write; local tests cover the null client.
