@@ -20,15 +20,20 @@ export type PartnerBatch = {
   partnerDue: number;
 };
 
-function sumUnitMoney(units: PartnerUnit[]) {
-  return units.reduce(
-    (acc, u) => ({
-      revenue: acc.revenue + (Number(u.revenue) || 0),
-      ownerSplit: acc.ownerSplit + (Number(u.ownerSplit) || 0),
-      partnerDue: acc.partnerDue + (Number(u.partnerDue) || 0),
-    }),
-    { revenue: 0, ownerSplit: 0, partnerDue: 0 },
-  );
+function sumUnitMoney(units: PartnerUnit[]): {
+  revenue: number;
+  ownerSplit: number;
+  partnerDue: number;
+} {
+  let revenue = 0;
+  let ownerSplit = 0;
+  let partnerDue = 0;
+  for (const u of units) {
+    revenue += Number(u.revenue) || 0;
+    ownerSplit += Number(u.ownerSplit) || 0;
+    partnerDue += Number(u.partnerDue) || 0;
+  }
+  return { revenue, ownerSplit, partnerDue };
 }
 
 /** Chunk chronological cookie units into settlement batches of `every`. */

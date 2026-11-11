@@ -17,6 +17,7 @@ export type SaleLike = {
   is_credit?: boolean;
   credit_cleared?: boolean;
   amount_paid_ugx?: number;
+  created_at?: string;
 };
 
 export type SaleItemLike = {

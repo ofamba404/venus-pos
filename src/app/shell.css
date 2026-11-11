@@ -267,6 +267,43 @@
   min-width: 3ch;
   text-align: right;
   line-height: 1;
+  color: var(--fg);
+  padding: 8px 4px;
+  border-radius: var(--r-md);
+}
+
+.stock-row__qty:active {
+  background: var(--surface-sunk);
+}
+
+.today-pill {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin: 0 0 var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  text-align: left;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.today-pill__kicker {
+  font: var(--t-mono-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  line-height: 1;
+}
+
+.today-pill__value {
+  font: var(--t-title);
+  line-height: 1.1;
+}
+
+.today-pill__meta {
+  font: var(--t-meta);
+  color: var(--fg-3);
 }
 
 .stepper {

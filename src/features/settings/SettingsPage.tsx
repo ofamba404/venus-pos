@@ -1,24 +1,38 @@
+import { useState } from 'preact/hooks';
 import { KEYS } from '../../data/keys';
 import { allowDevBypass, authRole, authSession, signOut } from '../../data/auth';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
 
-function readPrefs() {
+function readJson(key: string) {
   try {
-    return JSON.parse(localStorage.getItem(KEYS.uiPrefs) || '{}');
+    return JSON.parse(localStorage.getItem(key) || '{}');
   } catch {
     return {};
   }
 }
 
 export function SettingsPage() {
-  const prefs = readPrefs();
+  const [prefs, setPrefs] = useState(() => readJson(KEYS.uiPrefs));
+  const [notif, setNotif] = useState(() => ({
+    orders: true,
+    stock: true,
+    ...readJson(KEYS.notifPrefs),
+  }));
   const haptics = prefs.haptics !== false;
 
   function toggleHaptics() {
     const next = { ...prefs, haptics: !haptics };
     localStorage.setItem(KEYS.uiPrefs, JSON.stringify(next));
+    setPrefs(next);
     showToast(next.haptics ? 'Haptics on' : 'Haptics off');
+  }
+
+  function toggleNotif(key: 'orders' | 'stock') {
+    const next = { ...notif, [key]: !notif[key] };
+    localStorage.setItem(KEYS.notifPrefs, JSON.stringify(next));
+    setNotif(next);
+    showToast(`Notifications · ${key} ${next[key] ? 'on' : 'off'}`);
   }
 
   function logout() {
@@ -45,6 +59,15 @@ export function SettingsPage() {
         <Button variant="secondary" onClick={toggleHaptics}>
           Haptics: {haptics ? 'On' : 'Off'}
         </Button>
+        <Button variant="secondary" onClick={() => toggleNotif('orders')}>
+          Order alerts: {notif.orders ? 'On' : 'Off'}
+        </Button>
+        <Button variant="secondary" onClick={() => toggleNotif('stock')}>
+          Stock alerts: {notif.stock ? 'On' : 'Off'}
+        </Button>
+        <div class="v-muted">
+          Push subscribe stays on legacy until `/next` SW is registered (Phase 10). Prefs save now.
+        </div>
         <div class="v-muted">Build {typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'}</div>
         <Button variant="danger" onClick={logout}>
           Sign out

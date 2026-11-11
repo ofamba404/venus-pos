@@ -125,6 +125,26 @@ export async function adjustInventory(categoryId: string, delta: number) {
   }
 }
 
+export async function setInventoryCount(categoryId: string, qty: number) {
+  const id = String(categoryId);
+  const prev = inventory.value[id] || 0;
+  const nextQty = Math.max(0, Math.round(Number(qty) || 0));
+  const delta = nextQty - prev;
+  if (delta === 0) return nextQty;
+  inventory.value = { ...inventory.value, [id]: nextQty };
+  try {
+    await functionFetch('/api/inventory/write', {
+      op: 'delta',
+      category_id: id,
+      delta,
+    });
+  } catch (e) {
+    inventory.value = { ...inventory.value, [id]: prev };
+    throw e;
+  }
+  return nextQty;
+}
+
 export async function bootstrapEntities() {
   await ensureInventory();
   if (!peekAccessToken() && allowDevBypass()) return;

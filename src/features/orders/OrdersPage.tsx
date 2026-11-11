@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { loadStoreOrders, storeOrders, type StoreOrderRow } from '../../data/entities';
 import { mapStoreOrderToCart } from '../../domain/store-order-map';
 import { replaceCart, setOrderMetaPatch } from '../../data/session-cart';
+import { replaceCheckoutDraft } from '../../data/checkout-draft';
 import { sbFetch } from '../../data/api';
 import { go } from '../../app/router';
 import { Button } from '../../ui/Button';
@@ -53,6 +54,7 @@ export function OrdersPage() {
     );
     replaceCart(mapped.lines, mapped.meta);
     setOrderMetaPatch(mapped.meta);
+    replaceCheckoutDraft(mapped.checkout);
     if (order.status === 'pending' || order.status === 'confirmed') {
       void sbFetch(`store_orders?id=eq.${encodeURIComponent(order.id)}`, {
         method: 'PATCH',

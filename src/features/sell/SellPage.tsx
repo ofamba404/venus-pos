@@ -1,9 +1,10 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
 import { formatUGX } from '../../domain/format';
 import { buildCartLine, cartTotal } from '../../domain/cart';
 import { varietyFlavorPool, configTotalSelected } from '../../domain/pricing/pack-config';
 import { getProgress } from '../../domain/pricing/flavored-bulk';
+import { computeTodayStats } from '../../domain/today';
 import {
   cartLines,
   cartSum,
@@ -13,8 +14,9 @@ import {
   setOrderMetaPatch,
   clearCartKeepMeta,
 } from '../../data/session-cart';
+import { checkoutDraft, clearCheckoutDraft, setCheckoutDraft } from '../../data/checkout-draft';
 import { runCheckout } from '../../data/checkout';
-import { clients } from '../../data/entities';
+import { clients, loadSales, sales } from '../../data/entities';
 import { haptic } from '../../platform/haptics';
 import { Button } from '../../ui/Button';
 import { Money } from '../../ui/Money';
@@ -50,6 +52,12 @@ export function SellPage() {
   const lines = cartLines.value;
   const meta = orderMeta.value;
   const progress = getProgress(lines);
+  const draft = checkoutDraft.value;
+  const today = computeTodayStats(sales.value as Parameters<typeof computeTodayStats>[0]);
+
+  useEffect(() => {
+    void loadSales().catch(() => {});
+  }, []);
 
   function openConfig(p: Product) {
     setConfigProduct(p);
@@ -85,9 +93,10 @@ export function SellPage() {
     setPaying(true);
     const result = await runCheckout({
       lines,
-      meta,
+      meta: { ...meta, isCredit: payment === 'credit' },
       isCredit: payment === 'credit',
       clientId: meta.clientId || null,
+      checkout: draft,
     });
     setPaying(false);
     if (!result.ok) {
@@ -97,12 +106,18 @@ export function SellPage() {
     haptic(15);
     setSuccessTotal(cartTotal(lines));
     clearCartKeepMeta();
+    clearCheckoutDraft();
     setOrderMetaPatch({
       clientName: '',
       clientId: '',
       isCredit: false,
       storeOrderId: '',
+      deliveryLocationLabel: '',
+      deliveryTimeLabel: '',
+      deliveryDeliverAt: '',
+      clientPhone: '',
     });
+    void loadSales().catch(() => {});
   }
 
   const recentClients = clients.value.slice(0, 6);
@@ -178,6 +193,20 @@ export function SellPage() {
             { id: 'credit', label: 'On credit' },
           ]}
         />
+        {meta.deliveryEnabled !== false && (meta.storeOrderId || draft.feeValue || draft.destText) ? (
+          <Field
+            label="Delivery fee (UGX)"
+            inputMode="numeric"
+            data-testid="delivery-fee"
+            value={String(draft.feeValue ?? '')}
+            placeholder="0"
+            onInput={(e) => {
+              const feeValue = (e.target as HTMLInputElement).value;
+              setCheckoutDraft({ feeValue, feeManuallyEdited: true });
+            }}
+          />
+        ) : null}
+        {draft.destText ? <p class="v-muted">{draft.destText}</p> : null}
         <div class="cart-total">
           <span class="cart-total__label">Total</span>
           <Money value={cartSum.value} size="xl" />
@@ -212,10 +241,27 @@ export function SellPage() {
   return (
     <section class="sell-layout">
       <div>
+        <button type="button" class="today-pill" data-testid="today-pill">
+          <span class="today-pill__kicker">Today</span>
+          <span class="today-pill__value">
+            <Money value={today.revenue} />
+          </span>
+          <span class="today-pill__meta">
+            {today.salesCount} sold
+            {today.joints ? ` · ${today.joints} joints` : ''}
+            {today.cookies ? ` · ${today.cookies} cookies` : ''}
+          </span>
+        </button>
         <div class="v-section-label">Packs</div>
         <div class="tile-grid">
           {PACKS.map((p) => (
-            <button key={p.id} type="button" class="v-tile" onClick={() => openConfig(p)}>
+            <button
+              key={p.id}
+              type="button"
+              class="v-tile"
+              data-testid={`product-${p.id}`}
+              onClick={() => openConfig(p)}
+            >
               <span class="v-tile__name">{p.name}</span>
               <span class="v-tile__meta">
                 {p.joints} {p.slotNoun || (Number(p.joints) === 1 ? 'joint' : 'joints')}
@@ -227,7 +273,13 @@ export function SellPage() {
         <div class="v-section-label">Singles</div>
         <div class="tile-grid">
           {SINGLES.map((p) => (
-            <button key={p.id} type="button" class="v-tile" onClick={() => openConfig(p)}>
+            <button
+              key={p.id}
+              type="button"
+              class="v-tile"
+              data-testid={`product-${p.id}`}
+              onClick={() => openConfig(p)}
+            >
               <span class="v-tile__name">{p.name}</span>
               <span class="v-tile__meta">{p.unitLabel || 'per joint'}</span>
               <span class="v-tile__price">{productPriceLabel(p)}</span>
@@ -239,7 +291,13 @@ export function SellPage() {
             <div class="v-section-label">Wholesale</div>
             <div class="tile-grid">
               {WHOLESALE.map((p) => (
-                <button key={p.id} type="button" class="v-tile" onClick={() => openConfig(p)}>
+                <button
+                  key={p.id}
+                  type="button"
+                  class="v-tile"
+                  data-testid={`product-${p.id}`}
+                  onClick={() => openConfig(p)}
+                >
                   <span class="v-tile__name">{p.name}</span>
                   <span class="v-tile__price">{productPriceLabel(p)}</span>
                 </button>
@@ -257,6 +315,7 @@ export function SellPage() {
         <div style={{ marginTop: 16 }}>
           <Button
             size="xl"
+            data-testid="charge"
             disabled={!lines.length || !meta.clientName.trim() || paying}
             onClick={() => void charge()}
           >
@@ -270,7 +329,7 @@ export function SellPage() {
       </aside>
 
       {cartCount.value > 0 ? (
-        <button type="button" class="cart-bar" onClick={() => setCartOpen(true)}>
+        <button type="button" class="cart-bar" data-testid="cart-bar" onClick={() => setCartOpen(true)}>
           <span class="cart-bar__meta">
             {cartCount.value} item{cartCount.value === 1 ? '' : 's'} · {formatUGX(cartSum.value)}
           </span>
@@ -307,6 +366,7 @@ export function SellPage() {
         footer={
           <Button
             size="xl"
+            data-testid="charge"
             disabled={!lines.length || !meta.clientName.trim() || paying}
             onClick={() => void charge()}
           >

@@ -1,19 +1,15 @@
 import type { Scenario } from './types';
 
-/** Cookie Duet, existing client, paid — first write-contract scenario. */
+/** Scout pack, one flavour, existing client, paid. */
 export const S01: Scenario = {
   id: 'S01',
-  title: 'Cookie Duet, existing client, paid',
+  title: 'Scout pack, one flavour, existing client, paid',
   role: 'pos_staff',
   seed: 'default',
   steps: [
-    {
-      do: 'addProduct',
-      product: 'cookie_duet',
-      flavors: { cookie_mint: 1, cookie_chocolate: 1 },
-    },
+    { do: 'addProduct', product: 'scout', flavors: { mint: 1 } },
     { do: 'setClient', name: 'Test Client A' },
     { do: 'charge' },
-    { expect: 'saleRecorded', total: 15000 },
+    { expect: 'saleRecorded', total: 8000 },
   ],
 };
