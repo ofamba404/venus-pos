@@ -1,7 +1,7 @@
 {
   "phase": "0 leftovers + 6/7 closeout — e2e live",
   "branch": "overhaul",
-  "commit": "pending",
+  "commit": "588f3fe",
   "next": "More scenario goldens · Maps Places UI · owner gates 8–10 (D1–D6)",
   "status": "77 unit · Playwright S01/S02/S07/S30 green · fee model port + quote lab · partner batches",
   "items": [
