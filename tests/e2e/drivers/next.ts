@@ -7,24 +7,28 @@ export type NextDriver = {
   run: (scenario: Scenario) => Promise<void>;
 };
 
+async function saleScope(page: Page) {
+  const dialog = page.getByRole('dialog', { name: 'Review sale' });
+  const opened = await dialog
+    .waitFor({ state: 'visible', timeout: 4000 })
+    .then(() => true)
+    .catch(() => false);
+  return opened ? dialog : page;
+}
+
 async function addProduct(page: Page, step: Extract<ScenarioStep, { do: 'addProduct' }>) {
   await page.getByTestId(`product-${step.product}`).click();
   if (step.qty != null) {
     const n = Math.max(0, Math.round(step.qty));
     for (let i = 1; i < n; i += 1) {
-      await page.getByLabel('Increase quantity').click();
+      await page.getByTestId('config-qty-inc').click();
     }
   }
   if (step.flavors) {
     for (const [id, count] of Object.entries(step.flavors)) {
       const times = Math.max(0, Math.round(Number(count) || 0));
       for (let i = 0; i < times; i += 1) {
-        const byTestId = page.getByTestId(`config-flavor-${id}-inc`);
-        if (await byTestId.count()) {
-          await byTestId.click();
-          continue;
-        }
-        await page.getByLabel(new RegExp(`More ${id.replace(/^cookie_/, '')}`, 'i')).click();
+        await page.getByTestId(`config-flavor-${id}-inc`).click();
       }
     }
   }
@@ -41,30 +45,40 @@ async function runStep(page: Page, step: ScenarioStep) {
         await addProduct(page, step);
         return;
       case 'setClient': {
-        const review = page.getByRole('dialog', { name: 'Review sale' });
-        if (await review.count()) await review.getByTestId('cart-client').fill(step.name);
-        else await page.getByTestId('cart-client').first().fill(step.name);
+        const scope = await saleScope(page);
+        await scope.getByTestId('cart-client').fill(step.name);
         return;
       }
-      case 'setCredit':
-        await page.getByRole('tab', { name: step.value ? 'On credit' : 'Paid' }).click();
+      case 'setCredit': {
+        const scope = await saleScope(page);
+        await scope.getByRole('tab', { name: step.value ? 'On credit' : 'Paid' }).click();
         return;
-      case 'setDelivery':
+      }
+      case 'setDelivery': {
+        const scope = await saleScope(page);
+        await scope.getByRole('tab', { name: 'Delivery' }).click();
+        if (step.destText) {
+          await scope.getByTestId('place-input').fill(step.destText);
+          const opt = scope.getByTestId('place-option').first();
+          const shown = await opt
+            .waitFor({ state: 'visible', timeout: 2500 })
+            .then(() => true)
+            .catch(() => false);
+          if (shown) await opt.click();
+        }
         if (step.feeUgx != null) {
-          const fee = page.getByTestId('delivery-fee');
-          if (await fee.count()) await fee.fill(String(step.feeUgx));
+          await scope.getByTestId('delivery-fee').fill(String(step.feeUgx));
         }
         return;
+      }
       case 'charge': {
-        const review = page.getByRole('dialog', { name: 'Review sale' });
-        if (await review.count()) await review.getByTestId('charge').click();
-        else await page.getByTestId('charge').first().click();
+        const scope = await saleScope(page);
+        await scope.getByTestId('charge').click();
         return;
       }
       case 'doubleTapCharge': {
-        const review = page.getByRole('dialog', { name: 'Review sale' });
-        if (await review.count()) await review.getByTestId('charge').dblclick();
-        else await page.getByTestId('charge').first().dblclick();
+        const scope = await saleScope(page);
+        await scope.getByTestId('charge').dblclick();
         return;
       }
       case 'adjustStock':
@@ -82,8 +96,11 @@ async function runStep(page: Page, step: ScenarioStep) {
       case 'setStockCount':
         await page.goto(`/next/stock`);
         await page.getByTestId(`stock-${step.categoryId}-qty`).click();
-        await page.getByTestId('stock-set-count').fill(String(step.qty));
+        const countInput = page.getByTestId('stock-set-count');
+        await countInput.waitFor({ state: 'visible' });
+        await countInput.fill(String(step.qty));
         await page.getByTestId('stock-set-confirm').click();
+        await page.getByRole('dialog').waitFor({ state: 'hidden', timeout: 8000 });
         return;
       case 'go':
         await page.goto(`/next${step.path.startsWith('/') ? step.path : `/${step.path}`}`);
@@ -96,11 +113,12 @@ async function runStep(page: Page, step: ScenarioStep) {
 
   if ('expect' in step) {
     switch (step.expect) {
-      case 'saleRecorded':
-        await page.getByText(new RegExp(String(step.total).replace(/\B(?=(\d{3})+(?!\d))/g, ','))).first().waitFor({
-          timeout: 10000,
-        });
+      case 'saleRecorded': {
+        await page.getByText(/Sale recorded|Recorded on credit/).first().waitFor({ timeout: 10000 });
+        const formatted = String(step.total).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        await page.getByText(new RegExp(formatted)).first().waitFor({ timeout: 5000 });
         return;
+      }
       case 'stock':
         await page.goto('/next/stock');
         await page.getByTestId(`stock-${step.categoryId}-qty`).filter({ hasText: String(step.qty) }).waitFor();

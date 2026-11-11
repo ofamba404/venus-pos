@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
 import { formatUGX } from '../../domain/format';
 import { buildCartLine, cartTotal } from '../../domain/cart';
-import { varietyFlavorPool, configTotalSelected } from '../../domain/pricing/pack-config';
+import { configFlavorPool, configTotalSelected } from '../../domain/pricing/pack-config';
 import { getProgress } from '../../domain/pricing/flavored-bulk';
 import { computeTodayStats } from '../../domain/today';
 import {
@@ -15,6 +15,7 @@ import {
   clearCartKeepMeta,
 } from '../../data/session-cart';
 import { checkoutDraft, clearCheckoutDraft, setCheckoutDraft } from '../../data/checkout-draft';
+import { ensureDeliveryModel, quoteFeeForDest } from '../../data/delivery-model';
 import { runCheckout } from '../../data/checkout';
 import { clients, loadSales, sales } from '../../data/entities';
 import { haptic } from '../../platform/haptics';
@@ -24,6 +25,7 @@ import { Sheet } from '../../ui/Sheet';
 import { Field } from '../../ui/Field';
 import { Segmented } from '../../ui/Segmented';
 import { FlavorDot } from '../../ui/FlavorDot';
+import { PlaceSearch } from '../../ui/PlaceSearch';
 import { showToast } from '../../ui/ToastHost';
 import { IconButton } from '../../ui/IconButton';
 import { IconCheck, IconClose, IconMinus, IconPlus } from '../../ui/icons';
@@ -57,7 +59,26 @@ export function SellPage() {
 
   useEffect(() => {
     void loadSales().catch(() => {});
+    void ensureDeliveryModel().catch(() => {});
   }, []);
+
+  async function onPlacePick(place: { label: string; lat: number; lng: number }) {
+    setOrderMetaPatch({
+      deliveryEnabled: true,
+      deliveryLocationLabel: place.label,
+    });
+    const pred = await quoteFeeForDest({ lat: place.lat, lng: place.lng });
+    setCheckoutDraft({
+      dest: { lat: place.lat, lng: place.lng },
+      destText: place.label,
+      distanceKm: pred.km,
+      durationMin: pred.durationMin,
+      feeValue: pred.predicted != null ? String(pred.predicted) : '',
+      predictedFee: pred.predicted,
+      feeManuallyEdited: false,
+    });
+    if (pred.predicted == null) showToast('Place set — log more quotes to predict fee');
+  }
 
   function openConfig(p: Product) {
     setConfigProduct(p);
@@ -194,20 +215,57 @@ export function SellPage() {
             { id: 'credit', label: 'On credit' },
           ]}
         />
-        {meta.deliveryEnabled !== false && (meta.storeOrderId || draft.feeValue || draft.destText) ? (
-          <Field
-            label="Delivery fee (UGX)"
-            inputMode="numeric"
-            data-testid="delivery-fee"
-            value={String(draft.feeValue ?? '')}
-            placeholder="0"
-            onInput={(e) => {
-              const feeValue = (e.target as HTMLInputElement).value;
-              setCheckoutDraft({ feeValue, feeManuallyEdited: true });
-            }}
-          />
+        <Segmented
+          value={meta.deliveryEnabled === false ? 'pickup' : 'delivery'}
+          onChange={(id) => {
+            const deliveryEnabled = id === 'delivery';
+            if (!deliveryEnabled) {
+              setCheckoutDraft({
+                dest: null,
+                destText: '',
+                feeValue: '',
+                distanceKm: null,
+                predictedFee: null,
+                feeManuallyEdited: false,
+              });
+              setOrderMetaPatch({ deliveryEnabled: false, deliveryLocationLabel: '' });
+            } else {
+              setOrderMetaPatch({ deliveryEnabled: true });
+            }
+          }}
+          options={[
+            { id: 'delivery', label: 'Delivery' },
+            { id: 'pickup', label: 'Pickup' },
+          ]}
+        />
+        {meta.deliveryEnabled !== false ? (
+          <>
+            <PlaceSearch
+              value={draft.destText || meta.deliveryLocationLabel || ''}
+              onPick={onPlacePick}
+            />
+            <Field
+              label="Delivery fee (UGX)"
+              inputMode="numeric"
+              data-testid="delivery-fee"
+              value={String(draft.feeValue ?? '')}
+              placeholder="0"
+              onInput={(e) => {
+                const feeValue = (e.target as HTMLInputElement).value;
+                setCheckoutDraft({ feeValue, feeManuallyEdited: true });
+              }}
+            />
+            {draft.distanceKm != null ? (
+              <p class="v-muted">
+                {Number(draft.distanceKm).toFixed(1)} km
+                {draft.durationMin != null ? ` · ~${Math.round(Number(draft.durationMin))} min` : ''}
+                {draft.predictedFee != null && !draft.feeManuallyEdited
+                  ? ` · model ${formatUGX(Number(draft.predictedFee))}`
+                  : ''}
+              </p>
+            ) : null}
+          </>
         ) : null}
-        {draft.destText ? <p class="v-muted">{draft.destText}</p> : null}
         <div class="cart-total">
           <span class="cart-total__label">Total</span>
           <Money value={cartSum.value} size="xl" />
@@ -406,6 +464,7 @@ function ConfigBody({
           <button
             type="button"
             aria-label="Decrease quantity"
+            data-testid="config-qty-dec"
             onClick={() => onQty(Math.max(0, (selection.qty || 0) - 1))}
           >
             <IconMinus size={18} />
@@ -414,6 +473,7 @@ function ConfigBody({
           <button
             type="button"
             aria-label="Increase quantity"
+            data-testid="config-qty-inc"
             onClick={() => onQty((selection.qty || 0) + 1)}
           >
             <IconPlus size={18} />
@@ -424,7 +484,7 @@ function ConfigBody({
   }
 
   if (product.rule === 'cookie_wholesale') {
-    const pool = varietyFlavorPool(product);
+    const pool = configFlavorPool(product);
     return (
       <div style={{ display: 'grid', gap: 12 }}>
         <Field
@@ -440,7 +500,7 @@ function ConfigBody({
     );
   }
 
-  const pool = varietyFlavorPool(product);
+  const pool = configFlavorPool(product);
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       {pool.map((id) => (
@@ -465,16 +525,18 @@ function FlavorRow({
   onBump: (id: string, d: number) => void;
 }) {
   const cat = CAT_MAP[id];
+  const label =
+    cat?.sub && cat.sub !== 'Cookie' ? `${cat.name} ${cat.sub}` : cat?.name || id;
   return (
     <div class="config-flavor">
       <span class="config-flavor__label">
         <FlavorDot color={cat?.color || '#ccc'} size="lg" />
-        {cat?.name || id}
+        {label}
       </span>
       <div class="stepper">
         <button
           type="button"
-          aria-label={`Fewer ${cat?.name || id}`}
+          aria-label={`Fewer ${label}`}
           data-testid={`config-flavor-${id}-dec`}
           onClick={() => onBump(id, -1)}
         >
@@ -483,7 +545,7 @@ function FlavorRow({
         <span class="stepper__n">{count}</span>
         <button
           type="button"
-          aria-label={`More ${cat?.name || id}`}
+          aria-label={`More ${label}`}
           data-testid={`config-flavor-${id}-inc`}
           onClick={() => onBump(id, 1)}
         >

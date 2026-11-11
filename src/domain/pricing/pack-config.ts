@@ -39,6 +39,15 @@ export function varietyFlavorPool(product: Product | null | undefined): string[]
   return product?.flavorPool || FLAVOR_POOL;
 }
 
+/** Flavors the config sheet should list — matches legacy product-config render. */
+export function configFlavorPool(product: Product | null | undefined): string[] {
+  if (product?.rule === 'spliff_qty') return SPLIFF_POOL;
+  if (product?.rule === 'cookie_qty' || product?.rule === 'cookie_wholesale') {
+    return COOKIE_FLAVOR_POOL;
+  }
+  return varietyFlavorPool(product);
+}
+
 function slotNoun(product: Product): string {
   return product?.slotNoun || 'joints';
 }

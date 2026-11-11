@@ -1,6 +1,14 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Page, Route } from '@playwright/test';
 import { MemoryDb, type Row, type TableMap } from './postgrest';
 import { FIXED_NOW, buildDefaultSeed, buildEmptySeed } from '../fixtures/seed';
+
+const mockDir = path.dirname(fileURLToPath(import.meta.url));
+const PLACES_JSON = readFileSync(path.join(mockDir, '../fixtures/places.json'), 'utf8');
+const GMAPS_STUB = readFileSync(path.join(mockDir, 'gmaps-stub.js'), 'utf8');
+const GMAPS_SCRIPT = `window.__VENUS_PLACE_FIXTURES = ${PLACES_JSON};\n${GMAPS_STUB}`;
 
 export type FailureRule = {
   method: string;
@@ -285,24 +293,21 @@ export async function installMockBackend(
       return;
     }
 
-    // Maps stub
-    if (url.includes('maps.googleapis.com')) {
+    // Maps stub — script callback plus any follow-up Maps HTTP (no live key).
+    if (url.includes('maps.googleapis.com') || url.includes('maps.gstatic.com')) {
+      const isScript = url.includes('/maps/api/js') || url.includes('callback=');
+      if (isScript) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/javascript',
+          body: GMAPS_SCRIPT,
+        });
+        return;
+      }
       await route.fulfill({
         status: 200,
-        contentType: 'application/javascript',
-        body: `
-          window.google = window.google || {};
-          google.maps = {
-            importLibrary: async () => ({
-              AutocompleteSuggestion: { fetchAutocompleteSuggestions: async () => ({ suggestions: [] }) },
-              Place: function() {},
-            }),
-            Geocoder: function() {
-              this.geocode = (_req, cb) => cb([{ formatted_address: 'Test Place', geometry: { location: { lat: () => 0.33, lng: () => 32.58 } } }], 'OK');
-            },
-          };
-          if (typeof window.__venusGmapsReady === 'function') window.__venusGmapsReady();
-        `,
+        contentType: 'application/json',
+        body: '{}',
       });
       return;
     }

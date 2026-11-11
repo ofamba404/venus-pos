@@ -19,6 +19,13 @@ export type CheckoutResult =
 
 let inFlight = false;
 
+/** PostgREST returns an array; the test mock returns one object for a single insert. */
+function rowsFrom<T>(payload: unknown): T[] {
+  if (Array.isArray(payload)) return payload as T[];
+  if (payload && typeof payload === 'object') return [payload as T];
+  return [];
+}
+
 async function resolveClientId(name: string, existingId: string): Promise<string | null> {
   if (existingId) {
     const hit = clients.value.find((c) => c.id === existingId);
@@ -37,8 +44,8 @@ async function resolveClientId(name: string, existingId: string): Promise<string
     body: JSON.stringify({ name: trimmed }),
   });
   if (!res.ok) throw new Error(`Could not create client (${res.status})`);
-  const rows = (await res.json()) as Array<{ id: string }>;
-  const id = rows?.[0]?.id || null;
+  const row = rowsFrom<{ id: string }>(await res.json())[0];
+  const id = row?.id || null;
   if (id) clients.value = [...clients.value, { id, name: trimmed }];
   return id;
 }
@@ -69,8 +76,7 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Sale failed (${res.status})`);
-    const rows = (await res.json()) as SaleRow[];
-    const sale = rows[0];
+    const sale = rowsFrom<SaleRow>(await res.json())[0];
     if (!sale) throw new Error('Sale failed — empty response');
 
     void Promise.all(

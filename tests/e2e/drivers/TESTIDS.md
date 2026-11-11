@@ -15,6 +15,7 @@ Use these on v2 elements. Drivers resolve via `[data-testid="…"]`.
 | Payment segment | `pay-paid` / `pay-credit` |
 | Charge | `charge` |
 | Delivery fee field | `delivery-fee` |
+| Place search | `place-search` / `place-input` / `place-option` |
 | Today pill | `today-pill` |
 | Stock −/+ | `stock-{id}-dec` / `stock-{id}-inc` |
 | Stock qty (opens set count) | `stock-{id}-qty` |

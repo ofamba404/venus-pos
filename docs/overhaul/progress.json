@@ -1,16 +1,22 @@
 {
-  "phase": "0 leftovers + 6/7 closeout — e2e live",
+  "phase": "closeout — owner answers D1–D6, then phases 8–10",
   "branch": "overhaul",
   "commit": "588f3fe",
-  "next": "More scenario goldens · Maps Places UI · owner gates 8–10 (D1–D6)",
-  "status": "77 unit · Playwright S01/S02/S07/S30 green · fee model port + quote lab · partner batches",
+  "next": "Owner answers D1–D6. Phase 8 only after those answers. Phases 9–10 wait for a deploy cue (scripts/ship.ps1). Do not push or deploy yet.",
+  "status": "Ready for D1–D6. 82 unit/dual-run · 10 Playwright contract (catalog + S01–S04, S07–S08, S10–S11, S30) · typecheck clean · Maps place search + driving-distance fee quote · S01.next.json recorded. Open before parallel run: unanswered D1–D6, remaining scenarios, and an explicit deploy cue.",
+  "ownerGate": {
+    "ready": "Answer D1–D6. Defaults in PROGRESS.md stay in force until then.",
+    "phase8": "Start only after D1–D6 are answered. Build only the approved options.",
+    "phase9": "Needs a deploy cue. .\\scripts\\ship.ps1 — v1 at /, v2 at /next/. No production test sales unless asked.",
+    "phase10": "Needs the owner to say ship, after the parallel run."
+  },
   "items": [
     { "id": "p0-branch", "label": "Phase 0: branch + v1-baseline tag", "state": "done" },
     { "id": "p0-tooling", "label": "Phase 0: Vitest / Playwright / TS tooling", "state": "done" },
     { "id": "p0-mock", "label": "Phase 0: mock backend + fixtures", "state": "done" },
     { "id": "p0-exports", "label": "Phase 0: export legacy helpers", "state": "run" },
     { "id": "p0-dual", "label": "Phase 0: dual-run characterizations", "state": "done" },
-    { "id": "p0-scenarios", "label": "Phase 0: S01–S50 + goldens", "state": "run" },
+    { "id": "p0-scenarios", "label": "Phase 0: S01–S50 + goldens (contract slice + S01.next.json recorded)", "state": "run" },
     { "id": "p0-baseline", "label": "Phase 0: screenshots + perf + CI", "state": "wait" },
     { "id": "p1", "label": "Phase 1: Vite + legacy/ strangler", "state": "done" },
     { "id": "p2", "label": "Phase 2: domain port", "state": "done" },
@@ -19,6 +25,6 @@
     { "id": "p5", "label": "Phase 5: Sell + checkout + Orders", "state": "done" },
     { "id": "p6", "label": "Phase 6: Stock + Settings + Auth + PWA", "state": "run" },
     { "id": "p7", "label": "Phase 7: back office", "state": "run" },
-    { "id": "p8-10", "label": "Phases 8–10: owner-gated (improvements, parallel, cutover)", "state": "wait" }
+    { "id": "p8-10", "label": "Phases 8–10: owner-gated (D1–D6, then deploy cues)", "state": "wait" }
   ]
 }

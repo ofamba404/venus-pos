@@ -4,12 +4,61 @@ Update at the end of every session.
 
 | Field | Value |
 |-------|-------|
-| Current phase | 0 leftovers + 6/7 closeout |
+| Current phase | Closeout. Owner answers D1–D6, then phases 8–10 |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | unit + dual-run (SW routing + today added) |
-| Next step | Playwright drivers/goldens · Maps fee predict · partner charts · then owner gates 8–10 |
-| Open questions for the owner | See `08-decisions.md` (all at defaults) |
+| Tests passing | typecheck clean · 82 unit/dual-run · 10 Playwright contract |
+| Next step | Answer D1–D6 below. Phase 8 starts only after those answers. Phases 9–10 wait for a deploy cue |
+| Open questions for the owner | D1–D6 below. Defaults apply until you pick |
+
+## Ready vs open (before a parallel run)
+
+**Ready for you to decide.** `/next` can sell, take credit, set a stock count, and attach a drop-off. Place search talks to Google Maps in the app and to a local Maps stub in tests. A Scout sale writes the sale, then the mint stock delta (`tests/e2e/goldens/S01.next.json`). Fee prediction uses driving distance when Maps answers, and the stored fee is the model’s high end, same as v1.
+
+**Open before staff use v2 beside v1.**
+
+- D1–D6 are still unanswered. Phase 8 builds only the options you approve.
+- The Playwright slice that is green is the catalog plus S01, S02, S03, S04, S07, S08, S10, S11, and S30. The other scenarios are defined and not in this run yet.
+- Phase 9 needs you to say deploy. That is `.\scripts\ship.ps1` from `venus-pos` (v1 stays at `/`, v2 at `/next/`). No test sales on production unless you ask.
+- Phase 10 needs you to say ship, after the parallel run. Same script, after the cutover edits. Rollback stays the previous Netlify deploy.
+
+Nothing in this closeout was pushed or deployed.
+
+## D1–D6 — pick one each
+
+Reply with the letter. The marked default is what the app does today.
+
+**D1. Record the payment method on every sale?** (blocks Phase 8)
+
+- A. No. Paid / On credit only. **(default)**
+- B. Yes. Cash, MTN MoMo, Airtel Money, credit, or other, plus an optional MoMo/Airtel reference.
+
+**D2. Allow a walk-in sale with no client name when it is paid in full?** (blocks Phase 8)
+
+- A. No. A client name is required. **(default)**
+- B. Yes. A Walk-in chip for paid sales. Credit still needs a client.
+
+**D3. WhatsApp receipt button on the success screen and in History?** (Phase 8 copy stays draft until you approve it)
+
+- A. Yes. Behind a flag. The receipt text stays marked DRAFT until you approve it. **(default)**
+- B. No receipt button.
+
+**D4. Offline sales queue (sell with no signal, sync when the connection returns)?** (blocks Phase 8)
+
+- A. No. A sale needs signal, same as v1. **(default)**
+- B. Yes. Queue the sale on the device and sync later.
+
+**D5. End-of-day / shift close screen?** (depends on D1)
+
+- A. No shift close in v2.0. **(default)**
+- B. Yes. Opening float, cash count, and per-method totals. Only if D1 is B.
+
+**D6. Hold / park a counter sale on this device?**
+
+- A. Yes. Saved on the device only. No database change. **(default)**
+- B. No hold.
+
+Phase 8 does not start until these six answers are in `docs/overhaul/08-decisions.md`. Phases 9 and 10 do not start until you give the deploy cue above.
 
 ## Log
 
@@ -22,4 +71,5 @@ Update at the end of every session.
 | 2026-11-12 | 4–7 | Checkoutable `/next` shell + Sell/Orders/Stock/back office | `387c0fd` |
 | 2026-11-12 | UI | Icon/stepper/list quirks pass | `2e62867` |
 | 2026-11-12 | 0/6/7 | S01–S50 defs · Today · fee draft · set-count · settle · SW unit | `e0b916e` |
-| 2026-11-12 | 0/6/7 | Playwright next driver S01/S02/S07/S30 · fee model port · quote lab · partner UI | _(this commit)_ |
+| 2026-11-12 | 0/6/7 | Playwright next driver S01/S02/S07/S30 · fee model port · quote lab · partner UI | `588f3fe` |
+| 2026-11-12 | closeout | Maps place search + delivery quote · contract S01–S04, S07–S08, S10–S11, S30 · D1–D6 gate | _(wip)_ |
