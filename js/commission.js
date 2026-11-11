@@ -143,6 +143,11 @@ export async function renderCommissionCard({ force = false } = {}) {
     el.hidden = true;
     return;
   }
+  if (isStaff) {
+    // Staff Home: commission sits below the stock card (same place the admin card uses).
+    const stock = document.getElementById('stockGlance');
+    if (stock && stock.nextElementSibling !== el) stock.after(el);
+  }
   if (loading && !force) return loading;
 
   loading = (async () => {
