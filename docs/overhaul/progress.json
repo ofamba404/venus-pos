@@ -1,7 +1,7 @@
 {
   "phase": "5–7 — working /next app (checkoutable)",
   "branch": "overhaul",
-  "commit": "pending",
+  "commit": "b1d9315",
   "next": "Wire fee model fit into checkout · S02–S50 drivers · owner gates 8–10",
   "status": "69 tests · hours/revenue/partner/delivery-fee/history domain landed",
   "items": [
