@@ -12,6 +12,7 @@ import { Segmented } from '../../ui/Segmented';
 import { Sheet } from '../../ui/Sheet';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
+import { creditBalance } from '../../domain/credit';
 import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
 import { HistoryEditSheet } from './HistoryEditSheet';
 
@@ -149,7 +150,7 @@ export function HistoryPage() {
                   breakdown: item.breakdown as Record<string, unknown>,
                 }))}
                 tags={<Tag tone={credit ? 'credit' : 'paid'}>{credit ? 'Credit' : 'Paid'}</Tag>}
-                amount={<Money className="v-money--amber" value={Number(s.total_ugx) || 0} />}
+                amount={<Money className="v-money--total" value={Number(s.total_ugx) || 0} />}
                 onOpen={() => {
                   setOpenId(String(s.id || ''));
                   setEditing(false);
@@ -183,7 +184,7 @@ export function HistoryPage() {
               place={String(open.location_label || '')}
               lat={open.location_lat as number | null | undefined}
               lng={open.location_lng as number | null | undefined}
-              collect={open.is_credit && !open.credit_cleared ? Number(open.total_ugx) || 0 : 0}
+              collect={creditBalance(open)}
               idPrefix="history-copy-"
             />
             <Button

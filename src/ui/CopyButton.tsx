@@ -11,7 +11,7 @@ const KINDS = {
 /**
  * A labelled 44px pill that copies one thing: the phone (9 digits), the drop-off, or the whole
  * delivery block. There is no icon-only version. On compact cards the icon is left out to keep one row, and a tick appears on copy. The icon turns into a tick and a toast says what
- * was copied. Phone and location share the amber style. Copy all is solid ink.
+ * was copied. Phone and location share the bronze style. Copy all is solid ink.
  */
 export function CopyButton({
   kind,

@@ -17,6 +17,8 @@ import { IconButton } from '../../ui/IconButton';
 import { OrderCard } from '../../ui/OrderCard';
 import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
 import { KEYS } from '../../data/keys';
+import { ConfirmButton, ConfirmedTag } from '../../ui/ConfirmOrder';
+import { confirmStoreOrder, isOrderConfirmed } from './confirm-order';
 import { writePaint } from '../../domain/parity';
 import { SUPABASE_ANON_JWT, SUPABASE_URL } from '../../data/env';
 import {
@@ -229,6 +231,14 @@ export function OrdersPage() {
             total={orderTotal(o)}
             image={thumb}
             lines={items.slice(0, 3).map(orderLine)}
+            tags={
+              <>
+                <Tag tone={o.delivery_enabled === false ? 'default' : 'bronze'}>
+                  {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
+                </Tag>
+                {isOrderConfirmed(o) ? <ConfirmedTag testId={`confirmed-${o.id}`} /> : null}
+              </>
+            }
             copies={
               <DeliveryCopyRow
                 compact
@@ -238,19 +248,30 @@ export function OrdersPage() {
                 place={place}
                 lat={o.location_lat}
                 lng={o.location_lng}
-                collect={seg === 'closed' ? 0 : orderTotal(o)}
+                // Store orders have no paid / unpaid field (status, sale_id, delivery_fee_ugx and items only),
+                // so Copy all leaves Collect out. Showing it could send a rider to collect money already paid.
+                collect={0}
                 idPrefix="copy-"
                 idSuffix={`-${o.id}`}
               />
             }
           >
             <div class="v-order-card__actions">
-              <Tag tone={o.delivery_enabled === false ? 'default' : 'amber'}>
-                {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
-              </Tag>
               {seg === 'waiting' ? (
                 <>
-                  <Button size="md" data-testid={`load-order-${o.id}`} onClick={() => void loadIntoSale(o)}>
+                  {/* One primary action at a time: Confirm while the order is pending, Load into sale once it is confirmed. */}
+                  {!isOrderConfirmed(o) ? (
+                    <ConfirmButton
+                      testId={`confirm-order-${o.id}`}
+                      onConfirm={() => confirmStoreOrder(o.id)}
+                    />
+                  ) : null}
+                  <Button
+                    size="md"
+                    variant={isOrderConfirmed(o) ? 'primary' : 'secondary'}
+                    data-testid={`load-order-${o.id}`}
+                    onClick={() => void loadIntoSale(o)}
+                  >
                     Load into sale
                   </Button>
                   <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => void cancelOrder(o)}>

@@ -51,7 +51,7 @@ Each flow was a restyled list row or a bare field. The question for this pass is
 | Sell | Text button with a price | `ProductCard` | A pack is a photo, a name, and a price. A label cannot tell Scout from Pilot. |
 | Review / checkout | Separate fields | `DeliveryBlock` plus `TimePicker` | Drop-off, phone, fee, and time are one decision. The time control is a clock, not a text field. |
 | After charge | Inline check markup | `Celebration` | The sale is finished. One amount, one sentence, one way back to the next customer. |
-| Incoming order | Article of divs | `OrderCard` | Who, flavour swatches, amber total, and copy actions are the scan. Load and cancel stay as actions on the card. |
+| Incoming order | Article of divs | `OrderCard` | Who, flavour swatches, ink total, and copy actions are the scan. Load and cancel stay as actions on the card. |
 | History row | Generic list row | `HistoryRow` | A past sale is recognisable closed: person, thumb, swatches, paid or credit. |
 | Edit sale | Sheet of steppers | Kept the sheet | Qty, add Plain, remove, payment, and customer are the edit. Reopening the flavour picker is still an owner question in `PARITY.md`. |
 | Client | Spreadsheet row | `ClientCard` | Initial, last order, and what they owe. Edit is its own control so settling credit does not rename them. |

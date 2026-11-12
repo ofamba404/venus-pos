@@ -46,9 +46,8 @@ test.describe('SafeBoda copy pills', () => {
 
     await all.click();
     await expect(page.getByRole('status').filter({ hasText: 'Delivery details copied' })).toBeVisible();
-    expect(await clip(page)).toBe(
-      ['Name: Test Buyer Two', 'Phone: 700654321', 'Drop-off: Kololo Test', `Map: ${MAP}`, 'Collect: UGX 8,000'].join('\n'),
-    );
+    // Store orders carry no paid / unpaid field, so there is never a Collect line here.
+    expect(await clip(page)).toBe(['Name: Test Buyer Two', 'Phone: 700654321', 'Drop-off: Kololo Test', `Map: ${MAP}`].join('\n'));
   });
 
   test('no icon-only copy buttons anywhere', async ({ page }) => {
@@ -94,14 +93,28 @@ test.describe('SafeBoda copy pills', () => {
     expect(await clip(page)).toBe(
       ['Name: Test Client A', 'Phone: 700333444', 'Drop-off: Kololo, behind the blue gate', `Map: ${MAP}`].join('\n'),
     );
-    // On credit and not cleared: collect it.
-    await page.keyboard.press('Escape');
+    // On credit and not cleared: the rider collects what is still owed.
+    const collect = async () => {
+      await page.keyboard.press('Escape');
+      await page.reload();
+      await page.getByTestId('history-sale-seed-sale-1').click();
+      await page.getByTestId('history-copy-all').click();
+      return clip(page);
+    };
     sale.is_credit = true;
     sale.credit_cleared = false;
-    await page.reload();
-    await page.getByTestId('history-sale-seed-sale-1').click();
-    await page.getByTestId('history-copy-all').click();
-    expect(await clip(page)).toContain('Collect: UGX 8,000');
+    sale.amount_paid_ugx = 0;
+    expect(await collect()).toContain('Collect: UGX 8,000');
+    // Part paid: only the balance.
+    sale.amount_paid_ugx = 3000;
+    expect(await collect()).toContain('Collect: UGX 5,000');
+    // Credit that has been cleared is paid: nothing to collect.
+    sale.credit_cleared = true;
+    expect(await collect()).not.toContain('Collect');
+    // Paid in full on credit terms: nothing either.
+    sale.credit_cleared = false;
+    sale.amount_paid_ugx = 8000;
+    expect(await collect()).not.toContain('Collect');
   });
 
   test('a pickup sale shows Copy phone only', async ({ page }) => {
@@ -138,7 +151,7 @@ test.describe('SafeBoda copy pills', () => {
     expect(await clip(page)).toBe('755000111');
   });
 
-  test('a loaded delivery order: card and checkout both copy the full block with the amount to collect', async ({ page }) => {
+  test('a loaded delivery order: Collect appears only when On credit is chosen, never when Paid', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     const order = driver.mock.db.table('store_orders').find((r) => r.id === 'so-confirmed-1')!;
@@ -148,18 +161,27 @@ test.describe('SafeBoda copy pills', () => {
     await page.goto('/next/orders');
     await page.getByTestId('load-order-so-confirmed-1').click();
     await page.waitForURL(/\/sell/);
-    const expected = ['Name: Test Buyer Two', 'Phone: 700654321', 'Drop-off: Kololo Test', `Map: ${MAP}`, 'Collect: UGX 8,000'].join('\n');
+    const base = ['Name: Test Buyer Two', 'Phone: 700654321', 'Drop-off: Kololo Test', `Map: ${MAP}`];
     const card = page.getByTestId('loaded-order');
     await expect(card.getByTestId('loaded-order-copy-phone')).toHaveText('Copy phone');
     await expect(card.getByTestId('loaded-order-copy-location')).toHaveText('Copy location');
+    // Paid is the default: no Collect line.
     await card.getByTestId('loaded-order-copy-all').click();
-    expect(await clip(page)).toBe(expected);
+    expect(await clip(page)).toBe(base.join('\n'));
     await card.getByTestId('loaded-order-review').click();
     const sheet = page.getByRole('dialog', { name: 'Review sale' });
     await sheet.getByTestId('copy-all').click();
-    expect(await clip(page)).toBe(expected);
+    expect(await clip(page)).toBe(base.join('\n'));
     await sheet.getByTestId('copy-location').click();
     expect(await clip(page)).toBe(`Kololo Test\n${MAP}`);
+    // On credit: the rider has money to collect.
+    await sheet.getByRole('tab', { name: 'On credit' }).click();
+    await sheet.getByTestId('copy-all').click();
+    expect(await clip(page)).toBe([...base, 'Collect: UGX 8,000'].join('\n'));
+    // Back to Paid: gone again.
+    await sheet.getByRole('tab', { name: 'Paid' }).click();
+    await sheet.getByTestId('copy-all').click();
+    expect(await clip(page)).toBe(base.join('\n'));
   });
 
   test('a loaded pickup order offers Copy phone on the card and no delivery copies', async ({ page }) => {

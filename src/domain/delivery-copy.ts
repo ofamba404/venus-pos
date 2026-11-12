@@ -7,7 +7,7 @@ export type DeliveryCopyInput = {
   place?: string | null;
   lat?: number | string | null;
   lng?: number | string | null;
-  /** Money still to collect at the door: pay on delivery, or a sale on credit. */
+  /** Money the rider must collect: an unpaid sale on credit that is not cleared. Pass 0 for anything paid or unknown. */
   collect?: number | null;
 };
 

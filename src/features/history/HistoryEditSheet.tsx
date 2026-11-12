@@ -150,7 +150,7 @@ export function HistoryEditSheet({
                     productId={String(item.product_id || '')}
                   />
                 </div>
-                <Money className="v-money--amber" value={Number(item.line_total) || 0} />
+                <Money className="v-money--total" value={Number(item.line_total) || 0} />
               </div>
               <div class="edit-line__tools">
                 {canPick ? (

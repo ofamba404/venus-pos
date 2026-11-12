@@ -40,7 +40,6 @@ import { deviceId } from '../../data/device-id';
 import { deleteHeld, listHeld, saveHeld } from '../../data/held';
 import { flushOutbox, listOutbox, outboxCountLabel } from '../../data/outbox';
 import { mapStoreOrderToCart } from '../../domain/store-order-map';
-import { patchStoreOrder } from '../../data/writes/store-orders';
 import { postStoreReserve } from '../../data/store-reserve';
 import { clients, ensureInventory, inventory, loadClients, loadSales, loadStoreOrders, sales, storeOrders, syncLabel } from '../../data/entities';
 import { openDebtForClientName } from '../../domain/credit';
@@ -56,6 +55,7 @@ import { FlavorPicker } from '../../ui/FlavorPicker';
 import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
 import { lineCount } from '../../domain/line-count';
 import { LoadedOrderCard } from '../../ui/LoadedOrderCard';
+import { confirmStoreOrder, isOrderConfirmed } from '../orders/confirm-order';
 import { ProductCard } from '../../ui/ProductCard';
 import { DeliveryBlock } from '../../ui/DeliveryBlock';
 import { TimePicker } from '../../ui/TimePicker';
@@ -398,20 +398,6 @@ export function SellPage() {
     showToast('Held on this phone');
   }
 
-  async function confirmLoadedOrder() {
-    const id = meta.storeOrderId;
-    if (!id) return;
-    const res = await patchStoreOrder(id, {
-      status: 'confirmed',
-      confirmed_at: new Date().toISOString(),
-    });
-    if (!res.ok) {
-      showToast('Could not confirm order');
-      return;
-    }
-    showToast('Order confirmed');
-  }
-
   async function resumeSale(id: string) {
     const row = (await listHeld()).find((item) => item.id === id);
     if (!row) return;
@@ -439,8 +425,9 @@ export function SellPage() {
         ? 'Credit needs a client name'
         : 'Add a customer to continue';
 
-  // A store order is paid at the door until checkout says otherwise, and credit is paid later.
-  const collectNow = payment === 'credit' || meta.storeOrderId ? cartSum.value : 0;
+  // The rider collects only when this sale is unpaid: On credit. Paid never shows a Collect line, and a
+  // store order carries no paid flag, so it follows the Paid / On credit choice above and nothing else.
+  const collectNow = payment === 'credit' ? cartSum.value : 0;
   const loadedOrderProps = {
     name: meta.clientName,
     delivery: meta.deliveryEnabled !== false,
@@ -452,6 +439,9 @@ export function SellPage() {
     collect: collectNow,
     itemCount: cartCount.value,
     total: cartSum.value,
+    // Confirm goes through the same write as the Orders card, so the order reads the same on both.
+    confirmed: isOrderConfirmed(storeOrders.value.find((row) => row.id === meta.storeOrderId)),
+    onConfirm: () => confirmStoreOrder(meta.storeOrderId),
   };
 
   const cartBody = (
@@ -491,7 +481,7 @@ export function SellPage() {
               <div class="v-cart-line__main">
                 <div class="v-cart-line__head">
                   <div class="v-list-row__title">{line.name}</div>
-                  <Money className="v-money--amber" value={line.isReward ? 0 : line.lineTotal} />
+                  <Money className="v-money--total" value={line.isReward ? 0 : line.lineTotal} />
                 </div>
                 {contents ? (
                   <div class="v-cart-line__contents" data-testid="line-contents">
@@ -680,7 +670,7 @@ export function SellPage() {
         ) : null}
         <div class="cart-total">
           <span class="cart-total__label">Total</span>
-          <Money className="v-money--amber" value={cartSum.value} size="xl" />
+          <Money className="v-money--total" value={cartSum.value} size="xl" />
         </div>
         {meta.storeOrderId ? (
           <div class="v-action-stack">
@@ -690,9 +680,6 @@ export function SellPage() {
                 {cancelledOrderBanner(storeOrders.value.find((row) => row.id === meta.storeOrderId)?.status)}
               </p>
             ) : null}
-            <Button size="md" variant="secondary" data-testid="confirm-store-order" onClick={() => void confirmLoadedOrder()}>
-              Confirm
-            </Button>
             <Button
               size="md"
               variant="secondary"
@@ -701,10 +688,6 @@ export function SellPage() {
             >
               Unlink order
             </Button>
-            <p class="v-muted">
-              Checkout records the sale. Confirm tells the store the order is accepted. Unlink keeps these items but stops
-              treating them as a store order.
-            </p>
           </div>
         ) : null}
         {features.holdSale && lines.length && !meta.storeOrderId ? (

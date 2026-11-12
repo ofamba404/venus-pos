@@ -128,7 +128,7 @@ Mounted once in `App.tsx`. It never remounts on navigation.
 
 - Min height 104 px, radius per design system, raised surface.
 - Content: name (title-sm), price in mono (`8,000` or `from 5,000` or `set price`), and a **flavour strip**: one 10 px dot per flavour in the product's pool, in the pool's colours (from `CAT_MAP`). Out-of-stock flavours show as hollow dots.
-- Stock badge only when it matters: `Low` (amber, with icon) if every flavour in the pool is at or below `LOW_STOCK_THRESHOLD` (cookies: below `COOKIE_LOW_PCT × COOKIE_STOCK_CAPACITY`), `Out` if a pack can't be filled. Rules from `js/config.js:139-142` and `js/inventory.js`. **A badge never blocks the tap**: v1 lets staff sell regardless of draft stock (stock deducts at checkout), keep that.
+- Stock badge only when it matters: `Low` (bronze, with icon) if every flavour in the pool is at or below `LOW_STOCK_THRESHOLD` (cookies: below `COOKIE_LOW_PCT × COOKIE_STOCK_CAPACITY`), `Out` if a pack can't be filled. Rules from `js/config.js:139-142` and `js/inventory.js`. **A badge never blocks the tap**: v1 lets staff sell regardless of draft stock (stock deducts at checkout), keep that.
 - If the product is in the cart, a count chip shows in the corner (`×2`).
 - Tap → Config sheet (§4.3). Press feedback: scale 0.97, 10 ms haptic.
 

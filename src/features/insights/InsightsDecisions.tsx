@@ -102,21 +102,23 @@ export function InsightsDecisions({
                   {row.days} {row.days === 1 ? 'day' : 'days'} overdue · <Money value={row.owed} />
                 </div>
               </div>
-              {row.phone ? (
-                <Button
-                  size="md"
-                  variant="secondary"
-                  data-testid={`chase-phone-${row.id}`}
-                  onClick={() => copyText(localPhoneDigits(row.phone), 'Phone copied')}
-                >
-                  Copy phone
-                </Button>
-              ) : null}
-              {row.whatsapp ? (
-                <a class="chase-link" href={row.whatsapp} target="_blank" rel="noopener noreferrer">
-                  WhatsApp
-                </a>
-              ) : null}
+              <div class="decision-row__actions">
+                {row.phone ? (
+                  <Button
+                    size="md"
+                    variant="secondary"
+                    data-testid={`chase-phone-${row.id}`}
+                    onClick={() => copyText(localPhoneDigits(row.phone), 'Phone copied')}
+                  >
+                    Copy phone
+                  </Button>
+                ) : null}
+                {row.whatsapp ? (
+                  <a class="chase-link" href={row.whatsapp} target="_blank" rel="noopener noreferrer">
+                    WhatsApp
+                  </a>
+                ) : null}
+              </div>
             </div>
           ))
         ) : (

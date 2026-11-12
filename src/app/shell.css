@@ -115,7 +115,7 @@
   width: 28px;
   height: 3px;
   border-radius: var(--r-pill);
-  background: var(--highlight);
+  background: var(--bronze);
 }
 
 .shell__nav-btn.is-on svg {
@@ -199,7 +199,7 @@
 .cart-bar__cta {
   font: var(--t-title-sm);
   line-height: 1.2;
-  color: var(--highlight);
+  color: var(--wash-strong);
 }
 
 .cart-total {

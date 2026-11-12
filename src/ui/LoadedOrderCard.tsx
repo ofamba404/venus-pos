@@ -1,6 +1,7 @@
 import { Button } from './Button';
 import { DeliveryCopyRow } from './DeliveryCopyRow';
 import { Money } from './Money';
+import { ConfirmButton, ConfirmedTag } from './ConfirmOrder';
 import { Tag } from './Tag';
 
 export type LoadedOrderCardProps = {
@@ -15,6 +16,10 @@ export type LoadedOrderCardProps = {
   collect?: number | null;
   itemCount: number;
   total: number;
+  /** Has the store been told? Shows the green Confirmed tag and drops the Confirm pill. */
+  confirmed?: boolean;
+  /** Confirm pill. Resolves true on success. Left out where the order cannot be confirmed. */
+  onConfirm?: () => Promise<boolean> | boolean | void;
   /** Page variant adds Review and Unlink. The sheet variant is just the header. */
   onReview?: () => void;
   onUnlink?: () => void;
@@ -36,6 +41,8 @@ export function LoadedOrderCard({
   collect,
   itemCount,
   total,
+  confirmed = false,
+  onConfirm,
   onReview,
   onUnlink,
   testId = 'loaded-order',
@@ -44,13 +51,16 @@ export function LoadedOrderCard({
     <section class="v-loaded-order" data-testid={testId} data-mode={delivery ? 'delivery' : 'pickup'}>
       <div class="v-loaded-order__top">
         <span class="v-loaded-order__kicker">Store order</span>
-        <Tag tone={delivery ? 'amber' : 'default'}>{delivery ? 'Delivery' : 'Pickup'}</Tag>
+        <span class="v-loaded-order__tags">
+          <Tag tone={delivery ? 'bronze' : 'default'}>{delivery ? 'Delivery' : 'Pickup'}</Tag>
+          {confirmed ? <ConfirmedTag testId={`${testId}-confirmed`} /> : null}
+        </span>
       </div>
       <div class="v-loaded-order__name" data-testid={`${testId}-name`}>
         {name || 'Store order'}
       </div>
       <div class="v-loaded-order__meta">
-        {itemCount} item{itemCount === 1 ? '' : 's'} · <Money className="v-money--amber" value={total} />
+        {itemCount} item{itemCount === 1 ? '' : 's'} · <Money className="v-money--total" value={total} />
         {delivery && timeLabel ? ` · ${timeLabel}` : ''}
       </div>
       {delivery && place ? (
@@ -71,10 +81,16 @@ export function LoadedOrderCard({
           idPrefix={`${testId}-copy-`}
         />
       ) : null}
-      {onReview || onUnlink ? (
+      {onReview || onUnlink || (onConfirm && !confirmed) ? (
         <div class="v-loaded-order__actions">
+          {onConfirm && !confirmed ? <ConfirmButton testId={`${testId}-confirm`} onConfirm={onConfirm} /> : null}
           {onReview ? (
-            <Button size="md" data-testid={`${testId}-review`} onClick={onReview}>
+            <Button
+              size="md"
+              variant={onConfirm && !confirmed ? 'secondary' : 'primary'}
+              data-testid={`${testId}-review`}
+              onClick={onReview}
+            >
               Review order
             </Button>
           ) : null}

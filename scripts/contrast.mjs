@@ -60,7 +60,7 @@ export const KEY = 7;
 export const NON_TEXT = 3;
 
 const PAPER = ['--paper-0', '--bg', '--surface-sunk', '--surface-selected'];
-const TINTS = ['--amber-tint', '--pink-tint', '--success-tint', '--melon-tint', '--grape-tint', '--berry-tint'];
+const TINTS = ['--wash', '--pink-tint', '--success-tint', '--melon-tint', '--grape-tint', '--berry-tint'];
 const ALL_LIGHT = [...PAPER, ...TINTS];
 
 /**
@@ -76,15 +76,20 @@ export function pairs() {
   add('--fg-2', ALL_LIGHT, NORMAL, 'Secondary text on every light surface');
   add('--fg-3', ALL_LIGHT.filter((t) => t !== '--surface-selected'), NORMAL, 'Meta text on plain surfaces and tints (not on the selected-row grey)');
   add('--money', ALL_LIGHT, KEY, 'Money and key numbers: totals, amounts, on every light surface');
-  add('--amber-ink', ALL_LIGHT.filter((t) => t !== '--surface-selected'), KEY, 'Dark amber label text on every light surface (auth kicker)');
+  add('--bronze-deep', ALL_LIGHT.filter((t) => t !== '--surface-selected'), NORMAL, 'Deep bronze label text on every light surface (auth kicker)');
+  add('--bronze', ['--paper-0', '--bg'], NORMAL, 'Small bronze text on white and the page. On the wash use --bronze-deep');
+  add('--fg', ['--wash-strong'], KEY, 'Ink on the stronger wash (low-stock tag, chips)');
+  add('--fg-2', ['--wash-strong'], NORMAL, 'Secondary text on the stronger wash');
   add('--success-ink', ['--paper-0', '--bg', '--success-tint', { mix: ['--success', 14, '--surface'] }], KEY, 'Paid tag text');
   add('--danger', ['--paper-0', '--bg', '--berry-tint', '--pink-tint', { mix: ['--danger', 12, '--surface'] }], NORMAL, 'Credit tag, debt amounts, errors');
-  add('--warn-fg', ['--warn-bg'], KEY, 'Low-stock tag');
+  add('--warn-fg', ['--warn-bg'], NORMAL, 'Low-stock tag');
   add('--on-action', ['--action', '--success', '--danger'], NORMAL, 'White on ink, success and danger fills');
   add('--on-action', ['--action'], KEY, 'Primary pills, active tabs, cart bar');
-  add('--highlight', ['--action'], KEY, 'Cart bar "Review sale" on ink');
-  add('--fg', ['--highlight'], KEY, 'Ink on solid amber (Delivery tag)');
-  add('--focus', ['--bg', '--paper-0'], NON_TEXT, 'Focus ring against the page');
+  add('--wash-strong', ['--action'], KEY, 'Cart bar "Review sale" on ink');
+  add('--wash', ['--action'], KEY, 'Light wash text on ink');
+  add('--on-action', ['--bronze'], NORMAL, 'White on solid bronze (Delivery tag, quantity badge)');
+  add('--bronze', ['--paper-0', '--bg', '--wash', '--wash-strong'], NON_TEXT, 'Bronze borders, nav marker, chart bars and the selected ring against the surfaces they sit on');
+  add('--focus', ['--bg', '--paper-0', '--wash'], NON_TEXT, 'Focus ring against the page and the wash');
   add('--line-strong', ['--paper-0'], 1, 'Divider only, not for information');
   return list;
 }

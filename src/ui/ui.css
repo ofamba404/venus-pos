@@ -111,6 +111,7 @@
 .v-money {
   font: var(--t-money);
   font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
   line-height: 1;
 }
 
@@ -120,12 +121,9 @@
   white-space: nowrap;
 }
 
-.v-money--amber {
+.v-money--total {
+  /* Plain ink, semibold, tabular. No colour and no decoration behind the figure. */
   color: var(--money);
-  /* A marker stroke under the figure. The number stays ink. */
-  background: linear-gradient(transparent 64%, color-mix(in srgb, var(--marker) 70%, transparent) 64%);
-  padding: 0 2px;
-  border-radius: 2px;
 }
 
 .v-qty {
@@ -139,8 +137,8 @@
   align-items: center;
   justify-content: center;
   font: 500 13px/1 var(--font-mono);
-  color: var(--ink-900);
-  background: var(--amber-tint);
+  color: var(--on-action);
+  background: var(--bronze);
 }
 
 .v-cart-line {
@@ -256,12 +254,12 @@
     background var(--d-fast) var(--ease-out);
 }
 
-/* Phone and location are one family: amber. Copy all is the strong one, solid ink. */
+/* Phone and location are one family: bronze on the warm wash. Copy all is the strong one, solid ink. */
 .v-copy-btn--phone,
 .v-copy-btn--place {
-  background: var(--amber-tint);
+  background: var(--wash);
   color: var(--fg);
-  box-shadow: inset 0 0 0 1.5px var(--amber-600);
+  box-shadow: inset 0 0 0 1px var(--bronze);
 }
 
 .v-copy-btn--all {
@@ -309,7 +307,7 @@
   padding: calc(var(--s-6) + env(safe-area-inset-top, 0px)) var(--gutter)
     calc(var(--s-6) + env(safe-area-inset-bottom, 0px));
   background:
-    radial-gradient(120% 70% at 50% -20%, var(--amber-tint), transparent 60%),
+    radial-gradient(120% 70% at 50% -20%, var(--wash), transparent 60%),
     var(--bg);
 }
 
@@ -333,7 +331,7 @@
   font: var(--t-mono-micro);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--amber-ink);
+  color: var(--bronze-deep);
 }
 
 .auth-title {
@@ -374,7 +372,7 @@
   min-height: 36px;
   padding: 0 12px;
   border-radius: var(--r-pill);
-  background: var(--amber-tint);
+  background: var(--surface-sunk);
   color: var(--ink-900);
   font: var(--t-meta);
 }
@@ -393,7 +391,7 @@
 }
 
 .auth-note {
-  background: var(--amber-tint);
+  background: var(--surface-sunk);
   color: var(--ink-900);
 }
 
@@ -415,14 +413,14 @@
   height: 96px;
   padding: 12px;
   border-radius: var(--r-lg);
-  background: var(--amber-tint);
+  background: var(--surface-sunk);
 }
 
 .v-chart__bar {
   flex: 1;
   min-height: 8px;
   border-radius: var(--r-pill);
-  background: var(--highlight);
+  background: var(--bronze);
 }
 
 .v-heat {
@@ -496,9 +494,9 @@
   box-shadow: none;
 }
 
-.v-tag--amber {
-  background: var(--highlight);
-  color: var(--fg);
+.v-tag--bronze {
+  background: var(--bronze);
+  color: var(--on-action);
 }
 
 .v-tag--paid {
@@ -540,26 +538,39 @@
   height: 16px;
 }
 
+/* Product tiles are neutral: white card, thin warm-grey border, a soft shadow. The photo runs edge to edge on
+   its own white, so a tile never looks like a box inside a box. Packs, singles and cookies are told apart by the
+   section labels above them, not by colour. */
 .v-tile {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s-2);
+  align-items: stretch;
+  gap: 2px;
   min-height: 96px;
-  padding: var(--s-3);
+  padding: 0 0 var(--s-3);
+  overflow: hidden;
   border-radius: var(--r-lg);
   background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line);
+  border: 1px solid var(--tile-line);
+  box-shadow: var(--shadow-tile);
   text-align: left;
-  transition: transform var(--d-instant);
+  transition: transform var(--d-instant), box-shadow var(--d-instant);
 }
 
-.v-tile:active {
-  transform: scale(0.97);
+.v-tile:active,
+.v-tile:is(.is-selected, [aria-pressed='true']) {
+  transform: scale(0.98);
+  box-shadow: 0 0 0 2px var(--bronze), var(--shadow-tile);
+}
+
+.v-tile > :is(.v-tile__name, .v-tile__meta, .v-tile__price) {
+  padding-inline: var(--s-3);
 }
 
 .v-tile__name {
+  margin-top: var(--s-2);
   font: var(--t-title-sm);
+  color: var(--fg);
 }
 
 .v-tile__meta {
@@ -569,17 +580,18 @@
 
 .v-tile__price {
   margin-top: auto;
+  padding-top: var(--s-1);
   font: var(--t-money);
+  color: var(--fg);
 }
 
 .tile-art {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   width: 100%;
-  height: 92px;
-  border-radius: 16px;
-  background: var(--melon-tint);
+  height: 104px;
+  background: var(--surface);
 }
 
 .tile-art i {
@@ -589,9 +601,7 @@
 }
 
 .tile-art--swatches {
-  align-items: center;
   gap: 8px;
-  background: var(--paper-100);
 }
 
 .tile-art--swatches i {
@@ -599,29 +609,24 @@
   height: 22px;
 }
 
-.product-card__blank,
 .v-tile__img,
-.v-thumb {
+.product-card__blank {
+  display: block;
   width: 100%;
-  height: 92px;
-  object-fit: cover;
-  border-radius: 16px;
-  background: var(--paper-100);
+  height: 104px;
+  object-fit: contain;
+  background: var(--surface);
+  /* Catalog photos sit on a near-white. A touch of lift melts that into the white tile so no inner box shows. */
+  filter: brightness(1.04);
 }
 
 .v-thumb {
   width: 44px;
   height: 44px;
+  object-fit: cover;
   border-radius: var(--r-pill);
+  background: var(--paper-100);
   flex: 0 0 auto;
-}
-
-.v-tile[data-kind='cookie'] {
-  background: var(--melon-tint);
-}
-
-.v-tile[data-kind='joint'] {
-  background: var(--pink-tint);
 }
 
 .kpi-tile__top {
@@ -813,7 +818,7 @@ button.kpi-tile {
   gap: 12px;
   padding: 12px;
   border-radius: var(--r-lg);
-  background: var(--amber-tint);
+  background: var(--wash);
 }
 
 .delivery-block .v-section-label {
@@ -826,11 +831,11 @@ button.kpi-tile {
   gap: 8px;
   padding: 32px 0;
   border-radius: var(--r-lg);
-  background: radial-gradient(110% 60% at 50% 0%, var(--amber-tint), transparent 70%);
+  background: radial-gradient(110% 60% at 50% 0%, var(--wash), transparent 70%);
 }
 
 .celebration .success-check {
-  box-shadow: 0 0 0 8px color-mix(in srgb, var(--highlight) 35%, transparent);
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--bronze) 35%, transparent);
 }
 
 .celebration__message {
@@ -1095,12 +1100,48 @@ button.kpi-tile {
   display: flex;
   gap: var(--s-2);
   margin-top: var(--s-3);
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
 }
 
 .v-order-card__actions > .v-btn:not(.v-btn--ghost) {
   flex: 1 1 auto;
+}
+
+/* The primary action of a waiting order takes its own full row, so Confirm is never squeezed or missed. */
+:is(.v-order-card__actions, .v-loaded-order__actions) > .v-btn.v-btn--block:not(.v-btn--ghost) {
+  flex: 1 1 100%;
+  gap: var(--s-2);
+}
+
+.order-card__tags,
+.v-loaded-order__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.order-card__tags {
+  margin-top: var(--s-2);
+}
+
+.v-tag--confirmed {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .v-tag--confirmed {
+    animation: v-confirmed-pop 360ms var(--ease-out, ease-out);
+  }
+}
+
+@keyframes v-confirmed-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
 }
 
 .order-card__mid {
@@ -1128,7 +1169,7 @@ button.kpi-tile {
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .order-card__top > .v-money {
@@ -1325,7 +1366,7 @@ button.kpi-tile {
 }
 
 .v-review__stars {
-  color: var(--amber-600);
+  color: var(--bronze);
   letter-spacing: 2px;
   font: var(--t-label);
 }
@@ -1416,7 +1457,7 @@ button.kpi-tile {
 }
 
 .chart-area {
-  fill: var(--amber-tint);
+  fill: var(--wash);
 }
 
 .chart-line {
@@ -1530,7 +1571,7 @@ button.kpi-tile {
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .decision-figures {
@@ -1635,7 +1676,7 @@ button.kpi-tile {
 .edit-line__title {
   font: var(--t-title-sm);
   line-height: 1.2;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .edit-line__tools {
@@ -1650,9 +1691,9 @@ button.kpi-tile {
   min-height: 48px;
   padding: 0 var(--s-4);
   border-radius: var(--r-pill);
-  background: var(--amber-tint);
+  background: var(--surface-sunk);
   color: var(--ink-900);
-  box-shadow: inset 0 0 0 1.5px var(--amber-600);
+  box-shadow: inset 0 0 0 1px var(--line);
   font: var(--t-label);
   transition: transform var(--d-instant) var(--ease-out);
 }
@@ -1741,18 +1782,20 @@ button.kpi-tile {
   min-width: 0;
   padding: var(--s-4);
   border-radius: var(--r-lg);
-  background: var(--amber-tint);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber-600) 45%, transparent);
+  background: var(--wash);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bronze) 45%, transparent);
 }
 
 .v-loaded-order__top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--s-2);
 }
 
 .v-loaded-order__kicker {
+  white-space: nowrap;
   font: var(--t-meta);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1761,7 +1804,7 @@ button.kpi-tile {
 
 .v-loaded-order__name {
   font: var(--t-title-sm);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .v-loaded-order__meta {
@@ -1779,11 +1822,12 @@ button.kpi-tile {
 .v-loaded-order__text {
   min-width: 0;
   flex: 1;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .v-loaded-order__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s-2);
   margin-top: var(--s-1);
 }
@@ -1813,7 +1857,7 @@ button.kpi-tile {
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .v-cart-line__head .v-money {
@@ -1849,6 +1893,61 @@ button.kpi-tile {
   height: 8px;
   margin-right: 8px;
   border-radius: var(--r-pill);
-  background: var(--marker);
+  background: var(--bronze);
   vertical-align: 1px;
+}
+
+/*
+ * Names wrap at word boundaries only. A word breaks mid-word only when that one word is wider than the
+ * whole card (overflow-wrap: break-word, never anywhere or break-all). When the amount or buttons would
+ * squeeze the name below its longest word, they drop to their own line and the name gets the full width.
+ */
+.order-card__who .v-list-row__title,
+.history-row__main .v-list-row__title,
+.client-card__text .v-list-row__title,
+.decision-row__main .v-list-row__title,
+.v-cart-line__head .v-list-row__title,
+.v-loaded-order__name,
+.edit-line__title {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: manual;
+}
+
+.order-card__top,
+.history-row,
+.client-card__main,
+.decision-row {
+  flex-wrap: wrap;
+  row-gap: var(--s-1);
+}
+
+.order-card__who,
+.history-row__main,
+.client-card__text,
+.decision-row__main {
+  /* The basis is 9rem, so a short name is not squeezed into a sliver by what sits beside it. min-content keeps the longest word whole. */
+  flex: 1 1 9rem;
+  min-width: min-content;
+  max-width: 100%;
+}
+
+.order-card__top > .v-money,
+.history-row > .v-money,
+.client-card__main > .v-money {
+  margin-left: auto;
+}
+
+.history-row > .v-tag {
+  flex: 0 0 auto;
+}
+
+.decision-row__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--s-2);
+  margin-left: auto;
 }

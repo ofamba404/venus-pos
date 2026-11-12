@@ -192,7 +192,11 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         return;
       }
       case 'confirmStoreOrder':
-        await page.getByTestId('confirm-store-order').click();
+        await page
+          .locator('[data-testid="loaded-order-confirm"], [data-testid="loaded-order-cart-confirm"]')
+          .and(page.locator(':visible'))
+          .first()
+          .click();
         return;
       case 'cancelStoreOrder':
         await page.goto('/next/orders');

@@ -10,6 +10,7 @@ export function OrderCard({
   image,
   lines,
   copies,
+  tags,
   children,
 }: {
   title: string;
@@ -19,6 +20,8 @@ export function OrderCard({
   lines: Array<{ name: string; productId?: string; breakdown?: Record<string, unknown> }>;
   /** Labelled copy pills, one compact row under the lines. */
   copies?: ComponentChildren;
+  /** Status tags under the name: Delivery or Pickup, and the green Confirmed tag. */
+  tags?: ComponentChildren;
   children: ComponentChildren;
 }) {
   const shown = lines.filter((line) => line.name && line.name !== 'Item').slice(0, 3);
@@ -29,8 +32,9 @@ export function OrderCard({
         <div class="order-card__who">
           <div class="v-list-row__title">{title}</div>
           <div class="v-list-row__meta">{status}</div>
+          {tags ? <div class="order-card__tags">{tags}</div> : null}
         </div>
-        <Money className="v-money--amber" value={total} />
+        <Money className="v-money--total" value={total} />
       </div>
       <div class="order-card__mid">
         <div class="order-card__lines">

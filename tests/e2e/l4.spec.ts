@@ -97,7 +97,7 @@ test('releasing a loaded store order clears it from the cart', async ({ page }) 
   await page.waitForURL(/\/sell/);
   const cart = page.locator('[data-desktop-cart]');
   await cart.getByTestId('release-store-order').click();
-  await expect(cart.getByTestId('confirm-store-order')).toHaveCount(0);
+  await expect(cart.getByTestId('loaded-order-cart')).toHaveCount(0);
   await expect(cart.getByTestId('cancelled-banner')).toHaveCount(0);
 });
 

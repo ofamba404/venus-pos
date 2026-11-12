@@ -20,9 +20,9 @@ describe('design token contrast', () => {
     expect(failed).toEqual([]);
   });
 
-  it('money and ink text clear 7:1 on the pink and amber tints, the surfaces that looked muddy', () => {
+  it('money and ink text clear 7:1 on the pink tint and the bronze wash, the surfaces that looked muddy', () => {
     const pick = (fg: string, bg: string) => rows.find((r) => r.fg === fg && r.bgLabel === bg)!;
-    for (const bg of ['--pink-tint', '--amber-tint']) {
+    for (const bg of ['--pink-tint', '--wash']) {
       expect(pick('--money', bg).ratio).toBeGreaterThanOrEqual(7);
       expect(pick('--fg', bg).ratio).toBeGreaterThanOrEqual(7);
       expect(pick('--fg-3', bg).ratio).toBeGreaterThanOrEqual(4.5);

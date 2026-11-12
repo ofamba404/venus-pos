@@ -14,9 +14,9 @@ Feel: calm, exact, fast. Premium through restraint and precise type, not decorat
 
 1. Light theme only in v2. Tokens are structured so a dark theme can be added later (D10).
 2. Fonts: **Geograph** (UI), **Akkurat Mono** (all money, counts, times, IDs), **Self Modern** (display moments only). Self-hosted from `assets/fonts/` (files already exist in POS and match the storefront).
-3. Primary actions are solid ink. There is no brand-coloured primary button. Amber is the highlight (totals, celebration, focus, active-nav marker). Green is for paid, done and success only. Red is for overdue and errors. Flavour colours never change.
+3. Primary actions are solid ink. There is no brand-coloured primary button. Bronze is the accent, from the same family as the store's Rewards page but used tactically, only where it marks state or a delivery context, never as decoration (celebration, focus, active-nav marker, Delivery tag, copy pills, chart bars, quantity badge, selected ring). Green is for paid, done and success only. Red is for overdue and errors. Flavour colours never change.
 4. Flavour colours come only from the catalog. Never invent a flavour colour; never use flavour colour for text.
-5. Money is always mono with tabular numerals, formatted by `formatUGX`.
+5. Money is always mono, semibold, with tabular numerals, plain ink with no highlight, formatted by `formatUGX`. Akkurat Mono ships one weight (400), so semibold is the browser's synthesised bold until a real bold file is added.
 6. One signature motion: the "sale recorded" check (§6.3). Nothing else animates for decoration.
 7. Document scroll. No nested scroll containers except inside sheets and the wide-screen cart pane.
 8. Bottom nav on phones, left rail at ≥ 960 px.
@@ -41,12 +41,9 @@ All values below are the implementation. Hex values appear **only** in `src/styl
 | `--red-700` | `#9c0f0f` | `--color-red` |
 | `--green-600` | `#16a34a` | `--color-green-600` |
 | `--green-700` | `#15803d` | Success fill (white icon on it ≥ 5:1) |
-| `--amber-100` | `#fef3c7` | `--color-amber-100` |
-| `--amber-500` | `#f5a524` | Highlight fill (nav marker, chart bars, cart CTA on ink). Never text on light |
-| `--amber-600` | `#d97706` | Borders and large strokes on amber tint |
-| `--amber-700` | `#b04f08` | Focus ring and amber strokes only (non-text, ≥ 3:1). Not for text |
-| `--amber-900` | `#7a3408` | Dark amber for label text (`--amber-ink`), ≥ 7.4:1 on every light surface |
-| `--amber-800` | `#92400e` | `--color-amber-800` |
+| `--bronze` | `#8a6a3a` | Store Rewards bronze (`--rewards-bronze`). Solid fill with white text (Delivery tag, quantity badge, 5.0:1), borders, nav marker, chart bars, focus and selected rings. Small text only on white or the page (5.0:1). On the wash use `--bronze-deep` |
+| `--bronze-deep` | `#6e542c` | Store `--rewards-bronze-deep`. Small bronze label text on any light surface, including the wash (≥ 5.9:1) |
+| `--wash` / `--wash-strong` | `#f3ebe0` / `#e8dcc8` | Store `--rewards-wash` / `--rewards-wash-strong`. Warm panel fill, used tactically for the loaded order, the delivery block, the copy pills, the celebration and the login glow. Everything else stays neutral paper. `--wash-strong` is the Review sale text on ink (≥ 11.9:1) and the low-stock tag fill |
 | `--pink-300` | `#f4a6c1` | Storefront pink. Source of `--pink-tint` |
 
 ### 3.2 Colour — semantic roles (use these in components, never ramps)
@@ -65,17 +62,16 @@ All values below are the implementation. Hex values appear **only** in `src/styl
 | `--line-strong` | `var(--stroke-400)` | Input borders, swatch outlines |
 | `--action` | `var(--ink-900)` | Primary button fill, active tab or filter pill, cart bar |
 | `--accent` / `--accent-ink` | `var(--ink-900)` | Brand ink for chart lines, bars and links. It was green before the retheme |
-| `--highlight` | `var(--amber-500)` | Highlights: active nav marker, chart bars, cart CTA text on ink, celebration glow |
-| `--money` | `var(--ink-900)` | Money and key numbers (totals, amounts): ink, 16:1 on white and ≥ 14:1 on every tint, with an amber `--marker` stroke behind it. Amber is never the text colour for money |
-| `--marker` / `--amber-ink` | `var(--amber-500)` / `var(--amber-900)` | The highlighter stroke behind money / dark amber label text |
-| `--amber-tint` / `--pink-tint` | `#fff4dc` / `#fdeef4` | Highlight panels (loaded order, delivery block, auth) / pack tiles and KPI tiles |
+| `--money` | `var(--ink-900)` | Money and key numbers (totals, amounts): ink, 16:1 on white and ≥ 14:1 on every tint, plain, with no decoration behind it. Semibold (600) with tabular numerals. Bronze is never used for money |
+| `--pink-tint` | `#fdeef4` | KPI tiles. Not for product tiles, and the loaded order uses `--wash`, not pink |
+| `--tile-line` / `--shadow-tile` | `#ebe8e2` / soft two-layer shadow | Product tile border and lift. Product tiles are neutral: white card, photo edge to edge on its own white, ink text, `--fg-2` meta. Packs, singles and cookies are told apart by section label, never by tile colour. Pressed or selected = a 2 px bronze ring. The cart quantity badge is solid bronze with white text |
 | `--on-action` | `var(--paper-0)` | Text on primary |
 | `--danger` | `var(--red-700)` | Destructive buttons, debt amounts, errors |
 | `--success` | `var(--green-700)` | Green means paid, done or success only: success check, "Paid" tag, Live dot, copied tick |
 | `--success-ink` / `--success-tint` | `#14532d` / `#e5f6f1` | Small text on a paid tag; paid chips |
-| `--warn-bg` / `--warn-fg` | `var(--amber-100)` / `var(--amber-ink)` | Low-stock tags and banners |
+| `--warn-bg` / `--warn-fg` | `var(--wash-strong)` / `var(--bronze-deep)` | Low-stock tags and banners |
 | `--scrim` | `rgb(33 33 33 / 0.32)` | Behind sheets and dialogs |
-| `--focus` | `var(--amber-700)` | 2 px amber focus ring + 2 px offset |
+| `--focus` | `var(--bronze)` | 2 px bronze focus ring + 2 px offset |
 
 ### 3.3 Flavour colour
 
@@ -97,8 +93,8 @@ Load with `@font-face`, `font-display: swap`, preload Geograph 400 and Akkurat M
 | `--t-body` | Geograph | 16 / 1.45 | 400 | Body, inputs (never below 16 px in inputs) |
 | `--t-label` | Geograph | 14 / 1.3 | 500 | Buttons, chips, nav labels |
 | `--t-meta` | Geograph | 13 / 1.35 | 400 | Timestamps, helper text |
-| `--t-money-xl` | Akkurat Mono | 28 / 1.1 | 400 | Cart total, stock counts |
-| `--t-money` | Akkurat Mono | 16 / 1.3 | 400 | Prices, line totals |
+| `--t-money-xl` | Akkurat Mono | 28 / 1.1 | 600 | Cart total, stock counts |
+| `--t-money` | Akkurat Mono | 16 / 1.3 | 600 | Prices, line totals |
 | `--t-mono-micro` | Akkurat Mono | 11 / 1.2, `letter-spacing: 0.06em`, uppercase | 400 | Group headers ("JOINTS"), order IDs. The only uppercase in the app |
 
 - All numerals: `font-variant-numeric: tabular-nums`.
@@ -239,6 +235,6 @@ Total ≈ 420 ms. The success content and `New sale` are interactive from the fi
 `node scripts/check-contrast.mjs` prints every token pair and `tests/unit/contrast.test.ts` fails the build below the threshold. `tests/e2e/contrast-render.spec.ts` runs axe on the rendered tint screens.
 
 - Text is at least 4.5:1 on every surface it can sit on. Key numbers (money, totals, body ink) are at least 7:1.
-- Where same-hue tinted text looks muddy (amber on amber tint, green on green tint), the text is ink and the tint stays the surface. Amber is a marker, a pill fill, a border or a ring, not small text.
-- Grey meta (`--fg-3`) is for plain surfaces. On pink, amber, grape, berry and success tints it steps up to `--fg-2`.
+- Where same-hue tinted text looks muddy (bronze on the wash, green on green tint), the text is ink and the tint stays the surface. Bronze is a pill fill, a border, a dot or a ring. Small bronze text uses `--bronze-deep` on the wash, and bronze is never a stroke behind a number.
+- Grey meta (`--fg-3`) is for plain surfaces. On pink, the wash, grape, berry and success tints it steps up to `--fg-2`.
 - No stylesheet outside `tokens.css` hard-codes a text colour.
