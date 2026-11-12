@@ -31,6 +31,7 @@ export function StorePage() {
   const [busy, setBusy] = useState(false);
   const [users, setUsers] = useState<StoreUser[]>([]);
   const [userName, setUserName] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resetCode, setResetCode] = useState('');
 
   async function loadUsers() {
@@ -129,7 +130,12 @@ export function StorePage() {
   }
 
   function targetUser() {
-    return users.find((row) => !row.verified) || users[0] || null;
+    return (
+      users.find((row) => row.id === selectedId) ||
+      users.find((row) => !row.verified) ||
+      users[0] ||
+      null
+    );
   }
 
   async function patchUser(body: Record<string, unknown>, toast: string) {
@@ -232,6 +238,28 @@ export function StorePage() {
         </div>
       </div>
       <div class="v-section-label">Storefront users</div>
+      <div class="v-chip-row" data-testid="store-user-list" style={{ marginBottom: 12 }}>
+        {users.map((user) => {
+          const active = targetUser()?.id === user.id;
+          const label = user.pos_display_name || user.phone || 'Account';
+          return (
+            <button
+              key={user.id}
+              type="button"
+              class={active ? 'v-tag is-active' : 'v-tag'}
+              data-testid={`store-user-${user.id}`}
+              onClick={() => {
+                setSelectedId(user.id);
+                setUserName(String(user.pos_display_name || ''));
+                setResetCode('');
+              }}
+            >
+              {label}
+              {user.verified ? '' : ' · unverified'}
+            </button>
+          );
+        })}
+      </div>
       <div class="v-order-card" style={{ display: 'grid', gap: 12 }}>
         <Field
           label="POS name"

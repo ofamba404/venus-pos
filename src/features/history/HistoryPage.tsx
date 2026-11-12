@@ -3,6 +3,7 @@ import { clients, loadClients, loadSales, sales, type SaleRow } from '../../data
 import { saleItems, saveSaleEdit, voidSaleRecord } from '../../data/sale-edit';
 import { postClient } from '../../data/writes/clients';
 import { CAT_MAP } from '../../domain/catalog';
+import { localPhoneDigits } from '../../domain/phone';
 import { productImageSrc } from '../../domain/product-art';
 import { groupSalesByDay, partitionThisWeek } from '../../domain/history-groups';
 import { Money } from '../../ui/Money';
@@ -190,6 +191,38 @@ export function HistoryPage() {
                 {item.product_name || 'Item'} · {item.detail || ''}
               </div>
             ))}
+            {String(open.client_phone || '') ? (
+              <Button
+                size="md"
+                variant="secondary"
+                data-testid="history-copy-phone"
+                onClick={() => {
+                  const digits = localPhoneDigits(String(open.client_phone || ''));
+                  void navigator.clipboard?.writeText(digits).then(
+                    () => showToast('Phone copied'),
+                    () => showToast(digits),
+                  );
+                }}
+              >
+                Copy phone
+              </Button>
+            ) : null}
+            {String(open.location_label || '') ? (
+              <Button
+                size="md"
+                variant="secondary"
+                data-testid="history-copy-location"
+                onClick={() => {
+                  const text = String(open.location_label || '');
+                  void navigator.clipboard?.writeText(text).then(
+                    () => showToast('Location copied'),
+                    () => showToast(text),
+                  );
+                }}
+              >
+                Copy location
+              </Button>
+            ) : null}
             <Button
               data-testid="sale-edit"
               onClick={() => {

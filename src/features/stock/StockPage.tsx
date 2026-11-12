@@ -29,8 +29,9 @@ export function StockPage() {
     );
   }, []);
 
-  const joints = CATEGORIES.filter((c) => !c.id.startsWith('cookie_'));
-  const cookies = CATEGORIES.filter((c) => c.id.startsWith('cookie_'));
+  const shown = CATEGORIES.filter((c) => !c.legacy);
+  const joints = shown.filter((c) => !c.id.startsWith('cookie_'));
+  const cookies = shown.filter((c) => c.id.startsWith('cookie_'));
   const editCat = editId ? CATEGORIES.find((c) => c.id === editId) : null;
 
   async function bump(id: string, delta: number) {
@@ -110,7 +111,7 @@ export function StockPage() {
       <h1 class="page-title">Stock</h1>
       <p class="v-muted" data-testid="stock-glance">
         {(() => {
-          const glance = stockGlance(CATEGORIES.map((c) => stockLevel(c.id, inventory.value[c.id] || 0)));
+          const glance = stockGlance(shown.map((c) => stockLevel(c.id, inventory.value[c.id] || 0)));
           return `${glance.out} out · ${glance.low} low · ${glance.ok} ok`;
         })()}
       </p>
