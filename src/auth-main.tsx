@@ -21,6 +21,11 @@ function AuthPage() {
     setBusy(true);
     setError('');
     try {
+      try {
+        sessionStorage.removeItem('venus-signed-out');
+      } catch {
+        /* private mode */
+      }
       await signIn(email.trim(), password);
       const params = new URLSearchParams(location.search);
       const next = params.get('next') || '/next/sell';
@@ -76,7 +81,7 @@ function AuthPage() {
           required
           error={error}
         />
-        <Button size="xl" disabled={busy}>
+        <Button size="xl" type="submit" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>

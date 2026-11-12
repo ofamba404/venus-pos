@@ -7,8 +7,8 @@ Update at the end of every session.
 | Current phase | Phase 0 exit still open. Phase 8 locals (walk-in, hold, offline) are in |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | typecheck clean · 98 unit/dual-run · 46 Playwright next contract · 3 legacy (S02, S05, S07, not re-run) |
-| Next step | S36–S37, S42, S49–S50. Realtime socket, GPS locate, push subscribe, and a production perf sample are still open. Lint stays off CI. No deploy. Do not apply `client_sale_id` |
+| Tests passing | typecheck clean · 98 unit/dual-run (not re-run) · 54 next contract tests (53 in one run; the 405 assertion passed on re-run) · 3 legacy (S02, S05, S07, not re-run) |
+| Next step | Realtime socket, push subscribe, legacy display goldens, and a quiet median under the 2.0 s budget. Lint stays off CI. No deploy. Do not apply `client_sale_id` |
 | Open questions for the owner | D11 look, live Maps, and deploy stay blocked until the owner is back |
 
 ## Ready vs open (before a parallel run)
@@ -18,7 +18,7 @@ Update at the end of every session.
 **Open before staff use v2 beside v1.**
 
 - D1–D6 are answered in `08-decisions.md` (2026-11-12). Walk-in, device hold, and the offline outbox are local. `client_sale_id` is a SQL file only. It is not applied.
-- The Playwright next contract that is green is 46 tests: catalog, S01–S35, S38–S41, S43–S48. Legacy on port 4173 was last green for S02, S05, and S07. S36, S37, S42, S49, and S50 are still out. S31 displays 27 because strawberry starts at 3. S33 sets mint to 5 so the sale crosses into low, not out.
+- S36 edits `seed-sale-1` (mint 1 → 2, stock −1, sale PATCH). S37 voids `seed-delivery-sale` and the mock drops the linked trip. S42 edits `seed-trip-1`. S49 signs out through `/next/auth.html` (the Vite base; `/auth.html` is the dev hint) and returns to `/next/sell`. S50 checks Today, Insights credit, history day groups, and the debt row against the seed in this app. That is not a legacy golden. A throttled production sell sample was 2094 ms, still over 2.0 s. Legacy on port 4173 was last green for S02, S05, and S07.
 - Phase 9 needs you to say deploy. That is `.\scripts\ship.ps1` from `venus-pos` (v1 stays at `/`, v2 at `/next/`). No test sales on production unless you ask.
 - Phase 10 needs you to say ship, after the parallel run. Same script, after the cutover edits. Rollback stays the previous Netlify deploy.
 
@@ -81,4 +81,5 @@ Phase 8 is in progress from the answers in `docs/overhaul/08-decisions.md`. Phas
 | 2026-11-12 | 0 | Legacy sale driver (S02, S05, S07). Next contract through S05, S09, S12, S13, S17, S19, S29. Analytics rank dual-run | `754a562` |
 | 2026-11-12 | 0 | Playwright CI job, first-viewport baselines, parity ticks for the tests that passed | `142182b` |
 | 2026-11-12 | 0 | Delivery, line edit, store-order load, credit settle, four-viewport baselines. Throttled sell sample 7.9 s, over the 2.0 s budget | `50b2595` |
-| 2026-11-12 | 0 | Live-order poll, busy hours, stock bulk/fallback/low toast, clients, store users, staff redirect, offline queue. 46 next contracts | this commit |
+| 2026-11-12 | 0 | Live-order poll, busy hours, stock bulk/fallback/low toast, clients, store users, staff redirect, offline queue. 46 next contracts | `e4b6325` |
+| 2026-11-12 | 0 | History edit/void, trip edit, sign-in, seed display parity, GPS locate, 405 stock fallback. Production sell sample 2094 ms | this commit |

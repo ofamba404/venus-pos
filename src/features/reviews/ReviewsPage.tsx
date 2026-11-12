@@ -6,6 +6,7 @@ import { showToast } from '../../ui/ToastHost';
 type Review = {
   id: string;
   rating?: number;
+  body?: string;
   comment?: string;
   created_at?: string;
   customer_name?: string;
@@ -21,7 +22,29 @@ export function ReviewsPage() {
   }
 
   useEffect(() => {
-    void refresh().catch((e) => showToast(e instanceof Error ? e.message : 'Could not load reviews'));
+    let primed = false;
+    const seen = new Set<string>();
+    let timer = 0;
+    const tick = async () => {
+      const res = await sbFetch('store_reviews?select=*&order=created_at.desc&limit=100');
+      if (!res.ok) throw new Error(`reviews ${res.status}`);
+      const next = (await res.json()) as Review[];
+      setRows(next);
+      if (!primed) {
+        primed = true;
+        for (const row of next) seen.add(row.id);
+        return;
+      }
+      const fresh = next.filter((row) => row.id && !seen.has(row.id));
+      for (const row of next) seen.add(row.id);
+      if (fresh.length === 1) showToast('New review');
+      else if (fresh.length > 1) showToast(`${fresh.length} new reviews`);
+    };
+    void tick().catch((e) => showToast(e instanceof Error ? e.message : 'Could not load reviews'));
+    timer = window.setInterval(() => {
+      void tick().catch(() => {});
+    }, 4000);
+    return () => window.clearInterval(timer);
   }, []);
 
   return (
@@ -48,7 +71,7 @@ export function ReviewsPage() {
             <div class="v-list-row__title">
               {r.customer_name || 'Customer'} · {r.rating ?? '—'}★
             </div>
-            <div class="v-list-row__meta">{r.comment || 'No comment'}</div>
+            <div class="v-list-row__meta">{r.body || r.comment || 'No comment'}</div>
           </div>
           <span class="v-muted">
             {r.created_at

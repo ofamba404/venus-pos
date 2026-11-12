@@ -161,6 +161,11 @@ export class MemoryDb {
         else keep.push(row);
       }
       this.tables[table] = keep;
+      if (table === 'sales') {
+        const gone = new Set(removed.map((row) => row.id));
+        const trips = this.table('deliveries');
+        this.tables.deliveries = trips.filter((row) => !gone.has(row.sale_id));
+      }
       if (prefer?.includes('return=representation')) {
         return { status: 200, body: removed };
       }

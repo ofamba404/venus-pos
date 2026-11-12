@@ -98,6 +98,11 @@ export async function installMockBackend(
 
   await page.addInitScript(
     ({ storageKey, session }) => {
+      try {
+        if (sessionStorage.getItem('venus-signed-out') === '1') return;
+      } catch {
+        /* private mode */
+      }
       localStorage.setItem(storageKey, JSON.stringify(session));
     },
     {
@@ -152,7 +157,7 @@ export async function installMockBackend(
       await route.abort('internetdisconnected');
       return;
     }
-    if (local && (u.port === '4173' || u.port === '5173' || u.port === '')) {
+    if (local && (u.port === '4173' || u.port === '4174' || u.port === '5173' || u.port === '')) {
       if (!u.pathname.startsWith('/api/')) {
         await route.continue();
         return;
@@ -333,7 +338,11 @@ export async function installMockBackend(
     }
 
     // Realtime websocket handled separately; other unknown off-origin → fail
-    if (u.origin !== 'http://127.0.0.1:4173' && u.origin !== 'http://localhost:4173') {
+    if (
+      u.origin !== 'http://127.0.0.1:4173' &&
+      u.origin !== 'http://localhost:4173' &&
+      u.origin !== 'http://127.0.0.1:4174'
+    ) {
       throw new Error(`Mock backend: unrecognised request ${method} ${url}`);
     }
 

@@ -248,7 +248,15 @@ async function recordDelivery(input: {
   const draft = checkout as CheckoutDeliveryInput & {
     feeManuallyEdited?: boolean;
     predictedFee?: number | null;
+    origin?: { lat?: number | null; lng?: number | null } | null;
+    originText?: string;
   };
+  const originLat = Number(draft.origin?.lat);
+  const originLng = Number(draft.origin?.lng);
+  const origin =
+    Number.isFinite(originLat) && Number.isFinite(originLng)
+      ? { lat: originLat, lng: originLng, label: draft.originText || 'GPS pickup' }
+      : BASE_ORIGIN;
   try {
     await sbFetch('deliveries', {
       method: 'POST',
@@ -257,9 +265,9 @@ async function recordDelivery(input: {
         client_id: input.clientId,
         client_name: input.clientName || null,
         sale_id: input.saleId || null,
-        origin_lat: BASE_ORIGIN.lat,
-        origin_lng: BASE_ORIGIN.lng,
-        origin_label: BASE_ORIGIN.label,
+        origin_lat: origin.lat,
+        origin_lng: origin.lng,
+        origin_label: origin.label,
         dest_lat: lat,
         dest_lng: lng,
         dest_label: draft.destText || input.meta.deliveryLocationLabel || null,

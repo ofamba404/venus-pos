@@ -9,6 +9,7 @@ import {
 } from '../../domain/credit';
 import { cookieBatchShareText, openPartnerBatches } from '../../domain/partner';
 import { KEYS } from '../../data/keys';
+import { peekAccessToken } from '../../data/auth';
 import { Money } from '../../ui/Money';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
@@ -50,14 +51,27 @@ export function InsightsPage() {
     return openPartnerBatches(sales.value as Parameters<typeof openPartnerBatches>[0], settled);
   }, [sales.value]);
 
-  function settleNextBatch() {
+  async function settleNextBatch() {
     const batch = partnerBatches.find((row) => row.complete) || partnerBatches[0];
     if (!batch) {
       showToast('No batch to settle');
       return;
     }
     const prev = Number(localStorage.getItem(KEYS.partnerSettled) || 25);
-    localStorage.setItem(KEYS.partnerSettled, String(prev + batch.cookieCount));
+    const settled = prev + batch.cookieCount;
+    localStorage.setItem(KEYS.partnerSettled, String(settled));
+    try {
+      await fetch('/api/cookie-partner/settle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${peekAccessToken()}`,
+        },
+        body: JSON.stringify({ settled_qty: settled }),
+      });
+    } catch {
+      /* local progress still stands */
+    }
     const text = cookieBatchShareText(batch);
     void navigator.clipboard?.writeText(text).then(
       () => showToast('Batch settled'),
@@ -69,7 +83,7 @@ export function InsightsPage() {
     <section>
       <h1 class="page-title">Insights</h1>
       <div class="v-stat-grid">
-        <div class="v-stat">
+        <div class="v-stat" data-testid="insights-today" data-revenue={today.revenue} data-joints={today.joints}>
           <div class="v-stat__label">Today</div>
           <div class="v-stat__value v-stat__value--display">
             <Money value={today.revenue} size="xl" />
@@ -85,7 +99,7 @@ export function InsightsPage() {
             <Money value={monthRevenue} />
           </div>
         </div>
-        <div class="v-stat">
+        <div class="v-stat" data-testid="insights-credit" data-owed={credit.total}>
           <div class="v-stat__label">Credit owed</div>
           <div class="v-stat__value" style={{ color: 'var(--danger)' }}>
             <Money value={credit.total} />
@@ -121,7 +135,7 @@ export function InsightsPage() {
                 Partner <Money value={b.partnerDue} /> · you <Money value={b.ownerSplit} />
               </div>
             </div>
-            <Button variant="ghost" size="md" data-testid="partner-settle" onClick={() => settleNextBatch()}>
+            <Button variant="ghost" size="md" data-testid="partner-settle" onClick={() => void settleNextBatch()}>
               Settle batch
             </Button>
           </div>

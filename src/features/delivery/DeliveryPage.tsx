@@ -10,6 +10,7 @@ import { setCheckoutDraft } from '../../data/checkout-draft';
 import { Money } from '../../ui/Money';
 import { Field } from '../../ui/Field';
 import { Button } from '../../ui/Button';
+import { Sheet } from '../../ui/Sheet';
 import { showToast } from '../../ui/ToastHost';
 
 type DeliveryRow = {
@@ -26,6 +27,8 @@ type DeliveryRow = {
 export function DeliveryPage() {
   const [rows, setRows] = useState<DeliveryRow[]>([]);
   const [km, setKm] = useState('4');
+  const [edit, setEdit] = useState<DeliveryRow | null>(null);
+  const [fee, setFee] = useState('');
 
   useEffect(() => {
     void (async () => {
@@ -63,6 +66,24 @@ export function DeliveryPage() {
       return;
     }
     showToast('Quote logged');
+  }
+
+  async function saveTrip() {
+    if (!edit) return;
+    const res = await sbFetch(`deliveries?id=eq.${encodeURIComponent(edit.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ fee_ugx: Math.round(Number(fee) || 0) }),
+    });
+    if (!res.ok) {
+      showToast('Could not save trip');
+      return;
+    }
+    setRows((list) =>
+      list.map((row) => (row.id === edit.id ? { ...row, fee_ugx: Math.round(Number(fee) || 0) } : row)),
+    );
+    setEdit(null);
+    showToast('Trip saved');
   }
 
   function applyToCheckout() {
@@ -125,7 +146,16 @@ export function DeliveryPage() {
 
       <div class="v-section-label">Trips</div>
       {rows.map((r) => (
-        <div class="v-list-row" key={r.id}>
+        <button
+          type="button"
+          class="v-list-row"
+          key={r.id}
+          data-testid={`trip-${r.id}`}
+          onClick={() => {
+            setEdit(r);
+            setFee(String(r.fee_ugx ?? ''));
+          }}
+        >
           <div class="v-list-row__main">
             <div class="v-list-row__title">{r.client_name || 'Trip'}</div>
             <div class="v-list-row__meta">
@@ -141,13 +171,28 @@ export function DeliveryPage() {
             </div>
           </div>
           <Money value={Number(r.fee_ugx) || 0} />
-        </div>
+        </button>
       ))}
       {!rows.length ? (
         <div class="v-empty">
           <p class="v-empty__title">No trips yet</p>
         </div>
       ) : null}
+      <Sheet open={Boolean(edit)} title="Edit trip" onClose={() => setEdit(null)} dismissible={false}>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div class="v-list-row__title">{edit?.client_name || 'Trip'}</div>
+          <Field
+            label="Fee (UGX)"
+            inputMode="numeric"
+            data-testid="trip-fee"
+            value={fee}
+            onInput={(e) => setFee((e.target as HTMLInputElement).value)}
+          />
+          <Button data-testid="trip-save" onClick={() => void saveTrip()}>
+            Save trip
+          </Button>
+        </div>
+      </Sheet>
     </section>
   );
 }

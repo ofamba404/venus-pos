@@ -43,10 +43,15 @@ export function SettingsPage() {
   }
 
   function logout() {
+    try {
+      sessionStorage.setItem('venus-signed-out', '1');
+    } catch {
+      /* private mode */
+    }
     signOut();
     showToast('Signed out');
     if (!allowDevBypass()) {
-      location.replace('/auth.html?next=' + encodeURIComponent('/next/sell'));
+      location.replace('/next/auth.html?next=' + encodeURIComponent('/next/sell'));
     }
   }
 
@@ -79,7 +84,7 @@ export function SettingsPage() {
           Push subscribe stays on legacy until `/next` SW is registered (Phase 10). Prefs save now.
         </div>
         <div class="v-muted">Build {typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'}</div>
-        <Button variant="danger" onClick={logout}>
+        <Button variant="danger" data-testid="sign-out" onClick={logout}>
           Sign out
         </Button>
       </div>

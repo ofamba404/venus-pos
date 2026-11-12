@@ -78,6 +78,7 @@ export function SellPage() {
   const [debtAsk, setDebtAsk] = useState<{ name: string; owed: number } | null>(null);
   const debtClearedRef = useRef(false);
   const placeGen = useRef(0);
+  const pickupLocateGen = useRef(0);
   const [editingKey, setEditingKey] = useState<string | null>(null);
 
   const lines = cartLines.value;
@@ -179,7 +180,11 @@ export function SellPage() {
       deliveryEnabled: true,
       deliveryLocationLabel: place.label,
     });
-    const pred = await quoteFeeForDest({ lat: place.lat, lng: place.lng });
+    const origin = checkoutDraft.value.origin;
+    const pred = await quoteFeeForDest(
+      { lat: place.lat, lng: place.lng },
+      origin && Number.isFinite(origin.lat) && Number.isFinite(origin.lng) ? origin : undefined,
+    );
     if (gen !== placeGen.current) return;
     setCheckoutDraft({
       dest: { lat: place.lat, lng: place.lng },
@@ -191,6 +196,45 @@ export function SellPage() {
       feeManuallyEdited: false,
     });
     if (pred.predicted == null) showToast('Place set — log more quotes to predict fee');
+  }
+
+  function locatePickup() {
+    const gen = pickupLocateGen.current + 1;
+    pickupLocateGen.current = gen;
+    placeGen.current += 1;
+    const quoteGen = placeGen.current;
+    setCheckoutDraft({ originText: 'Locating…' });
+    if (!navigator.geolocation) {
+      showToast('Location is off');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (gen !== pickupLocateGen.current) return;
+        const origin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const label = `${origin.lat.toFixed(2)}, ${origin.lng.toFixed(2)}`;
+        setCheckoutDraft({ origin, originText: label });
+        const dest = checkoutDraft.value.dest;
+        if (dest?.lat == null || dest.lng == null) return;
+        void quoteFeeForDest({ lat: Number(dest.lat), lng: Number(dest.lng) }, origin).then((pred) => {
+          if (gen !== pickupLocateGen.current || quoteGen !== placeGen.current) return;
+          setCheckoutDraft({
+            origin,
+            originText: label,
+            distanceKm: pred.km,
+            durationMin: pred.durationMin,
+            feeValue: pred.predicted != null ? String(pred.predicted) : checkoutDraft.value.feeValue,
+            predictedFee: pred.predicted,
+            feeManuallyEdited: false,
+          });
+        });
+      },
+      () => {
+        if (gen !== pickupLocateGen.current) return;
+        showToast('Could not read location');
+      },
+      { enableHighAccuracy: false, maximumAge: 15000, timeout: 8000 },
+    );
   }
 
   function openConfig(p: Product) {
@@ -507,6 +551,12 @@ export function SellPage() {
         />
         {meta.deliveryEnabled !== false ? (
           <>
+            <button type="button" class="v-tag" data-testid="pickup-locate" onClick={locatePickup}>
+              Use GPS
+            </button>
+            <p class="v-muted" data-testid="pickup-label">
+              {draft.originText || 'Shop pickup'}
+            </p>
             <PlaceSearch
               value={draft.destText || meta.deliveryLocationLabel || ''}
               onPick={onPlacePick}
@@ -603,7 +653,14 @@ export function SellPage() {
             {outboxCountLabel(waiting)}
           </p>
         ) : null}
-        <button type="button" class="today-pill" data-testid="today-pill">
+        <button
+          type="button"
+          class="today-pill"
+          data-testid="today-pill"
+          data-revenue={today.revenue}
+          data-joints={today.joints}
+          data-cookies={today.cookies}
+        >
           <span class="today-pill__kicker">Today</span>
           <span class="today-pill__value">
             <Money value={today.revenue} />

@@ -1,9 +1,9 @@
 {
-  "phase": "0 exit still open — next contract is 46. Phase 8 locals are in",
+  "phase": "0 exit still open. S01–S50 are in the next contract. Phase 8 locals are in",
   "branch": "overhaul",
   "commit": "see git log -1",
-  "next": "Still open: S36 and S37 (seed has no seed-sale-1 or seed-delivery-sale, and history has no edit/void), S42 (no seed-trip-1), S49 sign-in through auth.html, S50 display parity. Realtime socket still closes. GPS locate is not on Sell. Push subscribe is not wired. Throttled 7.9s was the Vite dev server, not a production bundle, and it misses the 2.0s budget. Lint stays off CI. Do not push or deploy. Do not apply client_sale_id.",
-  "status": "Phase 0 exit is not closed. Next contract is 46 tests, all green in one run. 98 unit/dual-run. Typecheck clean. Legacy S02, S05, S07 were not re-run. S31 shows strawberry 27 (seed 3 + 24). S32 proved a 502 PATCH fallback to mint 21. S33 toasts running low on a 5→4 mint sale. S26 is a 4s poll, not a realtime socket. Place quotes ignore a stale reply; there is no GPS locate button. client_sale_id SQL is not applied. D11, live Maps, and deploy stay blocked.",
+  "next": "Still open: realtime socket (orders and reviews still poll), push subscribe, legacy display goldens for S50, a quiet median of five under the 2.0s budget (one contended production sample was 2094ms). Phases 1–7 exit criteria are still red: dual-run is not 2000 on every module, IDB/v1 session hydrate is unproved, the owner has not approved the look, L4/L5/axe are not clean, and lint stays off CI. Do not push or deploy. Do not apply client_sale_id.",
+  "status": "Phase 0 exit is not closed. S36 edits seed-sale-1 and writes a mint stock delta. S37 deletes seed-delivery-sale and the mock cascades the trip. S42 patches seed-trip-1. S49 clears the session and signs in through /next/auth.html with next=/next/sell. S50 matches Today, credit, and history groups to this app's seed, not to a legacy golden. GPS locate ignores a slower fix. A 405 inventory write falls back to PATCH. Partner settle POSTs /api/cookie-partner/settle. Reviews toast on a 4s poll. One throttled production sell sample was 2094ms. client_sale_id SQL is not applied. D11, live Maps, and deploy stay blocked.",
   "ownerGate": {
     "ready": "D1–D6 answered 2026-11-12. See docs/overhaul/08-decisions.md.",
     "phase8": "In progress. Build D2 walk-in, D4 offline queue, D6 device hold. Skip D3 and D5. D1 stays paid/credit.",
@@ -16,8 +16,8 @@
     { "id": "p0-mock", "label": "Phase 0: mock backend + fixtures", "state": "done" },
     { "id": "p0-exports", "label": "Phase 0: export legacy helpers", "state": "run" },
     { "id": "p0-dual", "label": "Phase 0: dual-run characterizations", "state": "done" },
-    { "id": "p0-scenarios", "label": "Phase 0: S01–S50. Next contract is 46. Legacy last proved S02, S05, S07", "state": "run" },
-    { "id": "p0-baseline", "label": "Phase 0: four viewports for sell, stock, and legacy home. One throttled sample, over the 2.0 s budget", "state": "run" },
+    { "id": "p0-scenarios", "label": "Phase 0: S01–S50 are in the next contract. Legacy last proved S02, S05, S07. S50 is seed parity, not a legacy golden", "state": "run" },
+    { "id": "p0-baseline", "label": "Phase 0: four viewports. Dev throttled sell 7.9s. One production sample 2094ms, still over 2.0s", "state": "run" },
     { "id": "p1", "label": "Phase 1: Vite + legacy/ strangler", "state": "done" },
     { "id": "p2", "label": "Phase 2: domain port", "state": "done" },
     { "id": "p3", "label": "Phase 3: data / auth / realtime", "state": "run" },

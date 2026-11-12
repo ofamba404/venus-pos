@@ -35,16 +35,21 @@ import {
   S33,
   S34,
   S35,
+  S36,
+  S37,
   S38,
   S39,
   S40,
   S41,
+  S42,
   S43,
   S44,
   S45,
   S46,
   S47,
   S48,
+  S49,
+  S50,
   SCENARIOS,
 } from './scenarios';
 import { createNextDriver } from './drivers/next';
@@ -352,9 +357,134 @@ test.describe('write-contract scenarios (next)', () => {
     await driver.run(S33);
   });
 
+  test('S36 edit a past sale and adjust stock', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S36);
+    const patches = driver.mock.writes.filter(
+      (w) => w.method === 'PATCH' && w.url.includes('/rest/v1/sales') && w.url.includes('seed-sale-1'),
+    );
+    expect(patches.length).toBeGreaterThanOrEqual(1);
+    const body = patches.at(-1)!.body as {
+      total_ugx?: number;
+      items?: Array<{ breakdown?: { mint?: number } }>;
+    };
+    expect(body.total_ugx).toBe(16000);
+    expect(body.items?.[0]?.breakdown?.mint).toBe(2);
+    const deltas = driver.mock.writes.filter(
+      (w) =>
+        (w.body as { op?: string } | null)?.op === 'delta' &&
+        (w.body as { category_id?: string } | null)?.category_id === 'mint' &&
+        (w.body as { delta?: number } | null)?.delta === -1,
+    );
+    expect(deltas.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('S37 void a delivery sale and return stock', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S37);
+    const deleted = driver.mock.writes.filter(
+      (w) => w.method === 'DELETE' && w.url.includes('/rest/v1/sales') && w.url.includes('seed-delivery-sale'),
+    );
+    expect(deleted.length).toBeGreaterThanOrEqual(1);
+    const returned = driver.mock.writes.filter(
+      (w) =>
+        (w.body as { op?: string } | null)?.op === 'delta' &&
+        (w.body as { category_id?: string } | null)?.category_id === 'mint' &&
+        (w.body as { delta?: number } | null)?.delta === 1,
+    );
+    expect(returned.length).toBeGreaterThanOrEqual(1);
+    const trip = driver.mock.db.table('deliveries').find((row) => row.sale_id === 'seed-delivery-sale');
+    expect(trip).toBeUndefined();
+  });
+
   test('S38 partner batch copies cookie text', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     await driver.run(S38);
+    const settle = driver.mock.writes.filter(
+      (w) => w.method === 'POST' && w.url.includes('/api/cookie-partner/settle'),
+    );
+    expect(settle.length).toBeGreaterThanOrEqual(1);
+    expect(Number((settle[0]!.body as { settled_qty?: number }).settled_qty)).toBeGreaterThan(25);
+  });
+
+  test('S42 edit a delivery trip fee', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S42);
+    const patches = driver.mock.writes.filter(
+      (w) => w.method === 'PATCH' && w.url.includes('/rest/v1/deliveries') && w.url.includes('seed-trip-1'),
+    );
+    expect(patches.length).toBeGreaterThanOrEqual(1);
+    expect((patches.at(-1)!.body as { fee_ugx?: number }).fee_ugx).toBe(9000);
+  });
+
+  test('S49 sign out then sign in respects next', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S49);
+    const tokens = driver.mock.requests.filter((r) => r.method === 'POST' && r.url.includes('/auth/v1/token'));
+    expect(tokens.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('S50 today, credit, and history match the seed', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S50);
+  });
+
+  test('inventory 405 falls back to a patch', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await page.goto('/next/stock');
+    await page.getByTestId('stock-mint-qty').filter({ hasText: '20' }).waitFor({ timeout: 15000 });
+    driver.mock.setFailure({ method: 'POST', pathIncludes: '/api/inventory/write', status: 405, times: 1 });
+    await page.getByTestId('stock-mint-inc').click();
+    await page.getByTestId('stock-mint-qty').filter({ hasText: '21' }).waitFor({ timeout: 8000 });
+    const patches = () =>
+      driver.mock.writes.filter((w) => w.method === 'PATCH' && w.url.includes('/rest/v1/inventory'));
+    await expect.poll(() => patches().length, { timeout: 8000 }).toBeGreaterThanOrEqual(1);
+    expect((patches().at(-1)!.body as { stock?: number }).stock).toBe(21);
+  });
+
+  test('a new review toasts on the reviews page', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await page.goto('/next/reviews');
+    await page.getByTestId('review-count').filter({ hasText: '2' }).waitFor({ timeout: 8000 });
+    driver.mock.db.table('store_reviews').unshift({
+      id: 'arrived-review',
+      created_at: '2026-11-10T08:00:00.000Z',
+      rating: 5,
+      body: 'Just arrived',
+      customer_name: 'Live',
+    });
+    await page.getByRole('status').filter({ hasText: /new review/i }).waitFor({ timeout: 8000 });
+  });
+
+  test('GPS locate keeps the latest fix', async ({ page }) => {
+    await page.addInitScript(() => {
+      let calls = 0;
+      const geo = {
+        getCurrentPosition(success: (pos: { coords: { latitude: number; longitude: number } }) => void) {
+          calls += 1;
+          const n = calls;
+          window.setTimeout(() => {
+            success({ coords: { latitude: n === 1 ? 0.11 : 0.22, longitude: 32.58 } });
+          }, n === 1 ? 600 : 40);
+        },
+      };
+      Object.defineProperty(navigator, 'geolocation', { configurable: true, value: geo });
+    });
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run({
+      id: 'GPS',
+      title: 'gps',
+      role: 'pos_staff',
+      seed: 'default',
+      steps: [{ do: 'addProduct', product: 'scout', flavors: { mint: 1 } }],
+    });
+    const dialog = page.getByRole('dialog', { name: 'Review sale' });
+    const opened = await dialog.isVisible().catch(() => false);
+    const scope = opened ? dialog : page.locator('[data-desktop-cart]');
+    const button = scope.getByTestId('pickup-locate');
+    await button.click();
+    await button.click();
+    await expect(scope.getByTestId('pickup-label')).toHaveText('0.22, 32.58', { timeout: 4000 });
   });
 
   test('S39 add rename and delete a client', async ({ page }) => {

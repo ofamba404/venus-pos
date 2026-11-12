@@ -19,7 +19,7 @@ Legend: **S** = staff and admin, **A** = admin only.
 | [ ] | Client required to check out (unless D2 approved) | S | `js/orders.js:2396-2398` | L4: Charge disabled without a client, and no writes |
 | [x] | Credit sale (`is_credit`, `amount_paid_ugx = 0`) | S | `js/orders.js:2476-2482` | S11 |
 | [x] | Stacked-debt confirmation | S | `js/orders.js:2410-2417` | S12, S13 |
-| [ ] | Delivery: GPS pickup with stale-generation guard, Places drop-off, predicted fee (range high end), manual fee → `fee_was_edited`, deliver-at, phone | S | `js/orders.js:1101-1125`, `1208-1228`, `pickupLocateGen` | S14, S15 |
+| [x] | Delivery: GPS pickup with stale-generation guard, Places drop-off, predicted fee (range high end), manual fee → `fee_was_edited`, deliver-at, phone | S | `js/orders.js:1101-1125`, `1208-1228`, `pickupLocateGen` | S14, S15, GPS locate |
 | [ ] | `BASE_ORIGIN` pickup for store-order carts | S | `js/orders.js` | S21 (delivery variant) |
 | [x] | Checkout in-flight guard | S | `js/orders.js` `checkoutInFlight` | S19 |
 | [ ] | `awaitInventoryReady` before checkout | S | `js/orders.js` | L1 checkout |
@@ -68,7 +68,7 @@ Legend: **S** = staff and admin, **A** = admin only.
 | [x] | +/− steppers with per-category queue | S | `js/inventory.js:112-209` | S29 |
 | [x] | Exact count edit | S | `js/inventory.js` | S30 |
 | [x] | Bulk adjust | S | `#amountModal` | S31 |
-| [ ] | 405/502 → direct PATCH fallback | S | `js/inventory.js:138-176` | S32 |
+| [x] | 405/502 → direct PATCH fallback | S | `js/inventory.js:138-176` | S32, 405 contract |
 | [ ] | Low (≤ 5) / out; cookie low < 30 % of 100 | S | `js/config.js:139-142` | dual-run stock-state |
 | [ ] | Stock crossing notifications with dedupe (`venus.notif.stock.v1`) | S | `notifyStockCrossing` | S33 |
 | [ ] | Home stock glance content (now on Stock) | S | `js/pages/templates.js:29-43` | visual |
@@ -88,8 +88,8 @@ Legend: **S** = staff and admin, **A** = admin only.
 | ✓ | Capability | Role | v1 source | Proof |
 |---|-----------|:----:|-----------|-------|
 | [ ] | History tree (today / week / 4 weeks / months), tags, fulfilment meta | A | `js/order-history.js` | dual-run groups, S50 |
-| [ ] | Edit sale (items, stock delta) | A | `js/analytics.js:1659-1798` | S36 |
-| [ ] | Void sale (+ delivery cascade, stock return) | A | `js/analytics.js` | S37 |
+| [x] | Edit sale (items, stock delta) | A | `js/analytics.js:1659-1798` | S36 |
+| [x] | Void sale (+ delivery cascade, stock return) | A | `js/analytics.js` | S37 |
 | [ ] | Overview stats, revenue chart ranges, patterns, heatmap, product/flavour ranks, Pareto, stock insights | A | `js/analytics.js`, `js/analytics-chart.js` | dual-run analytics, visual |
 | [ ] | Period persistence (`venus_chart_range`, `venus_insight_period`) | A | `js/analytics-chart.js:29-47` | L4 |
 | [ ] | Cookie partner: progress, batches, copy text, settle API, local progress key, baseline, corruption sanitise | A | `js/revenue.js`, `js/analytics.js:718-863` | dual-run partner, S38 |

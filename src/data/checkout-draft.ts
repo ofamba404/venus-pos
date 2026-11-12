@@ -5,6 +5,8 @@ import { KEYS } from './keys';
 export type CheckoutDraft = CheckoutDeliveryInput & {
   feeManuallyEdited?: boolean;
   predictedFee?: number | null;
+  origin?: { lat: number; lng: number } | null;
+  originText?: string;
 };
 
 const empty: CheckoutDraft = {

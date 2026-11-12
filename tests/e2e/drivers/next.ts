@@ -2,6 +2,10 @@ import type { Page } from '@playwright/test';
 import type { Scenario, ScenarioStep } from '../scenarios/types';
 import { installMockBackend, type MockHandle } from '../../mock';
 import { PRODUCTS } from '../../../src/domain/catalog';
+import { buildDefaultSeed } from '../../fixtures/seed';
+import { computeTodayStats } from '../../../src/domain/today';
+import { getOutstandingCredit, sumCreditOwed } from '../../../src/domain/credit';
+import { groupSalesByDay } from '../../../src/domain/history-groups';
 
 export type NextDriver = {
   mock: MockHandle;
@@ -338,6 +342,46 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         await page.getByTestId('stock-set-confirm').click();
         await page.getByRole('dialog').waitFor({ state: 'hidden', timeout: 8000 });
         return;
+      case 'editSale':
+        await page.goto('/next/history');
+        await page.getByTestId(`history-sale-${step.saleId}`).click();
+        await page.getByTestId('sale-edit').click();
+        await page.getByTestId('sale-edit-inc').click();
+        await page.getByTestId('sale-edit-save').click();
+        return;
+      case 'voidSale':
+        await page.goto('/next/history');
+        await page.getByTestId(`history-sale-${step.saleId}`).click();
+        await page.getByTestId('sale-void').click();
+        await page.getByTestId('void-confirm').click();
+        return;
+      case 'editDeliveryTrip':
+        await page.goto('/next/delivery');
+        await page.getByTestId(`trip-${step.id}`).click();
+        await page.getByTestId('trip-fee').fill('9000');
+        await page.getByTestId('trip-save').click();
+        return;
+      case 'signOut':
+        await page.goto('/next/settings');
+        await page.getByTestId('sign-out').click();
+        await page.waitForURL(/auth\.html/, { timeout: 8000 });
+        {
+          const raw = await page.evaluate(() => localStorage.getItem('venus-pos-auth'));
+          if (raw) throw new Error('session still stored after sign out');
+        }
+        return;
+      case 'signIn': {
+        const next = step.next || '/next/sell';
+        const url = new URL(page.url());
+        if (url.searchParams.get('next') !== next) {
+          url.searchParams.set('next', next);
+          await page.goto(`${url.pathname}${url.search}`);
+        }
+        await page.getByLabel('Email').fill('staff@test.local');
+        await page.getByLabel('Password').fill('test-password');
+        await page.getByRole('button', { name: 'Sign in' }).click();
+        return;
+      }
       case 'go':
         await page.goto(`/next${step.path.startsWith('/') ? step.path : `/${step.path}`}`);
         return;
@@ -373,6 +417,65 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         return;
       }
       case 'display': {
+        if (step.values.todayRevenue === 'legacy') {
+          const seed = buildDefaultSeed();
+          const expectedToday = computeTodayStats(seed.sales as Parameters<typeof computeTodayStats>[0]);
+          const expectedOwed = sumCreditOwed(getOutstandingCredit(seed.sales as Parameters<typeof getOutstandingCredit>[0]));
+          const expectedGroups = groupSalesByDay(seed.sales).length;
+          await page.goto('/next/sell');
+          const pill = page.getByTestId('today-pill');
+          await pill.waitFor({ timeout: 15000 });
+          const deadline = Date.now() + 8000;
+          let revenue = Number(await pill.getAttribute('data-revenue'));
+          let joints = Number(await pill.getAttribute('data-joints'));
+          while (
+            (revenue !== expectedToday.revenue || joints !== expectedToday.joints) &&
+            Date.now() < deadline
+          ) {
+            await page.waitForTimeout(200);
+            revenue = Number(await pill.getAttribute('data-revenue'));
+            joints = Number(await pill.getAttribute('data-joints'));
+          }
+          if (revenue !== expectedToday.revenue || joints !== expectedToday.joints) {
+            throw new Error(
+              `today pill revenue ${revenue} joints ${joints}, expected ${expectedToday.revenue} / ${expectedToday.joints}`,
+            );
+          }
+          await page.goto('/next/insights');
+          const insight = page.getByTestId('insights-today');
+          await insight.waitFor({ timeout: 8000 });
+          const insightDeadline = Date.now() + 8000;
+          let insightRevenue = Number(await insight.getAttribute('data-revenue'));
+          while (insightRevenue !== expectedToday.revenue && Date.now() < insightDeadline) {
+            await page.waitForTimeout(200);
+            insightRevenue = Number(await insight.getAttribute('data-revenue'));
+          }
+          if (insightRevenue !== expectedToday.revenue) {
+            throw new Error(`insights today ${insightRevenue}, expected ${expectedToday.revenue}`);
+          }
+          const creditEl = page.getByTestId('insights-credit');
+          let shown = Number(await creditEl.getAttribute('data-owed'));
+          const creditDeadline = Date.now() + 8000;
+          while (shown !== expectedOwed && Date.now() < creditDeadline) {
+            await page.waitForTimeout(200);
+            shown = Number(await creditEl.getAttribute('data-owed'));
+          }
+          if (shown !== expectedOwed) throw new Error(`credit ${shown}, expected ${expectedOwed}`);
+          await page.goto('/next/history');
+          await page.getByTestId('history-day').first().waitFor({ timeout: 8000 });
+          const groups = await page.getByTestId('history-day').count();
+          if (groups !== expectedGroups) throw new Error(`history groups ${groups}, expected ${expectedGroups}`);
+          await page.goto('/next/clients');
+          const row = page.getByRole('button', { name: /client with debt/i }).first();
+          await row.waitFor({ timeout: 8000 });
+          const debtDeadline = Date.now() + 8000;
+          let debt = parseUgx(await row.innerText());
+          while (debt !== 15000 && Date.now() < debtDeadline) {
+            await page.waitForTimeout(200);
+            debt = parseUgx(await row.innerText());
+          }
+          if (debt !== 15000) throw new Error(`client debt row ${debt}, expected 15000`);
+        }
         if (step.values.cartLines != null) {
           const n = Number(step.values.cartLines);
           const lines = page.locator('[data-desktop-cart]').getByRole('button', { name: /^Remove / });
@@ -397,7 +500,7 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
             throw new Error(`owed delta ${delta}, expected ${expected} (before ${creditOwedBefore})`);
           }
         }
-        if (step.values.creditOwed != null) {
+        if (typeof step.values.creditOwed === 'number' || (typeof step.values.creditOwed === 'string' && step.values.creditOwed !== 'legacy' && step.values.creditOwed !== '')) {
           const expected = Number(step.values.creditOwed);
           const row = page.getByRole('button', { name: /client with debt/i }).first();
           const deadline = Date.now() + 8000;
@@ -466,7 +569,7 @@ export async function createNextDriver(page: Page, opts: { role?: 'pos_admin' | 
       if (scenario.steps.some((step) => 'do' in step && step.do === 'chargeRetry')) {
         mock.setFailure({ method: 'POST', table: 'sales', status: 500, times: 1 });
       }
-      if (scenario.id === 'S46') {
+      if (scenario.id === 'S46' || scenario.id === 'S49') {
         await page.addInitScript(() => sessionStorage.setItem('venus-enforce-access', '1'));
       }
       armInventory502 = scenario.id === 'S32';
