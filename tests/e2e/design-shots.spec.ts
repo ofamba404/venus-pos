@@ -16,6 +16,9 @@ test('capture 390px screens', async ({ page, browser, baseURL }) => {
   const seedSale = driver.mock.db.table('sales').find((r) => r.id === 'seed-sale-1')!;
   seedSale.client_phone = '0700333444';
   seedSale.location_label = 'Kololo';
+  // A long client name in the chase list, so the wrap shows there too.
+  driver.mock.db.table('clients').find((r) => r.name === 'Client With Debt')!.name =
+    'Client With Debt and a Very Long Surname Nakasujja';
 
   async function frame() {
     await page.addStyleTag({
@@ -31,6 +34,13 @@ test('capture 390px screens', async ({ page, browser, baseURL }) => {
   }
 
   await shot('sell', '/next/sell', '[data-testid="product-scout"]');
+  // A pack holds to its joint count: Pilot is 2, so one pick leaves the add button waiting.
+  await page.getByTestId('product-pilot').click();
+  await page.getByTestId('config-flavor-mint-inc').click();
+  await page.waitForTimeout(400);
+  await frame();
+  await page.screenshot({ path: `${dir}/sell-picker-pilot.png` });
+  await page.getByRole('dialog').last().getByRole('button', { name: 'Close' }).click();
   await page.getByTestId('product-plain_single').click();
   await page.getByTestId('config-add').click();
   await page.getByRole('dialog', { name: 'Review sale' }).waitFor();
@@ -57,7 +67,9 @@ test('capture 390px screens', async ({ page, browser, baseURL }) => {
   await page.screenshot({ path: `${dir}/edit-sale.png` });
   await page.getByTestId('sale-edit-flavours-0').click();
   await page.getByRole('dialog', { name: /Flavours/ }).waitFor();
+  await page.getByTestId('config-flavor-mint-dec').click();
   await page.getByTestId('config-flavor-strawberry-inc').click();
+  await page.waitForTimeout(400);
   await frame();
   await page.screenshot({ path: `${dir}/edit-sale-flavours.png` });
   await page.keyboard.press('Escape');

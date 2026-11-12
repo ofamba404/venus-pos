@@ -48,6 +48,7 @@ test.describe('owner decisions', () => {
     await page.getByTestId('history-sale-seed-sale-1').click();
     await page.getByTestId('sale-edit').click();
     await page.getByTestId('sale-edit-flavours-0').click();
+    await page.getByTestId('config-flavor-mint-dec').click();
     await page.getByTestId('config-flavor-strawberry-inc').click();
     await page.getByTestId('sale-edit-flavours-back').click();
     await expect(page.getByRole('dialog', { name: 'Edit sale' })).toBeVisible();
@@ -213,5 +214,83 @@ test.describe('owner decisions', () => {
     }
     await sheet.getByTestId('copy-phone').click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('700111222');
+  });
+
+  test('the edit-sale picker holds a pack to its joint count', async ({ page }) => {
+    await createNextDriver(page, { role: 'pos_admin' });
+    await page.goto('/next/history');
+    await page.getByTestId('history-sale-seed-sale-1').click();
+    await page.getByTestId('sale-edit').click();
+    await page.getByTestId('sale-edit-flavours-0').click();
+    const picker = page.getByRole('dialog', { name: /Flavours/ });
+    const apply = picker.getByTestId('sale-edit-flavours-apply');
+    // Scout is 1 joint and the sale has 1 Mint: the pack is full.
+    await expect(picker.getByTestId('slot-meter')).toHaveAttribute('data-picked', '1');
+    await expect(picker.getByTestId('slot-meter')).toContainText('1 of 1');
+    await expect(apply).toBeEnabled();
+    await expect(picker.getByTestId('config-flavor-strawberry-inc')).toBeDisabled();
+    await expect(picker.getByTestId('config-flavor-mint-inc')).toBeDisabled();
+    // Empty it: the exact count is required.
+    await picker.getByTestId('config-flavor-mint-dec').click();
+    await expect(apply).toBeDisabled();
+    await expect(apply).toContainText('Pick 1');
+    await expect(picker.getByTestId('config-flavor-strawberry-inc')).toBeEnabled();
+    await picker.getByTestId('config-flavor-strawberry-inc').click();
+    await expect(apply).toBeEnabled();
+    await expect(picker.getByTestId('config-flavor-grape-inc')).toBeDisabled();
+  });
+
+  for (const [id, target, total] of [
+    ['scout', 1, 1],
+    ['pilot', 2, 2],
+    ['commander', 5, 5],
+    ['variety', 7, 8],
+    ['cookie_duet', 2, 2],
+    ['cookie_trio', 3, 3],
+  ] as const) {
+    test(`Sell's ${id} picker stops at ${target} flavours and needs exactly ${target}`, async ({ page }) => {
+      await createNextDriver(page, { role: 'pos_admin' });
+      await page.goto('/next/sell');
+      await page.getByTestId(`product-${id}`).click();
+      const dialog = page.getByRole('dialog').last();
+      const add = dialog.getByTestId('config-add');
+      const incs = dialog.locator('[data-testid^="config-flavor-"][data-testid$="-inc"]');
+      await expect(add).toBeDisabled();
+      for (let i = 0; i < target; i += 1) {
+        await expect(add).toBeDisabled();
+        await incs.first().click();
+      }
+      // Always the first flavour, so one row carries the whole count.
+      await expect(dialog.getByTestId('slot-meter')).toHaveAttribute('data-picked', String(target));
+      await expect(dialog.getByTestId('slot-meter')).toContainText(`${total} of ${total}`);
+      await expect(add).toBeEnabled();
+      const count = await incs.count();
+      for (let i = 0; i < count; i += 1) await expect(incs.nth(i)).toBeDisabled();
+      if (target > 1) {
+        await dialog.locator('[data-testid$="-dec"]').first().click();
+        await expect(add).toBeDisabled();
+      }
+    });
+  }
+
+  test('credit chase names wrap instead of truncating', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await page.setViewportSize({ width: 360, height: 780 });
+    const name = 'Client With Debt and a Very Long Surname Nakasujja';
+    driver.mock.db.table('clients').find((r) => r.name === 'Client With Debt')!.name = name;
+    await page.goto('/next/insights');
+    const title = page.locator('[data-testid="insights-credit"] .v-list-row__title', { hasText: 'Nakasujja' });
+    await expect(title).toBeVisible();
+    const box = await title.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return {
+        clipped: el.scrollWidth > el.clientWidth + 1,
+        whiteSpace: style.whiteSpace,
+        lines: Math.round(el.getBoundingClientRect().height / parseFloat(style.lineHeight)),
+      };
+    });
+    expect(box.whiteSpace).toBe('normal');
+    expect(box.clipped).toBe(false);
+    expect(box.lines).toBeGreaterThan(1);
   });
 });

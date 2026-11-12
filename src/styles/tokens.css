@@ -1,7 +1,7 @@
 :root {
   --ink-900: #212121;
   --ink-700: #575757;
-  --ink-500: #6b7280;
+  --ink-500: #686f7c;
   --ink-300: #d1d5db;
   --paper-0: #ffffff;
   --paper-50: #f5f4f1;
@@ -25,6 +25,8 @@
   --line-strong: var(--stroke-400);
   --mint: #0f8f78;
   --melon: #ef7d1a;
+  /* Orange for large money (24px and up). 3.5:1 on white; --melon itself is 2.76:1. */
+  --melon-text-lg: #d9680c;
   --grape: #6d4ea3;
   --blueberry: #3156c9;
   --watermelon: #e23b4a;

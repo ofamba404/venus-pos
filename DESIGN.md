@@ -31,7 +31,7 @@ All values below are the implementation. Hex values appear **only** in `src/styl
 |-------|-------|--------------|
 | `--ink-900` | `#212121` | `--color-black` |
 | `--ink-700` | `#575757` | `--color-light-charcoal` |
-| `--ink-500` | `#6b7280` | `--color-gray-500` |
+| `--ink-500` | `#686f7c` | `--color-gray-500`, darkened from `#6b7280` so meta text clears 4.5:1 on `--bg` |
 | `--ink-300` | `#d1d5db` | `--color-gray-300` |
 | `--paper-0` | `#ffffff` | `--color-white` |
 | `--paper-50` | `#f5f4f1` | `--color-natural-white-25` |
