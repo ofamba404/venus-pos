@@ -104,7 +104,7 @@ export const S29: Scenario = {
     { do: 'adjustStock', categoryId: 'mint', delta: -1 },
     { do: 'adjustStock', categoryId: 'cookie_mint', delta: 1 },
     { do: 'adjustStock', categoryId: 'cookie_mint', delta: -1 },
-    { expect: 'stock', categoryId: 'mint', qty: 0 },
+    { expect: 'stock', categoryId: 'mint', qty: 20 },
   ],
 };
 

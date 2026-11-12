@@ -19,11 +19,30 @@ export default defineConfig({
   },
   webServer: process.env.POS_BASE_URL
     ? undefined
-    : {
-        command: 'npx vite --host 127.0.0.1 --port 5173',
-        url: 'http://127.0.0.1:5173/next/',
-        reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
-      },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+    : [
+        {
+          command: 'npx vite --host 127.0.0.1 --port 5173',
+          url: 'http://127.0.0.1:5173/next/',
+          reuseExistingServer: !process.env.CI,
+          timeout: 120_000,
+        },
+        {
+          command: 'node scripts/serve-legacy.mjs',
+          url: 'http://127.0.0.1:4173/',
+          reuseExistingServer: !process.env.CI,
+          timeout: 30_000,
+        },
+      ],
+  projects: [
+    {
+      name: 'chromium',
+      testIgnore: /legacy\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'legacy',
+      testMatch: /legacy\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:4173' },
+    },
+  ],
 });

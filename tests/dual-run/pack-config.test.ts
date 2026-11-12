@@ -93,7 +93,7 @@ describe('pack-config dual-run', () => {
     }
   });
 
-  it('matches buildLineFromConfig for random plain/spliff qty (500 runs)', () => {
+  it('matches buildLineFromConfig for random plain/spliff qty (2000 runs)', () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 20 }), fc.integer({ min: 0, max: 20 }), (a, b) => {
         const sel = { spliff5050: a, spliff7030: b };
@@ -101,7 +101,7 @@ describe('pack-config dual-run', () => {
         const nextP = next.findProduct('spliff_single')!;
         expect(next.buildLineFromConfig(nextP, sel)).toEqual(buildLineFromConfig(legacyP, sel));
       }),
-      { numRuns: 500 },
+      { numRuns: 2000 },
     );
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
 import { formatUGX } from '../../domain/format';
 import {
@@ -33,7 +33,8 @@ import { deviceId } from '../../data/device-id';
 import { deleteHeld, listHeld, saveHeld } from '../../data/held';
 import { flushOutbox, listOutbox, outboxCountLabel } from '../../data/outbox';
 import { postStoreReserve } from '../../data/store-reserve';
-import { clients, ensureInventory, inventory, loadSales, sales, syncLabel } from '../../data/entities';
+import { clients, ensureInventory, inventory, loadClients, loadSales, sales, syncLabel } from '../../data/entities';
+import { openDebtForClientName } from '../../domain/credit';
 import { counterSellable } from '../../domain/stock-reservation';
 import { haptic } from '../../platform/haptics';
 import { Button } from '../../ui/Button';
@@ -70,6 +71,8 @@ export function SellPage() {
   const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
   const [waiting, setWaiting] = useState(0);
   const [queuedNote, setQueuedNote] = useState(false);
+  const [debtAsk, setDebtAsk] = useState<{ name: string; owed: number } | null>(null);
+  const debtClearedRef = useRef(false);
 
   const lines = cartLines.value;
   const meta = orderMeta.value;
@@ -79,6 +82,7 @@ export function SellPage() {
 
   useEffect(() => {
     void loadSales().catch(() => {});
+    void loadClients().catch(() => {});
     void listHeld().then(setHeldSales).catch(() => {});
     const refreshQueue = () => {
       void flushOutbox()
@@ -174,6 +178,14 @@ export function SellPage() {
   }
 
   async function charge() {
+    if (payment === 'credit' && !debtClearedRef.current) {
+      const owed = openDebtForClientName(meta.clientName, clients.value, sales.value);
+      if (owed > 0) {
+        setDebtAsk({ name: meta.clientName.trim(), owed });
+        return;
+      }
+    }
+    setDebtAsk(null);
     setPaying(true);
     const result = await runCheckout({
       lines,
@@ -320,12 +332,13 @@ export function SellPage() {
           data-testid="cart-client"
           value={meta.clientName}
           placeholder="Name"
-          onInput={(e) =>
+          onInput={(e) => {
+            debtClearedRef.current = false;
             setOrderMetaPatch({
               clientName: (e.target as HTMLInputElement).value,
               clientId: '',
-            })
-          }
+            });
+          }}
         />
         {features.walkInClient || recentClients.length ? (
           <div class="v-chip-row">
@@ -357,6 +370,7 @@ export function SellPage() {
           value={payment}
           onChange={(id) => {
             setPayment(id);
+            debtClearedRef.current = false;
             if (id === 'credit' && isWalkInCheckout(meta, false)) {
               setOrderMetaPatch({ clientName: '', clientId: '' });
             }
@@ -605,6 +619,31 @@ export function SellPage() {
         }
       >
         {cartBody}
+      </Sheet>
+
+      <Sheet
+        open={Boolean(debtAsk)}
+        title="Already owes"
+        onClose={() => setDebtAsk(null)}
+      >
+        <p>
+          {debtAsk?.name} already owes {formatUGX(debtAsk?.owed || 0)} on credit. Recording this sale
+          adds another unpaid balance.
+        </p>
+        <div style={{ display: 'grid', gap: 'var(--s-2)', marginTop: 'var(--s-4)' }}>
+          <Button
+            size="lg"
+            onClick={() => {
+              debtClearedRef.current = true;
+              setDebtAsk(null);
+            }}
+          >
+            Record another credit
+          </Button>
+          <Button size="lg" variant="secondary" onClick={() => setDebtAsk(null)}>
+            Not now
+          </Button>
+        </div>
       </Sheet>
     </section>
   );

@@ -178,7 +178,7 @@ describe('sale-payload dual-run', () => {
     expect(credit.credit_cleared).toBe(false);
   });
 
-  it('fulfillment matches oracle for random phones/fees (500 runs)', () => {
+  it('fulfillment matches oracle for random phones/fees (2000 runs)', () => {
     fc.assert(
       fc.property(
         fc.record({
@@ -209,7 +209,7 @@ describe('sale-payload dual-run', () => {
           );
         },
       ),
-      { numRuns: 500 },
+      { numRuns: 2000 },
     );
   });
 });

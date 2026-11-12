@@ -28,7 +28,8 @@ export function buildDefaultSeed() {
 
   const inventory = CATEGORIES.map((c) => {
     let stock = 40;
-    if (c.id === 'mint') stock = 0;
+    // Sale scenarios check out mint. The counter stops at zero, so the seed keeps it in stock.
+    if (c.id === 'mint') stock = 20;
     else if (c.id === 'strawberry') stock = 3;
     else if (c.id === 'classic') stock = 5;
     else if (c.id === 'cookie_mint') stock = 25;
@@ -64,6 +65,12 @@ export function buildDefaultSeed() {
     name: 'Test Client A',
     created_at: daysAgo(10),
   });
+  const clientDebt = {
+    id: nextId(),
+    name: 'Client With Debt',
+    created_at: daysAgo(12),
+  };
+  clients.push(clientDebt);
 
   const clientA = clients[0]!;
   const clientB = clients[1]!;
@@ -143,6 +150,35 @@ export function buildDefaultSeed() {
           detail: 'Mint',
           line_total: 8000,
           breakdown: { mint: 1 },
+        },
+      ],
+      client_phone: null,
+      delivery_enabled: false,
+      delivery: null,
+      location_label: null,
+      location_lat: null,
+      location_lng: null,
+      delivery_fee_ugx: null,
+      delivery_distance_km: null,
+      delivery_duration_min: null,
+      store_order_id: null,
+    },
+    {
+      id: nextId(),
+      created_at: daysAgo(4),
+      client_id: clientDebt.id,
+      total_ugx: 15000,
+      is_credit: true,
+      credit_cleared: false,
+      amount_paid_ugx: 0,
+      cleared_at: null,
+      items: [
+        {
+          product_id: 'pilot',
+          product_name: 'Pilot Pack',
+          detail: 'Mint, Strawberry',
+          line_total: 15000,
+          breakdown: { mint: 1, strawberry: 1 },
         },
       ],
       client_phone: null,

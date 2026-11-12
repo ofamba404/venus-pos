@@ -135,3 +135,23 @@ export function groupOutstandingByClient(
     return a.name.localeCompare(b.name);
   });
 }
+
+/** Open credit for every client row whose name matches, so a typed name stacks. */
+export function openDebtForClientName(
+  name: string,
+  clientsList: ClientRow[] | null | undefined,
+  salesList: CreditSale[] | null | undefined,
+): number {
+  const key = String(name || '').trim().toLowerCase();
+  if (!key) return 0;
+  const ids = new Set(
+    (clientsList || [])
+      .filter((c) => String(c.name || '').trim().toLowerCase() === key)
+      .map((c) => c.id),
+  );
+  if (!ids.size) return 0;
+  return (salesList || []).reduce((sum, sale) => {
+    if (!ids.has(String(sale.client_id || ''))) return sum;
+    return sum + creditBalance(sale);
+  }, 0);
+}

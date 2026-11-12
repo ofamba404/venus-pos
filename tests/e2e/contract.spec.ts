@@ -1,5 +1,23 @@
 import { test, expect } from '@playwright/test';
-import { S01, S02, S03, S04, S07, S08, S10, S11, S30, SCENARIOS } from './scenarios';
+import {
+  S01,
+  S02,
+  S03,
+  S04,
+  S05,
+  S07,
+  S08,
+  S09,
+  S10,
+  S11,
+  S12,
+  S13,
+  S17,
+  S19,
+  S29,
+  S30,
+  SCENARIOS,
+} from './scenarios';
 import { createNextDriver } from './drivers/next';
 import { assertCausalOrder, normalizeWrites } from './goldens/normalize';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -70,6 +88,12 @@ test.describe('write-contract scenarios (next)', () => {
     expect(saleTotal(driver).total).toBe(26000);
   });
 
+  test('S05 Cookie Trio plus singles bulk', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S05);
+    expect(saleTotal(driver).total).toBe(32500);
+  });
+
   test('S07 Plain × 3', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S07);
@@ -92,12 +116,55 @@ test.describe('write-contract scenarios (next)', () => {
     expect(clientPosts.length).toBeGreaterThanOrEqual(1);
   });
 
+  test('S09 Variety plus Commander', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S09);
+    expect(saleTotal(driver).total).toBe(85000);
+  });
+
   test('S11 credit sale', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S11);
     const { total, posts } = saleTotal(driver);
     expect(total).toBe(8000);
     expect((posts[0]!.body as { is_credit?: boolean }).is_credit).toBe(true);
+    expect((posts[0]!.body as { amount_paid_ugx?: number }).amount_paid_ugx).toBe(0);
+  });
+
+  test('S12 stacked credit accepted', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S12);
+    const { total, posts } = saleTotal(driver);
+    expect(total).toBe(8000);
+    expect((posts[0]!.body as { is_credit?: boolean }).is_credit).toBe(true);
+  });
+
+  test('S13 stacked credit declined', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S13);
+    const salePosts = driver.mock.writes.filter(
+      (w) => w.method === 'POST' && w.url.includes('/rest/v1/sales'),
+    );
+    expect(salePosts).toHaveLength(0);
+  });
+
+  test('S17 remove line then undo then remove', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S17);
+    expect(saleTotal(driver).total).toBe(8000);
+  });
+
+  test('S19 double-tap charge is one sale', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S19);
+    const { total, posts } = saleTotal(driver);
+    expect(total).toBe(8000);
+    expect(posts).toHaveLength(1);
+  });
+
+  test('S29 stock plus and minus returns to the seeded count', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S29);
   });
 
   test('S30 set stock count', async ({ page }) => {

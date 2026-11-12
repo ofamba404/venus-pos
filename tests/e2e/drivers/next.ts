@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import type { Scenario, ScenarioStep } from '../scenarios/types';
 import { installMockBackend, type MockHandle } from '../../mock';
+import { PRODUCTS } from '../../../src/domain/catalog';
 
 export type NextDriver = {
   mock: MockHandle;
@@ -17,6 +18,11 @@ async function saleScope(page: Page) {
 }
 
 async function addProduct(page: Page, step: Extract<ScenarioStep, { do: 'addProduct' }>) {
+  const review = page.getByRole('dialog', { name: 'Review sale' });
+  if (await review.isVisible().catch(() => false)) {
+    await review.getByRole('button', { name: 'Close' }).click();
+    await review.waitFor({ state: 'hidden', timeout: 5000 });
+  }
   await page.getByTestId(`product-${step.product}`).click();
   if (step.qty != null) {
     const n = Math.max(0, Math.round(step.qty));
@@ -38,7 +44,20 @@ async function addProduct(page: Page, step: Extract<ScenarioStep, { do: 'addProd
   await page.getByTestId('config-add').click();
 }
 
-async function runStep(page: Page, step: ScenarioStep) {
+function productLabel(id: string | undefined) {
+  if (!id) return '';
+  return PRODUCTS.find((p) => p.id === id)?.name || id;
+}
+
+async function saleAlreadyRecorded(page: Page) {
+  return page
+    .getByText(/Sale recorded|Recorded on credit/)
+    .first()
+    .isVisible()
+    .catch(() => false);
+}
+
+async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
   if ('do' in step) {
     switch (step.do) {
       case 'addProduct':
@@ -71,7 +90,28 @@ async function runStep(page: Page, step: ScenarioStep) {
         }
         return;
       }
+      case 'removeLine': {
+        const scope = await saleScope(page);
+        const label = productLabel(step.product);
+        await scope.getByRole('button', { name: new RegExp(`Remove ${label}`, 'i') }).click();
+        return;
+      }
+      case 'undo':
+        await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
+        return;
+      case 'confirmStackedDebt': {
+        const scope = await saleScope(page);
+        await scope.getByTestId('charge').click();
+        const debt = page.getByRole('dialog', { name: /already owes/i });
+        await debt.waitFor({ state: 'visible', timeout: 8000 });
+        await debt
+          .getByRole('button', { name: step.accept ? /record another credit/i : /not now/i })
+          .click();
+        await debt.waitFor({ state: 'hidden', timeout: 8000 });
+        return;
+      }
       case 'charge': {
+        if (await saleAlreadyRecorded(page)) return;
         const scope = await saleScope(page);
         await scope.getByTestId('charge').click();
         return;
@@ -128,6 +168,14 @@ async function runStep(page: Page, step: ScenarioStep) {
           timeout: 8000,
         });
         return;
+      case 'noWrites': {
+        const bad = mock.writes.filter((w) => {
+          if (w.method === 'POST' && w.url.includes('/rest/v1/sales')) return true;
+          return (w.body as { op?: string } | null)?.op === 'delta';
+        });
+        if (bad.length) throw new Error(`expected no sale or stock writes, saw ${bad.length}`);
+        return;
+      }
       default:
         return;
     }
@@ -146,7 +194,7 @@ export async function createNextDriver(page: Page, opts: { role?: 'pos_admin' | 
       await page.goto('/next/sell');
       await page.getByRole('heading', { name: /packs|sell|today/i }).first().waitFor({ timeout: 15000 }).catch(() => {});
       for (const step of scenario.steps) {
-        await runStep(page, step);
+        await runStep(page, step, mock);
       }
     },
   };

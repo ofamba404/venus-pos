@@ -54,7 +54,7 @@ describe('catalog dual-run', () => {
       fc.property(fc.string(), (s) => {
         expect(next.cookieCategoryId(s)).toBe(cookieCategoryId(s));
       }),
-      { numRuns: 500 },
+      { numRuns: 2000 },
     );
   });
 
