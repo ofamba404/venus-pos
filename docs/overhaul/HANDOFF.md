@@ -3,7 +3,7 @@
 **Date:** 2026-11-12
 **Repo:** https://github.com/ofamba404/venus-pos (public)
 **Branch:** `overhaul` (fast-forward only)
-**Phase:** Phase 3 cleared. Next is Phase 4. Do not deploy. Do not apply migrations.
+**Phase:** Phase 4 cleared. Next is Phase 5. Do not deploy. Do not apply migrations.
 
 ## Cleared phases
 
@@ -37,13 +37,19 @@ The suite was not green on a fresh `npm test` / `npx playwright test`:
 - `tests/dual-run/hours-dial.test.ts` failed in UTC. v1 rolls a chosen clock forward by at most one day, so 12:00 am during the last 30 seconds of the day can land inside the 30-second window. The property now matches that. Quirk 12.
 - Full Playwright first run: **106 passed, 3 failed, 2 skipped**. S32's 502 was sometimes consumed by inventory `ensure`, and the fallback PATCH could finish before a second waiter. The driver now fails only `op: "delta"` and waits for that PATCH or a successful delta. S38 read the clipboard before `writeText` resolved; it now waits for the settled toast. S48's offline mock returns HTTP 503, which was not queued; `shouldQueueSale` now queues 502/503/504 and still does not queue a 500 (S18).
 
+**Phase 4 — Design system and shell.** D11 approved the look on 2026-11-12, so the owner checkpoint is waived. Exit criteria:
+
+1. **Look approved.** D11, recorded in `08-decisions.md`.
+2. **Size budget.** `node scripts/check-size.mjs` after `npm run build`: main JS **27,926 bytes gzip** (limit 61,440), CSS **4,470 bytes gzip** (limit 20,480). Sell is in the main chunk.
+3. **Axe clean.** `npx playwright test --project=chromium tests/e2e/axe.spec.ts`: **/sell and /system, 2 passed**, no serious or critical violations.
+
 ## In progress
 
-Nothing. Phase 3 is closed.
+Nothing. Phase 4 is closed.
 
 ## Next concrete step
 
-Phase 4 in `05-implementation-plan.md`: design-system shell, size budget, and axe on `/system`. D11 already approved the look. Do not deploy. Do not apply migrations.
+Phase 5 in `05-implementation-plan.md`: S01–S28 write contracts, L4 Sell/Orders tests, and the tap count in `PROGRESS.md`. Do not deploy. Do not apply migrations.
 
 ## How to run tests
 

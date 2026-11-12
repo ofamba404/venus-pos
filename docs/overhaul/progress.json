@@ -1,9 +1,9 @@
 {
-  "phase": "Phase 3 cleared. Phase 4 not started",
+  "phase": "Phase 4 cleared. Phase 5 not started",
   "branch": "overhaul · v1-baseline @ 951a152",
   "commit": "see git log -1 — phase 3 data layer",
-  "next": "Phase 4 shell, size budget, axe. See HANDOFF.md.",
-  "status": "npm test 154 passed. Data lines 87.24% (1272/1458). Domain lines 99.44%, branches 95.45%. v1 IDB, cart, and auth session covered. No deploy.",
+  "next": "Phase 5 Sell and Orders. See HANDOFF.md.",
+  "status": "npm test 154 passed. Shell JS 27926 B gzip, CSS 4470 B gzip. Axe /sell and /system: 2 passed. No deploy.",
   "ownerGate": {
     "ready": "D1 A · D2 B · D3 B · D4 B · D5 A · D6 A · D11 approved · D16 improve (2026-11-12).",
     "phase8": "Code is on the branch (walk-in, hold, offline outbox). Checkpoints waived. client_sale_id SQL not applied. Phase 0 is cleared; later phases are not.",
@@ -21,7 +21,7 @@
     { "id": "p1", "label": "Phase 1: dist/ byte-identical to v1. S01–S50 passed against dist", "state": "done" },
     { "id": "p2", "label": "Phase 2: domain port — dual-run 2000, coverage ≥ 95%, catalog sync", "state": "done" },
     { "id": "p3", "label": "Phase 3: data layer — 87% lines, v1 IDB, cart, and auth session", "state": "done" },
-    { "id": "p4", "label": "Phase 4: shell. D11 approved 2026-11-12. Not the open phase", "state": "wait" },
+    { "id": "p4", "label": "Phase 4: shell. D11 approved. Size and axe met", "state": "done" },
     { "id": "p5", "label": "Phase 5: Sell — not the open phase", "state": "wait" },
     { "id": "p6", "label": "Phase 6: Stock/auth/PWA — not the open phase", "state": "wait" },
     { "id": "p7", "label": "Phase 7: back office — not the open phase", "state": "wait" },
