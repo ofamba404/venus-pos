@@ -558,6 +558,20 @@ test.describe('write-contract scenarios (next)', () => {
     await driver.run(S29);
   });
 
+  test('signed-out /next/sell opens the v2 sign-in', async ({ page }) => {
+    await page.goto('/next/sell', { waitUntil: 'commit' }).catch(() => {});
+    await page.waitForURL(/\/next\/auth\.html/, { timeout: 8000 });
+    const next = new URL(page.url()).searchParams.get('next') || '';
+    expect(decodeURIComponent(next)).toContain('/next/sell');
+  });
+
+  test('a corrupt session opens v2 sign-in on sell', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('venus-pos-auth', '{'));
+    await page.goto('/next/sell', { waitUntil: 'commit' }).catch(() => {});
+    await page.waitForURL(/\/next\/auth\.html/, { timeout: 8000 });
+    expect(new URL(page.url()).searchParams.get('next')).toBe('/next/sell');
+  });
+
   test('S30 set stock count', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S30);

@@ -9,19 +9,18 @@
     <link rel="preload" href="/next/assets/fonts/akkurat-mono.woff2" as="font" type="font/woff2" crossorigin />
     <script>
       (function () {
-        if (location.port === '5173') return;
         try {
           var raw = localStorage.getItem('venus-pos-auth');
           if (!raw) {
-            location.replace('/auth.html?next=' + encodeURIComponent(location.pathname + location.search + location.hash));
+            location.replace('/next/auth.html?next=' + encodeURIComponent(location.pathname + location.search + location.hash));
             return;
           }
           var s = JSON.parse(raw);
           if (!s || !s.access_token) {
-            location.replace('/auth.html?next=' + encodeURIComponent(location.pathname + location.search + location.hash));
+            location.replace('/next/auth.html?next=' + encodeURIComponent(location.pathname + location.search + location.hash));
           }
         } catch (e) {
-          location.replace('/auth.html');
+          location.replace('/next/auth.html?next=' + encodeURIComponent('/next/sell'));
         }
       })();
     </script>
