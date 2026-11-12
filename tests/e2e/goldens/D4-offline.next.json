@@ -1,0 +1,5 @@
+{
+  "approvedChange": "D4 — a failed sale with no signal is queued on this device with client_sale_id. The column SQL is written and not applied.",
+  "migration": "supabase/migrations/20261112030000_sales_client_sale_id.sql",
+  "scenario": "S48"
+}

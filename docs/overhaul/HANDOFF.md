@@ -3,7 +3,7 @@
 **Date:** 2026-11-12
 **Repo:** https://github.com/ofamba404/venus-pos (public)
 **Branch:** `overhaul` (fast-forward only)
-**Phase:** Phase 7 cleared. Next is Phase 8. Do not deploy. Do not apply migrations.
+**Phase:** Phase 8 cleared. Next is Phase 9, which needs the owner to say deploy. Do not apply migrations.
 
 ## Cleared phases
 
@@ -64,13 +64,20 @@ The suite was not green on a fresh `npm test` / `npx playwright test`:
 
 Five checklist rows stay open because they need a production deploy or the cutover worker: new-order push, push subscribe, the `/sw.js` handlers, surviving push subscriptions, and Netlify function reachability.
 
+**Phase 8 — Approved improvements.** The checkpoint is waived. `tests/e2e/phase8.spec.ts`: **3 passed**.
+
+1. **D2 walk-in.** A paid Plain sale with the Walk-in chip posts `client_id: null`. Credit still requires a name. Note: `tests/e2e/goldens/D2-walk-in.next.json`.
+2. **D4 offline queue.** `features.offlineQueue` is on. S48 in the Phase 7 full Playwright run queued an offline charge. `supabase/migrations/20261112030000_sales_client_sale_id.sql` adds `client_sale_id` and is **not applied**. Note: `tests/e2e/goldens/D4-offline.next.json`.
+3. **D6 device hold.** Holding Plain and resuming it restores the line and posts no sale. Note: `tests/e2e/goldens/D6-hold.next.json`.
+4. **Flags.** `paymentMethod` is false. `walkInClient`, `holdSale`, and `offlineQueue` are true.
+
 ## In progress
 
-Nothing. Phase 7 is closed.
+Nothing. Phase 8 is closed.
 
 ## Next concrete step
 
-Phase 8 in `05-implementation-plan.md`. Walk-in, device hold, and the offline queue are already flagged on. The `client_sale_id` migration is written and must not be applied. The checkpoint is waived. Do not deploy.
+Phase 9 is blocked on the owner. Say `push deploy netlify` or `ship` before anyone runs `.\scripts\ship.ps1`. That deploy keeps v1 at `/` and v2 at `/next/`. Do not apply `supabase/migrations/20261112030000_sales_client_sale_id.sql` until a separate explicit approval. Do not merge `overhaul` into `master`.
 
 ## How to run tests
 

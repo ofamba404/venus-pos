@@ -1,12 +1,12 @@
 {
-  "phase": "Phase 7 cleared. Phase 8 not cleared",
+  "phase": "Phase 8 cleared. Phase 9 blocked on deploy",
   "branch": "overhaul · v1-baseline @ 951a152",
   "commit": "see git log -1 — phase 3 data layer",
-  "next": "Phase 8 approved improvements. Do not apply client_sale_id. Do not deploy.",
-  "status": "npm test 166 passed. typecheck passed. Full Playwright 122 passed, 2 skipped, 0 failed. No deploy.",
+  "next": "Owner says push deploy netlify or ship before .\\scripts\\ship.ps1. Do not apply client_sale_id.",
+  "status": "Phase 8 spec 3 passed. Phase 7 full Playwright 122 passed, 2 skipped. npm test 166 passed. No deploy.",
   "ownerGate": {
     "ready": "D1 A · D2 B · D3 B · D4 B · D5 A · D6 A · D11 approved · D16 improve (2026-11-12).",
-    "phase8": "Code is on the branch (walk-in, hold, offline outbox). Checkpoints waived. client_sale_id SQL not applied. Phase 0 is cleared; later phases are not.",
+    "phase8": "Cleared. Walk-in, hold, and offline queue are flagged on. client_sale_id SQL is not applied. Checkpoint waived.",
     "phase9": "Blocked on deploy cue → .\\scripts\\ship.ps1. No production test sales unless asked.",
     "phase10": "Blocked until after a parallel run and the owner says ship."
   },
@@ -25,7 +25,7 @@
     { "id": "p5", "label": "Phase 5: Sell. S01–S28, L4, 5 taps, sheet ≤ 100 ms", "state": "done" },
     { "id": "p6", "label": "Phase 6: Stock, Settings, Auth, PWA. S29–S33, S45, S46, S48, S49 passed", "state": "done" },
     { "id": "p7", "label": "Phase 7: back office. S34–S44, S47, S50. Checklist ticked except five deploy rows", "state": "done" },
-    { "id": "p8", "label": "Phase 8: locals on the branch. Checkpoint waived. Not cleared under the phase order", "state": "wait" },
+    { "id": "p8", "label": "Phase 8: walk-in, hold, offline queue. client_sale_id SQL not applied", "state": "done" },
     { "id": "p9-10", "label": "Phases 9–10: blocked on deploy/ship. Do not touch master", "state": "wait" }
   ]
 }
