@@ -253,13 +253,15 @@
 }
 
 .v-copy-btn--phone {
-  background: var(--mint-tint);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
   color: var(--accent-ink);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 .v-copy-btn--place {
   background: var(--melon-tint);
   color: var(--amber-800);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--melon) 45%, transparent);
 }
 
 .v-copy-btn--pill {
@@ -274,6 +276,7 @@
 .v-copy-btn.is-done {
   background: var(--accent);
   color: var(--on-action);
+  box-shadow: none;
 }
 
 .v-copy-btn__icon {
