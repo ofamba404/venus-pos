@@ -2,15 +2,6 @@
   "id": "S24",
   "writes": [
     {
-      "method": "POST",
-      "path": "/api/store-order/reserve",
-      "body": {
-        "op": "claim",
-        "id": "seed-order-a",
-        "device_id": "<id:0>"
-      }
-    },
-    {
       "method": "PATCH",
       "path": "/rest/v1/store_orders?id=eq.seed-order-a",
       "body": {
@@ -22,24 +13,6 @@
       "contentType": "application/json"
     },
     {
-      "method": "POST",
-      "path": "/api/store-order/reserve",
-      "body": {
-        "op": "claim",
-        "id": "seed-order-b",
-        "device_id": "<id:0>"
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/store-order/reserve",
-      "body": {
-        "op": "unclaim",
-        "id": "seed-order-a",
-        "device_id": "<id:0>"
-      }
-    },
-    {
       "method": "PATCH",
       "path": "/rest/v1/store_orders?id=eq.seed-order-b",
       "body": {
@@ -49,15 +22,6 @@
       },
       "prefer": "return=minimal",
       "contentType": "application/json"
-    },
-    {
-      "method": "POST",
-      "path": "/api/store-order/reserve",
-      "body": {
-        "op": "consume",
-        "id": "seed-order-b",
-        "device_id": "<id:0>"
-      }
     },
     {
       "method": "POST",
@@ -85,7 +49,7 @@
           }
         ],
         "total_ugx": 15000,
-        "client_id": "<id:1>",
+        "client_id": "<id:0>",
         "is_credit": false,
         "credit_cleared": true,
         "amount_paid_ugx": 15000,
@@ -111,28 +75,18 @@
         "status": "checked_out",
         "checked_out_at": "<ts>",
         "updated_at": "<ts>",
-        "sale_id": "<id:2>"
+        "sale_id": "<id:1>"
       },
       "prefer": "return=minimal",
       "contentType": "application/json"
     },
     {
       "method": "POST",
-      "path": "/api/inventory/write",
+      "path": "/rest/v1/rpc/apply_sale_stock",
       "body": {
-        "category_id": "mint",
-        "op": "delta",
-        "delta": -1
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/inventory/write",
-      "body": {
-        "category_id": "strawberry",
-        "op": "delta",
-        "delta": -1
-      }
+        "p_sale_id": "<id:1>"
+      },
+      "contentType": "application/json"
     }
   ]
 }

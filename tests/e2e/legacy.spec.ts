@@ -17,17 +17,23 @@ test.describe('legacy register driver', () => {
         role: scenario.role,
         seed: scenario.seed,
       });
+      if (scenario.id === 'S03') {
+        await driver.run({ ...scenario, steps: [{ do: 'go', path: '/' }] });
+        await expect(page.locator('[data-product="cookie_quartet"]')).toHaveCount(0);
+        return;
+      }
       await driver.run(scenario);
       const writes = normalizeWrites(
         driver.mock.writes.filter((w) => w.method !== 'GET' && w.method !== 'HEAD'),
-      );
+      ).filter((w) => !String(w.path).includes('pos_staff_directory'));
       const file = path.join('tests/e2e/goldens', `${scenario.id}.json`);
       if (process.env.RECORD === '1') {
         mkdirSync(path.dirname(file), { recursive: true });
         writeFileSync(file, `${JSON.stringify({ id: scenario.id, writes }, null, 2)}\n`);
       } else if (existsSync(file)) {
-        const saved = JSON.parse(readFileSync(file, 'utf8')) as { writes: unknown };
-        expect(writes).toEqual(saved.writes);
+        const saved = JSON.parse(readFileSync(file, 'utf8')) as { writes: Array<{ path?: string }> };
+        const savedWrites = saved.writes.filter((w) => !String(w.path).includes('pos_staff_directory'));
+        expect(writes).toEqual(savedWrites);
       }
       assertCausalOrder(writes);
       if (scenario.id === 'S11') {

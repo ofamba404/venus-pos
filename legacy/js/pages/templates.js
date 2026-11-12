@@ -23,7 +23,9 @@ export const PAGE_TEMPLATES = {
         </button>
       </div>
 
-      <section class="hours-card" id="hoursWidget" aria-label="Busy until"></section>
+      <!-- Busy/hours control lives in Admin → Hours (removed from Home). -->
+
+      <section class="commission-card" id="commissionCard" aria-label="Commission" hidden></section>
 
       <div class="stock-card stock-summary" id="stockGlance" tabindex="0" aria-label="View inventory">
         <div class="sg-joints">
@@ -100,15 +102,6 @@ export const PAGE_TEMPLATES = {
           </div>
           <div class="p-right">
             <div class="pprice">UGX 21,000</div>
-          </div>
-        </button>
-        <button class="product-row" type="button" data-product="cookie_quartet">
-          <div>
-            <div class="pname">Cookie Quartet</div>
-            <div class="pcount">4 cookies</div>
-          </div>
-          <div class="p-right">
-            <div class="pprice">UGX 25,000</div>
           </div>
         </button>
         <button class="product-row" type="button" data-product="plain_single">
@@ -223,12 +216,28 @@ export const PAGE_TEMPLATES = {
     <div class="admin-page">
       <div class="admin-tabs" role="tablist" aria-label="Admin sections">
         <button type="button" class="admin-tab is-active" data-admin-tab="overview" role="tab" aria-selected="true">Overview</button>
-        <button type="button" class="admin-tab" data-admin-tab="users" role="tab" aria-selected="false">Users</button>
         <button type="button" class="admin-tab" data-admin-tab="clients" role="tab" aria-selected="false">Clients</button>
         <button type="button" class="admin-tab" data-admin-tab="hours" role="tab" aria-selected="false">Hours</button>
         <button type="button" class="admin-tab" data-admin-tab="tools" role="tab" aria-selected="false">Tools</button>
       </div>
       <div class="admin-body" id="adminBody"></div>
+    </div>
+  `,
+};
+
+/** pos_staff-only page bodies (admin always gets PAGE_TEMPLATES). */
+export const STAFF_PAGE_TEMPLATES = {
+  // No stock-editing hint for staff (inventory is read-only for them).
+  inventory: `
+    <div class="grid" id="invGrid"></div>
+  `,
+  analytics: `
+    <div class="staff-analytics" id="staffAnalytics"></div>
+  `,
+  delivery: `
+    <div class="staff-deliveries">
+      <div class="section-title">My deliveries</div>
+      <div id="staffDeliveryList"></div>
     </div>
   `,
 };

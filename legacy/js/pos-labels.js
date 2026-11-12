@@ -54,12 +54,17 @@ export async function ensurePosLabels({ force = false } = {}) {
 
   loadPromise = (async () => {
     try {
+      const token =
+        (await window.VenusPosAuth?.getAccessToken?.().catch(() => '')) ||
+        window.VenusPosAuth?.peekAccessToken?.() ||
+        '';
+      if (!token) throw new Error('Not signed in');
       const res = await fetch(STORE_AUTH_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           apikey: SUPABASE_ANON_JWT,
-          Authorization: `Bearer ${SUPABASE_ANON_JWT}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ action: 'admin_list_pos_labels' }),
         cache: 'no-store',

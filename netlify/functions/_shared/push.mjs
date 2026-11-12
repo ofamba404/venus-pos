@@ -55,6 +55,7 @@ export function configureWebPush() {
  *   orderId?: string,
  * }} payload
  * schedulesOnly: only devices with schedulesEnabled (quote reminders).
+ * audience: 'all' (every POS device) | 'admin' (pos_admin + admin-legacy only). Default 'admin'.
  */
 export async function sendToAllStaff(payload) {
   const configured = configureWebPush();
@@ -82,6 +83,19 @@ export async function sendToAllStaff(payload) {
   for (const { key } of blobs) {
     const record = await store.get(key, { type: 'json' });
     if (!record?.endpoint || !record?.keys) continue;
+
+    // Devices registered before sign-in was required have no role: treat as owner's.
+    const role = record.role || 'admin-legacy';
+    const isAdminDevice = role === 'pos_admin' || role === 'admin-legacy';
+    const audience = payload.audience === 'all' ? 'all' : 'admin';
+    if (audience === 'admin' && !isAdminDevice) {
+      skipped += 1;
+      continue;
+    }
+    if (role !== 'pos_admin' && role !== 'pos_staff' && role !== 'admin-legacy') {
+      skipped += 1;
+      continue;
+    }
 
     if (payload.schedulesOnly) {
       if (record.schedulesEnabled === false) {
@@ -120,3 +134,22 @@ export async function sendToAllStaff(payload) {
 }
 
 export { subscriptionKey };
+
+/** Validate a POS session JWT and return { id, role } or null. */
+export async function posUserFromRequest(req) {
+  const auth = req.headers.get('authorization') || '';
+  const token = auth.replace(/^Bearer\s+/i, '').trim();
+  const url = (env('SUPABASE_URL') || 'https://xiangrykfxlnacthjcad.supabase.co').replace(/\/$/, '');
+  const anonKey =
+    env('SUPABASE_ANON_KEY') ||
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpYW5ncnlrZnhsbmFjdGhqY2FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxMjI2MDIsImV4cCI6MjA5ODY5ODYwMn0.O4IQo4aGqcSzWhE9H1szByvoblo07e7Pm3EL3v182b8';
+  if (!token || token === anonKey) return null;
+  const res = await fetch(`${url}/auth/v1/user`, {
+    headers: { apikey: anonKey, Authorization: `Bearer ${token}` },
+  }).catch(() => null);
+  if (!res?.ok) return null;
+  const user = await res.json().catch(() => null);
+  const role = user?.app_metadata?.role;
+  if (!user?.id || (role !== 'pos_admin' && role !== 'pos_staff')) return null;
+  return { id: user.id, role, email: user.email || '' };
+}

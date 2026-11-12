@@ -10,15 +10,6 @@
       },
       "prefer": "return=minimal",
       "contentType": "application/json"
-    },
-    {
-      "method": "POST",
-      "path": "/api/store-order/reserve",
-      "body": {
-        "op": "release",
-        "id": "seed-cancelled-order",
-        "cancel": false
-      }
     }
   ]
 }

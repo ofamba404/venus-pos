@@ -31,11 +31,11 @@ describe('pack-config dual-run', () => {
   });
 
   it('matches breakdownToConfigSelection / itemToConfigSelection', () => {
-    const quartet = findProduct('cookie_quartet');
+    expect(findProduct('cookie_quartet')).toBeUndefined();
     const plain = findProduct('plain_single');
     const bd = { cookie_mint: 2, cookie_butterscotch: 1, cookie_chocolate: 1 };
-    expect(next.breakdownToConfigSelection(next.findProduct('cookie_quartet')!, bd)).toEqual(
-      breakdownToConfigSelection(quartet, bd),
+    expect(next.breakdownToConfigSelection(next.findProduct('cookie_trio')!, bd)).toEqual(
+      breakdownToConfigSelection(findProduct('cookie_trio'), bd),
     );
     expect(
       next.breakdownToConfigSelection(next.findProduct('plain_single')!, { classic: 3 }),
@@ -72,9 +72,8 @@ describe('pack-config dual-run', () => {
       { id: 'variety', sel: { mint: 3, blueberry: 4 } },
       { id: 'cookie_duet', sel: { cookie_mint: 1, cookie_chocolate: 1 } },
       { id: 'cookie_trio', sel: { cookie_mint: 1, cookie_chocolate: 1, cookie_strawberry: 1 } },
-      { id: 'cookie_quartet', sel: { cookie_mint: 1, cookie_chocolate: 1, cookie_strawberry: 1 } },
       { id: 'plain_single', sel: { qty: 3 } },
-      { id: 'spliff_single', sel: { spliff5050: 2, spliff7030: 1 } },
+      { id: 'spliff_single', sel: { spliff7030: 1 } },
       { id: 'cookie_single', sel: { cookie_mint: 2, cookie_butterscotch: 1 } },
       {
         id: 'cookie_single',
@@ -96,7 +95,7 @@ describe('pack-config dual-run', () => {
   it('matches buildLineFromConfig for random plain/spliff qty (2000 runs)', () => {
     fc.assert(
       fc.property(fc.integer({ min: 0, max: 20 }), fc.integer({ min: 0, max: 20 }), (a, b) => {
-        const sel = { spliff5050: a, spliff7030: b };
+        const sel = { spliff7030: b };
         const legacyP = findProduct('spliff_single');
         const nextP = next.findProduct('spliff_single')!;
         expect(next.buildLineFromConfig(nextP, sel)).toEqual(buildLineFromConfig(legacyP, sel));

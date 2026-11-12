@@ -33,7 +33,7 @@ const arbLine: fc.Arbitrary<Line> = fc.oneof(
   }),
   fc.record({
     key: fc.string({ minLength: 1, maxLength: 8 }),
-    productId: fc.constantFrom('cookie_duet', 'cookie_trio', 'cookie_quartet'),
+    productId: fc.constantFrom('cookie_duet', 'cookie_trio'),
     breakdown: arbBreakdown,
     quantity: fc.integer({ min: 1, max: 3 }),
   }),

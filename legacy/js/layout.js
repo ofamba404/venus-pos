@@ -1,16 +1,5 @@
 import { getNavPages, getAssetHref, getPageHref } from './config.js';
 
-const PAGE_ICONS = {
-  home: '<path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-7H10v7H5a1 1 0 0 1-1-1V10.5z"/>',
-  inventory: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
-  clients: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3.1-6.5 7-6.5s7 3 7 6.5"/>',
-  reviews: '<path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 15.9 7.2 17.9l.9-5.4L4.2 8.7l5.4-.8L12 3z"/>',
-  delivery:
-    '<circle cx="19.5" cy="16.5" r="2.5"/><circle cx="4.5" cy="16.5" r="2.5"/><path d="M20.235 7.87c1.281 1.559 1.727 3.042 1.764 3.826a5.3 5.3 0 0 0-2.217-.479c-2.445 0-4.64 1.626-5.164 3.792c-.126.518-.188.777-.324.884s-.356.107-.795.107h-2.878c-.443 0-.664 0-.8-.108c-.137-.11-.197-.367-.316-.883c-.496-2.138-2.508-3.997-4.603-3.84c-.211.017-.317.025-.39.008c-.071-.016-.144-.057-.29-.14c-.421-.237-.851-.463-1.264-.714A2 2 0 0 1 2 8.683c-.013-.384.207-.764.652-.66l6.42 1.511c.483.114.724.17.931.132s.462-.212.97-.56c1.288-.88 3.33-1.713 5.365-.978c.557.201.836.302.994.307c.16.005.392-.063.857-.198a9.5 9.5 0 0 1 2.045-.367m0 0c-.802-.978-1.934-1.985-3.5-2.87"/>',
-  history: '<circle cx="12" cy="12" r="8"/><path d="M12 8v5l3 2"/>',
-  analytics: '<path d="M3 17l6-6 4 4 8-8"/><path d="M16 7h5v5"/>',
-};
-
 const ACTION_ICONS = {
   admin:
     '<path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9.5 12l1.8 1.8L15 10"/>',
@@ -20,35 +9,32 @@ const ACTION_ICONS = {
     '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
 };
 
-/** Closest to the toggle first: day-to-day work → oversight → system → leave. */
-const FAB_NAV_ORDER = ['home', 'inventory', 'analytics', 'clients', 'delivery', 'history', 'reviews'];
-
 function iconSvg(paths) {
   return `<svg class="fab-menu-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 }
 
+/** Nav key for the current view: the Admin page's Users view has its own menu item. */
+function navKey(currentPage) {
+  if (currentPage === 'admin' && /^#users$/i.test(location.hash || '')) return 'users';
+  return currentPage;
+}
+
+function navAttrs(page) {
+  const target = page.target || page.id;
+  return `href="${getPageHref(target, page.hash || '')}" data-spa-page="${target}" data-nav-key="${page.id}"`;
+}
+
 function navLink(page, currentPage) {
-  const active = page.id === currentPage ? ' active' : '';
-  return `<a class="tab-btn${active}" href="${getPageHref(page.id)}" data-spa-page="${page.id}" aria-current="${active ? 'page' : 'false'}">${page.label}</a>`;
-}
-
-function fabMenuNavItem(page, currentPage) {
-  const active = page.id === currentPage;
-  return `<a class="fab-menu-item fab-menu-item--nav${active ? ' is-active' : ''}" href="${getPageHref(page.id)}" data-spa-page="${page.id}" aria-label="${page.label}" aria-current="${active ? 'page' : 'false'}">
-    ${iconSvg(PAGE_ICONS[page.id] || '')}
-    <span class="fab-menu-item-label">${page.label}</span>
-  </a>`;
-}
-
-function sortFabNavPages(pages) {
-  const rank = new Map(FAB_NAV_ORDER.map((id, i) => [id, i]));
-  return [...pages].sort((a, b) => (rank.get(a.id) ?? 99) - (rank.get(b.id) ?? 99));
+  const active = page.id === navKey(currentPage) ? ' active' : '';
+  const on = active ? ' on' : '';
+  return `<a class="tab-btn rail-chip${active}${on}" ${navAttrs(page)} aria-current="${active ? 'page' : 'false'}">${page.label}</a>`;
 }
 
 function fabMenuActionItems(currentPage, isAdmin) {
   const items = [];
   if (isAdmin) {
-    items.push(`<a class="fab-menu-item fab-menu-item--action${currentPage === 'admin' ? ' is-active' : ''}" id="adminBtn" href="${getPageHref('admin')}" data-spa-page="admin" aria-label="Admin" title="Admin" aria-current="${currentPage === 'admin' ? 'page' : 'false'}">
+    const adminOn = navKey(currentPage) === 'admin';
+    items.push(`<a class="fab-menu-item fab-menu-item--action${adminOn ? ' is-active' : ''}" id="adminBtn" href="${getPageHref('admin', '#overview')}" data-spa-page="admin" data-nav-key="admin" aria-label="Admin" title="Admin" aria-current="${adminOn ? 'page' : 'false'}">
       ${iconSvg(ACTION_ICONS.admin)}
       <span class="fab-menu-item-label">Admin</span>
     </a>`);
@@ -58,6 +44,10 @@ function fabMenuActionItems(currentPage, isAdmin) {
       <span class="fab-badge" id="debugBadge" style="display:none;">0</span>
     </button>`);
   }
+  items.push(`<a class="fab-menu-item fab-menu-item--action" id="changePasswordBtn" href="${getAssetHref('').replace(/assets\/?$/, '')}auth.html?change=1" aria-label="Change password" title="Change password">
+    ${iconSvg(ACTION_ICONS.signOut)}
+    <span class="fab-menu-item-label">Change password</span>
+  </a>`);
   items.push(`<button class="fab-menu-item fab-menu-item--action fab-menu-item--danger" id="signOutBtn" aria-label="Sign out" title="Sign out" type="button">
     ${iconSvg(ACTION_ICONS.signOut)}
     <span class="fab-menu-item-label">Sign out</span>
@@ -67,17 +57,15 @@ function fabMenuActionItems(currentPage, isAdmin) {
 
 export function renderShell(currentPage) {
   const pages = getNavPages();
-  const desktopTabs = pages.map((p) => navLink(p, currentPage)).join('');
+  const navTabs = pages.map((p) => navLink(p, currentPage)).join('');
   const isAdmin = window.VenusPosAuth?.isAdmin?.() === true;
   const roleLabel = isAdmin ? 'Admin' : 'Staff';
-  const fabNavItems = sortFabNavPages(pages)
-    .map((p) => fabMenuNavItem(p, currentPage))
-    .join('');
   const fabActionItems = fabMenuActionItems(currentPage, isAdmin);
 
   return `
     <a class="skip-link" href="#page-content">Skip to content</a>
-    <div class="header">
+    <header class="header">
+      <div class="header-top">
       <div class="header-left">
         <a class="brand-logo" href="${getPageHref('home')}" data-spa-page="home" aria-label="Venus POS home">
           <img src="${getAssetHref('logo.svg')}" alt="" width="40" height="40" decoding="async" />
@@ -97,17 +85,18 @@ export function renderShell(currentPage) {
               <path d="M6 6l12 12M18 6L6 18"/>
             </svg>
           </button>
-          <nav class="fab-menu" id="floatingNav" aria-label="App menu" aria-hidden="true" hidden>
-            ${fabNavItems}
+          <nav class="fab-menu" id="floatingNav" aria-label="Account menu" aria-hidden="true" hidden>
             ${fabActionItems}
           </nav>
         </div>
       </div>
-    </div>
-
-    <nav class="tabs" aria-label="Main navigation">
-      ${desktopTabs}
-    </nav>
+      </div>
+      <nav class="tabs rail header-nav" aria-label="Main navigation">
+        <div class="rail-track" id="headerNav">
+          ${navTabs}
+        </div>
+      </nav>
+    </header>
   `;
 }
 
@@ -202,6 +191,16 @@ function wireSignOut() {
       /* ignore */
     }
     try {
+      // Stop order alerts on this device for the signed-out user (needs the session, so first).
+      const { syncWebPushPrefs } = await import('./notifications.js');
+      await Promise.race([
+        syncWebPushPrefs({ unsubscribe: true }),
+        new Promise((r) => setTimeout(r, 2500)),
+      ]);
+    } catch {
+      /* ignore */
+    }
+    try {
       await window.VenusPosAuth?.signOut?.();
     } catch {
       /* still leave */
@@ -214,20 +213,58 @@ function wireSignOut() {
 /** Update tab / FAB active states without remounting the shell. */
 export function setActiveNav(currentPage) {
   document.body.dataset.page = currentPage;
+  const key = navKey(currentPage);
 
   document.querySelectorAll('.tabs .tab-btn').forEach((el) => {
-    const id = el.getAttribute('data-spa-page');
-    const active = id === currentPage;
+    const id = el.getAttribute('data-nav-key') || el.getAttribute('data-spa-page');
+    const active = id === key;
     el.classList.toggle('active', active);
+    el.classList.toggle('on', active);
     el.setAttribute('aria-current', active ? 'page' : 'false');
   });
 
   document.querySelectorAll('.fab-menu-item[data-spa-page]').forEach((el) => {
-    const id = el.getAttribute('data-spa-page');
-    const active = id === currentPage;
+    const id = el.getAttribute('data-nav-key') || el.getAttribute('data-spa-page');
+    const active = id === key;
     el.classList.toggle('is-active', active);
     el.setAttribute('aria-current', active ? 'page' : 'false');
   });
+
+  scrollActiveTabIntoView();
+}
+
+/** Centre the active chip in the header rail (horizontal only — never moves the page). */
+export function scrollActiveTabIntoView({ smooth = true } = {}) {
+  const nav = document.getElementById('headerNav');
+  if (!nav) return;
+  const run = () => {
+    const active = nav.querySelector('.tab-btn.active');
+    if (active) {
+      const navRect = nav.getBoundingClientRect();
+      const tabRect = active.getBoundingClientRect();
+      const offset = tabRect.left - navRect.left + nav.scrollLeft;
+      const target = offset - (nav.clientWidth - tabRect.width) / 2;
+      const max = nav.scrollWidth - nav.clientWidth;
+      const left = Math.max(0, Math.min(max, target));
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      if (typeof nav.scrollTo === 'function') {
+        nav.scrollTo({ left, behavior: smooth && !reduce ? 'smooth' : 'auto' });
+      } else {
+        nav.scrollLeft = left;
+      }
+    }
+  };
+  window.requestAnimationFrame(run);
+}
+
+function wireHeaderNav() {
+  const nav = document.getElementById('headerNav');
+  if (!nav) return;
+  window.addEventListener('hashchange', () => scrollActiveTabIntoView());
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => scrollActiveTabIntoView({ smooth: false })).catch(() => {});
+  }
+  scrollActiveTabIntoView({ smooth: false });
 }
 
 /**
@@ -249,4 +286,5 @@ export function mountShell(currentPage) {
     renderModals(currentPage);
   root.dataset.shellMounted = '1';
   wireSignOut();
+  wireHeaderNav();
 }

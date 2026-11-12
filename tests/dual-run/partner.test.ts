@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import {
   cookieBatchShareText,
+  cookiePartnerBatchesFromCuts,
   cookiePartnerBatchesFromUnits,
   cookiePartnerShareText,
   cookieUnitsChronological,
@@ -13,6 +14,7 @@ import {
 } from '../../legacy/js/revenue.js';
 import {
   cookieBatchShareText as nextShare,
+  cookiePartnerBatchesFromCuts as nextCuts,
   cookiePartnerBatchesFromUnits as nextBatches,
   cookiePartnerShareText as nextShares,
   expandCookieUnitsFromItem as nextExpand,
@@ -48,6 +50,29 @@ describe('partner dual-run', () => {
       partnerDue: b.partnerDue,
     }));
     expect(ours).toEqual(legacy);
+  });
+
+  it('keeps a partial send as its own batch', () => {
+    const units = Array.from({ length: 30 }, (_, i) => ({
+      revenue: 1000 + i,
+      ownerSplit: 100,
+      partnerDue: 900,
+      flavorId: 'mint',
+    }));
+    const map = (rows: Array<Record<string, unknown>>) =>
+      rows.map((b) => ({
+        index: b.index,
+        cookieCount: b.cookieCount,
+        every: b.every,
+        complete: b.complete,
+        revenue: b.revenue,
+        ownerSplit: b.ownerSplit,
+        partnerDue: b.partnerDue,
+      }));
+    expect(map(nextCuts(units, [25, 5], 25))).toEqual(map(cookiePartnerBatchesFromCuts(units, [25, 5], 25)));
+    expect(nextCuts(units, [0, 10], 25)).toHaveLength(1);
+    expect(nextCuts([], [10], 25)).toEqual([]);
+    expect(nextCuts(units, [3], Number.NaN)[0]?.every).toBe(25);
   });
 
   it('expandCookieUnitsFromItem matches legacy money totals', () => {

@@ -1,0 +1,213 @@
+/**
+ * Commission card (home page).
+ *   pos_staff — "My commission": earned / paid / balance for week, month, all time,
+ *               with a joints-vs-cookies earned breakdown (credit counts once paid).
+ *   pos_admin — per-staff summary + "Record payout" (writes staff_settlements).
+ * Data: views staff_commission_summary (RLS-scoped) and rpc pos_staff_directory.
+ */
+import { sbFetch } from './api.js';
+import { getPageHref } from './config.js';
+import { escapeHtml, fmtUGX, showToast } from './utils.js';
+
+let loading = null;
+
+async function getJson(path, options) {
+  const res = await sbFetch(path, options);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`${res.status} ${detail}`);
+  }
+  return res.json().catch(() => []);
+}
+
+function statRow(label, earned, paid) {
+  return `<tr><th scope="row">${label}</th><td>${fmtUGX(earned)}</td><td>${fmtUGX(paid)}</td></tr>`;
+}
+
+/** Staff home: minimal — balance owed, details live on the staff Analytics page. */
+function staffMiniCard(row) {
+  return `
+    <div class="commission-mini">
+      <div class="commission-mini__lbl">Commission owed</div>
+      <div class="commission-mini__row">
+        <div class="commission-mini__val">${fmtUGX(row.balance)}</div>
+        <a class="commission-mini__link" href="${getPageHref('analytics')}" data-spa-page="analytics">See details ›</a>
+      </div>
+    </div>`;
+}
+
+function splitRow(label, joints, cookies) {
+  return `<tr><th scope="row">${label}</th><td>${fmtUGX(joints || 0)}</td><td>${fmtUGX(cookies || 0)}</td></tr>`;
+}
+
+function staffBlock(row, name, isAdmin) {
+  const rate = Math.round(Number(row.rate || 0) * 100);
+  return `
+    <div class="commission-staff" data-staff-id="${escapeHtml(row.staff_id)}">
+      <div class="commission-head">
+        <div>
+          <div class="commission-name">${escapeHtml(name)}</div>
+          <div class="commission-sub">${rate}% of joint profit · ${rate}% of your cookie share · ${Number(row.joint_units_all || 0)} joints · ${Number(row.cookie_units_all || 0)} cookies</div>
+        </div>
+        <div class="commission-balance">
+          <div class="commission-balance__val">${fmtUGX(row.balance)}</div>
+          <div class="commission-balance__lbl">balance owed</div>
+        </div>
+      </div>
+      <table class="commission-table">
+        <thead><tr><th></th><th scope="col">Earned</th><th scope="col">Paid</th></tr></thead>
+        <tbody>
+          ${statRow('This week', row.earned_week, row.paid_week)}
+          ${statRow('This month', row.earned_month, row.paid_month)}
+          ${statRow('All time', row.earned_all, row.paid_all)}
+        </tbody>
+      </table>
+      <table class="commission-table commission-split">
+        <thead><tr><th></th><th scope="col">Joints</th><th scope="col">Cookies</th></tr></thead>
+        <tbody>
+          ${splitRow('This week', row.joint_earned_week, row.cookie_earned_week)}
+          ${splitRow('This month', row.joint_earned_month, row.cookie_earned_month)}
+          ${splitRow('All time', row.joint_earned_all, row.cookie_earned_all)}
+        </tbody>
+      </table>
+      ${Number(row.pending_credit) > 0 ? `<p class="commission-note">+ ${fmtUGX(row.pending_credit)} pending on unpaid credit sales</p>` : ''}
+      ${isAdmin ? `<button type="button" class="commission-pay" data-record-payout="${escapeHtml(row.staff_id)}" data-staff-name="${escapeHtml(name)}" data-balance="${Number(row.balance || 0)}">Record payout</button>` : ''}
+    </div>`;
+}
+
+let lastRows = [];
+
+function adminRow(row, name) {
+  const id = escapeHtml(row.staff_id);
+  return `
+    <div class="cc-row" role="button" tabindex="0" data-cc-open="${id}" aria-label="Commission details for ${escapeHtml(name)}">
+      <div class="cc-who">
+        <div class="cc-name">${escapeHtml(name)}</div>
+        <div class="cc-week">${fmtUGX(row.earned_week || 0)} this week</div>
+      </div>
+      <div class="cc-amt">
+        <div class="cc-bal">${fmtUGX(row.balance)}</div>
+        <button type="button" class="cc-pay" data-record-payout="${id}" data-staff-name="${escapeHtml(name)}" data-balance="${Number(row.balance || 0)}">Record payout</button>
+      </div>
+    </div>`;
+}
+
+function openDetail(staffId) {
+  const hit = lastRows.find((r) => r.row.staff_id === staffId);
+  if (!hit) return;
+  document.querySelector('.cc-sheet')?.remove();
+  const ov = document.createElement('div');
+  ov.className = 'cc-sheet';
+  ov.innerHTML = `<div class="cc-sheet__panel" role="dialog" aria-modal="true" aria-label="Commission details">
+      <button type="button" class="cc-sheet__close" data-cc-close aria-label="Close">✕</button>
+      ${staffBlock(hit.row, hit.name, true)}
+    </div>`;
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov || e.target.closest('[data-cc-close]')) { ov.remove(); return; }
+    const btn = e.target.closest('[data-record-payout]');
+    if (btn) { ov.remove(); void recordPayout(btn.dataset.recordPayout, btn.dataset.staffName || 'staff', Number(btn.dataset.balance) || 0); }
+  });
+  document.body.appendChild(ov);
+}
+
+async function recordPayout(staffId, name, balance) {
+  const raw = window.prompt(`Payout amount (UGX) to ${name}`, balance > 0 ? String(balance) : '');
+  if (raw == null) return;
+  const amount = Math.round(Number(String(raw).replace(/[^0-9]/g, '')));
+  if (!amount || amount <= 0) {
+    showToast('Enter an amount above 0', true);
+    return;
+  }
+  const note = window.prompt('Note (optional)', '') || null;
+  try {
+    await getJson('staff_settlements', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ staff_id: staffId, amount_ugx: amount, note }),
+    });
+    showToast(`Recorded ${fmtUGX(amount)} paid to ${name}`);
+    await renderCommissionCard({ force: true });
+  } catch (e) {
+    console.error('record payout failed', e);
+    showToast('Could not record payout', true);
+  }
+}
+
+export async function renderCommissionCard({ force = false } = {}) {
+  const el = document.getElementById('commissionCard');
+  if (!el) return;
+  const auth = window.VenusPosAuth;
+  const isAdmin = auth?.isAdmin?.() === true;
+  const isStaff = auth?.isStaffOnly?.() === true;
+  if (!isAdmin && !isStaff) {
+    el.hidden = true;
+    return;
+  }
+  if (isStaff) {
+    // Staff Home: commission sits below the stock card (same place the admin card uses).
+    const stock = document.getElementById('stockGlance');
+    if (stock && stock.nextElementSibling !== el) stock.after(el);
+  }
+  if (loading && !force) return loading;
+
+  loading = (async () => {
+    try {
+      let rows = await getJson('staff_commission_summary?select=*');
+      if (isAdmin) {
+        // Hide test/hidden staff from the owner's summary (flag lives in staff_commission_rates.is_hidden).
+        const flags = await getJson('staff_commission_rates?select=user_id,is_hidden').catch(() => []);
+        const hidden = new Set((flags || []).filter((f) => f.is_hidden).map((f) => f.user_id));
+        rows = rows.filter((r) => !hidden.has(r.staff_id));
+      }
+      let names = {};
+      if (isAdmin) {
+        const dir = await getJson('rpc/pos_staff_directory', { method: 'POST', body: '{}' }).catch(() => []);
+        names = Object.fromEntries((dir || []).map((d) => [d.user_id, d.display_name || (d.email || '').split('@')[0]]));
+      }
+      if (!rows.length) {
+        el.hidden = !isStaff;
+        el.innerHTML = isStaff ? '<h2 class="commission-title">My commission</h2><p class="commission-note">No commission rate set yet.</p>' : '';
+        return;
+      }
+      el.hidden = false;
+      if (isStaff) {
+        el.innerHTML = staffMiniCard(rows[0]);
+        return;
+      }
+      // Admin: compact card placed right after the stock card; full breakdown in a sheet.
+      const stock = document.getElementById('stockGlance');
+      if (stock && stock.nextElementSibling !== el) stock.after(el);
+      el.classList.add('cc-admin');
+      lastRows = rows.map((r) => ({ row: r, name: names[r.staff_id] || 'Staff' }));
+      el.innerHTML = `
+        <h2 class="cc-title">Staff commission</h2>
+        ${lastRows.map(({ row, name }) => adminRow(row, name)).join('')}`;
+    } catch (e) {
+      // Migrations not applied yet, or offline — keep the home page clean.
+      console.warn('commission card unavailable', e?.message || e);
+      el.hidden = true;
+    } finally {
+      loading = null;
+    }
+  })();
+  return loading;
+}
+
+export function wireCommissionCard() {
+  document.getElementById('commissionCard')?.addEventListener('keydown', (e) => {
+    const row = e.target.closest?.('[data-cc-open]');
+    if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openDetail(row.dataset.ccOpen); }
+  });
+  const el = document.getElementById('commissionCard');
+  if (!el || el.dataset.wired) return;
+  el.dataset.wired = '1';
+  el.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-record-payout]');
+    if (!btn) {
+      const row = e.target.closest('[data-cc-open]');
+      if (row) openDetail(row.dataset.ccOpen);
+      return;
+    }
+    void recordPayout(btn.dataset.recordPayout, btn.dataset.staffName || 'staff', Number(btn.dataset.balance) || 0);
+  });
+}

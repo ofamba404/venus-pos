@@ -39,21 +39,11 @@
     },
     {
       "method": "POST",
-      "path": "/api/inventory/write",
+      "path": "/rest/v1/rpc/apply_sale_stock",
       "body": {
-        "category_id": "cookie_mint",
-        "op": "delta",
-        "delta": -1
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/inventory/write",
-      "body": {
-        "category_id": "cookie_chocolate",
-        "op": "delta",
-        "delta": -1
-      }
+        "p_sale_id": "<id:1>"
+      },
+      "contentType": "application/json"
     }
   ]
 }

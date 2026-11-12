@@ -1,9 +1,9 @@
 /**
  * Incoming storefront order queue — Realtime + light fallback poll.
- * A placed store order already holds its units in on-hand stock.
- * Cart lines stay stockDeferred so charge does not deduct them again.
+ * Cart lines from the store do not reserve draft stock; inventory deducts on Checkout only.
  */
 
+import { formatOrderWhen } from './date-label.js';
 import { sbFetch } from './api.js';
 import { PRODUCTS, cookieLineDisplayName } from './config.js';
 import { notifyOrderCancelled, notifyStorefrontOrder } from './notifications.js';
@@ -30,125 +30,6 @@ const FALLBACK_POLL_MS = 4_000;
 const REALTIME_RECONNECT_MS = 4_000;
 /** Survive soft-nav / hard reload for instant paint only — never blocks live polls. */
 const SESSION_CACHE_KEY = 'venus-pos-store-orders-v1';
-
-let sellableSig = '';
-let sellableTimer = null;
-
-function reservationStateOf(order) {
-  const state = order?.delivery?.stock_reservation?.state;
-  return state ? String(state) : '';
-}
-
-function noteSellableOrders(rows) {
-  const sig = (Array.isArray(rows) ? rows : [])
-    .map((row) => `${row?.id || ''}:${row?.status || ''}:${reservationStateOf(row)}`)
-    .join('|');
-  if (sig === sellableSig) return;
-  sellableSig = sig;
-  if (sellableTimer != null) return;
-  sellableTimer = setTimeout(() => {
-    sellableTimer = null;
-    void refreshSellableStock();
-  }, 400);
-}
-
-async function refreshSellableStock() {
-  try {
-    const { loadInventory } = await import('./inventory.js');
-    const { reapplyDraftFromCart } = await import('./orders.js');
-    await loadInventory();
-    reapplyDraftFromCart();
-  } catch (e) {
-    console.warn('sellable refresh failed', e);
-  }
-}
-
-async function staffBearer() {
-  const token =
-    (await window.VenusPosAuth?.getAccessToken?.().catch(() => '')) ||
-    window.VenusPosAuth?.peekAccessToken?.() ||
-    '';
-  return token;
-}
-
-async function postStoreReserve(body) {
-  const token = await staffBearer();
-  let res;
-  try {
-    res = await fetch('/api/store-order/reserve', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (e) {
-    return { ok: false, network: true, error: e?.message || 'network' };
-  }
-  if (res.status === 404 || res.status === 405) {
-    return { ok: false, unsupported: true, status: res.status };
-  }
-  const data = await res.json().catch(() => ({}));
-  return { ...data, status: res.status, ok: res.ok && data.ok !== false };
-}
-
-function posDeviceId() {
-  try {
-    const key = 'venus-pos-device';
-    const existing = localStorage.getItem(key);
-    if (existing) return existing;
-    const id =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `dev-${Date.now()}`;
-    localStorage.setItem(key, id);
-    return id;
-  } catch {
-    return 'device-unknown';
-  }
-}
-
-export async function consumeStoreOrderReservation(orderId) {
-  if (!orderId) return { skipDeduct: false };
-  const data = await postStoreReserve({ op: 'consume', id: orderId, device_id: posDeviceId() });
-  if (data.unsupported) return { skipDeduct: false, unsupported: true };
-  if (data.network) {
-    return { blocked: true, message: 'No signal — this sale was not saved. Try again.' };
-  }
-  if (!data.ok) {
-    return {
-      blocked: true,
-      message: data.message || data.error || 'Could not lock this store order',
-    };
-  }
-  if (data.consumed || data.reason === 'already_consumed') {
-    return { skipDeduct: true, claimed: data.claimed || {} };
-  }
-  return { skipDeduct: false };
-}
-
-export async function claimStoreOrder(orderId) {
-  if (!orderId) return { ok: true, unsupported: true };
-  return postStoreReserve({ op: 'claim', id: orderId, device_id: posDeviceId() });
-}
-
-export async function unclaimStoreOrder(orderId) {
-  if (!orderId) return { ok: true };
-  return postStoreReserve({ op: 'unclaim', id: orderId, device_id: posDeviceId() });
-}
-
-export async function revertStoreOrderReservation(orderId) {
-  if (!orderId) return { ok: true, reverted: false };
-  return postStoreReserve({ op: 'revert', id: orderId, device_id: posDeviceId() });
-}
-
-export async function releaseStoreOrderReservation(orderId) {
-  if (!orderId) return { ok: true, released: false };
-  const data = await postStoreReserve({ op: 'release', id: orderId, cancel: false });
-  if (data.released) void refreshSellableStock();
-  return data;
-}
 
 /** Cash revenue only — reward freebies never count toward UGX totals. */
 function orderCashTotalUgx(order) {
@@ -431,13 +312,8 @@ function deliveryLabel(order) {
 function orderTimeLabel(order) {
   const raw = order?.created_at;
   if (!raw) return '';
-  const t = new Date(raw);
-  if (Number.isNaN(t.getTime())) return '';
-  return t.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
+  // Date + time so orders left open past a day are obvious.
+  return formatOrderWhen(raw);
 }
 
 function orderTitle(order) {
@@ -579,39 +455,25 @@ export async function markStoreOrderCheckedOut(orderId, saleId = null) {
 
 export async function markStoreOrderCancelled(orderId) {
   if (!orderId) return;
-  const data = await postStoreReserve({ op: 'release', id: orderId, cancel: true });
-  if (!data.unsupported && !data.ok) {
-    throw new Error(data.message || data.error || 'Could not cancel order');
-  }
-  if (data.unsupported) {
-    const now = new Date().toISOString();
-    const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(orderId)}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({
-        status: 'cancelled',
-        cancelled_at: now,
-        updated_at: now,
-      }),
-    });
-    if (!res.ok) throw new Error(`Supabase ${res.status}`);
-  }
   const now = new Date().toISOString();
+  const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(orderId)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      status: 'cancelled',
+      cancelled_at: now,
+      updated_at: now,
+    }),
+  });
+  if (!res.ok) throw new Error(`Supabase ${res.status}`);
   const cached = orderCache.get(orderId);
   if (cached) {
     cached.status = 'cancelled';
-    cached.cancelled_at = cached.cancelled_at || now;
+    cached.cancelled_at = now;
     cached.updated_at = now;
-    const delivery = cached.delivery && typeof cached.delivery === 'object' ? cached.delivery : {};
-    const reservation = delivery.stock_reservation;
-    if (reservation && typeof reservation === 'object' && reservation.state === 'held') {
-      delivery.stock_reservation = { ...reservation, state: 'released' };
-      cached.delivery = delivery;
-    }
     orderCache.set(orderId, cached);
   }
   renderStoreOrderUi();
-  void refreshSellableStock();
   void notifyStoreCustomerPush(cached || { id: orderId }, 'cancelled');
 }
 
@@ -646,7 +508,6 @@ async function dismissOrder(orderId) {
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
     const cached = orderCache.get(id);
-    const wasCancelled = cached?.status === 'cancelled';
     if (cached) {
       cached.dismissed_at = now;
       cached.updated_at = now;
@@ -654,11 +515,6 @@ async function dismissOrder(orderId) {
     }
     orderCache.delete(id);
     dismissingIds.delete(id);
-    if (wasCancelled) {
-      void postStoreReserve({ op: 'release', id, cancel: false }).then((data) => {
-        if (data?.released) void refreshSellableStock();
-      });
-    }
   } catch (e) {
     console.error('dismiss store order failed', e);
     dismissingIds.delete(id);
@@ -740,7 +596,6 @@ function mergeOrders(rows) {
   for (const id of [...orderCache.keys()]) {
     if (!nextIds.has(id)) orderCache.delete(id);
   }
-  noteSellableOrders([...orderCache.values()]);
 }
 
 function handleRealtimePayload(payload) {
@@ -756,7 +611,6 @@ function handleRealtimePayload(payload) {
   if (row?.id) {
     upsertOrder(row, { announce: true });
     renderStoreOrderUi();
-    noteSellableOrders([...orderCache.values()]);
   }
 }
 
@@ -1325,7 +1179,7 @@ function resolveStoreLineName(line, product) {
   return synced || product?.name || 'Item';
 }
 
-function rowsToCartLines(items, { stockClaimed = false } = {}) {
+function rowsToCartLines(items) {
   return (Array.isArray(items) ? items : []).map((line, index) => {
     const productId = String(line.product_id || '');
     const product = PRODUCTS.find((p) => p.id === productId);
@@ -1339,7 +1193,6 @@ function rowsToCartLines(items, { stockClaimed = false } = {}) {
       // Always zero cash for rewards — never inherit a catalog unit price.
       lineTotal: isReward ? 0 : Math.round(Number(line.line_total) || 0),
       stockDeferred: true,
-      ...(stockClaimed ? { stockClaimed: true } : {}),
       isReward,
       rewardKey: isReward ? String(line.reward_key || '') : '',
       pointsCost: isReward ? Math.max(0, Math.round(Number(line.points_cost) || 0)) : 0,
@@ -1431,18 +1284,6 @@ export async function loadStoreOrderIntoCart(orderId) {
   }
 
   const activeId = getActiveStoreOrderId();
-  if (activeId !== orderId) {
-    const claim = await claimStoreOrder(orderId);
-    if (claim.network) {
-      showToast('No signal — open this order when you are back online', true);
-      return;
-    }
-    if (!claim.ok && !claim.unsupported) {
-      showToast(claim.message || 'Another phone is ringing this order up', true);
-      return;
-    }
-    if (activeId) void unclaimStoreOrder(activeId);
-  }
 
   // Already viewing this storefront order — just reopen the cart.
   if (activeId === orderId) {
@@ -1489,10 +1330,7 @@ export async function loadStoreOrderIntoCart(orderId) {
     locationLabel: order.location_label || '',
     locationLat: order.location_lat,
     locationLng: order.location_lng,
-    cartLines: rowsToCartLines(order.items, {
-      stockClaimed:
-        reservationStateOf(order) === 'held' || reservationStateOf(order) === 'consumed',
-    }),
+    cartLines: rowsToCartLines(order.items),
   });
 
   const needsAccept = order.status === 'pending' || order.status === 'confirmed';

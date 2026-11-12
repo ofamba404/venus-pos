@@ -84,6 +84,40 @@ export function cookiePartnerBatchesFromUnits(
   return batches;
 }
 
+/**
+ * Settled history using recorded send sizes. A partial send stays its own batch.
+ * Same rules as `cookiePartnerBatchesFromCuts` in `legacy/js/revenue.js`.
+ */
+export function cookiePartnerBatchesFromCuts(
+  units: PartnerUnit[] | null | undefined,
+  cuts: Array<number | string> | null | undefined,
+  every: number = COOKIE_PARTNER_SETTLE_EVERY,
+): PartnerBatch[] {
+  const size = Math.max(1, Number(every) || COOKIE_PARTNER_SETTLE_EVERY);
+  const list = units || [];
+  const batches: PartnerBatch[] = [];
+  let offset = 0;
+  for (const raw of cuts || []) {
+    const n = Math.floor(Number(raw) || 0);
+    if (n <= 0) continue;
+    const slice = list.slice(offset, offset + n);
+    if (!slice.length) break;
+    const [batch] = cookiePartnerBatchesFromUnits(slice, size);
+    if (!batch) break;
+    batches.push({ ...batch, index: batches.length + 1, every: size, complete: slice.length === size });
+    offset += slice.length;
+  }
+  return batches;
+}
+
+/** In-progress cookies Joshua can send before the batch fills. 0 when a full batch is waiting. */
+export function partialSendCount(unsettledCount: number, every = COOKIE_PARTNER_SETTLE_EVERY, readyCount = 0): number {
+  const size = Math.max(1, Number(every) || COOKIE_PARTNER_SETTLE_EVERY);
+  const open = Math.max(0, Math.floor(Number(unsettledCount) || 0));
+  if (readyCount > 0 || open <= 0 || open >= size) return 0;
+  return open;
+}
+
 /** Chronological cookie units from the partner track-from date. Paid ratio is 1, as v1. */
 export function expandPartnerUnitsFromSales(sales: PartnerSale[] | null | undefined): PartnerUnit[] {
   const sorted = [...(sales || [])]

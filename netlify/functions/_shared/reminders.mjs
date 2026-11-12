@@ -7,7 +7,7 @@ export const DELIVERY_TEST_REMINDERS = [
     hour: 7,
     minute: 30,
     title: 'SafeBoda quote check · morning peak',
-    body: 'Log 1–2 preset routes from Prisca Honey while SafeBoda shows morning prices.',
+    body: 'Log 1–2 preset routes from Pine Valley while SafeBoda shows morning prices.',
     path: '/pages/delivery.html#quote-lab',
   },
   {

@@ -83,11 +83,19 @@ export async function copyText(text, okMsg = 'Copied') {
 
 let confirmResolve = null;
 
-export function showConfirm(message) {
+export function showConfirm(message, { okLabel = '', multiline = false } = {}) {
   const confirmOverlay = document.getElementById('confirmOverlay');
   const confirmMessageEl = document.getElementById('confirmMessage');
   if (!confirmOverlay || !confirmMessageEl) return Promise.resolve(false);
   confirmMessageEl.textContent = message;
+  // Optional per-call tweaks (reset every time so other confirms look the same as before).
+  confirmMessageEl.style.whiteSpace = multiline ? 'pre-line' : '';
+  confirmMessageEl.style.textAlign = multiline ? 'left' : '';
+  const okBtn = document.getElementById('confirmOkBtn');
+  if (okBtn) {
+    if (!okBtn.dataset.defaultLabel) okBtn.dataset.defaultLabel = okBtn.textContent || 'Confirm';
+    okBtn.textContent = okLabel || okBtn.dataset.defaultLabel;
+  }
   openModal(confirmOverlay);
   return new Promise((resolve) => {
     confirmResolve = resolve;

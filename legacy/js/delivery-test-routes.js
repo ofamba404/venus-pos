@@ -16,12 +16,13 @@ import { getPageHref } from './config.js';
 export const TEST_CLIENT_NAME = 'SafeBoda test';
 
 export const BASE_ORIGIN = {
-  id: 'prisca-honey',
-  label: 'Prisca Honey Enterprises, Zoa Hostel, 8HQC+V5J, Muganzi Awongererwa Rd, Kampala',
-  shortLabel: 'Prisca Honey · Zoa Hostel',
-  // Plus code 8HQC+V5J Kampala (6GGJ8HQC+V5J) — Muganzi Awongererwa Rd.
-  lat: 0.3397125,
-  lng: 32.5703906,
+  id: 'pine-valley-kikoni',
+  label: 'Pine Valley Apartments, Kikoni, 8HJ6+9V5, Kampala',
+  shortLabel: 'Pine Valley Apartments · Kikoni',
+  // Google Places "Pine Valley Apartments" (ChIJCfOk3Wq7fRcRTY2XZ9VfkOw), plus code 8HJ6+9V5.
+  // Previous origin: Prisca Honey / Zoa Hostel 0.3397125, 32.5703906 (until 2026-10-14).
+  lat: 0.3308808,
+  lng: 32.562232,
 };
 
 /**
@@ -197,7 +198,7 @@ export const DELIVERY_TEST_REMINDERS = [
     minute: 30,
     period: 'morning_peak',
     title: 'SafeBoda quote check · morning peak',
-    body: 'Log 2–3 routes (one short, one mid/long) from Prisca Honey while SafeBoda shows morning prices.',
+    body: 'Log 2–3 routes (one short, one mid/long) from Pine Valley while SafeBoda shows morning prices.',
     url: getPageHref('delivery') + '#quote-lab',
   },
   {

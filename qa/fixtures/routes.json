@@ -2,11 +2,11 @@
   "_comment": "Eval mirror of js/delivery-test-routes.js — keep in sync. Runtime Quote Lab still reads the JS module.",
   "testClientName": "SafeBoda test",
   "baseOrigin": {
-    "id": "prisca-honey",
-    "label": "Prisca Honey Enterprises, Zoa Hostel, 8HQC+V5J, Muganzi Awongererwa Rd, Kampala",
-    "shortLabel": "Prisca Honey · Zoa Hostel",
-    "lat": 0.3397125,
-    "lng": 32.5703906
+    "id": "pine-valley-kikoni",
+    "label": "Pine Valley Apartments, Kikoni, 8HJ6+9V5, Kampala",
+    "shortLabel": "Pine Valley Apartments · Kikoni",
+    "lat": 0.3308808,
+    "lng": 32.562232
   },
   "testDropoffs": [
     {

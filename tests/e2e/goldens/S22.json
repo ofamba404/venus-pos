@@ -2,13 +2,15 @@
   "id": "S22",
   "writes": [
     {
-      "method": "POST",
-      "path": "/api/store-order/reserve",
+      "method": "PATCH",
+      "path": "/rest/v1/store_orders?id=eq.seed-pending-order",
       "body": {
-        "op": "release",
-        "id": "seed-pending-order",
-        "cancel": true
-      }
+        "status": "cancelled",
+        "cancelled_at": "<ts>",
+        "updated_at": "<ts>"
+      },
+      "prefer": "return=minimal",
+      "contentType": "application/json"
     },
     {
       "method": "POST",

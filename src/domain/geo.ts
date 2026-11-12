@@ -2,12 +2,12 @@
 
 export type LatLng = { lat: number; lng: number };
 
-/** Prisca Honey · Zoa Hostel — same as legacy `delivery-test-routes.js`. */
+/** Pine Valley Apartments · Kikoni — same as legacy `delivery-test-routes.js` (from 2026-10-14). */
 export const BASE_ORIGIN: LatLng & { label: string; shortLabel: string } = {
-  label: 'Prisca Honey Enterprises, Zoa Hostel, Kampala',
-  shortLabel: 'Prisca Honey · Zoa Hostel',
-  lat: 0.3397125,
-  lng: 32.5703906,
+  label: 'Pine Valley Apartments, Kikoni, 8HJ6+9V5, Kampala',
+  shortLabel: 'Pine Valley Apartments · Kikoni',
+  lat: 0.3308808,
+  lng: 32.562232,
 };
 
 const EARTH_KM = 6371;

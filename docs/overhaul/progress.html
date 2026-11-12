@@ -107,15 +107,15 @@
   <script>
     // Fallback if progress.json is missing. Prefer progress.json (kept in sync with PROGRESS.md).
     const STATE = {
-      phase: "Phase 8 cleared. Phase 9 blocked on deploy",
+      phase: "Phase 8 cleared. Master merged. Phase 9 deploy is ready for the owner",
       branch: "overhaul · v1-baseline @ 951a152",
       commit: "see git log -1 — phase 3 data layer",
-      next: "Owner says push deploy netlify or ship before .\\scripts\\ship.ps1. Do not apply client_sale_id.",
-      status: "Phase 8 spec 3 passed. Phase 7 full Playwright 122 passed, 2 skipped. npm test 166 passed. No deploy.",
+      next: "Owner deploys overhaul from Linux. v1 at / matches master. Do not apply migrations.",
+      status: "origin/master @ 4251e1f merged. SW venus-pos-v114. dist v1 matches master. npm test 169 passed. Playwright 125 passed, 2 skipped. No deploy from this agent.",
       ownerGate: {
         ready: "D1 A · D2 B · D3 B · D4 B · D5 A · D6 A · D11 approved · D16 improve (2026-11-12).",
         phase8: "Cleared. Walk-in, hold, and offline queue are flagged on. client_sale_id SQL is not applied. Checkpoint waived.",
-        phase9: "Blocked on deploy cue → .\\scripts\\ship.ps1 (v1 /, v2 /next/). No production test sales unless asked.",
+        phase9: "Ready for the owner to deploy overhaul. v1 at / is current master. v2 at /next/. No migration apply.",
         phase10: "Blocked until after parallel run + owner says ship.",
       },
       items: [

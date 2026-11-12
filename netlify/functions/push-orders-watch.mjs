@@ -101,6 +101,7 @@ export default async () => {
       tag: `storefront-order-${row.id}`,
       requireInteraction: true,
       orderId: row.id,
+      audience: 'all',
     });
 
     await store.setJSON(key, {

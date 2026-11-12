@@ -12,6 +12,8 @@ export type Category = {
   name: string;
   sub: string;
   color: string;
+  /** Kept for old sales. Not in the live inventory meta. */
+  legacy?: boolean;
 };
 
 export type Product = {
@@ -128,7 +130,7 @@ export const CATEGORIES: Category[] = [
   { id: 'coconut', name: 'Coconut', sub: '', color: '#ffffff' },
   { id: 'melon', name: 'Melon', sub: '', color: '#ff8c1a' },
   { id: 'classic', name: 'Plain', sub: '', color: '#e3cba7' },
-  { id: 'spliff5050', name: 'Bangis', sub: '50/50', color: '#ffd400' },
+  { id: 'spliff5050', name: 'Bangis', sub: '50/50', color: '#ffd400', legacy: true },
   { id: 'spliff7030', name: 'Bangis', sub: '70/30', color: '#FFFFA5' },
   ...COOKIE_CATEGORIES,
 ];
@@ -146,7 +148,7 @@ export const FLAVOR_POOL = [
   'coconut',
   'melon',
 ];
-export const SPLIFF_POOL = ['spliff5050', 'spliff7030'];
+export const SPLIFF_POOL = ['spliff7030'];
 export const COOKIE_FLAVOR_POOL = COOKIE_CATEGORIES.map((c) => c.id);
 export const COOKIE_CHOICE_POOL = COOKIE_FLAVOR_POOL.filter((id) => id !== 'cookie_butterscotch');
 

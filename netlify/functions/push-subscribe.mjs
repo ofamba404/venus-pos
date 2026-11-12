@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import { subscriptionKey } from './_shared/reminders.mjs';
+import { posUserFromRequest } from './_shared/push.mjs';
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -8,7 +9,7 @@ function json(data, status = 200) {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, X-Venus-Push-Secret',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Venus-Push-Secret',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
     },
   });
@@ -17,6 +18,9 @@ function json(data, status = 200) {
 export default async (req) => {
   if (req.method === 'OPTIONS') return json({ ok: true });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+
+  const user = await posUserFromRequest(req);
+  if (!user) return json({ error: 'Sign in to the POS to enable notifications' }, 401);
 
   let body;
   try {
@@ -42,6 +46,8 @@ export default async (req) => {
     keys: { p256dh: keys.p256dh, auth: keys.auth },
     schedulesEnabled,
     ordersEnabled,
+    userId: user.id,
+    role: user.role,
     userAgent: req.headers.get('user-agent') || '',
     updatedAt: new Date().toISOString(),
   });

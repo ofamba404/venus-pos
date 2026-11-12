@@ -25,7 +25,7 @@ import {
   setPlacesSearchOrigin,
   wireDeliveryPlacesInputs,
 } from './places-autocomplete.js';
-import { adjustStock, loadInventory, renderStockGlance } from './inventory.js';
+import { adjustStock, renderStockGlance } from './inventory.js';
 import { notifyCreditSale, notifyStockCrossing } from './notifications.js';
 import {
   buildLineFromConfig,
@@ -33,6 +33,7 @@ import {
   itemToConfigSelection,
   productDetailLabel,
   productPickButtonHtml,
+  staffBlocksProduct,
   renderProductConfigView,
   renderProductPickPanel,
   varietyFixedFlavor,
@@ -61,6 +62,8 @@ import {
   getCart,
   getOrderMeta,
   inventory,
+  isInventoryHydrated,
+  isInventoryReady,
   resetDraftStock,
   salesCache,
   setCart,
@@ -744,16 +747,10 @@ function setOrderDeliveryTimeLabel(label) {
 }
 
 function adjustDraftForItem(item, direction) {
-  if (!item || item.stockDeferred || item.stockClaimed) return;
+  if (!item || item.stockDeferred) return;
   Object.entries(item.breakdown || {}).forEach(([id, qty]) => {
     draftStock[id] = (draftStock[id] || 0) + direction * qty;
   });
-}
-
-/** Rebuild draft stock from server on-hand minus the open counter cart. */
-export function reapplyDraftFromCart() {
-  resetDraftStock();
-  getCart().forEach((item) => adjustDraftForItem(item, -1));
 }
 
 function cartItemToConfigSelection(item) {
@@ -1504,8 +1501,65 @@ function cartDetailHtml(detailText) {
   return `<div class="ci-detail" title="${escapeHtml(text)}">${escapeHtml(display)}</div>`;
 }
 
-function cartItemHtml(item, { readonly = false } = {}) {
+/**
+ * Categories where the cart needs more than the system shelf count.
+ * Only categories the inventory actually tracks; empty until inventory has loaded.
+ * @returns {{ id: string, name: string, need: number, have: number, short: number }[]}
+ */
+function cartStockShortfalls(cart = getCart()) {
+  if (!isInventoryHydrated() && !isInventoryReady()) return [];
+  const need = {};
+  (cart || []).forEach((item) => {
+    Object.entries(normalizeInventoryBreakdown(item.breakdown)).forEach(([id, qty]) => {
+      need[id] = (need[id] || 0) + qty;
+    });
+  });
+  return Object.entries(need)
+    .filter(([id, n]) => Object.hasOwn(inventory, id) && n > Math.max(0, Number(inventory[id]) || 0))
+    .map(([id, n]) => {
+      const have = Math.max(0, Number(inventory[id]) || 0);
+      return { id, name: stockCatLabel(id), need: n, have, short: n - have };
+    });
+}
+
+function stockCatLabel(id) {
+  const cat = CAT_MAP[id];
+  if (!cat) return id;
+  if (id.startsWith('spliff')) return `Bangis${cat.sub ? ` ${cat.sub}` : ''}`;
+  return cat.name || id;
+}
+
+/** "Short: Plain (need 2, have 0)" chip for a cart line, or ''. */
+function cartItemStockShortHtml(item, shortfalls) {
+  if (!shortfalls?.length) return '';
+  const ids = new Set(Object.keys(normalizeInventoryBreakdown(item.breakdown)));
+  const hits = shortfalls.filter((s) => ids.has(s.id));
+  if (!hits.length) return '';
+  const text = hits.map((s) => `${s.name} (need ${s.need}, have ${s.have})`).join(', ');
+  return `<div class="ci-stock-short" title="Not enough in the system — you'll be asked to confirm at checkout">Short: ${escapeHtml(text)}</div>`;
+}
+
+/** Who is confirming a "Sell anyway" (recorded on the sale + oversold log). */
+async function currentPosActor() {
+  const auth = window.VenusPosAuth;
+  let user = null;
+  try {
+    user = (await auth?.getSession?.())?.user || null;
+  } catch {
+    user = null;
+  }
+  const meta = user?.user_metadata || {};
+  const role = auth?.getRole?.() || null;
+  const name =
+    String(meta.pos_display_name || meta.display_name || meta.full_name || meta.name || '').trim() ||
+    String(user?.email || '').split('@')[0] ||
+    String(role || 'staff');
+  return { by: user?.id || auth?.getUserId?.() || null, by_name: name, role };
+}
+
+function cartItemHtml(item, { readonly = false, shortfalls = cartStockShortfalls() } = {}) {
   const product = PRODUCTS.find((p) => p.id === item.productId);
+  const stockShortHtml = cartItemStockShortHtml(item, shortfalls);
   const flavors = cartFlavorEntries(item.breakdown);
   const swatchesHtml = cartFlavorSwatchesHtml(flavors, {
     fixedFlavorId: product?.rule === 'choose_variety' ? varietyFixedFlavor(product) : null,
@@ -1534,6 +1588,7 @@ function cartItemHtml(item, { readonly = false } = {}) {
           ${priceHtml}
         </div>
         ${detailHtml}
+        ${stockShortHtml}
       </div>
     </div>`;
   }
@@ -1557,6 +1612,7 @@ function cartItemHtml(item, { readonly = false } = {}) {
       <div class="ci-main">
         ${nameHtml}
         ${detailHtml}
+        ${stockShortHtml}
       </div>
       <div class="cart-item-actions">
         ${priceHtml}
@@ -1710,6 +1766,10 @@ function wireCartItemButtons(root) {
       const idx = currentCart.findIndex((i) => i.key === key);
       if (idx === -1) return;
       const item = currentCart[idx];
+      if (!PRODUCTS.some((p) => p.id === item.productId)) {
+        showToast('This product is discontinued — remove the line instead of editing it.', true);
+        return;
+      }
       editingCartKey = key;
       editingCartItem = { ...item, breakdown: { ...item.breakdown } };
       configProduct = PRODUCTS.find((p) => p.id === item.productId);
@@ -2163,6 +2223,8 @@ function renderConfigView() {
     backId: 'backBtn',
     confirmId: 'addToOrderBtn',
     otherLines: getCart(),
+    // Selling past system stock is allowed; checkout asks "Sell anyway?".
+    allowOversell: true,
   });
   wireConfigEvents();
 
@@ -2253,9 +2315,9 @@ function addConfiguredItemToCart() {
   renderOrderModal();
 }
 
-async function patchInventoryRemote(soldById) {
+async function patchInventoryRemote(soldById, saleId) {
   const { persistSoldBreakdown } = await import('./inventory.js');
-  await persistSoldBreakdown(soldById);
+  await persistSoldBreakdown(soldById, saleId);
 }
 
 async function resolveCheckoutClientId(orderClientName) {
@@ -2322,7 +2384,7 @@ async function finishCheckoutBackground({
 
   if (soldById && Object.keys(soldById).length) {
     try {
-      await patchInventoryRemote(soldById);
+      await patchInventoryRemote(soldById, saleId);
       void dataStore.persistCurrent('inventory');
     } catch (e) {
       console.error('inventory sync failed', e);
@@ -2423,74 +2485,31 @@ async function checkout() {
     }
   }
 
+  // System shows less than we're selling: confirm, don't block (admin + staff).
+  const shortfalls = cartStockShortfalls(cart);
+  let stockOverride = null;
+  if (shortfalls.length) {
+    const lines = shortfalls
+      .map((s) => `• ${s.name}: selling ${s.need}, system has ${s.have} (short ${s.short})`)
+      .join('\n');
+    const ok = await showConfirm(
+      `Sell anyway?\n\nNot enough stock in the system:\n${lines}\n\nStock will go to 0 and the shortfall is logged under your name.`,
+      { okLabel: 'Sell anyway', multiline: true },
+    );
+    if (!ok) return;
+    if (checkoutInFlight) return;
+    const actor = await currentPosActor();
+    stockOverride = {
+      ...actor,
+      at: new Date().toISOString(),
+      short: Object.fromEntries(shortfalls.map((s) => [s.id, s.short])),
+    };
+  }
+  const shortIds = new Set(shortfalls.map((s) => s.id));
+
   checkoutInFlight = true;
 
   const total = cartTotal(cart);
-  let holdForRollback = false;
-  let holdClaimed = null;
-  let saleSaved = false;
-
-  let stockKnown = false;
-  try {
-    stockKnown = Boolean(await loadInventory());
-    reapplyDraftFromCart();
-  } catch (e) {
-    console.warn('sellable refresh before charge failed', e);
-  }
-
-  if (storeOrderId) {
-    try {
-      const { consumeStoreOrderReservation } = await import('./store-orders.js');
-      const hold = await consumeStoreOrderReservation(storeOrderId);
-      if (hold.blocked) {
-        checkoutInFlight = false;
-        showToast(hold.message || 'Could not lock this store order', true);
-        return;
-      }
-      holdForRollback = Boolean(hold.skipDeduct);
-      holdClaimed = hold.claimed || null;
-    } catch (e) {
-      console.error('consume store reservation failed', e);
-      checkoutInFlight = false;
-      showToast('Could not lock this store order', true);
-      return;
-    }
-  }
-
-  const mergedBreakdown = {};
-  cart.forEach((item) => {
-    Object.entries(normalizeInventoryBreakdown(item.breakdown)).forEach(([id, qty]) => {
-      mergedBreakdown[id] = (mergedBreakdown[id] || 0) + qty;
-    });
-  });
-  if (holdClaimed) {
-    Object.entries(holdClaimed).forEach(([id, qty]) => {
-      const left = (mergedBreakdown[id] || 0) - Number(qty || 0);
-      if (left > 0) mergedBreakdown[id] = left;
-      else delete mergedBreakdown[id];
-    });
-  }
-
-  if (stockKnown) {
-    for (const [id, qty] of Object.entries(mergedBreakdown)) {
-      const have = inventory[id] || 0;
-      if (qty > have) {
-        if (holdForRollback && storeOrderId) {
-          try {
-            const { revertStoreOrderReservation } = await import('./store-orders.js');
-            await revertStoreOrderReservation(storeOrderId);
-          } catch (e) {
-            console.error('release store reservation failed', e);
-          }
-        }
-        checkoutInFlight = false;
-        const name = CAT_MAP[id]?.name || id;
-        showToast(`Not enough ${name} left (${have} in stock).`, true);
-        return;
-      }
-    }
-  }
-
   showCheckoutProcessing({
     total,
     itemCount: cart.length,
@@ -2498,6 +2517,12 @@ async function checkout() {
     isCredit: orderIsCredit,
   });
 
+  const mergedBreakdown = {};
+  cart.forEach((item) => {
+    Object.entries(normalizeInventoryBreakdown(item.breakdown)).forEach(([id, qty]) => {
+      mergedBreakdown[id] = (mergedBreakdown[id] || 0) + qty;
+    });
+  });
   const inventoryIds = Object.keys(mergedBreakdown);
   const inventorySnapshot = snapshotInventory(inventoryIds);
 
@@ -2532,6 +2557,10 @@ async function checkout() {
       ...(i.wholesaleUnitPrice
         ? { wholesale_unit_price: Math.round(Number(i.wholesaleUnitPrice) || 0) }
         : {}),
+      ...(stockOverride &&
+      Object.keys(normalizeInventoryBreakdown(i.breakdown)).some((id) => shortIds.has(id))
+        ? { stock_override: stockOverride }
+        : {}),
     }));
 
     const fulfillment = buildSaleFulfillmentFields();
@@ -2550,7 +2579,6 @@ async function checkout() {
       }),
     });
     if (!res.ok) throw new Error(`Supabase ${res.status}`);
-    saleSaved = true;
     const saleRows = await res.json();
     if (saleRows?.[0]) void dataStore.appendSale(saleRows[0]);
 
@@ -2632,14 +2660,6 @@ async function checkout() {
     });
   } catch (e) {
     console.error('checkout failed', e);
-    if (holdForRollback && !saleSaved && storeOrderId) {
-      try {
-        const { revertStoreOrderReservation } = await import('./store-orders.js');
-        await revertStoreOrderReservation(storeOrderId);
-      } catch (releaseErr) {
-        console.error('release store reservation failed', releaseErr);
-      }
-    }
     applyInventorySnapshot(inventorySnapshot);
     resetDraftStock();
     renderStockGlance();
@@ -2714,8 +2734,8 @@ export function wireOrders() {
 }
 
 /**
- * Load a storefront order into the active cart.
- * Held store lines are already out of on-hand stock, so they do not draft again.
+ * Load a storefront order into the active cart without reserving draft stock.
+ * Inventory only changes on Checkout.
  */
 export function applyStorefrontOrderToCart({
   storeOrderId,
@@ -2844,7 +2864,31 @@ export function renderProductList() {
   const productList = document.getElementById('productList');
   if (!productList) return;
 
-  productList.innerHTML = PRODUCTS.map((p) => productPickButtonHtml(p)).join('');
+  {
+    // Swipeable carousels (staff + admin) grouped Joints → Packs → Cookies (same buttons + wiring as admin list).
+    const groups = [
+      ['Joints', ['plain_single', 'spliff_single']],
+      ['Packs', ['scout', 'pilot', 'commander', 'variety']],
+      ['Cookies', ['cookie_single', 'cookie_duet', 'cookie_trio']],
+      ['Wholesale', ['cookie_wholesale']], // admin only; staffBlocksProduct hides it for staff
+    ];
+    const used = new Set(groups.flatMap(([, ids]) => ids));
+    const extra = PRODUCTS.filter((p) => !used.has(p.id) && !staffBlocksProduct(p.id)).map((p) => p.id);
+    if (extra.length) groups.push(['More', extra]);
+    productList.classList.add('is-staff-carousel');
+    productList.innerHTML = groups
+      .map(([label, ids]) => {
+        const cards = ids
+          .map((id) => PRODUCTS.find((p) => p.id === id))
+          .filter((p) => p && !staffBlocksProduct(p.id))
+          .map((p) => productPickButtonHtml(p))
+          .join('');
+        return cards
+          ? `<section class="staff-carousel" aria-label="${label}"><div class="staff-carousel__label">${label}</div><div class="staff-carousel__track">${cards}</div></section>`
+          : '';
+      })
+      .join('');
+  }
 
   wireProductPickButtons(productList, (productId, row) => {
     pressButton(row);

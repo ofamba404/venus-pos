@@ -1,3 +1,4 @@
+import { formatOrderWhen } from './date-label.js';
 import { sbFetch } from './api.js';
 import { dataStore } from './store/index.js';
 import { animateModalContent, isModalOpen, wireHeaderBodyAccordions } from './animations.js';
@@ -59,10 +60,39 @@ export function restoreDeliveriesFromCache() {
 }
 
 export async function loadDeliveries() {
+  if (window.VenusPosAuth?.isStaffOnly?.() === true) void loadSharedQuoteRows();
   await dataStore.fetch('deliveries');
 }
 
+/** Staff only see their own deliveries (RLS); fit the fee model on the shared quote view instead. */
+let sharedQuoteRows = null;
+let sharedQuotePromise = null;
+let sharedQuoteModel = null;
+function loadSharedQuoteRows() {
+  if (sharedQuotePromise) return sharedQuotePromise;
+  sharedQuotePromise = sbFetch('delivery_fee_quotes?select=*&order=created_at.desc&limit=500')
+    .then((res) => (res.ok ? res.json() : []))
+    .then((rows) => {
+      sharedQuoteRows = Array.isArray(rows) ? rows : [];
+      sharedQuoteModel = null;
+      return sharedQuoteRows;
+    })
+    .catch(() => {
+      sharedQuoteRows = [];
+      return sharedQuoteRows;
+    });
+  return sharedQuotePromise;
+}
+
 export function getDeliveryFeeModel() {
+  if (window.VenusPosAuth?.isStaffOnly?.() === true) {
+    if (sharedQuoteRows == null) {
+      void loadSharedQuoteRows();
+      return fitDeliveryFeeModel(deliveries);
+    }
+    if (!sharedQuoteModel) sharedQuoteModel = fitDeliveryFeeModel(sharedQuoteRows);
+    return sharedQuoteModel;
+  }
   return fitDeliveryFeeModel(deliveries);
 }
 
@@ -238,7 +268,7 @@ function renderDeliveryModel(model) {
       <div class="dl-model-card empty">
         <div class="dl-model-icon" aria-hidden="true">${ICON_ROUTE}</div>
         <div class="dl-model-title">Decode SafeBoda pricing</div>
-        <div class="dl-model-copy">Log SafeBoda quotes at checkout or use the Quote lab below with preset routes from Prisca Honey. Venus fits distance, travel time, and time of day so estimates stay accurate day and night.</div>
+        <div class="dl-model-copy">Log SafeBoda quotes at checkout or use the Quote lab below with preset routes from Pine Valley. Venus fits distance, travel time, and time of day so estimates stay accurate day and night.</div>
         ${
           sampleCount > 0
             ? `<div class="dl-progress">
@@ -431,7 +461,7 @@ function renderDeliveryLog(model) {
           }
           // Prefer checkout-time outcome when logged; live "vs model" is secondary for older rows.
           modelNote = tripEstimateOutcomeNote(d, modelNote);
-          const meta = `${!isNaN(km) ? `${km.toFixed(1)} km` : '—'}${effectiveKm != null ? ` · ${fmtUGX(effectiveKm)}/km` : ''}${dur != null ? ` · ~${dur} min` : ''} · ${periodLabel}`;
+          const meta = `${d.created_at ? `${formatOrderWhen(d.created_at)} · ` : ''}${!isNaN(km) ? `${km.toFixed(1)} km` : '—'}${effectiveKm != null ? ` · ${fmtUGX(effectiveKm)}/km` : ''}${dur != null ? ` · ~${dur} min` : ''} · ${periodLabel}`;
 
           return `<button class="delivery-trip${testRow ? ' is-test' : ''}" type="button" data-edit-delivery="${d.id}">
             <div class="delivery-trip-route" aria-hidden="true">
@@ -471,7 +501,13 @@ function renderDeliveryLog(model) {
 
   wireHeaderBodyAccordions(listEl, { headerSelector: '.delivery-day-header' });
 
+  const staffReadOnly = window.VenusPosAuth?.isStaffOnly?.() === true;
   listEl.querySelectorAll('[data-edit-delivery]').forEach((btn) => {
+    if (staffReadOnly) {
+      btn.classList.add('is-readonly');
+      btn.setAttribute('aria-disabled', 'true');
+      return;
+    }
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       openEditDelivery(btn.dataset.editDelivery);

@@ -10,7 +10,7 @@
   if (!cfg) return;
 
   const ROLES = cfg.roles || { admin: 'pos_admin', staff: 'pos_staff' };
-  const STAFF_PAGES = new Set(cfg.staffPages || ['home', 'inventory']);
+  const STAFF_PAGES = new Set(cfg.staffPages || ['home', 'inventory', 'delivery', 'history', 'analytics']);
   const AUTH_TIMEOUT_MS = 6000;
   const REFRESH_SKEW_S = 60;
   const REFRESH_POLL_MS = 30_000;
@@ -200,6 +200,10 @@
 
   function isAdmin() {
     return cachedRole === ROLES.admin;
+  }
+
+  function getUserId() {
+    return userFromSession(readStoredSession())?.id || null;
   }
 
   function isStaffOnly() {
@@ -398,6 +402,49 @@
     return applied;
   }
 
+  /** Supabase resetPasswordForEmail equivalent (GoTrue /recover). */
+  async function requestPasswordReset(email, redirectTo) {
+    const qs = redirectTo ? `?redirect_to=${encodeURIComponent(redirectTo)}` : '';
+    await parseAuthResponse(
+      await authFetch(`recover${qs}`, { body: { email: String(email || '').trim() } }),
+    );
+    return true;
+  }
+
+  /** Supabase auth.updateUser({ password }) equivalent (GoTrue PUT /user). */
+  async function updatePassword(newPassword, accessToken) {
+    const token = accessToken || (await getAccessToken());
+    if (!token) {
+      const err = new Error('Not signed in');
+      err.code = 'no_session';
+      throw err;
+    }
+    return parseAuthResponse(
+      await authFetch('user', { method: 'PUT', token, body: { password: String(newPassword || '') } }),
+    );
+  }
+
+  /** Read a password-recovery session from the URL hash (#access_token=…&type=recovery). */
+  function recoverySessionFromHash(hash) {
+    const params = new URLSearchParams(String(hash || global.location.hash || '').replace(/^#/, ''));
+    if (params.get('type') !== 'recovery' || !params.get('access_token')) return null;
+    return normalizeSession({
+      access_token: params.get('access_token'),
+      refresh_token: params.get('refresh_token'),
+      expires_in: Number(params.get('expires_in')) || 3600,
+      token_type: params.get('token_type') || 'bearer',
+    });
+  }
+
+  /** Persist a session (e.g. after recovery) if it belongs to a POS user. */
+  function adoptSession(session) {
+    const applied = applySession(session);
+    if (!applied) return null;
+    writeStoredSession(session);
+    startRefreshLoop();
+    return applied;
+  }
+
   async function signOut() {
     const token = peekAccessToken();
     invalidateLocalSession();
@@ -465,8 +512,13 @@
     getRole,
     isAdmin,
     isStaffOnly,
+    getUserId,
     signIn,
     signOut,
+    requestPasswordReset,
+    updatePassword,
+    recoverySessionFromHash,
+    adoptSession,
     authPageHref,
     homeHref,
     resolveNextHref,

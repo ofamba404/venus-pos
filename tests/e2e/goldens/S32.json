@@ -2,6 +2,12 @@
   "id": "S32",
   "writes": [
     {
+      "method": "POST",
+      "path": "/rest/v1/rpc/pos_staff_directory",
+      "body": {},
+      "contentType": "application/json"
+    },
+    {
       "method": "PATCH",
       "path": "/rest/v1/inventory?category_id=eq.mint",
       "body": {

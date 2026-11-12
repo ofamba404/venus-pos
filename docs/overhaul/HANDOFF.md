@@ -3,7 +3,7 @@
 **Date:** 2026-11-12
 **Repo:** https://github.com/ofamba404/venus-pos (public)
 **Branch:** `overhaul` (fast-forward only)
-**Phase:** Phase 8 cleared. Next is Phase 9, which needs the owner to say deploy. Do not apply migrations.
+**Phase:** Phase 9 is ready to deploy. v1 at `/` matches `origin/master`. Do not apply migrations. The owner runs the deploy.
 
 ## Cleared phases
 
@@ -71,13 +71,21 @@ Five checklist rows stay open because they need a production deploy or the cutov
 3. **D6 device hold.** Holding Plain and resuming it restores the line and posts no sale. Note: `tests/e2e/goldens/D6-hold.next.json`.
 4. **Flags.** `paymentMethod` is false. `walkInClient`, `holdSale`, and `offlineQueue` are true.
 
-## In progress
+## Merge of production master
 
-Nothing. Phase 8 is closed.
+`origin/master` was not an ancestor of `overhaul`. A normal merge brought those commits in, including `4251e1f` (cookie partner Mark sent: the server never lowers settled qty, writes an audit log, and the client only counts a send when `res.ok`). The service worker is `venus-pos-v114`. `legacy/` is a byte-for-byte copy of master's register (`index.html`, `auth.html`, `sw.js`, `manifest.webmanifest`, `js/`, `css/`, `pages/`, `vendor/`) and `public/assets` matches master's `assets/`. `npm run build` copies that tree to `dist/` outside `/next/`. Netlify functions, `supabase/migrations`, and `supabase-functions/store-auth` match master. The overhaul-only `client_sale_id` migration is still unapplied. `netlify.toml` adds `npm run build`, `publish = "dist"`, and the `/next/*` rewrite.
+
+v2 follow-ups, not blockers:
+
+- Cookie Quartet is still on the v2 sell grid. v1 no longer sells it. The legacy S03 check only proves the tile is gone.
+- Staff inventory is read-only on v1. v2 still lets staff change stock.
+- Partial cookie-partner sends are in the domain (`cookiePartnerBatchesFromCuts`, `partialSendCount`). The Insights screen still settles a full batch.
+- `jointCostAt` prices flavored joints at 4,000 UGX from 2026-11-11 15:37 UTC and 5,000 before that. v2 has no commission card that reads `joint_cost_history`.
+- Review moderation, the review reward, the Users admin item, the header pill rail, and the home carousels stay on v1.
 
 ## Next concrete step
 
-Phase 9 is blocked on the owner. Say `push deploy netlify` or `ship` before anyone runs `.\scripts\ship.ps1`. That deploy keeps v1 at `/` and v2 at `/next/`. Do not apply `supabase/migrations/20261112030000_sales_client_sale_id.sql` until a separate explicit approval. Do not merge `overhaul` into `master`.
+The owner deploys from Linux. Do not apply any Supabase migration. Do not merge `overhaul` into `master`.
 
 ## How to run tests
 

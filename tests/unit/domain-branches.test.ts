@@ -349,7 +349,8 @@ describe('domain branches', () => {
     expect(built.detail).toMatch(/Butterscotch/);
     const emptyVariety = buildLineFromConfig(variety, {});
     expect(emptyVariety.detail).toMatch(/Plain|Classic|classic/i);
-    expect(buildLineFromConfig(findProduct('spliff_single')!, { spliff5050: 1 }).lineTotal).toBe(5000);
+    expect(buildLineFromConfig(findProduct('spliff_single')!, { spliff5050: 1 }).lineTotal).toBe(0);
+    expect(buildLineFromConfig(findProduct('spliff_single')!, { spliff7030: 1 }).lineTotal).toBe(5000);
     expect(buildLineFromConfig(findProduct('cookie_single')!, { cookie_mint: 1 }).lineTotal).toBe(8000);
     expect(buildLineFromConfig(wholesale, { cookie_mint: 2, _unitPrice: 2500 }).detail).toMatch(/2,500/);
     expect(buildLineFromConfig(wholesale, { cookie_mint: 2 }).detail).not.toMatch(/each/);

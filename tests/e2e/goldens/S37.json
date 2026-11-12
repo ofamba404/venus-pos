@@ -2,6 +2,12 @@
   "id": "S37",
   "writes": [
     {
+      "method": "POST",
+      "path": "/rest/v1/rpc/pos_staff_directory",
+      "body": {},
+      "contentType": "application/json"
+    },
+    {
       "method": "DELETE",
       "path": "/rest/v1/sales?id=eq.seed-delivery-sale",
       "body": null,

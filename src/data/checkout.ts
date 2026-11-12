@@ -16,12 +16,21 @@ import { clients, ensureInventory, inventory, loadSales, syncLabel, type SaleRow
 import { deviceId } from './device-id';
 import { postStoreReserve } from './store-reserve';
 
+export type StockOverride = {
+  at: string;
+  short: Record<string, number>;
+  name?: string;
+};
+
 export type CheckoutInput = {
   lines: CartLine[];
   meta: OrderMeta;
   isCredit: boolean;
   checkout?: CheckoutDeliveryInput;
   clientId?: string | null;
+  /** Staff confirmed "Sell anyway?" for a cart past system stock. */
+  allowShortfall?: boolean;
+  stockOverride?: StockOverride;
 };
 
 export type CheckoutResult =
@@ -105,7 +114,7 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
     input.lines.map((line) => ({ ...line, stockClaimed: false })),
   );
   const sold = holdClaimed ? soldExcludingHold(gross, holdClaimed) : gross;
-  if (stockKnown) {
+  if (stockKnown && !input.allowShortfall) {
     for (const [id, qty] of Object.entries(sold)) {
       const have = inventory.value[id] || 0;
       if (qty > have) {
@@ -139,6 +148,13 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
       isCredit: input.isCredit,
       checkout: input.checkout,
     });
+    if (input.stockOverride) {
+      const short = input.stockOverride.short || {};
+      body.items = body.items.map((item) => {
+        const hit = Object.keys(item.breakdown || {}).some((id) => short[id] != null);
+        return hit ? { ...item, stock_override: input.stockOverride } : item;
+      });
+    }
     saleBody = body;
     const res = await postSale(body);
     if (!res.ok) {

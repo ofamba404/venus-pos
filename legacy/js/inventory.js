@@ -264,6 +264,7 @@ function enqueueWrite(id, work) {
 }
 
 export async function persistStock(id) {
+  if (isStaffReadOnly()) throw new Error('Stock is view-only for staff');
   const canon = assertWritableId(id);
   return enqueueWrite(canon, async () => {
     await setStockAbsoluteOnServer(canon, inventory[canon]);
@@ -299,8 +300,52 @@ export async function persistStockDelta(id, delta, rollbackTo) {
   });
 }
 
-/** Checkout: deduct sold qty against live server stock (queued per flavor). */
-export async function persistSoldBreakdown(soldById) {
+function isStaffReadOnly() {
+  return window.VenusPosAuth?.isStaffOnly?.() === true;
+}
+
+/**
+ * Trusted server-side deduction for one logged sale (security definer rpc,
+ * idempotent, logged to inventory_adjustments). Returns true when applied.
+ */
+async function applySaleStockOnServer(saleId) {
+  const res = await sbFetch('rpc/apply_sale_stock', {
+    method: 'POST',
+    body: JSON.stringify({ p_sale_id: saleId }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    const err = new Error(`Stock deduction failed (${res.status}) ${detail}`);
+    err.status = res.status;
+    throw err;
+  }
+  const rows = await res.json().catch(() => []);
+  (Array.isArray(rows) ? rows : []).forEach((r) => {
+    if (r?.category_id && Object.hasOwn(inventory, r.category_id)) {
+      setLocalStock(r.category_id, r.stock);
+      refreshInvCard(r.category_id);
+    }
+  });
+  renderStockGlance();
+  return true;
+}
+
+/**
+ * Checkout: deduct sold qty against live server stock.
+ * Preferred: rpc apply_sale_stock(saleId). Staff have no other write path.
+ * Admin falls back to per-flavor deltas if the rpc is not deployed yet.
+ */
+export async function persistSoldBreakdown(soldById, saleId = null) {
+  if (saleId) {
+    try {
+      return await applySaleStockOnServer(saleId);
+    } catch (e) {
+      if (isStaffReadOnly()) throw e;
+      console.warn('apply_sale_stock unavailable, falling back to deltas', e?.message || e);
+    }
+  } else if (isStaffReadOnly()) {
+    throw new Error('Sale id missing — stock not deducted');
+  }
   const entries = Object.entries(normalizeInventoryBreakdown(soldById)).filter(
     ([id, qty]) => KNOWN_IDS.has(id) && Number(qty) > 0,
   );
@@ -328,6 +373,10 @@ function applyLocalDelta(canon, d) {
 }
 
 export function adjustStock(id, delta) {
+  if (isStaffReadOnly()) {
+    showToast('Stock is view-only for staff', true);
+    return;
+  }
   const canon = assertWritableId(id);
   const d = Math.trunc(Number(delta) || 0);
   if (d === 0) return;
@@ -352,6 +401,7 @@ export function adjustStock(id, delta) {
 }
 
 function startEditCount(el) {
+  if (isStaffReadOnly()) return;
   const id = el.id.replace('inv-count-', '');
   const current = inventory[id];
   const chWidth = Math.max(String(current).length, 1) + 0.3;
@@ -431,11 +481,39 @@ export function buildInvCard(cat) {
   return card;
 }
 
+/** Staff (view-only) cards: say Low / Out in words. State is read from the count itself, so every code path that updates it is covered. */
+function paintStaffInvState(card, countEl) {
+  const raw = (countEl?.textContent || '').trim();
+  if (!/^\d+$/.test(raw)) {
+    delete card.dataset.state;
+    return;
+  }
+  card.dataset.state = stockState(Number(raw));
+  const pill = card.querySelector('.inv-state');
+  if (pill) pill.textContent = card.dataset.state === 'out' ? 'Out' : card.dataset.state === 'low' ? 'Low' : '';
+}
+
+function attachStaffInvState(card, countEl) {
+  if (!countEl) return;
+  const row = card.querySelector('.counter-row');
+  if (row && !row.querySelector('.inv-state')) {
+    const pill = document.createElement('span');
+    pill.className = 'inv-state';
+    pill.setAttribute('role', 'status');
+    row.appendChild(pill);
+  }
+  const paint = () => paintStaffInvState(card, countEl);
+  new MutationObserver(paint).observe(countEl, { childList: true, characterData: true, subtree: true });
+  paint();
+}
+
 export function renderInventoryGrid() {
   const invGrid = document.getElementById('invGrid');
   if (!invGrid) return;
 
   const pending = showPlaceholder('inventory');
+  const readOnly = isStaffReadOnly();
+  invGrid.classList.toggle('is-readonly', readOnly);
   invGrid.innerHTML = '';
   CATEGORIES.forEach((cat) => {
     const card = buildInvCard(cat);
@@ -444,8 +522,25 @@ export function renderInventoryGrid() {
       countEl.classList.add('is-pending');
       countEl.textContent = '··';
     }
+    if (readOnly) {
+      attachStaffInvState(card, countEl);
+      card.querySelectorAll('button.step').forEach((b) => {
+        b.disabled = true;
+        b.setAttribute('aria-hidden', 'true');
+        b.tabIndex = -1;
+      });
+      if (countEl) countEl.setAttribute('aria-readonly', 'true');
+    }
     invGrid.appendChild(card);
   });
+  if (readOnly) invGrid.parentElement?.querySelectorAll('.page-hint').forEach((el) => el.remove());
+  if (readOnly && !document.getElementById('invReadonlyNote')) {
+    const note = document.createElement('p');
+    note.id = 'invReadonlyNote';
+    note.className = 'inv-readonly-note';
+    note.textContent = 'View only — stock updates automatically when you log a sale.';
+    invGrid.before(note);
+  }
 }
 
 export function restoreInventoryFromCache() {
@@ -560,7 +655,7 @@ function buildDonutGradient(categories, total) {
   return stops.length ? `conic-gradient(${stops.join(', ')})` : 'var(--btn-bg)';
 }
 
-export function stockState(qty) {
+function stockState(qty) {
   if (qty <= 0) return 'out';
   if (qty < LOW_STOCK_THRESHOLD) return 'low';
   return 'ok';
@@ -801,6 +896,7 @@ export function wireInventoryPage() {
   });
 
   invGrid.addEventListener('click', (e) => {
+    if (isStaffReadOnly()) return;
     const countEl = e.target.closest('.count');
     if (countEl && !countEl.querySelector('input')) {
       startEditCount(countEl);

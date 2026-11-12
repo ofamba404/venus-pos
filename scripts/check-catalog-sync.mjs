@@ -58,6 +58,7 @@ function checkInventoryMeta() {
   const allowedExtra = new Set(['cookie']);
   const catalogIds = new Set(CATEGORIES.map((category) => category.id));
   for (const category of CATEGORIES) {
+    if (category.legacy) continue;
     const row = meta[category.id];
     if (!row) {
       fail(`inventory-write is missing ${category.id}`);

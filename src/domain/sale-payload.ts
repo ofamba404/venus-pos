@@ -26,6 +26,11 @@ export type SaleItemPayload = {
   reward_key?: string;
   points_cost?: number;
   wholesale_unit_price?: number;
+  stock_override?: {
+    at: string;
+    short: Record<string, number>;
+    name?: string;
+  };
 };
 
 export type SaleFulfillmentFields = {

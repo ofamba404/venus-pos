@@ -1,19 +1,19 @@
 # Overhaul progress
 
-Update at the end of every session. Phase 8 is cleared. Next is Phase 9, blocked on a deploy cue.
+Update at the end of every session. Phase 8 is cleared. `origin/master` is merged. Phase 9 deploy is ready for the owner.
 
 | Field | Value |
 |-------|-------|
-| Current phase | Phase 8 cleared. Phase 9 blocked on deploy |
+| Current phase | Phase 8 cleared. Master merged. Phase 9 deploy is ready for the owner |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | Phase 7 full Playwright 122 passed, 2 skipped. Phase 8 spec 3 passed. `npm test` 166 passed |
-| Next step | Owner says `push deploy netlify` or `ship` before `.\scripts\ship.ps1`. Do not apply `client_sale_id` |
+| Tests passing | `npm test` 169 passed. `npm run typecheck` passed. Full Playwright 125 passed, 2 skipped, 0 failed |
+| Next step | Owner deploys `overhaul` from Linux. v1 at `/` matches master. Do not apply migrations |
 | Open questions for the owner | Live Maps for production, and deploy/ship. D11 look is approved (2026-11-12). Checkpoints for Phases 4, 5, and 8 are waived. Do not apply `client_sale_id` |
 
 ## Ready vs open
 
-**Phase 8 is cleared.** Walk-in posts `client_id` null, a held sale stays on the phone, and the offline queue flag is on. `client_sale_id` SQL is written and not applied. The checkpoint is waived. Phase 9 needs an explicit deploy cue.
+**Phase 8 is cleared.** `origin/master` is merged into `overhaul` so the v1 files copied to `dist/` match production. `client_sale_id` SQL is still not applied. v2 gaps (Cookie Quartet, staff stock edits, partial-batch button, commission card, review moderation) are follow-ups in `HANDOFF.md`. The owner deploys.
 
 **Tap count.** Scout, one mint, recent client Test Client A, paid: tile, flavour, Add, client chip, Charge. **5 taps** (target ≤ 6).
 
@@ -57,4 +57,5 @@ Update at the end of every session. Phase 8 is cleared. Next is Phase 9, blocked
 | 2026-11-12 | 5 | Phase 5 cleared. S01–S28 in the 109-pass run. L4 4 passed. Scout sale is 5 taps. Sheet ≤ 100 ms at 4× CPU | `edb16fe` |
 | 2026-11-12 | 6 | Phase 6 cleared. S29–S33, S45, S46, S48, S49: 9 passed on the mock | `29684fc` |
 | 2026-11-12 | 7 | Phase 7 cleared. Full Playwright 122 passed, 2 skipped. npm test 166 passed. Five deploy-gated checklist rows stay open | `779e628` |
-| 2026-11-12 | 8 | Phase 8 cleared. Walk-in, device hold, offline queue notes. client_sale_id SQL not applied. Phase 8 spec 3 passed | this commit |
+| 2026-11-12 | 8 | Phase 8 cleared. Walk-in, device hold, offline queue notes. client_sale_id SQL not applied. Phase 8 spec 3 passed | `edea759` |
+| 2026-11-12 | 9 | Merged origin/master into overhaul. v1 dist matches master. Migrations kept as files, not applied | this commit |

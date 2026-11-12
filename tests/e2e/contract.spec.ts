@@ -143,7 +143,7 @@ test.describe('write-contract scenarios (next)', () => {
   test('S08 Bangis mix', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S08);
-    expect(saleTotal(driver).total).toBe(15000);
+    expect(saleTotal(driver).total).toBe(5000);
   });
 
   test('S10 new client inline', async ({ page }) => {

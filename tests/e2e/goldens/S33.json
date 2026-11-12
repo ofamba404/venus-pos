@@ -3,12 +3,24 @@
   "writes": [
     {
       "method": "POST",
+      "path": "/rest/v1/rpc/pos_staff_directory",
+      "body": {},
+      "contentType": "application/json"
+    },
+    {
+      "method": "POST",
       "path": "/api/inventory/write",
       "body": {
         "category_id": "mint",
         "op": "set",
         "stock": 5
       }
+    },
+    {
+      "method": "POST",
+      "path": "/rest/v1/rpc/pos_staff_directory",
+      "body": {},
+      "contentType": "application/json"
     },
     {
       "method": "POST",
@@ -47,12 +59,11 @@
     },
     {
       "method": "POST",
-      "path": "/api/inventory/write",
+      "path": "/rest/v1/rpc/apply_sale_stock",
       "body": {
-        "category_id": "mint",
-        "op": "delta",
-        "delta": -1
-      }
+        "p_sale_id": "<id:1>"
+      },
+      "contentType": "application/json"
     }
   ]
 }

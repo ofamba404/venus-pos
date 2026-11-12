@@ -56,75 +56,11 @@
     },
     {
       "method": "POST",
-      "path": "/api/inventory/write",
+      "path": "/rest/v1/rpc/apply_sale_stock",
       "body": {
-        "category_id": "mint",
-        "op": "delta",
-        "delta": -3
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/inventory/write",
-      "body": {
-        "category_id": "strawberry",
-        "op": "delta",
-        "delta": -3
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/inventory/write",
-      "body": {
-        "category_id": "blueberry",
-        "op": "delta",
-        "delta": -2
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/inventory/write",
-      "body": {
-        "category_id": "watermelon",
-        "op": "delta",
-        "delta": -1
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/inventory/write",
-      "body": {
-        "category_id": "grape",
-        "op": "delta",
-        "delta": -1
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/inventory/write",
-      "body": {
-        "category_id": "coconut",
-        "op": "delta",
-        "delta": -1
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/inventory/write",
-      "body": {
-        "category_id": "melon",
-        "op": "delta",
-        "delta": -1
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/inventory/write",
-      "body": {
-        "category_id": "classic",
-        "op": "delta",
-        "delta": -1
-      }
+        "p_sale_id": "<id:1>"
+      },
+      "contentType": "application/json"
     }
   ]
 }

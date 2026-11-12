@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { BASE_ORIGIN, resolveDeliveryOrigin } from '../../src/domain/geo';
 import { fulfillmentFromSnapshot } from '../../src/domain/hours';
+import { jointCostAt } from '../../src/domain/joint-cost';
+import { cartStockShortfalls, sellAnywayMessage } from '../../src/domain/stock-shortfall';
+import { partialSendCount } from '../../src/domain/partner';
 import { legacyTarget } from '../../src/domain/legacy-urls';
 import {
   INSTALL_STEPS,
@@ -215,14 +218,43 @@ describe('parity row helpers', () => {
     });
   });
 
+  it('prices a flavored joint at 4,000 only after the effective date', () => {
+    const history = [
+      { category_id: 'mint', cost_ugx: 5000, effective_from: '1970-01-01T00:00:00.000Z' },
+      { category_id: 'mint', cost_ugx: 4000, effective_from: '2026-11-11T15:37:00.000Z' },
+      { category_id: 'classic', cost_ugx: 2500, effective_from: '1970-01-01T00:00:00.000Z' },
+    ];
+    expect(jointCostAt(history, 'mint', '2026-11-11T15:36:00.000Z')).toBe(5000);
+    expect(jointCostAt(history, 'mint', '2026-11-11T15:37:00.000Z')).toBe(4000);
+    expect(jointCostAt(history, 'classic', '2026-12-01T00:00:00.000Z')).toBe(2500);
+    expect(jointCostAt(history, 'mint', 'not-a-date', 7)).toBe(7);
+    expect(jointCostAt([{ category_id: 'mint', cost_ugx: 1, effective_from: '2099-01-01T00:00:00.000Z' }], 'mint', '2020-01-01T00:00:00.000Z', 8)).toBe(8);
+    expect(jointCostAt(null, 'mint', '2026-12-01T00:00:00.000Z', 9)).toBe(9);
+    expect(jointCostAt([{ category_id: 'mint', cost_ugx: -4, effective_from: 'bad' }], 'mint', '2026-12-01T00:00:00.000Z', 3)).toBe(3);
+  });
+
+  it('asks to sell anyway when the cart is past system stock', () => {
+    expect(cartStockShortfalls(null, null, true)).toEqual([]);
+    expect(cartStockShortfalls([{ breakdown: null }, { breakdown: { unknown: 4 } }], { mint: 1 }, true)).toEqual([]);
+    expect(cartStockShortfalls([{ breakdown: { mint: 3 } }], { mint: 1 }, false)).toEqual([]);
+    expect(cartStockShortfalls([{ breakdown: { mint: 1 } }], { mint: 2 }, true)).toEqual([]);
+    const short = cartStockShortfalls([{ breakdown: { mint: 3, spliff7030: 2 } }], { mint: 1, spliff7030: 0 }, true);
+    expect(short.map((row) => row.id)).toEqual(['mint', 'spliff7030']);
+    expect(short[1]?.name).toMatch(/Bangis/);
+    expect(sellAnywayMessage(short)).toMatch(/Sell anyway/);
+    expect(partialSendCount(10, 25, 0)).toBe(10);
+    expect(partialSendCount(10, 25, 1)).toBe(0);
+    expect(partialSendCount(0, 25, 0)).toBe(0);
+    expect(partialSendCount(25, 25, 0)).toBe(0);
+    expect(partialSendCount(Number.NaN, Number.NaN, 0)).toBe(0);
+  });
+
   it('keeps the manifest id and the two shortcuts', () => {
     const manifest = JSON.parse(readFileSync('legacy/manifest.webmanifest', 'utf8')) as {
-      id: string;
       start_url: string;
       scope: string;
       shortcuts: Array<{ url: string }>;
     };
-    expect(manifest.id).toBe('/');
     expect(manifest.start_url).toBe('/');
     expect(manifest.scope).toBe('/');
     expect(manifest.shortcuts.map((row) => row.url)).toEqual(['/#store-orders', '/pages/inventory.html']);

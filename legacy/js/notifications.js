@@ -157,9 +157,15 @@ export async function subscribeWebPush({
     });
   }
 
+  const token =
+    (await window.VenusPosAuth?.getAccessToken?.().catch(() => '')) ||
+    window.VenusPosAuth?.peekAccessToken?.() ||
+    '';
+  if (!token) return { ok: false, reason: 'signed-out' };
+
   const res = await fetch(pushApi('/api/push/subscribe'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({
       subscription: sub.toJSON(),
       schedulesEnabled: !!schedulesEnabled,

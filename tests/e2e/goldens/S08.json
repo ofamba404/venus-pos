@@ -9,19 +9,18 @@
           {
             "product_id": "spliff_single",
             "product_name": "Bangis",
-            "detail": "50/50 x2, 70/30 x1",
-            "line_total": 15000,
+            "detail": "70/30 x1",
+            "line_total": 5000,
             "breakdown": {
-              "spliff5050": 2,
               "spliff7030": 1
             }
           }
         ],
-        "total_ugx": 15000,
+        "total_ugx": 5000,
         "client_id": "<id:0>",
         "is_credit": false,
         "credit_cleared": true,
-        "amount_paid_ugx": 15000,
+        "amount_paid_ugx": 5000,
         "cleared_at": null,
         "client_phone": null,
         "delivery_enabled": true,
@@ -39,21 +38,11 @@
     },
     {
       "method": "POST",
-      "path": "/api/inventory/write",
+      "path": "/rest/v1/rpc/apply_sale_stock",
       "body": {
-        "category_id": "spliff5050",
-        "op": "delta",
-        "delta": -2
-      }
-    },
-    {
-      "method": "POST",
-      "path": "/api/inventory/write",
-      "body": {
-        "category_id": "spliff7030",
-        "op": "delta",
-        "delta": -1
-      }
+        "p_sale_id": "<id:1>"
+      },
+      "contentType": "application/json"
     }
   ]
 }

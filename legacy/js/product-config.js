@@ -20,7 +20,7 @@ export function findProduct(productId) {
   return PRODUCTS.find((p) => p.id === productId);
 }
 
-/** Fixed flavor for choose_variety packs (Plain for joints; butterscotch for Cookie Quartet). */
+/** Fixed flavor for choose_variety packs (Plain for joints; fixedFlavor when a pack defines one). */
 export function varietyFixedFlavor(product) {
   return product?.fixedFlavor || 'classic';
 }
@@ -79,6 +79,11 @@ export function productPickButtonHtml(p) {
     </button>`;
 }
 
+/** Staff (pos_staff) cannot sell wholesale cookies; admin unaffected. */
+export function staffBlocksProduct(productId) {
+  return productId === 'cookie_wholesale' && window.VenusPosAuth?.isStaffOnly?.() === true;
+}
+
 export function renderProductPickPanel() {
   return `
     <div class="pick-product-panel">
@@ -95,7 +100,7 @@ export function renderProductPickPanel() {
         </div>
       </section>
       ${
-        WHOLESALE_PRODUCTS.length
+        WHOLESALE_PRODUCTS.length && !staffBlocksProduct('cookie_wholesale')
           ? `<section class="pick-product-section" aria-label="Wholesale">
         <div class="pick-product-section-label">Wholesale</div>
         <div class="pick-product-list">
@@ -109,6 +114,10 @@ export function renderProductPickPanel() {
 
 export function wireProductPickButtons(root, onPick) {
   root.querySelectorAll('[data-product]').forEach((row) => {
+    if (staffBlocksProduct(row.dataset.product)) {
+      row.hidden = true;
+      return;
+    }
     row.addEventListener('click', () => onPick(row.dataset.product, row));
   });
 }
@@ -310,10 +319,29 @@ function qtyStepperHtml({ id, label, chosen, canAdd, canRemove, editable = false
     </div>`;
 }
 
+/**
+ * POS order compose may sell past system stock (confirmed at checkout).
+ * Analytics edit-sale and other callers keep the hard caps.
+ */
+let oversellMode = false;
+
+/** Room to add one more unit given shelf stock (always true in oversell mode). */
+function underCap(chosen, stock) {
+  return oversellMode || chosen < stock;
+}
+
+/** Selection exceeds stock and that blocks confirm (never in oversell mode). */
+function overCap(qty, stock) {
+  return !oversellMode && qty > stock;
+}
+
 function flavorSwatchHtml({ id, label, color, chosen, stock, canAdd, canRemove, editable = false, priceLabel = '' }) {
   const active = chosen > 0;
-  const out = stock <= 0;
-  const stockLine = out ? 'Out of stock' : priceLabel ? `${stock} available · ${priceLabel}` : `${stock} available`;
+  const shown = Math.max(0, stock);
+  const out = shown <= 0;
+  const short = oversellMode && chosen > shown;
+  let stockLine = out ? 'Out of stock' : priceLabel ? `${shown} available · ${priceLabel}` : `${shown} available`;
+  if (short) stockLine = `Only ${shown} in stock — confirm at checkout`;
   return `
     <div class="flavor-row${active ? ' is-active' : ''}${out ? ' is-out' : ''}" style="${flavorStyle(color)}" data-flavor="${id}">
       <div class="flavor-orb" aria-hidden="true">
@@ -322,7 +350,7 @@ function flavorSwatchHtml({ id, label, color, chosen, stock, canAdd, canRemove, 
       </div>
       <div class="flavor-row__meta">
         <div class="flavor-row__name">${escapeHtml(label)}</div>
-        <div class="flavor-row__stock">${escapeHtml(stockLine)}</div>
+        <div class="flavor-row__stock${short ? ' flavor-row__stock--short' : ''}">${escapeHtml(stockLine)}</div>
       </div>
       ${qtyStepperHtml({ id, label, chosen, canAdd, canRemove, editable })}
     </div>`;
@@ -343,7 +371,7 @@ function flavorPaletteHtml(configSelection, draftStock, target, suffixHtml = '',
           color: cat?.color || '#D4A355',
           chosen,
           stock,
-          canAdd: remaining > 0 && chosen < stock,
+          canAdd: remaining > 0 && underCap(chosen, stock),
           canRemove: chosen > 0,
         });
       }).join('')}
@@ -369,9 +397,30 @@ export function renderProductConfigView(
     backId = 'productConfigBack',
     confirmId = 'productConfigConfirm',
     otherLines = [],
+    allowOversell = false,
   } = {},
 ) {
   if (!product) return '';
+  oversellMode = Boolean(allowOversell);
+  try {
+    return renderProductConfigViewInner(product, configSelection, draftStock, isEditing, {
+      closeId,
+      backId,
+      confirmId,
+      otherLines,
+    });
+  } finally {
+    oversellMode = false;
+  }
+}
+
+function renderProductConfigViewInner(
+  product,
+  configSelection,
+  draftStock,
+  isEditing,
+  { closeId, backId, confirmId, otherLines },
+) {
 
   const pricingLines = Array.isArray(otherLines) ? otherLines : [];
   const draftCookieLine = {
@@ -422,7 +471,8 @@ export function renderProductConfigView(
     const pool = varietyFlavorPool(product);
     const flavorTarget = product.joints - 1;
     const flavorSelected = configTotalSelected(configSelection);
-    const fixedOk = (draftStock[fixedId] || 0) >= 1;
+    const fixedInStock = (draftStock[fixedId] || 0) >= 1;
+    const fixedOk = fixedInStock || oversellMode;
     const fixedCat = CAT_MAP[fixedId];
     const meterSelected = flavorSelected + (fixedOk ? 1 : 0);
     const noun = slotNoun(product);
@@ -435,7 +485,7 @@ export function renderProductConfigView(
         </div>
         <div class="flavor-row__meta">
           <div class="flavor-row__name">${escapeHtml(fixedLabel)}</div>
-          <div class="flavor-row__stock">Always included</div>
+          <div class="flavor-row__stock${fixedInStock ? '' : ' flavor-row__stock--short'}">${fixedInStock ? 'Always included' : fixedOk ? 'Out of stock — confirm at checkout' : 'Always included'}</div>
         </div>
         <span class="flavor-fixed__badge ${fixedOk ? 'ok' : 'no'}">${fixedOk ? '×1' : 'Out'}</span>
       </div>`;
@@ -461,7 +511,7 @@ export function renderProductConfigView(
     const catId = product.categoryId;
     const cat = CAT_MAP[catId];
     const stock = draftStock[catId] || 0;
-    inner += `<div class="modal-progress">In stock: ${stock}</div>`;
+    inner += `<div class="modal-progress">In stock: ${Math.max(0, stock)}</div>`;
     inner += `<div class="flavor-list">`;
     // Stepper uses selection key `qty` (not category id) — matches buildLineFromConfig.
     inner += flavorSwatchHtml({
@@ -470,14 +520,14 @@ export function renderProductConfigView(
       color: cat?.color || '#D4A355',
       chosen: qty,
       stock,
-      canAdd: qty < stock,
+      canAdd: underCap(qty, stock),
       canRemove: qty > 0,
       editable: true,
     });
     inner += `</div>`;
     inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX(qty * product.unitPrice)}</div>`;
     inner += configFooterHtml({
-      ready: qty > 0 && qty <= stock,
+      ready: qty > 0 && !overCap(qty, stock),
       isEditing,
       closeId,
       backId,
@@ -496,7 +546,7 @@ export function renderProductConfigView(
         color: cat.color,
         chosen: qty,
         stock,
-        canAdd: qty < stock,
+        canAdd: underCap(qty, stock),
         canRemove: qty > 0,
         editable: true,
       });
@@ -504,7 +554,7 @@ export function renderProductConfigView(
     inner += `</div>`;
     const totalQty = SPLIFF_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);
     inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX(totalQty * product.unitPrice)}</div>`;
-    const overStock = SPLIFF_POOL.some((id) => (configSelection[id] || 0) > draftStock[id]);
+    const overStock = SPLIFF_POOL.some((id) => overCap(configSelection[id] || 0, draftStock[id]));
     inner += configFooterHtml({
       ready: totalQty > 0 && !overStock,
       isEditing,
@@ -528,7 +578,7 @@ export function renderProductConfigView(
         color: cat?.color || '#D4A355',
         chosen: qty,
         stock,
-        canAdd: qty < stock,
+        canAdd: underCap(qty, stock),
         canRemove: qty > 0,
         editable: true,
         priceLabel: fmtUGX(cookieUnitPriceForCount(id, combinedForDisplay)),
@@ -537,7 +587,7 @@ export function renderProductConfigView(
     inner += `</div>`;
     const lineTotal = lineTotalForCookieProduct(product, { ...configSelection }, pricingLines);
     inner += `<div class="modal-price" id="qtyLinePrice" style="margin-top:10px;">${fmtUGX(lineTotal)}</div>`;
-    const overStock = COOKIE_FLAVOR_POOL.some((id) => (configSelection[id] || 0) > (draftStock[id] || 0));
+    const overStock = COOKIE_FLAVOR_POOL.some((id) => overCap(configSelection[id] || 0, draftStock[id] || 0));
     const totalQty = COOKIE_FLAVOR_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);
     inner += configFooterHtml({
       ready: totalQty > 0 && !overStock,
@@ -559,7 +609,7 @@ export function renderProductConfigView(
         color: cat?.color || '#D4A355',
         chosen: qty,
         stock,
-        canAdd: qty < stock,
+        canAdd: underCap(qty, stock),
         canRemove: qty > 0,
         editable: true,
       });
@@ -567,7 +617,7 @@ export function renderProductConfigView(
     inner += `</div>`;
     const unitPrice = wholesaleUnitPriceFromSelection(configSelection);
     const totalQty = COOKIE_FLAVOR_POOL.reduce((s, id) => s + (configSelection[id] || 0), 0);
-    const overStock = COOKIE_FLAVOR_POOL.some((id) => (configSelection[id] || 0) > (draftStock[id] || 0));
+    const overStock = COOKIE_FLAVOR_POOL.some((id) => overCap(configSelection[id] || 0, draftStock[id] || 0));
     const qtyOk = totalQty > 0 && !overStock;
     const lineTotal = totalQty * unitPrice;
     const unitValue = unitPrice > 0 ? String(unitPrice) : '';

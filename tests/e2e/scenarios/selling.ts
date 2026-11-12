@@ -98,14 +98,14 @@ export const S07: Scenario = {
 
 export const S08: Scenario = {
   id: 'S08',
-  title: 'Bangis 50/50 × 2 + 70/30 × 1',
+  title: 'Bangis 70/30 × 1 (50/50 discontinued)',
   role: 'pos_staff',
   seed: 'default',
   steps: [
-    { do: 'addProduct', product: 'spliff_single', flavors: { spliff5050: 2, spliff7030: 1 } },
+    { do: 'addProduct', product: 'spliff_single', flavors: { spliff7030: 1 } },
     { do: 'setClient', name: 'Test Client A' },
     { do: 'charge' },
-    { expect: 'saleRecorded', total: 15000 },
+    { expect: 'saleRecorded', total: 5000 },
   ],
 };
 

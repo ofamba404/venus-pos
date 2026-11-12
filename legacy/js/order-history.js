@@ -1,3 +1,4 @@
+import { formatOrderWhen } from './date-label.js';
 import { wireHeaderBodyAccordions } from './animations.js';
 import { mondayOfWeek } from './analytics-chart.js';
 import { clients, salesCache } from './state.js';
@@ -196,11 +197,7 @@ function fulfillmentMetaBits(s) {
 
 function renderOrderRow(s) {
   const t = new Date(s.created_at);
-  const time = t.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
+  const time = formatOrderWhen(t);
   const itemLines = (s.items || [])
     .map((i) => {
       const free = Boolean(i.is_reward);
@@ -323,16 +320,21 @@ export function renderOrderHistory() {
   const list = document.getElementById('orderHistoryList');
   if (!list) return;
 
-  renderHistoryHero(salesCache);
+  // Staff: only their own sales, even if a cache from another login is still around.
+  const isStaff = window.VenusPosAuth?.isStaffOnly?.() === true;
+  const myId = isStaff ? window.VenusPosAuth?.getUserId?.() : null;
+  const sales = isStaff ? salesCache.filter((s) => !myId || s.seller_id === myId) : salesCache;
 
-  if (salesCache.length === 0) {
+  renderHistoryHero(sales);
+
+  if (sales.length === 0) {
     list.innerHTML = showPlaceholder('sales')
       ? receiptListPlaceholder()
       : `<div class="receipt-empty">No orders yet — ring one up on the Home tab</div>`;
     return;
   }
 
-  const { thisWeekDays, recentWeeks, months } = buildOrderHistoryTree(salesCache);
+  const { thisWeekDays, recentWeeks, months } = buildOrderHistoryTree(sales);
 
   const sections = [];
 
@@ -377,7 +379,13 @@ export function renderOrderHistory() {
   wireHeaderBodyAccordions(list, { headerSelector: '.order-week-header' });
   wireHeaderBodyAccordions(list, { headerSelector: '.order-day-header' });
 
+  const staffReadOnly = window.VenusPosAuth?.isStaffOnly?.() === true;
   list.querySelectorAll('[data-edit-sale]').forEach((btn) => {
+    if (staffReadOnly) {
+      btn.classList.add('is-readonly');
+      btn.setAttribute('aria-disabled', 'true');
+      return;
+    }
     btn.addEventListener('click', async () => {
       const { openEditSale } = await import('./analytics.js');
       openEditSale(btn.dataset.editSale);

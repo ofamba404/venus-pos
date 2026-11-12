@@ -3,7 +3,8 @@ import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
 import { itemToConfigSelection } from '../../domain/pricing/pack-config';
 import { stockNotifyDecision } from '../../domain/stock-notify';
 import { KEYS } from '../../data/keys';
-import { cancelledOrderBanner, clientOwesLabel, selectionOverStock, successCopy } from '../../domain/parity';
+import { cancelledOrderBanner, clientOwesLabel, successCopy } from '../../domain/parity';
+import { cartStockShortfalls, sellAnywayMessage } from '../../domain/stock-shortfall';
 import { formatUGX } from '../../domain/format';
 import {
   buildCartLine,
@@ -272,17 +273,6 @@ export function SellPage() {
 
   function addConfigured() {
     if (!configProduct) return;
-    const sellable = sellableNow();
-    if (
-      sellable &&
-      selectionOverStock(configProduct.rule, selection, sellable, {
-        categoryId: configProduct.categoryId,
-        fixedFlavor: configProduct.fixedFlavor,
-      })
-    ) {
-      showToast('Not enough in stock for that quantity');
-      return;
-    }
     const line = buildCartLine(configProduct, selection, { otherLines: lines });
     if (configTotalSelected(selection) <= 0 && configProduct.rule !== 'choose_variety') {
       showToast('Pick at least one');
@@ -318,6 +308,16 @@ export function SellPage() {
       }
     }
     setDebtAsk(null);
+    const shortfalls = cartStockShortfalls(lines, inventory.value, syncLabel.value === 'live');
+    let stockOverride: { at: string; short: Record<string, number> } | undefined;
+    if (shortfalls.length) {
+      const ok = window.confirm(sellAnywayMessage(shortfalls));
+      if (!ok) return;
+      stockOverride = {
+        at: new Date().toISOString(),
+        short: Object.fromEntries(shortfalls.map((row) => [row.id, row.short])),
+      };
+    }
     setPaying(true);
     const beforeStock = { ...inventory.value };
     const result = await runCheckout({
@@ -326,6 +326,8 @@ export function SellPage() {
       isCredit: payment === 'credit',
       clientId: meta.clientId || null,
       checkout: draft,
+      allowShortfall: Boolean(stockOverride),
+      stockOverride,
     });
     if (!result.ok) {
       setPaying(false);

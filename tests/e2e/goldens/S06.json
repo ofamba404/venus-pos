@@ -3,6 +3,12 @@
   "writes": [
     {
       "method": "POST",
+      "path": "/rest/v1/rpc/pos_staff_directory",
+      "body": {},
+      "contentType": "application/json"
+    },
+    {
+      "method": "POST",
       "path": "/rest/v1/sales",
       "body": {
         "items": [
@@ -39,12 +45,11 @@
     },
     {
       "method": "POST",
-      "path": "/api/inventory/write",
+      "path": "/rest/v1/rpc/apply_sale_stock",
       "body": {
-        "category_id": "cookie_mint",
-        "op": "delta",
-        "delta": -10
-      }
+        "p_sale_id": "<id:1>"
+      },
+      "contentType": "application/json"
     }
   ]
 }

@@ -1,4 +1,11 @@
 {
   "id": "S50",
-  "writes": []
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/rest/v1/rpc/pos_staff_directory",
+      "body": {},
+      "contentType": "application/json"
+    }
+  ]
 }

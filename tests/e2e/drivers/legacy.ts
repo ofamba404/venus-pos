@@ -323,18 +323,25 @@ async function runStep(
         return;
       }
       case 'setStoreBusy': {
-        await ensureHome(page);
-        const root = page.locator('#hoursWidget');
-        await root.waitFor({ timeout: 15000 });
+        await page.goto('/pages/admin.html#hours');
+        await page.locator('[data-admin-tab="hours"]').click();
+        const preset = page.locator(`[data-hours-busy-mins="${step.minutes ?? 30}"]`);
+        await preset.waitFor({ timeout: 15000 });
         if (step.minutes == null) {
-          await root.locator('[data-hours-clear-busy]').click();
+          await page.locator('[data-hours-action="clear-busy"]').click();
+          await page.getByText(/Busy period ended/i).waitFor({ timeout: 8000 });
         } else {
-          await root.locator(`[data-hours-busy-mins="${step.minutes}"]`).click();
-          await root.locator('[data-hours-action="save-busy"]').click();
+          await preset.click();
+          await page.locator('[data-hours-action="save-busy"]').click();
+          await page.getByText(/Busy until/i).waitFor({ timeout: 8000 });
         }
         return;
       }
       case 'arriveStoreOrder': {
+        const socketDeadline = Date.now() + 8000;
+        while (mock.realtimeClients < 1 && Date.now() < socketDeadline) {
+          await page.waitForTimeout(50);
+        }
         mock.db.table('store_orders').unshift({
           id: 'arrived-live-order',
           status: 'pending',
@@ -548,8 +555,8 @@ async function runStep(
         return;
       }
       case 'storeUsers': {
-        await page.goto('/pages/admin.html#users');
-        await page.locator('[data-admin-tab="users"]').click();
+        await page.goto('/pages/admin.html');
+        await page.getByRole('link', { name: 'Users', exact: true }).click();
         await page.locator('[data-rename-store-user]').first().waitFor({ timeout: 15000 });
         if (step.action === 'setName') {
           await page.locator('[data-rename-store-user]').first().click();
@@ -710,8 +717,12 @@ async function runStep(
           await page.getByText(/all settled|owes 0|UGX 0/i).first().waitFor({ timeout: 8000 });
         }
         if (step.values.busy === 'off') {
-          const text = await page.locator('#hoursWidget').innerText();
-          if (/busy until/i.test(text)) throw new Error(`expected busy off, saw ${text}`);
+          const status = page.locator('.admin-hours__status');
+          await status.waitFor({ timeout: 8000 });
+          const text = await status.innerText();
+          if (/^busy\b/i.test(text) || /busy until/i.test(text)) {
+            throw new Error(`expected busy off, saw ${text}`);
+          }
         }
         return;
       }

@@ -89,7 +89,7 @@ export const S27: Scenario = {
 export const S28: Scenario = {
   id: 'S28',
   title: 'Busy 30 min then clear',
-  role: 'pos_staff',
+  role: 'pos_admin',
   seed: 'default',
   steps: [
     { do: 'setStoreBusy', minutes: 30 },
@@ -101,7 +101,7 @@ export const S28: Scenario = {
 export const S29: Scenario = {
   id: 'S29',
   title: '+1 and −1 on joint and cookie flavours',
-  role: 'pos_staff',
+  role: 'pos_admin',
   seed: 'default',
   steps: [
     { do: 'adjustStock', categoryId: 'mint', delta: 1 },
@@ -115,7 +115,7 @@ export const S29: Scenario = {
 export const S30: Scenario = {
   id: 'S30',
   title: 'Set an exact stock count via keypad',
-  role: 'pos_staff',
+  role: 'pos_admin',
   seed: 'default',
   steps: [
     { do: 'setStockCount', categoryId: 'mint', qty: 12 },
@@ -126,7 +126,7 @@ export const S30: Scenario = {
 export const S31: Scenario = {
   id: 'S31',
   title: 'Bulk adjust by +24',
-  role: 'pos_staff',
+  role: 'pos_admin',
   seed: 'default',
   steps: [
     { do: 'adjustStock', categoryId: 'strawberry', delta: 24 },
@@ -138,7 +138,7 @@ export const S31: Scenario = {
 export const S32: Scenario = {
   id: 'S32',
   title: 'inventory/write 502 → direct PATCH fallback',
-  role: 'pos_staff',
+  role: 'pos_admin',
   seed: 'default',
   steps: [
     { do: 'adjustStock', categoryId: 'mint', delta: 1 },
@@ -150,7 +150,7 @@ export const S32: Scenario = {
 export const S33: Scenario = {
   id: 'S33',
   title: 'Stock crosses low threshold after a sale → notification once',
-  role: 'pos_staff',
+  role: 'pos_admin',
   seed: 'default',
   steps: [
     // Threshold is 5. 5 → 4 is low. 1 → 0 would be out.

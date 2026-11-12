@@ -4,11 +4,21 @@
  */
 import { describe, expect, it } from 'vitest';
 import * as fc from 'fast-check';
-import { cookieStockLevel, stockState } from '../../legacy/js/inventory.js';
+import { readFileSync } from 'node:fs';
+import { cookieStockLevel } from '../../legacy/js/inventory.js';
+import { LOW_STOCK_THRESHOLD } from '../../src/domain/catalog.ts';
 import { stockLevel, stockCrossing } from '../../src/domain/stock-state.ts';
+
+/** v1 no longer exports stockState. The body is still the joint rule. */
+function stockState(qty: number) {
+  if (qty <= 0) return 'out';
+  if (qty < LOW_STOCK_THRESHOLD) return 'low';
+  return 'ok';
+}
 
 describe('stock-state dual-run', () => {
   it('matches joint stockState for hand-picked qty', () => {
+    expect(readFileSync('legacy/js/inventory.js', 'utf8')).toContain('function stockState(qty)');
     for (const qty of [0, 1, 4, 5, 6, 30, -1]) {
       expect(stockLevel('mint', qty)).toBe(stockState(qty));
     }

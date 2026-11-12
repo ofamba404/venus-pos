@@ -16,19 +16,17 @@ const FLAVOR_BREAKDOWN_KEYS = new Set([
   'cookie_strawberry',
 ]);
 
-const PACK_IDS = new Set(['cookie_duet', 'cookie_trio', 'cookie_quartet']);
+const PACK_IDS = new Set(['cookie_duet', 'cookie_trio']);
 
-/** Fallback cookies-per-pack when breakdown is missing (quartet: 3 flavored + butterscotch). */
+/** Fallback cookies-per-pack when breakdown is missing. */
 const PACK_FLAVORED_COOKIES = {
   cookie_duet: 2,
   cookie_trio: 3,
-  cookie_quartet: 3,
 };
 
 const PACK_BASE_UGX = {
   cookie_duet: 15000,
   cookie_trio: 21000,
-  cookie_quartet: 25000,
 };
 
 const SINGLE_UNIT_UGX = 8000;

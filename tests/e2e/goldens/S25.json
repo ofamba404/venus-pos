@@ -2,15 +2,6 @@
   "id": "S25",
   "writes": [
     {
-      "method": "POST",
-      "path": "/api/store-order/reserve",
-      "body": {
-        "op": "claim",
-        "id": "seed-pending-order",
-        "device_id": "<id:0>"
-      }
-    },
-    {
       "method": "PATCH",
       "path": "/rest/v1/store_orders?id=eq.seed-pending-order",
       "body": {
@@ -37,7 +28,7 @@
           }
         ],
         "total_ugx": 8000,
-        "client_id": "<id:1>",
+        "client_id": "<id:0>",
         "is_credit": false,
         "credit_cleared": true,
         "amount_paid_ugx": 8000,
@@ -58,12 +49,11 @@
     },
     {
       "method": "POST",
-      "path": "/api/inventory/write",
+      "path": "/rest/v1/rpc/apply_sale_stock",
       "body": {
-        "category_id": "mint",
-        "op": "delta",
-        "delta": -1
-      }
+        "p_sale_id": "<id:1>"
+      },
+      "contentType": "application/json"
     }
   ]
 }

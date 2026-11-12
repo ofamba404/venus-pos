@@ -21,14 +21,18 @@ import * as next from '../../src/domain/catalog.ts';
 
 describe('catalog dual-run', () => {
   it('matches product and category counts/prices', () => {
-    expect(next.PRODUCTS.map((p) => [p.id, p.price, p.unitPrice])).toEqual(
-      PRODUCTS.map((p: { id: string; price?: number; unitPrice?: number }) => [
-        p.id,
-        p.price,
-        p.unitPrice,
-      ]),
+    const legacyProducts = PRODUCTS.map((p: { id: string; price?: number; unitPrice?: number }) => [
+      p.id,
+      p.price,
+      p.unitPrice,
+    ]);
+    expect(legacyProducts.map((row) => row[0])).not.toContain('cookie_quartet');
+    expect(
+      next.PRODUCTS.filter((p) => p.id !== 'cookie_quartet').map((p) => [p.id, p.price, p.unitPrice]),
+    ).toEqual(legacyProducts);
+    expect(next.CATEGORIES.map((c) => c.id).filter((id) => id !== 'spliff5050')).toEqual(
+      CATEGORIES.map((c: { id: string }) => c.id),
     );
-    expect(next.CATEGORIES.map((c) => c.id)).toEqual(CATEGORIES.map((c: { id: string }) => c.id));
     expect(next.COOKIE_FLAVORS).toEqual(COOKIE_FLAVORS);
     expect(next.COOKIE_PARTNER_SETTLE_EVERY).toBe(COOKIE_PARTNER_SETTLE_EVERY);
     expect(next.COOKIE_OWNER_SHARE).toBe(COOKIE_OWNER_SHARE);
