@@ -1,15 +1,14 @@
 /**
- * Product photos from the live Venus storefront catalog.
- * Source: https://shop-venus.com/js/shared/products-catalog.js
- * and the collection catalogs (joints-collection-catalog.js,
- * mens-collection-catalog.js). Every file is a static asset at
- * https://shop-venus.com/assets/images/ — not Supabase storage.
- * github.com/ofamba404/venus-store returned 404 from this environment.
+ * Product photo files kept beside the register so Sell works offline.
  *
- * The shop has no Cookie Quartet and no wholesale product, so those ids
- * have no photo. The Cookies tile uses the Butterscotch Cookie card,
- * which is the shop's lead cookie. A single-flavour cookie line uses
- * that flavour's own card when we know it.
+ * These bytes were copied from the public shop site, not from the
+ * venus-store git tree. github.com/ofamba404/venus-store is not readable
+ * here (clone and the GitHub API both return “repository not found”;
+ * it is not in ofamba404’s public repo list), and there is no sibling
+ * checkout at ../venus-store. Do not treat this mapping as verified
+ * against that repository until the repo can be read.
+ *
+ * Cookie Quartet and wholesale have no file in this set.
  */
 
 const FILE: Record<string, string> = {
