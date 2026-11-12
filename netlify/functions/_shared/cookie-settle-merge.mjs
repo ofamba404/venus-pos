@@ -2,7 +2,7 @@ import {
   COOKIE_SETTLE_BATCH_MAX,
   normalizeSettledBatches,
   synthesizeSettledBatches,
-} from '../../../js/cookie-partner-batches.js';
+} from '../../../legacy/js/cookie-partner-batches.js';
 
 export function clampQty(n) {
   return Math.max(0, Math.floor(Number(n) || 0));

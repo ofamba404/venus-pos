@@ -1,19 +1,19 @@
 # Overhaul progress
 
-Update at the end of every session. Phase 8 is cleared. `origin/master` is merged. Phase 9 deploy is ready for the owner.
+Update at the end of every session. Phase 9 is live. Signed-in smoke, the staff message, and 3 days of real use wait on the owner. Do not start Phase 10.
 
 | Field | Value |
 |-------|-------|
-| Current phase | Phase 8 cleared. Master merged. Phase 9 deploy is ready for the owner |
+| Current phase | Phase 9 live. Signed-out smoke passed. Owner still does signed-in smoke, staff message, and 3 days of use |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
 | Tests passing | `npm test` 169 passed. `npm run typecheck` passed. Full Playwright 125 passed, 2 skipped, 0 failed |
-| Next step | Owner deploys `overhaul` from Linux. v1 at `/` matches master. Do not apply migrations |
+| Next step | Owner: signed-in smoke at `/next/`, staff message, then 3 days of real use. Do not start Phase 10. Do not apply migrations |
 | Open questions for the owner | Live Maps for production, and deploy/ship. D11 look is approved (2026-11-12). Checkpoints for Phases 4, 5, and 8 are waived. Do not apply `client_sale_id` |
 
 ## Ready vs open
 
-**Phase 8 is cleared.** `origin/master` is merged into `overhaul` so the v1 files copied to `dist/` match production. `client_sale_id` SQL is still not applied. v2 gaps (Cookie Quartet, staff stock edits, partial-batch button, commission card, review moderation) are follow-ups in `HANDOFF.md`. The owner deploys.
+**Phase 9 is live.** Netlify deploy `6af5cfb23098eec353955111` of `e0c5d11`, published 2026-11-12 17:40 EAT. v1 at `/` is unchanged (SW v114). v2 is at `/next/`. Signed-out smoke passed. The settle-merge helper now imports `legacy/js/cookie-partner-batches.js`, and `npm test` bundles every function so a missing import fails before deploy. Signed-in smoke, the staff message, and 3 days of real use wait on the owner. Do not start Phase 10. `client_sale_id` SQL is still not applied.
 
 **Tap count.** Scout, one mint, recent client Test Client A, paid: tile, flavour, Add, client chip, Charge. **5 taps** (target ≤ 6).
 
@@ -58,4 +58,6 @@ Update at the end of every session. Phase 8 is cleared. `origin/master` is merge
 | 2026-11-12 | 6 | Phase 6 cleared. S29–S33, S45, S46, S48, S49: 9 passed on the mock | `29684fc` |
 | 2026-11-12 | 7 | Phase 7 cleared. Full Playwright 122 passed, 2 skipped. npm test 166 passed. Five deploy-gated checklist rows stay open | `779e628` |
 | 2026-11-12 | 8 | Phase 8 cleared. Walk-in, device hold, offline queue notes. client_sale_id SQL not applied. Phase 8 spec 3 passed | `edea759` |
-| 2026-11-12 | 9 | Merged origin/master into overhaul. v1 dist matches master. Migrations kept as files, not applied | this commit |
+| 2026-11-12 | 9 | Merged origin/master into overhaul. v1 dist matches master. Migrations kept as files, not applied | `e0c5d11` |
+| 2026-11-12 | 9 | Deploy `6af5cfb23098eec353955111` live at 17:40 EAT. Signed-out smoke passed. v1 SW v114, v2 at `/next/` | `e0c5d11` |
+| 2026-11-12 | 9 | Settle-merge import points at legacy/js. Function bundle check runs in npm test | this commit |

@@ -12,7 +12,7 @@
     "dev": "vite",
     "build": "vite build && node scripts/copy-legacy.mjs && node scripts/check-legacy-dist.mjs",
     "preview": "vite preview",
-    "test": "vitest run && node scripts/check-coverage.mjs && node --experimental-strip-types scripts/check-catalog-sync.mjs",
+    "test": "vitest run && node scripts/check-coverage.mjs && node --experimental-strip-types scripts/check-catalog-sync.mjs && node scripts/check-functions.mjs",
     "catalog:check": "node --experimental-strip-types scripts/check-catalog-sync.mjs",
     "test:watch": "vitest",
     "e2e": "playwright test",

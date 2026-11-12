@@ -3,7 +3,7 @@
 **Date:** 2026-11-12
 **Repo:** https://github.com/ofamba404/venus-pos (public)
 **Branch:** `overhaul` (fast-forward only)
-**Phase:** Phase 9 is ready to deploy. v1 at `/` matches `origin/master`. Do not apply migrations. The owner runs the deploy.
+**Phase:** Phase 9 is live at `/next/`. Signed-out smoke passed. Signed-in smoke, the staff message, and 3 days of real use wait on the owner. Do not start Phase 10. Do not apply migrations.
 
 ## Cleared phases
 
@@ -83,9 +83,13 @@ v2 follow-ups, not blockers:
 - `jointCostAt` prices flavored joints at 4,000 UGX from 2026-11-11 15:37 UTC and 5,000 before that. v2 has no commission card that reads `joint_cost_history`.
 - Review moderation, the review reward, the Users admin item, the header pill rail, and the home carousels stay on v1.
 
-## Next concrete step
+## Phase 9 deploy
 
-The owner deploys from Linux. Do not apply any Supabase migration. Do not merge `overhaul` into `master`.
+Live. Netlify deploy `6af5cfb23098eec353955111` of `overhaul` `e0c5d11`, published 2026-11-12 17:40 EAT. v1 at `/` is unchanged (service worker `venus-pos-v114`). v2 is at `/next/`. Signed-out smoke checks passed.
+
+The first deploy attempt failed while bundling functions: `netlify/functions/_shared/cookie-settle-merge.mjs` imported `../../../js/cookie-partner-batches.js`. That path is `legacy/js/cookie-partner-batches.js` on this branch. `npm test` now runs `scripts/check-functions.mjs`, which bundles every function with esbuild and fails if a relative import does not resolve.
+
+Still waiting on the owner: a signed-in smoke test, the staff message, and at least 3 days of real use. Do not start Phase 10. Do not apply any Supabase migration. Do not merge `overhaul` into `master`.
 
 ## How to run tests
 
@@ -97,7 +101,7 @@ npm run build
 npx playwright test
 ```
 
-`npm test` runs Vitest with the domain coverage gate, then `scripts/check-catalog-sync.mjs`. The default legacy server still serves `legacy/` on port 4173. Set `LEGACY_ROOT` to `dist` to serve the built register. Vite is `http://127.0.0.1:5173`. Use `tests/mock/` only.
+`npm test` runs Vitest with the domain coverage gate, then `scripts/check-catalog-sync.mjs`, then `scripts/check-functions.mjs`. The default legacy server still serves `legacy/` on port 4173. Set `LEGACY_ROOT` to `dist` to serve the built register. Vite is `http://127.0.0.1:5173`. Use `tests/mock/` only.
 
 ## Standing rules
 
