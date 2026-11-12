@@ -1,19 +1,19 @@
 # Overhaul progress
 
-Update at the end of every session. Phase 0 is the open phase. Do not start Phase 1 until its exit criteria pass.
+Update at the end of every session. Phase 0 is cleared. Do not start Phase 1 until the owner says so.
 
 | Field | Value |
 |-------|-------|
-| Current phase | Phase 0 — Safety net, task 8. Not cleared |
+| Current phase | Phase 0 cleared. Phase 1 not started |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | Analytics-chart snapshot 4 passed. Legacy driver: S01–S26, S29–S33, S44, S46, S47, S50 once. S19 still two sales. 15 scenarios still fail. Goldens not recorded |
-| Next step | Phase 0 task 8: implement settleCredit, editSale, voidSale. See `HANDOFF.md` |
+| Tests passing | `npm test`: 36 files, 125 passed. Legacy S01–S50 ×3: 150 passed, goldens identical. S19 is two sales |
+| Next step | Phase 1 when the owner says so. See `HANDOFF.md` |
 | Open questions for the owner | Live Maps for production, and deploy/ship. D11 look is approved (2026-11-12). Checkpoints for Phases 4, 5, and 8 are waived. Do not apply `client_sale_id` |
 
 ## Ready vs open
 
-**Not ready to leave Phase 0.** The v2 app can sell on `/next` in local tests, but the Phase 0 exit in `05-implementation-plan.md` is not met: legacy goldens for all 50 scenarios do not exist, analytics period/heatmap is not snapshotted, and legacy screenshots are home-only.
+**Phase 0 is cleared.** Legacy goldens S01–S50 matched three times. Dual-run snapshots cover `06-testing.md` §4.3. Quirks 1–11 are logged. Legacy screenshots exist for every screen at four viewports, and `baseline/perf.md` has the v1 numbers. Phase 1 has not been started.
 
 **Owner decisions.** D1 A, D2 B, D3 B, D4 B, D5 A, D6 A, D16 improve, D11 approved. Details in `08-decisions.md`.
 
@@ -46,4 +46,5 @@ Update at the end of every session. Phase 0 is the open phase. Do not start Phas
 | 2026-11-12 | — | Signed-out `/next` goes to `/next/auth.html` | `21291d3` |
 | 2026-11-12 | — | D11 look approved. Phase 4/5/8 checkpoints waived | `cb3129a` |
 | 2026-11-12 | 0 | Quirk 7: legacy double-tap posts two sales (×3). Handoff rewritten. Phase 0 still open | `ee6bd31` |
-| 2026-11-12 | 0 | Legacy driver covers 35 of 50 scenarios once. Mock POST returns an array. Analytics chart snapshot. Phase 0 still open | this commit |
+| 2026-11-12 | 0 | Legacy driver covers 35 of 50 scenarios once. Mock POST returns an array. Analytics chart snapshot. Phase 0 still open | `f62f24e` |
+| 2026-11-12 | 0 | Phase 0 cleared. S01–S50 goldens ×3 (150 passed). Remaining legacy screenshots. Hours-dial snapshot | this commit |

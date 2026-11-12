@@ -107,11 +107,11 @@
   <script>
     // Fallback if progress.json is missing. Prefer progress.json (kept in sync with PROGRESS.md).
     const STATE = {
-      phase: "Phase 0 — Safety net. Not cleared. Do not start Phase 1",
+      phase: "Phase 0 cleared. Phase 1 not started",
       branch: "overhaul · v1-baseline @ 951a152",
-      commit: "see git log -1 — quirk 7 + handoff",
-      next: "Phase 0 task 8: settleCredit, editSale, voidSale. See HANDOFF.md.",
-      status: "Legacy driver 35/50 once (S01–S26, S29–S33, S44, S46, S47, S50). 15 still fail. No goldens. S19 is two sales. D11 approved. No deploy.",
+      commit: "see git log -1 — phase 0 goldens",
+      next: "Phase 1 when the owner says so. See HANDOFF.md.",
+      status: "S01–S50 legacy goldens matched three times (150 passed). npm test 125 passed. Quirks 1–11. Legacy screenshots at four viewports. No deploy.",
       ownerGate: {
         ready: "D1 A · D2 B · D3 B · D4 B · D5 A · D6 A · D11 approved · D16 improve (2026-11-12).",
         phase8: "Locals done: walk-in, hold, offline outbox. client_sale_id SQL written, not applied. Skipped D3 receipt + D5 shift close.",
@@ -122,10 +122,10 @@
         { id: "p0-branch", label: "Phase 0: branch + v1-baseline tag", state: "done" },
         { id: "p0-tooling", label: "Phase 0: Vitest / Playwright / TS tooling", state: "done" },
         { id: "p0-mock", label: "Phase 0: mock backend + fixtures", state: "done" },
-        { id: "p0-exports", label: "Phase 0: export legacy helpers", state: "run" },
-        { id: "p0-dual", label: "Phase 0: dual-run for §4.3 except analytics period/heatmap", state: "run" },
-        { id: "p0-scenarios", label: "Phase 0: legacy driver 35/50 once. Goldens ×3 not recorded", state: "run" },
-        { id: "p0-baseline", label: "Phase 0: legacy home screenshots + perf.md. Not every screen", state: "run" },
+        { id: "p0-exports", label: "Phase 0: export legacy helpers", state: "done" },
+        { id: "p0-dual", label: "Phase 0: dual-run §4.3 including analytics chart and hours dial", state: "done" },
+        { id: "p0-scenarios", label: "Phase 0: S01–S50 goldens identical across 3 runs", state: "done" },
+        { id: "p0-baseline", label: "Phase 0: every legacy screen at four viewports + perf.md", state: "done" },
         { id: "p1", label: "Phase 1: code present, exit not claimed", state: "wait" },
         { id: "p2", label: "Phase 2: not the open phase", state: "wait" },
         { id: "p3", label: "Phase 3: not the open phase", state: "wait" },

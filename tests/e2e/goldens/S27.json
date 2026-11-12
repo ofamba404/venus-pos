@@ -1,0 +1,25 @@
+{
+  "id": "S27",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/api/store-order/reserve",
+      "body": {
+        "op": "claim",
+        "id": "seed-pending-order",
+        "device_id": "<id:0>"
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/store_orders?id=eq.seed-pending-order",
+      "body": {
+        "status": "accepted",
+        "accepted_at": "<ts>",
+        "updated_at": "<ts>"
+      },
+      "prefer": "return=minimal",
+      "contentType": "application/json"
+    }
+  ]
+}

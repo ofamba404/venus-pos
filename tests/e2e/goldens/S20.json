@@ -1,0 +1,128 @@
+{
+  "id": "S20",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/api/store-order/reserve",
+      "body": {
+        "op": "claim",
+        "id": "seed-order-with-reward",
+        "device_id": "<id:0>"
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/store_orders?id=eq.seed-order-with-reward",
+      "body": {
+        "status": "accepted",
+        "accepted_at": "<ts>",
+        "updated_at": "<ts>"
+      },
+      "prefer": "return=minimal",
+      "contentType": "application/json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/store-order/reserve",
+      "body": {
+        "op": "claim",
+        "id": "seed-pending-order",
+        "device_id": "<id:0>"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/store-order/reserve",
+      "body": {
+        "op": "unclaim",
+        "id": "seed-order-with-reward",
+        "device_id": "<id:0>"
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/store_orders?id=eq.seed-pending-order",
+      "body": {
+        "status": "accepted",
+        "accepted_at": "<ts>",
+        "updated_at": "<ts>"
+      },
+      "prefer": "return=minimal",
+      "contentType": "application/json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/store-order/reserve",
+      "body": {
+        "op": "consume",
+        "id": "seed-pending-order",
+        "device_id": "<id:0>"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/rest/v1/clients",
+      "body": {
+        "name": "Store Customer"
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    },
+    {
+      "method": "POST",
+      "path": "/rest/v1/sales",
+      "body": {
+        "items": [
+          {
+            "product_id": "scout",
+            "product_name": "Scout Pack",
+            "detail": "Mint",
+            "line_total": 8000,
+            "breakdown": {
+              "mint": 1
+            }
+          }
+        ],
+        "total_ugx": 8000,
+        "client_id": "<id:1>",
+        "is_credit": false,
+        "credit_cleared": true,
+        "amount_paid_ugx": 8000,
+        "cleared_at": null,
+        "client_phone": "+256700000099",
+        "delivery_enabled": false,
+        "delivery": {},
+        "location_label": null,
+        "location_lat": null,
+        "location_lng": null,
+        "delivery_fee_ugx": null,
+        "delivery_distance_km": null,
+        "delivery_duration_min": null,
+        "store_order_id": "seed-pending-order"
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    },
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/store_orders?id=eq.seed-pending-order",
+      "body": {
+        "status": "checked_out",
+        "checked_out_at": "<ts>",
+        "updated_at": "<ts>",
+        "sale_id": "<id:2>"
+      },
+      "prefer": "return=minimal",
+      "contentType": "application/json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "mint",
+        "op": "delta",
+        "delta": -1
+      }
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "id": "S18",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/rest/v1/sales",
+      "body": {
+        "items": [
+          {
+            "product_id": "scout",
+            "product_name": "Scout Pack",
+            "detail": "Mint x1",
+            "line_total": 8000,
+            "breakdown": {
+              "mint": 1
+            }
+          }
+        ],
+        "total_ugx": 8000,
+        "client_id": "<id:0>",
+        "is_credit": false,
+        "credit_cleared": true,
+        "amount_paid_ugx": 8000,
+        "cleared_at": null,
+        "client_phone": null,
+        "delivery_enabled": true,
+        "delivery": {},
+        "location_label": null,
+        "location_lat": null,
+        "location_lng": null,
+        "delivery_fee_ugx": null,
+        "delivery_distance_km": null,
+        "delivery_duration_min": null,
+        "store_order_id": null
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "mint",
+        "op": "delta",
+        "delta": -1
+      }
+    }
+  ]
+}

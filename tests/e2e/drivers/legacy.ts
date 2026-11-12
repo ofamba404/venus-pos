@@ -19,7 +19,20 @@ const PRODUCT_NAMES: Record<string, string> = {
 };
 
 type AddedLine = Extract<ScenarioStep, { do: 'addProduct' }>;
-type CartMemory = { added: AddedLine[]; lastRemoved: AddedLine | null };
+type CartMemory = { added: AddedLine[]; lastRemoved: AddedLine | null; owedBefore: number };
+
+function parseUgx(text: string) {
+  const match = text.match(/UGX\s*([\d,]+)/i);
+  if (!match) return 0;
+  return Number(match[1]!.replace(/,/g, ''));
+}
+
+function toastPattern(message: string) {
+  if (message === 'offline') return /offline|check connection|no signal/i;
+  if (message === 'saved') return /saved|updated/i;
+  if (message === 'deleted') return /deleted|removed/i;
+  return new RegExp(message, 'i');
+}
 
 function productName(id: string) {
   return PRODUCT_NAMES[id] || id;
@@ -46,7 +59,7 @@ function legacyUrl(path: string) {
     '/system': '/',
   };
   const base = pages[bare] ?? bare;
-  if (hash.startsWith('#load-store-order=')) return `/${hash}`;
+  if (hash.startsWith('#load-store-order=')) return `/?${hash}`;
   if (bare === '/orders') return '/#store-orders';
   return `${base}${hash}`;
 }
@@ -86,6 +99,20 @@ async function addProduct(page: Page, step: Extract<ScenarioStep, { do: 'addProd
   await add.waitFor({ state: 'visible', timeout: 8000 });
   await add.click();
   await page.locator('#cartClientInput').waitFor({ state: 'visible', timeout: 8000 });
+}
+
+async function settleWrites(page: Page, mock: MockHandle) {
+  let last = -1;
+  let stable = 0;
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline && stable < 3) {
+    if (mock.writes.length === last) stable += 1;
+    else {
+      last = mock.writes.length;
+      stable = 0;
+    }
+    await page.waitForTimeout(150);
+  }
 }
 
 async function ensureHome(page: Page) {
@@ -296,13 +323,14 @@ async function runStep(
         return;
       }
       case 'setStoreBusy': {
-        await page.goto('/pages/admin.html#hours');
-        await page.locator('[data-admin-tab="hours"]').click();
+        await ensureHome(page);
+        const root = page.locator('#hoursWidget');
+        await root.waitFor({ timeout: 15000 });
         if (step.minutes == null) {
-          await page.locator('[data-hours-action="clear-busy"]').click();
+          await root.locator('[data-hours-clear-busy]').click();
         } else {
-          await page.locator(`[data-hours-busy-mins="${step.minutes}"]`).click();
-          await page.locator('[data-hours-action="save-busy"]').click();
+          await root.locator(`[data-hours-busy-mins="${step.minutes}"]`).click();
+          await root.locator('[data-hours-action="save-busy"]').click();
         }
         return;
       }
@@ -352,57 +380,109 @@ async function runStep(
         await page.goto('/pages/inventory.html');
         const count = page.locator(`#inv-count-${step.categoryId}`);
         await count.waitFor({ timeout: 15000 });
+        const before = mock.writes.length;
         await count.click();
-        await page.keyboard.press('Control+A');
-        await page.keyboard.type(String(step.qty));
-        await page.keyboard.press('Enter');
+        const input = page.locator(`#inv-count-${step.categoryId} input`);
+        await input.waitFor({ timeout: 4000 });
+        await input.evaluate((el, qty) => {
+          const field = el as HTMLInputElement;
+          field.value = String(qty);
+          field.dispatchEvent(new Event('input', { bubbles: true }));
+          field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        }, step.qty);
+        const deadline = Date.now() + 8000;
+        while (mock.writes.length === before && Date.now() < deadline) {
+          await page.waitForTimeout(50);
+        }
         return;
       }
-      case 'go':
-        await page.goto(legacyUrl(step.path));
+      case 'go': {
+        const target = legacyUrl(step.path);
+        if (target.includes('load-store-order=')) {
+          const id = decodeURIComponent(target.split('load-store-order=')[1] || '');
+          await page.goto('/');
+          await page.locator('#storeOrdersBtn').waitFor({ timeout: 15000 });
+          await page.evaluate((orderId) => {
+            location.hash = `load-store-order=${orderId}`;
+          }, id);
+          return;
+        }
+        await page.goto(target);
         return;
+      }
       case 'goOffline':
         mock.setOffline(true);
         return;
       case 'clientsCrud': {
-        await page.goto('/pages/clients.html');
+        if (!page.url().includes('/pages/clients.html')) await page.goto('/pages/clients.html');
         if (step.action === 'add') {
           await page.locator('#newClientInput').fill(step.name || '');
           await page.locator('#addClientBtn').click();
+          const deadline = Date.now() + 8000;
+          while (
+            !mock.writes.some((w) => w.method === 'POST' && w.url.includes('/rest/v1/clients')) &&
+            Date.now() < deadline
+          ) {
+            await page.waitForTimeout(50);
+          }
           return;
         }
-        const row = page.locator(`[data-client-row]`).filter({ hasText: step.name || '' }).first();
+        if (step.name) await page.locator('#clientSearchInput').fill(step.name);
+        const row = page.locator('[data-client-row]').filter({ hasText: step.name || '' }).first();
         await row.waitFor({ timeout: 8000 });
         if (step.action === 'rename') {
-          await row.click();
-          const input = page.locator('input').last();
+          const id = await row.getAttribute('data-client-row');
+          await row.locator('[data-rename]').evaluate((el: HTMLElement) => el.click());
+          const input = page.locator(`#renameInput-${id}`);
+          await input.waitFor({ timeout: 8000 });
           await input.fill(step.newName || '');
-          await input.press('Enter');
+          // Blur once. Enter also blurs, and both listeners PATCH (QUIRKS 11).
+          await input.evaluate((el: HTMLInputElement) => el.blur());
+          const renamed = Date.now() + 8000;
+          while (
+            !mock.writes.some((w) => w.method === 'PATCH' && w.url.includes('/rest/v1/clients')) &&
+            Date.now() < renamed
+          ) {
+            await page.waitForTimeout(50);
+          }
           return;
         }
-        await row.click();
-        const del = page.getByRole('button', { name: /delete|remove/i }).first();
-        if (await del.count()) await del.click();
-        const ok = page.locator('#confirmOkBtn');
-        if (await ok.isVisible().catch(() => false)) await ok.click();
+        await row.locator('[data-delete]').click();
+        await page.locator('#confirmOkBtn').click();
         return;
       }
       case 'setStoreHours': {
         await page.goto('/pages/admin.html#hours');
         await page.locator('[data-admin-tab="hours"]').click();
+        const more = page.locator('.admin-hours__more-sum');
+        if (await more.isVisible().catch(() => false)) await more.click();
         await page.locator('[data-hours-open-time]').fill(step.open);
         await page.locator('[data-hours-close-time]').fill(step.close);
         const suggest = String(step.suggest || '');
         const parts = suggest.split(/[–-]/);
         if (parts[0]) await page.locator('[data-hours-suggest-start]').fill(parts[0].trim());
         if (parts[1]) await page.locator('[data-hours-suggest-end]').fill(parts[1].trim());
-        await page.locator('[data-hours-action="save-open-hours"]').click();
-        if (parts[1]) await page.locator('[data-hours-action="save-suggest"]').click();
+        if (parts[1]) {
+          await page.locator('[data-hours-suggest-start]').fill(parts[0]!.trim());
+          await page.locator('[data-hours-suggest-end]').fill(parts[1].trim());
+          const suggestSave = page.locator('[data-hours-action="save-suggest"]');
+          if (await suggestSave.isEnabled()) await suggestSave.click();
+          const detailsOpen = await page
+            .locator('details.admin-hours__more')
+            .evaluate((el: HTMLDetailsElement) => el.open)
+            .catch(() => false);
+          if (!detailsOpen) await page.locator('.admin-hours__more-sum').click();
+        }
+        await page
+          .locator('[data-hours-action="save-open-hours"]')
+          .evaluate((el: HTMLElement) => el.click());
         return;
       }
       case 'editDeliveryTrip': {
         await page.goto('/pages/delivery.html');
-        await page.locator(`[data-edit-delivery="${step.id}"]`).click();
+        const trip = page.locator(`[data-edit-delivery="${step.id}"]`);
+        await trip.waitFor({ state: 'attached', timeout: 15000 });
+        await trip.evaluate((el: HTMLElement) => el.click());
         await page.locator('#editDeliveryFee').fill('9000');
         await page.locator('#editDeliverySave').click();
         return;
@@ -413,8 +493,103 @@ async function runStep(
         return;
       case 'signOut': {
         await ensureHome(page);
-        await page.locator('#signOutBtn').click({ force: true });
+        await page.evaluate(() => sessionStorage.setItem('venus-signed-out', '1'));
+        await page.locator('#fabNavToggle').click();
+        await page.locator('#signOutBtn').click();
         await page.waitForURL(/auth\.html/, { timeout: 8000 });
+        return;
+      }
+      case 'settleCredit': {
+        await page.goto('/pages/analytics.html');
+        const group = page.locator('.credit-client-group', { hasText: step.clientName || '' }).first();
+        await group.waitFor({ timeout: 15000 });
+        memory.owedBefore = parseUgx(await group.locator('.credit-client-head .cr-meta').innerText());
+        await group.locator('[data-pay-client-credit], [data-pay-credit]').first().click();
+        await page.locator('#settleAmount').waitFor({ timeout: 8000 });
+        if (step.amountUgx >= (memory.owedBefore || 0)) {
+          await page.locator('#settleFullBtn').click();
+        } else {
+          await page.locator('#settleAmount').fill(String(step.amountUgx));
+        }
+        if (step.method === 'mobile_money' || step.method === 'mobile') {
+          await page.locator('label.settle-method', { hasText: 'Mobile' }).click();
+        }
+        if (step.note) await page.locator('#settleNote').fill(step.note);
+        await page.locator('#settleConfirm').click();
+        return;
+      }
+      case 'editSale': {
+        await page.goto('/pages/history.html');
+        const sale = page.locator(`[data-edit-sale="${step.saleId}"]`);
+        await sale.waitFor({ state: 'attached', timeout: 15000 });
+        await sale.evaluate((el: HTMLElement) => el.click());
+        await page.locator('#editSaleSave').click();
+        return;
+      }
+      case 'voidSale': {
+        await page.goto('/pages/history.html');
+        const sale = page.locator(`[data-edit-sale="${step.saleId}"]`);
+        await sale.waitFor({ state: 'attached', timeout: 15000 });
+        await sale.evaluate((el: HTMLElement) => el.click());
+        await page.locator('#editSaleVoid').click();
+        await page.locator('#confirmOkBtn').click();
+        return;
+      }
+      case 'partnerSettleBatch': {
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+        await page.goto('/pages/analytics.html');
+        const send = page.locator('[data-cookie-partner-send]');
+        if (await send.isVisible().catch(() => false)) {
+          await send.click();
+          const ok = page.locator('#confirmOkBtn');
+          if (await ok.isVisible().catch(() => false)) await ok.click();
+        }
+        await page.locator('[data-cookie-partner-copy]').click();
+        return;
+      }
+      case 'storeUsers': {
+        await page.goto('/pages/admin.html#users');
+        await page.locator('[data-admin-tab="users"]').click();
+        await page.locator('[data-rename-store-user]').first().waitFor({ timeout: 15000 });
+        if (step.action === 'setName') {
+          await page.locator('[data-rename-store-user]').first().click();
+          const input = page.locator('.admin-user-row__name-input');
+          await input.waitFor({ timeout: 8000 });
+          await input.fill(step.name || '');
+          await input.press('Enter');
+          return;
+        }
+        if (step.action === 'verify') {
+          await page.locator('[data-verify-store-user]').first().click();
+          const ok = page.locator('#confirmOkBtn');
+          if (await ok.isVisible().catch(() => false)) await ok.click();
+          return;
+        }
+        await page.locator('[data-delete-store-user]').first().click();
+        await page.locator('#confirmOkBtn').click();
+        return;
+      }
+      case 'quoteLabPreset': {
+        await page.goto('/pages/delivery.html');
+        await page.locator('#quoteLabChips .ql-chip').first().click();
+        await page.locator('#quoteLabFee').fill('5000');
+        await page.locator('#quoteLabSave').click();
+        return;
+      }
+      case 'enableNotifications': {
+        await page.addInitScript(() => {
+          const ask = () => Promise.resolve('denied' as NotificationPermission);
+          class DeniedNotification {
+            static permission: NotificationPermission = 'default';
+            static requestPermission() {
+              DeniedNotification.permission = 'denied';
+              return ask();
+            }
+          }
+          Object.defineProperty(window, 'Notification', { configurable: true, value: DeniedNotification });
+        });
+        await page.goto('/');
+        await page.locator('[data-pwa-enable]').click({ timeout: 8000 });
         return;
       }
       case 'signIn': {
@@ -459,9 +634,31 @@ async function runStep(
         if (bad.length) throw new Error(`expected no sale or stock writes, saw ${bad.length}`);
         return;
       }
-      case 'toast':
-        await page.getByText(new RegExp(step.message, 'i')).first().waitFor({ timeout: 8000 });
+      case 'toast': {
+        const source = toastPattern(step.message).source;
+        const ok = await page
+          .waitForFunction(
+            (pattern) => {
+              const bits = [
+                document.querySelector('#toastMsg')?.textContent || '',
+                document.querySelector('#inAppBanner')?.textContent || '',
+                ...((window as Window & { __toastLog?: string[] }).__toastLog || []),
+              ];
+              return bits.some((text) => new RegExp(pattern, 'i').test(text));
+            },
+            source,
+            { timeout: 12000 },
+          )
+          .then(() => true)
+          .catch(() => false);
+        if (!ok) {
+          const text = ((await page.locator('#toastMsg').textContent().catch(() => '')) || '').trim();
+          const banner = ((await page.locator('#inAppBanner').textContent().catch(() => '')) || '').trim();
+          const log = await page.evaluate(() => (window as Window & { __toastLog?: string[] }).__toastLog || []);
+          throw new Error(`toast missing ${step.message}, saw "${text}" banner="${banner}" log=${log.join(' | ')}`);
+        }
         return;
+      }
       case 'stock': {
         if (!page.url().includes('inventory')) await page.goto('/pages/inventory.html');
         await page
@@ -493,7 +690,35 @@ async function runStep(
         }
         if (step.values.cartLines != null) {
           const lines = page.locator('#cartItemsList .cart-item, [data-cart-items] .cart-item');
-          await lines.first().waitFor({ timeout: 8000 });
+          await lines.first().waitFor({ timeout: 15000 });
+        }
+        if (step.values.creditOwedDelta != null) {
+          const expected = memory.owedBefore + Number(step.values.creditOwedDelta);
+          const meta = page
+            .locator('.credit-client-group', { hasText: /client with debt/i })
+            .first()
+            .locator('.credit-client-head .cr-meta');
+          const deadline = Date.now() + 8000;
+          let owed = parseUgx(await meta.innerText().catch(() => ''));
+          while (owed !== expected && Date.now() < deadline) {
+            await page.waitForTimeout(200);
+            owed = parseUgx(await meta.innerText().catch(() => ''));
+          }
+          if (owed !== expected) throw new Error(`owed ${owed}, expected ${expected}`);
+        }
+        if (step.values.creditOwed === 0) {
+          await page.getByText(/all settled|owes 0|UGX 0/i).first().waitFor({ timeout: 8000 });
+        }
+        if (step.values.busy === 'off') {
+          const text = await page.locator('#hoursWidget').innerText();
+          if (/busy until/i.test(text)) throw new Error(`expected busy off, saw ${text}`);
+        }
+        return;
+      }
+      case 'clipboard': {
+        const text = await page.evaluate(() => navigator.clipboard.readText());
+        if (!text.toLowerCase().includes(String(step.includes).toLowerCase())) {
+          throw new Error(`clipboard missing ${step.includes}: ${text}`);
         }
         return;
       }
@@ -505,8 +730,6 @@ async function runStep(
           await page.goto(legacyUrl(route));
           await page.locator('body').waitFor();
         }
-        return;
-      case 'clipboard':
         return;
       default:
         throw new Error(`legacy driver has no expect yet: ${step.expect}`);
@@ -538,7 +761,34 @@ export async function createLegacyDriver(
           times: 1,
         });
       }
-      const memory: CartMemory = { added: [], lastRemoved: null };
+      await page.addInitScript(() => {
+        const w = window as Window & { __toastLog?: string[] };
+        w.__toastLog = [];
+        const attach = (el: Element) => {
+          const node = el as HTMLElement;
+          if (node.dataset.toastWatch === '1') return;
+          node.dataset.toastWatch = '1';
+          const push = () => {
+            const text = (node.textContent || '').trim();
+            if (!text) return;
+            const log = w.__toastLog || [];
+            w.__toastLog = log;
+            if (log[log.length - 1] !== text) log.push(text);
+          };
+          new MutationObserver(push).observe(node, {
+            subtree: true,
+            characterData: true,
+            childList: true,
+          });
+        };
+        const scan = () => {
+          const el = document.querySelector('#toastMsg');
+          if (el) attach(el);
+        };
+        new MutationObserver(scan).observe(document.documentElement, { childList: true, subtree: true });
+        if (document.readyState !== 'loading') scan();
+      });
+      const memory: CartMemory = { added: [], lastRemoved: null, owedBefore: 0 };
       const first = scenario.steps[0];
       const startsAway = first && 'do' in first && (first.do === 'go' || first.do === 'signIn');
       if (!startsAway) {
@@ -548,6 +798,7 @@ export async function createLegacyDriver(
       for (const step of scenario.steps) {
         await runStep(page, step, mock, memory);
       }
+      await settleWrites(page, mock);
     },
   };
 }

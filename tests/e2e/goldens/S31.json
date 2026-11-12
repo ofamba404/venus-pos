@@ -1,0 +1,14 @@
+{
+  "id": "S31",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "strawberry",
+        "op": "delta",
+        "delta": 24
+      }
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "S36",
+  "writes": [
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/sales?id=eq.seed-sale-1",
+      "body": {
+        "items": [
+          {
+            "product_id": "scout",
+            "product_name": "Scout Pack",
+            "detail": "Mint",
+            "line_total": 8000,
+            "breakdown": {
+              "mint": 1
+            }
+          }
+        ],
+        "total_ugx": 8000,
+        "client_id": "<id:0>",
+        "is_credit": false,
+        "credit_cleared": true,
+        "cleared_at": null,
+        "amount_paid_ugx": 8000
+      },
+      "prefer": "return=minimal",
+      "contentType": "application/json"
+    }
+  ]
+}

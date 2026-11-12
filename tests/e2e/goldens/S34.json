@@ -1,0 +1,31 @@
+{
+  "id": "S34",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/rest/v1/credit_payments",
+      "body": [
+        {
+          "sale_id": "<id:0>",
+          "client_id": "<id:1>",
+          "amount_ugx": 5000,
+          "method": "cash",
+          "note": null
+        }
+      ],
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    },
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/sales?id=eq.<id:0>",
+      "body": {
+        "amount_paid_ugx": 5000,
+        "credit_cleared": false,
+        "cleared_at": null
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    }
+  ]
+}

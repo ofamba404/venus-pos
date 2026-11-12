@@ -1,0 +1,30 @@
+{
+  "id": "S39",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/rest/v1/clients",
+      "body": {
+        "name": "Temp Client"
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    },
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/clients?id=eq.<id:0>",
+      "body": {
+        "name": "Temp Client 2"
+      },
+      "prefer": "return=minimal",
+      "contentType": "application/json"
+    },
+    {
+      "method": "DELETE",
+      "path": "/rest/v1/clients?id=eq.<id:0>",
+      "body": null,
+      "prefer": "return=minimal",
+      "contentType": "application/json"
+    }
+  ]
+}

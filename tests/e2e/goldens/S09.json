@@ -1,0 +1,130 @@
+{
+  "id": "S09",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/rest/v1/sales",
+      "body": {
+        "items": [
+          {
+            "product_id": "variety",
+            "product_name": "Variety Pack",
+            "detail": "Mint x1, Strawberry x1, Blueberry x1, Watermelon x1, Grape x1, Coconut x1, Melon x1 + Plain",
+            "line_total": 50000,
+            "breakdown": {
+              "mint": 1,
+              "strawberry": 1,
+              "blueberry": 1,
+              "watermelon": 1,
+              "grape": 1,
+              "coconut": 1,
+              "melon": 1,
+              "classic": 1
+            }
+          },
+          {
+            "product_id": "commander",
+            "product_name": "Commander's Stash",
+            "detail": "Mint x2, Strawberry x2, Blueberry x1",
+            "line_total": 35000,
+            "breakdown": {
+              "mint": 2,
+              "strawberry": 2,
+              "blueberry": 1
+            }
+          }
+        ],
+        "total_ugx": 85000,
+        "client_id": "<id:0>",
+        "is_credit": false,
+        "credit_cleared": true,
+        "amount_paid_ugx": 85000,
+        "cleared_at": null,
+        "client_phone": null,
+        "delivery_enabled": true,
+        "delivery": {},
+        "location_label": null,
+        "location_lat": null,
+        "location_lng": null,
+        "delivery_fee_ugx": null,
+        "delivery_distance_km": null,
+        "delivery_duration_min": null,
+        "store_order_id": null
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "mint",
+        "op": "delta",
+        "delta": -3
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "strawberry",
+        "op": "delta",
+        "delta": -3
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "blueberry",
+        "op": "delta",
+        "delta": -2
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "watermelon",
+        "op": "delta",
+        "delta": -1
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "grape",
+        "op": "delta",
+        "delta": -1
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "coconut",
+        "op": "delta",
+        "delta": -1
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "melon",
+        "op": "delta",
+        "delta": -1
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "classic",
+        "op": "delta",
+        "delta": -1
+      }
+    }
+  ]
+}

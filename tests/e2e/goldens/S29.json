@@ -1,0 +1,14 @@
+{
+  "id": "S29",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "cookie_mint",
+        "op": "delta",
+        "delta": -1
+      }
+    }
+  ]
+}

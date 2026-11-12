@@ -1,0 +1,18 @@
+{
+  "id": "S32",
+  "writes": [
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/inventory?category_id=eq.mint",
+      "body": {
+        "display_name": "Mint",
+        "category_sub": "",
+        "color": "#8fd6f0",
+        "stock": 21,
+        "updated_at": "<ts>"
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    }
+  ]
+}

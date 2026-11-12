@@ -1,0 +1,14 @@
+{
+  "id": "S30",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "mint",
+        "op": "set",
+        "stock": 12
+      }
+    }
+  ]
+}

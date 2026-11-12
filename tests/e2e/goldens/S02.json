@@ -1,0 +1,59 @@
+{
+  "id": "S02",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/rest/v1/sales",
+      "body": {
+        "items": [
+          {
+            "product_id": "cookie_duet",
+            "product_name": "Cookie Duet",
+            "detail": "Mint x1, Chocolate x1",
+            "line_total": 15000,
+            "breakdown": {
+              "cookie_mint": 1,
+              "cookie_chocolate": 1
+            }
+          }
+        ],
+        "total_ugx": 15000,
+        "client_id": "<id:0>",
+        "is_credit": false,
+        "credit_cleared": true,
+        "amount_paid_ugx": 15000,
+        "cleared_at": null,
+        "client_phone": null,
+        "delivery_enabled": true,
+        "delivery": {},
+        "location_label": null,
+        "location_lat": null,
+        "location_lng": null,
+        "delivery_fee_ugx": null,
+        "delivery_distance_km": null,
+        "delivery_duration_min": null,
+        "store_order_id": null
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "cookie_mint",
+        "op": "delta",
+        "delta": -1
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "cookie_chocolate",
+        "op": "delta",
+        "delta": -1
+      }
+    }
+  ]
+}

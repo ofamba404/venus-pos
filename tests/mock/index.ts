@@ -52,8 +52,8 @@ function makeJwt(role: 'pos_admin' | 'pos_staff'): string {
     sub: 'test-user',
     role: 'authenticated',
     app_metadata: { role },
-    exp: Math.floor(Date.parse(FIXED_NOW) / 1000) + 3600,
-    iat: Math.floor(Date.parse(FIXED_NOW) / 1000),
+    exp: Math.floor(Date.now() / 1000) + 86_400,
+    iat: Math.floor(Date.now() / 1000),
   });
   return `${header}.${payload}.sig`;
 }
@@ -118,7 +118,7 @@ export async function installMockBackend(
       session: {
         access_token: token,
         refresh_token: 'refresh-test',
-        expires_at: Math.floor(Date.parse(FIXED_NOW) / 1000) + 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 86_400,
         token_type: 'bearer',
         user: {
           id: 'test-user',
@@ -170,8 +170,9 @@ export async function installMockBackend(
     // Allow same-origin app assets
     const u = new URL(url);
     const local = u.hostname === '127.0.0.1' || u.hostname === 'localhost';
-    if (networkOff && (!local || u.pathname.startsWith('/api/'))) {
-      await route.abort('internetdisconnected');
+    const mapsHost = url.includes('maps.googleapis.com') || url.includes('maps.gstatic.com');
+    if (networkOff && !mapsHost && (!local || u.pathname.startsWith('/api/'))) {
+      await route.fulfill({ status: 503, contentType: 'text/plain', body: 'offline' });
       return;
     }
     if (local && (u.port === '4173' || u.port === '4174' || u.port === '5173' || u.port === '')) {
@@ -282,6 +283,15 @@ export async function installMockBackend(
       writes.push({ method, url, headers: {}, body });
       if (body.op === 'ensure') {
         await fulfillJson(route, 200, { rows: db.table('inventory') });
+        return;
+      }
+      if (body.op === 'set') {
+        const id = String(body.category_id || '');
+        const stock = Math.max(0, Math.round(Number(body.stock) || 0));
+        const row = db.table('inventory').find((r) => r.category_id === id);
+        if (row) row.stock = stock;
+        else if (id) db.table('inventory').push({ category_id: id, stock });
+        await fulfillJson(route, 200, { ok: true, stock, rows: db.table('inventory') });
         return;
       }
       // delta: { category_id, delta } or array

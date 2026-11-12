@@ -1,0 +1,23 @@
+{
+  "id": "S42",
+  "writes": [
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/deliveries?id=eq.seed-trip-1",
+      "body": {
+        "client_name": "Test Client A",
+        "origin_lat": 0.3476,
+        "origin_lng": 32.5825,
+        "origin_label": "Prisca Honey",
+        "dest_lat": 0.3328,
+        "dest_lng": 32.5978,
+        "dest_label": "Kololo",
+        "distance_km": 3.1,
+        "duration_min": 14,
+        "fee_ugx": 9000
+      },
+      "prefer": "return=minimal",
+      "contentType": "application/json"
+    }
+  ]
+}

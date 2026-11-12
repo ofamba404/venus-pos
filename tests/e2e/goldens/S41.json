@@ -1,0 +1,35 @@
+{
+  "id": "S41",
+  "writes": [
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/store_fulfillment?id=eq.default",
+      "body": {
+        "busy_until": null,
+        "busy_for": "both",
+        "suggest_start": "11:00",
+        "suggest_end": "21:00",
+        "open_time": "07:00",
+        "close_time": "22:00",
+        "updated_at": "<ts>"
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    },
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/store_fulfillment?id=eq.default",
+      "body": {
+        "busy_until": null,
+        "busy_for": "both",
+        "suggest_start": "11:00",
+        "suggest_end": "21:00",
+        "open_time": "07:00",
+        "close_time": "22:00",
+        "updated_at": "<ts>"
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    }
+  ]
+}

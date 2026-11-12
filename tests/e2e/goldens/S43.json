@@ -1,0 +1,27 @@
+{
+  "id": "S43",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/rest/v1/deliveries",
+      "body": {
+        "client_id": null,
+        "client_name": "SafeBoda test",
+        "sale_id": null,
+        "origin_lat": 0.3397125,
+        "origin_lng": 32.5703906,
+        "origin_label": "Prisca Honey Enterprises, Zoa Hostel, 8HQC+V5J, Muganzi Awongererwa Rd, Kampala",
+        "dest_lat": 0.3305576,
+        "dest_lng": 32.5733405,
+        "dest_label": "Wandegeya Market, Kampala",
+        "distance_km": 0.8,
+        "duration_min": 3.2,
+        "fee_ugx": 5000,
+        "predicted_fee_ugx": 7000,
+        "fee_was_edited": true
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    }
+  ]
+}

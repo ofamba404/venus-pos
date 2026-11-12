@@ -1,0 +1,24 @@
+{
+  "id": "S23",
+  "writes": [
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/store_orders?id=eq.seed-cancelled-order",
+      "body": {
+        "dismissed_at": "<ts>",
+        "updated_at": "<ts>"
+      },
+      "prefer": "return=minimal",
+      "contentType": "application/json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/store-order/reserve",
+      "body": {
+        "op": "release",
+        "id": "seed-cancelled-order",
+        "cancel": false
+      }
+    }
+  ]
+}

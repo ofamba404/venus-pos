@@ -1,0 +1,31 @@
+{
+  "id": "S40",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/functions/v1/store-auth",
+      "body": {
+        "action": "admin_set_pos_display_name",
+        "user_id": "acc-1",
+        "pos_display_name": "Counter 1"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/functions/v1/store-auth",
+      "body": {
+        "action": "admin_set_verified",
+        "user_id": "acc-1",
+        "verified": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/functions/v1/store-auth",
+      "body": {
+        "action": "admin_delete_user",
+        "user_id": "acc-1"
+      }
+    }
+  ]
+}

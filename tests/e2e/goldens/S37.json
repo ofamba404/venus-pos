@@ -1,0 +1,21 @@
+{
+  "id": "S37",
+  "writes": [
+    {
+      "method": "DELETE",
+      "path": "/rest/v1/sales?id=eq.seed-delivery-sale",
+      "body": null,
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    },
+    {
+      "method": "POST",
+      "path": "/api/inventory/write",
+      "body": {
+        "category_id": "mint",
+        "op": "delta",
+        "delta": 1
+      }
+    }
+  ]
+}

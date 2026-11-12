@@ -43,18 +43,37 @@ function rewriteIds(value: unknown, ids: Map<string, string>): unknown {
   return value;
 }
 
+function isBootstrap(row: NormalizedWrite): boolean {
+  const body = row.body as { op?: string; action?: string } | null;
+  if (row.path.includes('/api/inventory/write') && body?.op === 'ensure') return true;
+  if (
+    row.path.includes('/functions/v1/store-auth') &&
+    (body?.action === 'admin_list_pos_labels' || body?.action === 'admin_list_users')
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function normalizeWrites(writes: RecordedWrite[]): NormalizedWrite[] {
   const ids = new Map<string, string>();
-  return writes.map((w) => {
+  const out: NormalizedWrite[] = [];
+  for (const w of writes) {
     const headers = w.headers || {};
-    return {
+    const prefer = headers.Prefer || headers.prefer;
+    const contentType = headers['Content-Type'] || headers['content-type'];
+    const row: NormalizedWrite = {
       method: w.method.toUpperCase(),
-      path: sortQuery(w.url),
-      prefer: headers.Prefer || headers.prefer,
-      contentType: headers['Content-Type'] || headers['content-type'],
+      path: rewriteIds(sortQuery(w.url), ids) as string,
       body: rewriteIds(w.body, ids),
     };
-  });
+    if (prefer) row.prefer = prefer;
+    if (contentType) row.contentType = contentType;
+    // Boot reads overlap (QUIRKS 10). The scenario contract is the other writes.
+    if (isBootstrap(row)) continue;
+    out.push(row);
+  }
+  return out;
 }
 
 export function assertCausalOrder(writes: NormalizedWrite[]) {

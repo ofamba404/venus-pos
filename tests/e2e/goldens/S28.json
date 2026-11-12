@@ -1,0 +1,35 @@
+{
+  "id": "S28",
+  "writes": [
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/store_fulfillment?id=eq.default",
+      "body": {
+        "busy_until": "<ts>",
+        "busy_for": "both",
+        "suggest_start": null,
+        "suggest_end": null,
+        "open_time": "07:00",
+        "close_time": "22:00",
+        "updated_at": "<ts>"
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    },
+    {
+      "method": "PATCH",
+      "path": "/rest/v1/store_fulfillment?id=eq.default",
+      "body": {
+        "busy_until": null,
+        "busy_for": "both",
+        "suggest_start": null,
+        "suggest_end": null,
+        "open_time": "07:00",
+        "close_time": "22:00",
+        "updated_at": "<ts>"
+      },
+      "prefer": "return=representation",
+      "contentType": "application/json"
+    }
+  ]
+}

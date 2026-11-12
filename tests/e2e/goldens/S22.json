@@ -1,0 +1,27 @@
+{
+  "id": "S22",
+  "writes": [
+    {
+      "method": "POST",
+      "path": "/api/store-order/reserve",
+      "body": {
+        "op": "release",
+        "id": "seed-pending-order",
+        "cancel": true
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/push/notify",
+      "body": {
+        "customerKey": "store customer",
+        "type": "order-cancelled",
+        "title": "Order cancelled",
+        "body": "Your order was cancelled.",
+        "requireInteraction": false,
+        "url": "/",
+        "tag": "order-cancelled-seed-pending-order"
+      }
+    }
+  ]
+}
