@@ -617,6 +617,11 @@ export function buildDefaultSeed() {
     },
   ];
 
+  const staff_settlements = [
+    { id: 'seed-payout-1', staff_id: 'seed-helper', amount_ugx: 3000, paid_at: daysAgo(6), note: 'First payout' },
+    { id: 'seed-payout-2', staff_id: 'seed-helper', amount_ugx: 2000, paid_at: daysAgo(2), note: null },
+  ];
+
   return {
     inventory,
     clients,
@@ -627,6 +632,7 @@ export function buildDefaultSeed() {
     store_reviews,
     store_fulfillment,
     store_accounts,
+    staff_settlements,
   };
 }
 
@@ -660,5 +666,6 @@ export function buildEmptySeed() {
       },
     ],
     store_accounts: [] as Array<Record<string, unknown>>,
+    staff_settlements: [] as Array<Record<string, unknown>>,
   };
 }

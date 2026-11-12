@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createNextDriver } from './drivers/next';
+import { buildDefaultSeed } from '../fixtures/seed';
+import { commissionLedger } from '../../src/domain/commission';
 
 function deltas(driver: Awaited<ReturnType<typeof createNextDriver>>, categoryId: string) {
   return driver.mock.writes
@@ -55,5 +57,29 @@ test.describe('owner decisions', () => {
       .filter((w) => w.method === 'PATCH' && w.url.includes('seed-sale-1'))
       .at(-1)!.body as { items: Array<{ breakdown: Record<string, number> }> };
     expect(patch.items[0]!.breakdown).toEqual({ mint: 1 });
+  });
+
+  test('helper commission is the 40% estimate, what is paid, and what is left', async ({ page }) => {
+    await createNextDriver(page, { role: 'pos_admin' });
+    const seed = buildDefaultSeed();
+    const want = commissionLedger(seed.sales as never, null, seed.staff_settlements);
+    expect(want.paid).toBe(5000);
+    expect(want.owed).toBe(want.earned - want.paid);
+    await page.goto('/next/insights');
+    const box = page.getByTestId('insights-commission');
+    await expect(box.getByTestId('commission-earned')).toHaveAttribute('data-value', String(want.earned));
+    await expect(box.getByTestId('commission-paid')).toHaveAttribute('data-value', '5000');
+    await expect(box.getByTestId('commission-owed')).toHaveAttribute('data-value', String(want.owed));
+    await expect(box.getByTestId('commission-owed')).toContainText(want.owed.toLocaleString('en-US'));
+    await expect(box.getByTestId('commission-note')).toContainText('Last payout');
+    await expect(box).toContainText('40% of profit');
+  });
+
+  test('commission says so when payouts cannot be read, instead of a wrong owed figure', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    driver.mock.setFailure({ method: 'GET', table: 'staff_settlements', status: 500, times: 5 });
+    await page.goto('/next/insights');
+    await expect(page.getByTestId('commission-owed')).toContainText('Payouts unavailable');
+    await expect(page.getByTestId('commission-paid')).toHaveCount(0);
   });
 });

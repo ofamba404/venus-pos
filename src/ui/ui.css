@@ -1568,3 +1568,60 @@ button.kpi-tile {
   grid-template-columns: 1fr 2fr;
   gap: var(--s-2);
 }
+
+/* What do I owe: one big number, then how it adds up. */
+.owe {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--melon-tint);
+}
+
+.owe__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.owe__now {
+  display: grid;
+  justify-items: end;
+  font: var(--t-title);
+  line-height: 1.1;
+}
+
+.owe__now-label {
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.owe__sum {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-2);
+}
+
+.owe__chip {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+}
+
+.owe__chip--paid {
+  background: var(--mint-tint);
+}
+
+.owe__chip-label {
+  font: var(--t-mono-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+}
+
+.owe .decision__why {
+  margin: 0;
+}

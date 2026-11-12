@@ -1,5 +1,6 @@
 import type { ChaseRow, PackLine, ProfitPicture, RestockRow } from '../../domain/decisions';
 import type { PartnerBatch } from '../../domain/partner';
+import type { CommissionLedger } from '../../domain/commission';
 import { ECONOMICS } from '../../domain/economics';
 import { formatUGX } from '../../domain/format';
 import { FlavorDot } from '../../ui/FlavorDot';
@@ -25,6 +26,8 @@ export function InsightsDecisions({
   chase,
   owed,
   picture,
+  ledger,
+  ledgerLoading,
   packSentence,
   partnerQty,
   partnerLoading,
@@ -40,6 +43,8 @@ export function InsightsDecisions({
   chase: ChaseRow[];
   owed: number;
   picture: ProfitPicture;
+  ledger: CommissionLedger | null;
+  ledgerLoading: boolean;
   packSentence: string;
   partnerQty: number | null;
   partnerLoading: boolean;
@@ -157,12 +162,41 @@ export function InsightsDecisions({
 
       <section class="decision" aria-label="What do I owe" data-testid="insights-commission">
         <h2 class="decision__q">What do I owe?</h2>
-        <div class="decision-row">
-          <div class="decision-row__main">
-            <div class="v-list-row__title">Helper</div>
-            <div class="v-list-row__meta">Commission for this period</div>
+        <div class="owe" data-testid="commission-ledger">
+          <div class="owe__head">
+            <div>
+              <div class="v-list-row__title">Helper</div>
+              <div class="v-list-row__meta">
+                {Math.round(picture.helperShare * 100)}% of profit, an estimate
+              </div>
+            </div>
+            <div class="owe__now" data-testid="commission-owed" data-value={ledger ? ledger.owed : ''}>
+              {ledger ? <Money value={ledger.owed} /> : <span class="v-muted">{ledgerLoading ? 'Loading…' : 'Payouts unavailable'}</span>}
+              {ledger ? <span class="owe__now-label">owed now</span> : null}
+            </div>
           </div>
-          <Money value={picture.helper} />
+          {ledger ? (
+            <div class="owe__sum">
+              <div class="owe__chip" data-testid="commission-earned" data-value={ledger.earned}>
+                <span class="owe__chip-label">Earned</span>
+                <Money value={ledger.earned} />
+              </div>
+              <div class="owe__chip owe__chip--paid" data-testid="commission-paid" data-value={ledger.paid}>
+                <span class="owe__chip-label">Paid</span>
+                <Money value={ledger.paid} />
+              </div>
+            </div>
+          ) : null}
+          {ledger ? (
+            <p class="decision__why" data-testid="commission-note">
+              {ledger.ahead > 0
+                ? `Paid is ${formatUGX(ledger.ahead)} ahead of the estimate. Nothing owed.`
+                : ledger.lastPaid
+                  ? `Last payout ${formatUGX(ledger.lastPaid.amount)} on ${new Date(ledger.lastPaid.at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}.`
+                  : 'No payouts recorded yet.'}
+              {' '}This period: <Money value={picture.helper} />.
+            </p>
+          ) : null}
         </div>
         <p data-testid="partner-settled-qty">
           {partnerLoading ? 'Loading settlement…' : `${partnerQty ?? 0} cookies already settled`}

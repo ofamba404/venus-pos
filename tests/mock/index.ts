@@ -69,6 +69,7 @@ function seedToTables(seed: ReturnType<typeof buildDefaultSeed>): TableMap {
     store_reviews: seed.store_reviews as Row[],
     store_fulfillment: seed.store_fulfillment as Row[],
     store_accounts: seed.store_accounts as Row[],
+    staff_settlements: seed.staff_settlements as Row[],
   };
 }
 

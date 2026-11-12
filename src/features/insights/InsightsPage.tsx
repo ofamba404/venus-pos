@@ -9,6 +9,8 @@ import { readStoredId } from '../../domain/parity';
 import { historyOrDefault } from '../../domain/insights-view';
 import type { JointCostRow } from '../../domain/joint-cost';
 import { sbFetch } from '../../data/api';
+import { fetchStaffSettlements } from '../../data/commission';
+import { commissionLedger, type Settlement } from '../../domain/commission';
 import { KEYS } from '../../data/keys';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
@@ -33,6 +35,8 @@ export function InsightsPage() {
   );
   const [serverSettle, setServerSettle] = useState<{ qty: number; batches: number[] } | null>(null);
   const [costHistory, setCostHistory] = useState<JointCostRow[]>([]);
+  // undefined: still loading. null: could not be read, so no owed figure is shown.
+  const [settlements, setSettlements] = useState<Settlement[] | null | undefined>(undefined);
 
   useEffect(() => {
     void Promise.all([loadSales(), loadClients(), ensureInventory()]).catch((e) =>
@@ -41,6 +45,7 @@ export function InsightsPage() {
     void fetchCookiePartnerSettle().then((state) => {
       if (state) setServerSettle(state);
     });
+    void fetchStaffSettlements().then(setSettlements);
     void sbFetch('joint_cost_history?select=category_id,cost_ugx,effective_from')
       .then(async (res) => {
         if (!res.ok) return;
@@ -62,6 +67,10 @@ export function InsightsPage() {
     [book, range],
   );
   const picture = useMemo(() => profitPicture(ranged, history), [ranged, history]);
+  const ledger = useMemo(
+    () => (settlements === undefined || settlements === null ? null : commissionLedger(book, history, settlements)),
+    [book, history, settlements],
+  );
   const sentence = useMemo(() => periodSentence(book, range, history).text, [book, range, history]);
   const restock = useMemo(() => restockPlan(book, inventory.value), [book, inventory.value]);
   const chase = useMemo(() => creditChase(book, clients.value), [book, clients.value]);
@@ -151,6 +160,8 @@ export function InsightsPage() {
         chase={chase}
         owed={owed}
         picture={picture}
+        ledger={ledger}
+        ledgerLoading={settlements === undefined}
         packSentence={packDriverSentence(picture)}
         partnerQty={serverSettle ? serverSettle.qty : null}
         partnerLoading={!serverSettle}
