@@ -1074,10 +1074,24 @@ button.kpi-tile {
   flex: 1 1 auto;
 }
 
+.order-card__mid {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+
+.order-card__mid > .order-card__lines {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
 .order-card__tools {
   display: flex;
+  flex: 0 0 auto;
   gap: var(--s-2);
-  margin-top: var(--s-3);
 }
 
 /* A long name wraps and the amount stays put. It never gets cut off. */
@@ -1588,14 +1602,15 @@ button.kpi-tile {
 }
 
 .edit-line__tools {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr;
   align-items: center;
-  flex-wrap: wrap;
   gap: var(--s-2);
 }
 
 .edit-line__flavours {
-  min-height: 44px;
+  grid-column: 1 / -1;
+  min-height: 48px;
   padding: 0 var(--s-4);
   border-radius: var(--r-pill);
   background: var(--mint-tint);
@@ -1611,8 +1626,8 @@ button.kpi-tile {
 
 .edit-line__remove {
   min-height: 44px;
-  margin-inline-start: auto;
-  padding: 0 var(--s-3);
+  justify-self: end;
+  padding: 0 var(--s-4);
   border-radius: var(--r-pill);
   background: var(--berry-tint);
   color: var(--danger);

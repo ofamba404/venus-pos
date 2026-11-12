@@ -2,15 +2,17 @@
 
 Evidence is the v1 register in `legacy/`, storefront admin actions in `legacy/js/admin.js` and `supabase-functions/store-auth`, `docs/overhaul` (especially `07-parity-checklist.md`, `08-decisions.md`, and `HANDOFF.md`), and git history on this repo. A gap is listed only when v2 does not already do the job. Usage evidence is a populated mock or schema column, a settings key, a passing scenario, or a commit that added or removed the behaviour.
 
-## Ask the owner
+## Decided by the owner (2026-11-12)
 
-Do not build these until he says yes.
+The five open asks were answered. Each one is built and has a test.
 
-1. **Cookie Quartet.** v1 stopped selling it (`0735a71`). v2 still shows the tile and prices it. The dual-run catalog test and scenario S03 still allow that. Remove it from Sell, or keep it?
-2. **Edit sale flavours.** Qty, add Plain, remove, payment, and customer are in the sheet. Reopening the pack flavour picker on a past sale is the rest of v1’s editor. Is the current sheet enough?
-3. **Staff commission ledger.** Insights shows joint profit × 40% from `joint_cost_history` (the schedule in `20261111153700`). v1’s staff card reads `staff_commission_summary` and `staff_settlements` (per-person rate, balance, payouts). Show that ledger, or keep the 40% estimate?
-4. **Busy for delivery vs pickup.** `store_fulfillment.busy_for` exists. The mock seed leaves it null. v2 always writes `both`. v1 also offers Delivery and Pickup. Split it, or keep both?
-5. **Staff stock edits.** v1 inventory is view-only for staff (`isStaffReadOnly`). v2 still lets staff change counts. Scenarios S29 and S30 sign in as staff and edit stock, so this was left as-is. Lock edits to admin?
+| # | Ask | Answer | v2 | Tests |
+| --- | --- | --- | --- | --- |
+| S03 | **Cookie Quartet.** v1 stopped selling it (`0735a71`). | Remove it from Sell | Gone from the Sell grid. The catalog row stays, marked `retired`, so old sales, held carts and store orders still read and can be edited. S03 now asserts the tile is absent | S03 (next and legacy), dual-run catalog |
+| S36 | **Edit sale flavours.** | Reopen the flavour picker | Each line in Edit sale has **Change flavours**. It opens the same picker Sell uses, prefilled with the sale's flavours. Name, detail, breakdown and price are rebuilt like Sell builds them, and stock moves by the difference | S36, `sale-edit-flavours` unit, owner-decisions spec |
+| — | **Staff commission.** | The 40% estimate, plus what has been paid | Insights, What do I owe: **owed now** = 40% of profit (`economics.ts`) on every sale minus the sum of `staff_settlements`, with Earned and Paid beside it. If payouts can't be read it says so rather than show a wrong figure | `commission` unit, owner-decisions spec |
+| — | **Busy for delivery vs pickup.** | Keep one switch | One switch. Busy 30 min writes `busy_for: both`. Clear writes null. No Delivery or Pickup split | S28, owner-decisions spec |
+| S29, S30 | **Staff stock edits.** | Lock to admin | Staff see counts and the low/out flags, read-only, with a note. Admin keeps the steppers and the exact count. The lock is in the UI: checkout still takes stock down for staff, so the write path is not closed | S29, S30, S31, S32, S33 sign in as admin. owner-decisions spec covers staff |
 
 Staff email reset is no longer an ask. It is on `/next/auth.html` (show/hide password, and the recovery link back to that page).
 
@@ -20,11 +22,12 @@ Staff email reset is no longer an ask. It is on `/next/auth.html` (show/hide pas
 | --- | --- | --- |
 | Client rename, sales stay on the same id | Owner ask; `clients.js`; S39 | Ported |
 | Review display name, approve, hide, delete | `2efd607`; `reviews.js`; owner ask | Ported |
-| Copy 9-digit phone and location | Owner ask; seed sale `client_phone` `0700333444` and `location_label` Kololo; order `phone_e164` | Ported on the review sheet, order cards, and the history sale sheet |
+| Copy 9-digit phone and location | Owner ask; seed sale `client_phone` `0700333444` and `location_label` Kololo; order `phone_e164` | Ported as 44px tinted tap targets (mint for phone, melon for place) on the review sheet, order cards, and the history sale sheet. The icon ticks when copied |
 | Analytics the owner named (period rail, revenue, products, flavours, hours, clients, credit aging) | `analytics.js`; chart range key `venus_chart_range`; L4 | Ported as bars and a heatmap |
 | Cookie partner server settlement | `851db69`; blob `/api/cookie-partner/settle`; mock seeds qty 262 | Ported |
 | Storefront reset code | `admin_issue_reset_code`; owner ask | Ported |
 | Pick which storefront account that code applies to | `admin.js` lists every account; seed has two `store_accounts` | Ported. The chip rail selects the account. Save, verify, delete, and reset use that row. Default stays the unverified account so S40 is unchanged |
+| Long customer names on order cards | Owner nit | They wrap. The amount stays put |
 | Walk-in, device hold, offline queue | D2, D6, D4 answered 2026-11-12; S48 and phase 8 | Ported |
 | Bangis 50/50 hidden from the live stock grid | `3743756` removed it and said keep legacy display; category is `legacy: true`; no scenario edits `spliff5050` | Ported as a hide. Old sales can still name it. It is not a stock stepper |
 
@@ -36,6 +39,7 @@ Staff email reset is no longer an ask. It is on `/next/auth.html` (show/hide pas
 | WhatsApp receipt | D3 answer is no |
 | End-of-day / shift close | D5 answer is no |
 | Evening dark theme | D10 default is no, and nobody has asked again |
+| Cookie Quartet on Sell | Owner decision, S03 | Removed. See above |
 | Insights donut and Pareto drawings | The same numbers are the flavour and product bars |
 | Cookie partner swipe pager | The settled list and the open batch are the same data |
 | Export users JSON, and a second “copy users” button | Admin toolbox. The account list is on Store. Copy names stays on Clients, which S39 and L4 use |
@@ -47,4 +51,4 @@ Staff email reset is no longer an ask. It is on `/next/auth.html` (show/hide pas
 
 ## Already in v2
 
-Selling, store orders, hours, stock counts for admins, credit settle, history, void, delivery quote, reviews list, and the legacy URL redirects are ticked in `07-parity-checklist.md`. Push subscribe and the cutover service worker stay Phase 10, as that checklist says.
+Selling, store orders, hours, stock counts for admins (read-only for staff), credit settle, history, void, delivery quote, reviews list, and the legacy URL redirects are ticked in `07-parity-checklist.md`. Push subscribe and the cutover service worker stay Phase 10, as that checklist says.

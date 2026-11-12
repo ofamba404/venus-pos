@@ -31,15 +31,17 @@ export function OrderCard({
         </div>
         <Money className="v-money--amber" value={total} />
       </div>
-      <div class="order-card__lines">
-        {shown.map((line, index) => (
-          <div key={`${line.name}-${index}`}>
-            <div class="v-list-row__meta">{line.name}</div>
-            <FlavorSwatches breakdown={line.breakdown} productId={line.productId} />
-          </div>
-        ))}
+      <div class="order-card__mid">
+        <div class="order-card__lines">
+          {shown.map((line, index) => (
+            <div key={`${line.name}-${index}`}>
+              <div class="v-list-row__meta">{line.name}</div>
+              <FlavorSwatches breakdown={line.breakdown} productId={line.productId} />
+            </div>
+          ))}
+        </div>
+        {tools ? <div class="order-card__tools">{tools}</div> : null}
       </div>
-      {tools ? <div class="order-card__tools">{tools}</div> : null}
       {children}
     </article>
   );

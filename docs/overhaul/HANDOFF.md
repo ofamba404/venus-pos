@@ -53,7 +53,7 @@ The suite was not green on a fresh `npm test` / `npx playwright test`:
 **Phase 6 — Stock, Settings, Auth, PWA.** Exit criteria:
 
 1. **S29–S33, S45, S46, S48, S49 match.** `npx playwright test --project=chromium tests/e2e/contract.spec.ts -g "S29 stock|S30 set stock|S31 bulk|S32 inventory|S33 low-stock|S45 enable|S46 staff|S48 offline|S49 sign"`: **9 passed** (2.4m) against the mock at `/next/`.
-2. **Staff surface.** Those scenarios sign in as staff, change stock (including the 502 PATCH fallback), subscribe to notification prefs, bounce `/insights` back to Sell, queue an offline charge, and sign out and back in.
+2. **Staff surface.** S46, S48 and S49 sign in as staff, subscribe to notification prefs, bounce `/insights` back to Sell, queue an offline charge, and sign out and back in. Stock changes (S29–S33, including the 502 PATCH fallback) now sign in as admin: staff get a read-only stock page (owner decision, 2026-11-12).
 3. **Service worker routing.** `tests/unit/sw-routing.test.ts` passes inside `npm test`. The built worker is not registered while the app is under `/next/`.
 
 **Phase 7 — Back office.** Exit criteria:
@@ -77,10 +77,10 @@ Five checklist rows stay open because they need a production deploy or the cutov
 
 v2 follow-ups, not blockers:
 
-- Cookie Quartet is still on the v2 sell grid. v1 no longer sells it. The legacy S03 check only proves the tile is gone.
-- Staff inventory is read-only on v1. v2 still lets staff change stock.
+- Cookie Quartet is gone from the v2 sell grid (owner decision, 2026-11-12). It stays in the catalog as `retired` so old sales, held carts and store orders still read. S03 now asserts the tile is absent.
+- Staff inventory is read-only on v1 and now on v2 too. The lock is in the UI. Checkout still takes stock down for staff, so the write path stays open.
 - Partial cookie-partner sends are in the domain (`cookiePartnerBatchesFromCuts`, `partialSendCount`). The Insights screen still settles a full batch.
-- `jointCostAt` prices flavored joints at 4,000 UGX from 2026-11-11 15:37 UTC and 5,000 before that. v2 has no commission card that reads `joint_cost_history`.
+- `jointCostAt` prices flavored joints at 4,000 UGX from 2026-11-11 15:37 UTC and 5,000 before that. Insights shows the helper's commission as the 40% estimate, what `staff_settlements` says was paid, and the rest owed.
 - Review moderation, the review reward, the Users admin item, the header pill rail, and the home carousels stay on v1.
 
 ## Phase 9 deploy

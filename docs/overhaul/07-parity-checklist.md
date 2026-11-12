@@ -9,7 +9,7 @@ Legend: **S** = staff and admin, **A** = admin only.
 | ✓ | Capability | Role | v1 source | Proof |
 |---|-----------|:----:|-----------|-------|
 | [x] | Product catalog and prices (packs 8,000 / 15,000 / 35,000 / 50,000; cookie packs 15,000 / 21,000 / 25,000; Plain and Bangis 5,000; cookies butterscotch 5,000, chocolate/mint/strawberry 8,000; wholesale manual) | S | `js/config.js:18-23`, `182-231` | dual-run catalog, S01–S09 |
-| [x] | Pack flavour rules: `choose_any`, `choose_variety`, Quartet fixed butterscotch, cookie choice pool excludes butterscotch | S | `js/config.js:118-124`, `js/product-config.js` | dual-run pack-config, S03, S09 |
+| [x] | Pack flavour rules: `choose_any`, `choose_variety`, Quartet fixed butterscotch (Quartet itself is no longer sold: S03 asserts the tile is absent), cookie choice pool excludes butterscotch | S | `js/config.js:118-124`, `js/product-config.js` | dual-run pack-config, S03, S09 |
 | [x] | Flavoured cookie bulk pricing (≥ 4 → 6,500; packs repriced) | S | `js/flavored-cookie-pricing.js:28-129` | dual-run, S04, S05 |
 | [x] | Wholesale cookies with custom unit price | S | `js/product-config.js` | S06 |
 | [x] | Draft stock shown in config; counter lines cap at refreshed on-hand stock (D16). A badge still does not block opening the product | S | `js/orders.js` `draftStock`, `SellPage` | S01, L4 |
@@ -65,8 +65,8 @@ Legend: **S** = staff and admin, **A** = admin only.
 | ✓ | Capability | Role | v1 source | Proof |
 |---|-----------|:----:|-----------|-------|
 | [x] | Boot `ensure` call | S | `js/bootstrap.js:217-218`, `js/inventory.js:471-487` | all goldens (first write) |
-| [x] | +/− steppers with per-category queue | S | `js/inventory.js:112-209` | S29 |
-| [x] | Exact count edit | S | `js/inventory.js` | S30 |
+| [x] | +/− steppers with per-category queue (admin only; staff see counts read-only) | S | `js/inventory.js:112-209` | S29, owner-decisions spec |
+| [x] | Exact count edit (admin only) | S | `js/inventory.js` | S30 |
 | [x] | Bulk adjust | S | `#amountModal` | S31 |
 | [x] | 405/502 → direct PATCH fallback | S | `js/inventory.js:138-176` | S32, 405 contract |
 | [x] | Low (≤ 5) / out; cookie low < 30 % of 100 | S | `js/config.js:139-142` | dual-run stock-state |

@@ -4,11 +4,18 @@ import { createNextDriver } from './drivers/next';
 
 const dir = process.env.SHOT_DIR || 'docs/overhaul/design-shots/after';
 
-test('capture 390px screens', async ({ page }) => {
+test('capture 390px screens', async ({ page, browser, baseURL }) => {
   test.setTimeout(180_000);
   mkdirSync(dir, { recursive: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await createNextDriver(page, { role: 'pos_admin' });
+  const driver = await createNextDriver(page, { role: 'pos_admin' });
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  // A long name and a phone on a sale, so the wrap and the copy buttons show.
+  driver.mock.db.table('store_orders').find((r) => r.id === 'so-confirmed-1')!.customer_name =
+    'Bartholomew Nakimuli Wolfeschlegelstein';
+  const seedSale = driver.mock.db.table('sales').find((r) => r.id === 'seed-sale-1')!;
+  seedSale.client_phone = '0700333444';
+  seedSale.location_label = 'Kololo';
 
   async function frame() {
     await page.addStyleTag({
@@ -27,6 +34,8 @@ test('capture 390px screens', async ({ page }) => {
   await page.getByTestId('product-plain_single').click();
   await page.getByTestId('config-add').click();
   await page.getByRole('dialog', { name: 'Review sale' }).waitFor();
+  await page.getByRole('dialog', { name: 'Review sale' }).getByRole('tab', { name: 'Delivery' }).click();
+  await page.getByRole('dialog', { name: 'Review sale' }).getByTestId('delivery-phone').fill('+256700111222');
   await frame();
   await page.screenshot({ path: `${dir}/review-sheet.png`, fullPage: true });
   await page.keyboard.press('Escape');
@@ -34,14 +43,42 @@ test('capture 390px screens', async ({ page }) => {
   await shot('orders', '/next/orders', 'h1');
   await shot('history', '/next/history', 'h1');
   await page.getByTestId('history-sale-seed-sale-1').click();
+  await page.getByRole('dialog', { name: 'Sale' }).waitFor();
+  await frame();
+  await page.screenshot({ path: `${dir}/sale-sheet.png` });
   await page.getByTestId('sale-edit').click();
   await page.getByRole('dialog', { name: 'Edit sale' }).waitFor();
   await frame();
-  await page.screenshot({ path: `${dir}/edit-sale.png`, fullPage: true });
+  await page.screenshot({ path: `${dir}/edit-sale.png` });
+  await page.getByTestId('sale-edit-flavours-0').click();
+  await page.getByRole('dialog', { name: /Flavours/ }).waitFor();
+  await page.getByTestId('config-flavor-strawberry-inc').click();
+  await frame();
+  await page.screenshot({ path: `${dir}/edit-sale-flavours.png` });
+  await page.keyboard.press('Escape');
+  await page.getByTestId('sale-edit-flavours-back').click();
   await page.keyboard.press('Escape');
   await shot('clients', '/next/clients', 'h1');
   await shot('insights', '/next/insights', 'h1');
   await shot('reviews', '/next/reviews', '.v-review');
   await shot('stock', '/next/stock', '[data-testid="stock-glance"]');
   await shot('more', '/next/more', 'h1');
+
+  // Stock as staff: read-only. A second page, signed in as staff.
+  const staffContext = await browser.newContext({
+    baseURL,
+    locale: 'en-UG',
+    timezoneId: 'Africa/Kampala',
+    serviceWorkers: 'block',
+  });
+  const staffPage = await staffContext.newPage();
+  await staffPage.setViewportSize({ width: 390, height: 844 });
+  await createNextDriver(staffPage, { role: 'pos_staff' });
+  await staffPage.goto('/next/stock');
+  await staffPage.locator('[data-testid="stock-readonly"]').waitFor({ timeout: 20_000 });
+  await staffPage.addStyleTag({
+    content: '.shell__nav{display:none!important}.shell__main{padding-bottom:24px!important}',
+  });
+  await staffPage.screenshot({ path: `${dir}/stock-staff.png`, fullPage: true });
+  await staffContext.close();
 });
