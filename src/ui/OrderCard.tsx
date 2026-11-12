@@ -9,7 +9,7 @@ export function OrderCard({
   total,
   image,
   lines,
-  tools,
+  copies,
   children,
 }: {
   title: string;
@@ -17,7 +17,8 @@ export function OrderCard({
   total: number;
   image?: string;
   lines: Array<{ name: string; productId?: string; breakdown?: Record<string, unknown> }>;
-  tools?: ComponentChildren;
+  /** Labelled copy pills, one compact row under the lines. */
+  copies?: ComponentChildren;
   children: ComponentChildren;
 }) {
   const shown = lines.filter((line) => line.name && line.name !== 'Item').slice(0, 3);
@@ -40,8 +41,8 @@ export function OrderCard({
             </div>
           ))}
         </div>
-        {tools ? <div class="order-card__tools">{tools}</div> : null}
       </div>
+      {copies ? <div class="order-card__copies">{copies}</div> : null}
       {children}
     </article>
   );

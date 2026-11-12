@@ -157,3 +157,12 @@ export function IconPin(p: IconProps) {
     </svg>
   );
 }
+
+export function IconCopy(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M9 9h10v11H9z" />
+      <path d="M15 9V4H5v11h4" />
+    </svg>
+  );
+}

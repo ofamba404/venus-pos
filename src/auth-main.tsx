@@ -127,7 +127,7 @@ function AuthPage() {
   return (
     <main class="auth">
       <section class="auth-card v-page" aria-labelledby="auth-title">
-        <img class="auth-logo" src={`${import.meta.env.BASE_URL}assets/logo.svg`} alt="" width="56" height="56" />
+        <img class="auth-logo" src={`${import.meta.env.BASE_URL}assets/logo-ink.svg`} alt="" width="56" height="56" />
         <p class="auth-kicker">Venus</p>
         <h1 id="auth-title" class="auth-title">{title}</h1>
         <p class="auth-sub">

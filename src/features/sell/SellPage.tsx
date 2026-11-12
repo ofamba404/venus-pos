@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
 import { productImageSrc } from '../../domain/product-art';
-import { localPhoneDigits } from '../../domain/phone';
 import { kampalaInputToIso, kampalaLocalInput } from '../../domain/kampala-time';
 import { itemToConfigSelection } from '../../domain/pricing/pack-config';
 import { stockNotifyDecision } from '../../domain/stock-notify';
@@ -54,7 +53,8 @@ import { Field } from '../../ui/Field';
 import { Segmented } from '../../ui/Segmented';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { FlavorPicker } from '../../ui/FlavorPicker';
-import { CopyButton } from '../../ui/CopyButton';
+import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
+import { lineCount } from '../../domain/line-count';
 import { LoadedOrderCard } from '../../ui/LoadedOrderCard';
 import { ProductCard } from '../../ui/ProductCard';
 import { DeliveryBlock } from '../../ui/DeliveryBlock';
@@ -439,12 +439,17 @@ export function SellPage() {
         ? 'Credit needs a client name'
         : 'Add a customer to continue';
 
+  // A store order is paid at the door until checkout says otherwise, and credit is paid later.
+  const collectNow = payment === 'credit' || meta.storeOrderId ? cartSum.value : 0;
   const loadedOrderProps = {
     name: meta.clientName,
     delivery: meta.deliveryEnabled !== false,
     timeLabel: meta.deliveryTimeLabel,
     place: draft.destText || meta.deliveryLocationLabel || '',
     phone: meta.clientPhone,
+    lat: draft.dest?.lat ?? null,
+    lng: draft.dest?.lng ?? null,
+    collect: collectNow,
     itemCount: cartCount.value,
     total: cartSum.value,
   };
@@ -475,21 +480,24 @@ export function SellPage() {
       ) : (
         <div>
           {lines.map((line) => {
-            const qty = Object.values(line.breakdown || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+            const { qty, contents } = lineCount(line);
             const art = productImageSrc(line.productId, line.breakdown);
             return (
             <div class="v-cart-line" key={line.key}>
               {art ? <img class="v-thumb" src={art} alt="" /> : null}
-              {qty > 0 ? (
-                <span class="v-qty" aria-label={`Quantity ${qty}`}>
-                  {qty}
-                </span>
-              ) : null}
+              <span class="v-qty" aria-label={`Quantity ${qty}`} data-testid="line-qty">
+                ×{qty}
+              </span>
               <div class="v-cart-line__main">
                 <div class="v-cart-line__head">
                   <div class="v-list-row__title">{line.name}</div>
                   <Money className="v-money--amber" value={line.isReward ? 0 : line.lineTotal} />
                 </div>
+                {contents ? (
+                  <div class="v-cart-line__contents" data-testid="line-contents">
+                    {contents}
+                  </div>
+                ) : null}
                 <FlavorSwatches breakdown={line.breakdown} productId={line.productId} />
               </div>
               <IconButton size="sm" label={`Edit ${line.name}`} onClick={() => openLine(line)}>
@@ -621,18 +629,10 @@ export function SellPage() {
             <button type="button" class="pickup-control" data-testid="pickup-label" onClick={locatePickup}>
               {draft.originText || 'Shop pickup'}
             </button>
-            <div class="v-fact">
-              <PlaceSearch
-                value={draft.destText || meta.deliveryLocationLabel || ''}
-                onPick={onPlacePick}
-              />
-              <CopyButton
-                kind="place"
-                ariaLabel="Copy delivery location"
-                testId="copy-location"
-                value={() => draft.destText || meta.deliveryLocationLabel || ''}
-              />
-            </div>
+            <PlaceSearch
+              value={draft.destText || meta.deliveryLocationLabel || ''}
+              onPick={onPlacePick}
+            />
             <Field
               label="Delivery fee (UGX)"
               inputMode="numeric"
@@ -644,21 +644,25 @@ export function SellPage() {
                 setCheckoutDraft({ feeValue, feeManuallyEdited: true });
               }}
             />
-            <div class="v-fact">
-              <Field
-                label="Phone"
-                data-testid="delivery-phone"
-                value={meta.clientPhone}
-                placeholder="+256…"
-                onInput={(e) => setOrderMetaPatch({ clientPhone: (e.target as HTMLInputElement).value })}
-              />
-              <CopyButton
-                kind="phone"
-                ariaLabel="Copy phone number"
-                testId="copy-phone"
-                value={() => localPhoneDigits(meta.clientPhone)}
-              />
-            </div>
+            <Field
+              label="Phone"
+              data-testid="delivery-phone"
+              value={meta.clientPhone}
+              placeholder="+256…"
+              onInput={(e) => setOrderMetaPatch({ clientPhone: (e.target as HTMLInputElement).value })}
+            />
+            <DeliveryCopyRow
+              delivery
+              idPrefix="copy-"
+              read={() => ({
+                name: orderMeta.value.clientName,
+                phone: orderMeta.value.clientPhone,
+                place: checkoutDraft.value.destText || orderMeta.value.deliveryLocationLabel || '',
+                lat: checkoutDraft.value.dest?.lat ?? null,
+                lng: checkoutDraft.value.dest?.lng ?? null,
+                collect: collectNow,
+              })}
+            />
             <TimePicker
               value={kampalaLocalInput(meta.deliveryDeliverAt)}
               onChange={(value) => setOrderMetaPatch({ deliveryDeliverAt: kampalaInputToIso(value) })}

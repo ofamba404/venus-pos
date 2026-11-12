@@ -31,7 +31,7 @@ All values below are the implementation. Hex values appear **only** in `src/styl
 |-------|-------|--------------|
 | `--ink-900` | `#212121` | `--color-black` |
 | `--ink-700` | `#575757` | `--color-light-charcoal` |
-| `--ink-500` | `#686f7c` | `--color-gray-500`, darkened from `#6b7280` so meta text clears 4.5:1 on `--bg` |
+| `--ink-500` | `#5f6673` | `--color-gray-500`, darkened from `#6b7280` so meta text clears 4.5:1 on `--bg` |
 | `--ink-300` | `#d1d5db` | `--color-gray-300` |
 | `--paper-0` | `#ffffff` | `--color-white` |
 | `--paper-50` | `#f5f4f1` | `--color-natural-white-25` |
@@ -44,7 +44,8 @@ All values below are the implementation. Hex values appear **only** in `src/styl
 | `--amber-100` | `#fef3c7` | `--color-amber-100` |
 | `--amber-500` | `#f5a524` | Highlight fill (nav marker, chart bars, cart CTA on ink). Never text on light |
 | `--amber-600` | `#d97706` | Borders and large strokes on amber tint |
-| `--amber-700` | `#b04f08` | **All amber text**, money, focus ring. 5.3:1 on white, 4.8:1 on `--paper-50`, 4.7:1 on the pink and success tints. `#b45309` missed 4.5:1 on those |
+| `--amber-700` | `#b04f08` | Focus ring and amber strokes only (non-text, ≥ 3:1). Not for text |
+| `--amber-900` | `#7a3408` | Dark amber for label text (`--amber-ink`), ≥ 7.4:1 on every light surface |
 | `--amber-800` | `#92400e` | `--color-amber-800` |
 | `--pink-300` | `#f4a6c1` | Storefront pink. Source of `--pink-tint` |
 
@@ -58,20 +59,21 @@ All values below are the implementation. Hex values appear **only** in `src/styl
 | `--surface-selected` | `var(--paper-200)` | Selected rows/chips (non-primary) |
 | `--fg` | `var(--ink-900)` | Primary text and icons |
 | `--fg-2` | `var(--ink-700)` | Secondary text (≥ 4.5:1 on `--bg`) |
-| `--fg-3` | `var(--ink-500)` | Meta text only, ≥ 14 px (AA on `--paper-50` and the amber, pink and success tints) |
+| `--fg-3` | `var(--ink-500)` | Meta text on plain surfaces (≥ 4.77:1 on every light surface except selected-row grey). On a tint, step up to `--fg-2` |
 | `--fg-disabled` | `var(--ink-300)` | Disabled text/icons (never for information) |
 | `--line` | `var(--paper-200)` | Dividers, card borders |
 | `--line-strong` | `var(--stroke-400)` | Input borders, swatch outlines |
 | `--action` | `var(--ink-900)` | Primary button fill, active tab or filter pill, cart bar |
 | `--accent` / `--accent-ink` | `var(--ink-900)` | Brand ink for chart lines, bars and links. It was green before the retheme |
 | `--highlight` | `var(--amber-500)` | Highlights: active nav marker, chart bars, cart CTA text on ink, celebration glow |
-| `--money` | `var(--amber-700)` | Totals and every money figure that uses the amber voice (AA at any size) |
+| `--money` | `var(--ink-900)` | Money and key numbers (totals, amounts): ink, 16:1 on white and ≥ 14:1 on every tint, with an amber `--marker` stroke behind it. Amber is never the text colour for money |
+| `--marker` / `--amber-ink` | `var(--amber-500)` / `var(--amber-900)` | The highlighter stroke behind money / dark amber label text |
 | `--amber-tint` / `--pink-tint` | `#fff4dc` / `#fdeef4` | Highlight panels (loaded order, delivery block, auth) / pack tiles and KPI tiles |
 | `--on-action` | `var(--paper-0)` | Text on primary |
 | `--danger` | `var(--red-700)` | Destructive buttons, debt amounts, errors |
 | `--success` | `var(--green-700)` | Green means paid, done or success only: success check, "Paid" tag, Live dot, copied tick |
-| `--success-ink` / `--success-tint` | `#166534` / `#e5f6f1` | Small text on a paid tag; paid chips |
-| `--warn-bg` / `--warn-fg` | `var(--amber-100)` / `var(--amber-800)` | Low-stock tags and banners |
+| `--success-ink` / `--success-tint` | `#14532d` / `#e5f6f1` | Small text on a paid tag; paid chips |
+| `--warn-bg` / `--warn-fg` | `var(--amber-100)` / `var(--amber-ink)` | Low-stock tags and banners |
 | `--scrim` | `rgb(33 33 33 / 0.32)` | Behind sheets and dialogs |
 | `--focus` | `var(--amber-700)` | 2 px amber focus ring + 2 px offset |
 
@@ -230,3 +232,13 @@ Total ≈ 420 ms. The success content and `New sale` are interactive from the fi
 - `<meta name="theme-color" content="#f5f4f1">` on every entry (matches `--bg`).
 - Manifest: `background_color: "#f5f4f1"`, `theme_color: "#f5f4f1"`. Keep `name`, `short_name`, `scope`, `launch_handler`, icons. **Keep `start_url: "/"` and add `"id": "/"`.** The v1 manifest has no `id`, so browsers identify the installed app by its start URL. Changing `start_url` without pinning `id` can make installed phones treat v2 as a different app. Update shortcuts to `/orders` and `/stock`.
 - Regenerate maskable icons only if the owner provides new art; otherwise keep the current icon files.
+
+
+## Contrast rules (enforced)
+
+`node scripts/check-contrast.mjs` prints every token pair and `tests/unit/contrast.test.ts` fails the build below the threshold. `tests/e2e/contrast-render.spec.ts` runs axe on the rendered tint screens.
+
+- Text is at least 4.5:1 on every surface it can sit on. Key numbers (money, totals, body ink) are at least 7:1.
+- Where same-hue tinted text looks muddy (amber on amber tint, green on green tint), the text is ink and the tint stays the surface. Amber is a marker, a pill fill, a border or a ring, not small text.
+- Grey meta (`--fg-3`) is for plain surfaces. On pink, amber, grape, berry and success tints it steps up to `--fg-2`.
+- No stylesheet outside `tokens.css` hard-codes a text colour.

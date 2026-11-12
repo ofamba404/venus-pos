@@ -1,7 +1,7 @@
 :root {
   --ink-900: #212121;
   --ink-700: #575757;
-  --ink-500: #686f7c;
+  --ink-500: #5f6673;
   --ink-300: #d1d5db;
   --paper-0: #ffffff;
   --paper-50: #f5f4f1;
@@ -15,6 +15,7 @@
   --amber-600: #d97706;
   --amber-700: #b04f08;
   --amber-800: #92400e;
+  --amber-900: #7a3408;
   --pink-300: #f4a6c1;
   --green-700: #15803d;
 
@@ -44,8 +45,11 @@
   --pink-tint: #fdeef4;
   --mint-tint: #e5f6f1;
   --success-tint: #e5f6f1;
-  --success-ink: #166534;
-  --money: var(--amber-700);
+  --success-ink: #14532d;
+  /* Money and key numbers are ink (16:1). Amber is the marker behind them, never the text. */
+  --money: var(--ink-900);
+  --marker: var(--amber-500);
+  --amber-ink: var(--amber-900);
   --melon-tint: #fff1e2;
   --grape-tint: #f3eef8;
   --berry-tint: #fdecee;
@@ -55,7 +59,7 @@
   --danger: var(--red-700);
   --success: var(--green-700);
   --warn-bg: var(--amber-100);
-  --warn-fg: var(--amber-800);
+  --warn-fg: var(--amber-ink);
   --scrim: rgb(33 33 33 / 0.32);
   --focus: var(--amber-700);
 

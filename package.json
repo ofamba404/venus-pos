@@ -20,7 +20,8 @@
     "lint": "eslint src tests sw --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"*.{ts,js,json,md}\"",
-    "check": "npm run typecheck && npm run test"
+    "check": "npm run typecheck && npm run test",
+    "check:contrast": "node scripts/check-contrast.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.9",

@@ -12,11 +12,10 @@ import { Tag } from '../../ui/Tag';
 import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
 import { productImageSrc } from '../../domain/product-art';
-import { localPhoneDigits } from '../../domain/phone';
 import { EmptyState } from '../../ui/EmptyState';
 import { IconButton } from '../../ui/IconButton';
 import { OrderCard } from '../../ui/OrderCard';
-import { CopyButton } from '../../ui/CopyButton';
+import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
 import { KEYS } from '../../data/keys';
 import { writePaint } from '../../domain/parity';
 import { SUPABASE_ANON_JWT, SUPABASE_URL } from '../../data/env';
@@ -230,20 +229,19 @@ export function OrdersPage() {
             total={orderTotal(o)}
             image={thumb}
             lines={items.slice(0, 3).map(orderLine)}
-            tools={
-              <>
-                {phone ? (
-                  <CopyButton
-                    kind="phone"
-                    ariaLabel="Copy phone"
-                    testId={`copy-phone-${o.id}`}
-                    value={() => localPhoneDigits(phone)}
-                  />
-                ) : null}
-                {place ? (
-                  <CopyButton kind="place" ariaLabel="Copy location" testId={`copy-location-${o.id}`} value={() => place} />
-                ) : null}
-              </>
+            copies={
+              <DeliveryCopyRow
+                compact
+                delivery={o.delivery_enabled !== false}
+                name={orderTitle(o, labels)}
+                phone={phone}
+                place={place}
+                lat={o.location_lat}
+                lng={o.location_lng}
+                collect={seg === 'closed' ? 0 : orderTotal(o)}
+                idPrefix="copy-"
+                idSuffix={`-${o.id}`}
+              />
             }
           >
             <div class="v-order-card__actions">

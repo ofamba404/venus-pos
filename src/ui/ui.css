@@ -122,6 +122,10 @@
 
 .v-money--amber {
   color: var(--money);
+  /* A marker stroke under the figure. The number stays ink. */
+  background: linear-gradient(transparent 64%, color-mix(in srgb, var(--marker) 70%, transparent) 64%);
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 .v-qty {
@@ -241,36 +245,38 @@
   place-items: center;
   gap: var(--s-2);
   flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
-  padding: 0;
+  min-height: 44px;
+  padding: 0 var(--s-4) 0 var(--s-3);
   border-radius: var(--r-pill);
   font: var(--t-label);
   line-height: 1;
+  white-space: nowrap;
   transition:
     transform var(--d-instant) var(--ease-out),
     background var(--d-fast) var(--ease-out);
 }
 
-.v-copy-btn--phone {
-  background: color-mix(in srgb, var(--ink-900) 8%, var(--surface));
-  color: var(--accent-ink);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink-900) 35%, transparent);
-}
-
+/* Phone and location are one family: amber. Copy all is the strong one, solid ink. */
+.v-copy-btn--phone,
 .v-copy-btn--place {
   background: var(--amber-tint);
-  color: var(--amber-800);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--amber-600) 60%, transparent);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1.5px var(--amber-600);
 }
 
-.v-copy-btn--pill {
-  width: auto;
-  padding: 0 var(--s-4) 0 var(--s-3);
+.v-copy-btn--all {
+  background: var(--ink-900);
+  color: var(--on-action);
+}
+
+.v-copy-btn--compact {
+  gap: 6px;
+  padding: 0 var(--s-3);
+  font: 500 13px/1 var(--font-ui);
 }
 
 .v-copy-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.96);
 }
 
 .v-copy-btn.is-done {
@@ -284,6 +290,16 @@
   place-items: center;
   line-height: 0;
   animation: v-pop var(--d-base) var(--ease-spring);
+}
+
+.v-copy-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.v-copy-row--compact {
+  gap: 6px;
 }
 
 .auth {
@@ -317,7 +333,7 @@
   font: var(--t-mono-micro);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--amber-700);
+  color: var(--amber-ink);
 }
 
 .auth-title {
@@ -481,8 +497,8 @@
 }
 
 .v-tag--amber {
-  background: var(--amber-tint);
-  color: var(--amber-800);
+  background: var(--highlight);
+  color: var(--fg);
 }
 
 .v-tag--paid {
@@ -548,7 +564,7 @@
 
 .v-tile__meta {
   font: var(--t-meta);
-  color: var(--fg-3);
+  color: var(--fg-2);
 }
 
 .v-tile__price {
@@ -801,7 +817,7 @@ button.kpi-tile {
 }
 
 .delivery-block .v-section-label {
-  color: var(--amber-800);
+  color: var(--fg-2);
 }
 
 .celebration {
@@ -1051,8 +1067,7 @@ button.kpi-tile {
   font: var(--t-mono-micro);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  /* 11px on paper-50: --fg-3 (was #6b7280) was 4.39:1; this step clears 4.5:1 */
-  color: #666d7a;
+  color: var(--fg-3);
   margin: var(--s-4) 0 var(--s-2);
 }
 
@@ -1158,7 +1173,7 @@ button.kpi-tile {
   font: var(--t-mono-micro);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--fg-3);
+  color: var(--fg-2);
   line-height: 1;
 }
 
@@ -1741,7 +1756,7 @@ button.kpi-tile {
   font: var(--t-meta);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--amber-800);
+  color: var(--fg);
 }
 
 .v-loaded-order__name {
@@ -1809,4 +1824,31 @@ button.kpi-tile {
 .v-cart-line .v-swatches {
   flex-wrap: wrap;
   overflow: visible;
+}
+
+.order-card__copies {
+  margin-top: var(--s-3);
+}
+
+/* Quantity reads as ×N. What is inside one pack reads as small text under the name. */
+.v-cart-line__contents {
+  margin-top: 2px;
+  font: var(--t-meta);
+  color: var(--fg-3);
+}
+
+/* Grey meta text is for plain surfaces. On a tint it steps up to --fg-2 so it stays clearly legible. */
+:is(.kpi-tile, .v-stat, .v-tile, .owe, .delivery-block, .v-loaded-order, .auth-note) :is(.v-list-row__meta, .v-muted, .kpi-tile__label, .kpi-tile__trend--neutral) {
+  color: var(--fg-2);
+}
+
+.v-loaded-order__kicker::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: var(--r-pill);
+  background: var(--marker);
+  vertical-align: 1px;
 }

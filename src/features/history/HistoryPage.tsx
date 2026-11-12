@@ -2,7 +2,6 @@ import { useEffect, useState } from 'preact/hooks';
 import { clients, loadClients, loadSales, sales, type SaleRow } from '../../data/entities';
 import { saleItems, saveSaleEdit, voidSaleRecord } from '../../data/sale-edit';
 import { postClient } from '../../data/writes/clients';
-import { localPhoneDigits } from '../../domain/phone';
 import { EmptyState } from '../../ui/EmptyState';
 import { HistoryRow } from '../../ui/HistoryRow';
 import { productImageSrc } from '../../domain/product-art';
@@ -13,7 +12,7 @@ import { Segmented } from '../../ui/Segmented';
 import { Sheet } from '../../ui/Sheet';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
-import { CopyButton } from '../../ui/CopyButton';
+import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
 import { HistoryEditSheet } from './HistoryEditSheet';
 
 type Filter = 'all' | 'week' | 'credit';
@@ -177,28 +176,16 @@ export function HistoryPage() {
                 {item.product_name || 'Item'} · {item.detail || ''}
               </div>
             ))}
-            {String(open.client_phone || '') || String(open.location_label || '') ? (
-              <div class="sale-copy-row">
-                {String(open.client_phone || '') ? (
-                  <CopyButton
-                    kind="phone"
-                    label="Copy phone"
-                    ariaLabel="Copy phone"
-                    testId="history-copy-phone"
-                    value={() => localPhoneDigits(String(open.client_phone || ''))}
-                  />
-                ) : null}
-                {String(open.location_label || '') ? (
-                  <CopyButton
-                    kind="place"
-                    label="Copy location"
-                    ariaLabel="Copy location"
-                    testId="history-copy-location"
-                    value={() => String(open.location_label || '')}
-                  />
-                ) : null}
-              </div>
-            ) : null}
+            <DeliveryCopyRow
+              delivery={open.delivery_enabled === true || Boolean(String(open.location_label || ''))}
+              name={clients.value.find((c) => c.id === open.client_id)?.name || ''}
+              phone={String(open.client_phone || '')}
+              place={String(open.location_label || '')}
+              lat={open.location_lat as number | null | undefined}
+              lng={open.location_lng as number | null | undefined}
+              collect={open.is_credit && !open.credit_cleared ? Number(open.total_ugx) || 0 : 0}
+              idPrefix="history-copy-"
+            />
             <Button
               data-testid="sale-edit"
               onClick={() => {

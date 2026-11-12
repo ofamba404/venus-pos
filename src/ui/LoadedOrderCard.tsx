@@ -1,5 +1,5 @@
 import { Button } from './Button';
-import { CopyButton } from './CopyButton';
+import { DeliveryCopyRow } from './DeliveryCopyRow';
 import { Money } from './Money';
 import { Tag } from './Tag';
 
@@ -9,6 +9,10 @@ export type LoadedOrderCardProps = {
   timeLabel?: string;
   place?: string;
   phone?: string;
+  lat?: number | null;
+  lng?: number | null;
+  /** Money still to collect at the door. */
+  collect?: number | null;
   itemCount: number;
   total: number;
   /** Page variant adds Review and Unlink. The sheet variant is just the header. */
@@ -27,6 +31,9 @@ export function LoadedOrderCard({
   timeLabel,
   place,
   phone,
+  lat,
+  lng,
+  collect,
   itemCount,
   total,
   onReview,
@@ -47,20 +54,22 @@ export function LoadedOrderCard({
         {delivery && timeLabel ? ` · ${timeLabel}` : ''}
       </div>
       {delivery && place ? (
-        <div class="v-loaded-order__row">
-          <span class="v-loaded-order__text" data-testid={`${testId}-place`}>
-            {place}
-          </span>
-          {onReview ? (
-            <CopyButton kind="place" ariaLabel="Copy order location" testId={`${testId}-copy-location`} value={() => place} />
-          ) : null}
+        <div class="v-loaded-order__text" data-testid={`${testId}-place`}>
+          {place}
         </div>
       ) : null}
-      {onReview && phone ? (
-        <div class="v-loaded-order__row">
-          <span class="v-loaded-order__text">{phone}</span>
-          <CopyButton kind="phone" ariaLabel="Copy order phone" testId={`${testId}-copy-phone`} value={() => phone} />
-        </div>
+      {onReview && phone ? <div class="v-loaded-order__text">{phone}</div> : null}
+      {onReview ? (
+        <DeliveryCopyRow
+          delivery={delivery}
+          name={name}
+          phone={phone}
+          place={place}
+          lat={lat}
+          lng={lng}
+          collect={collect}
+          idPrefix={`${testId}-copy-`}
+        />
       ) : null}
       {onReview || onUnlink ? (
         <div class="v-loaded-order__actions">

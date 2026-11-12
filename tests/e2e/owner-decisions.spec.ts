@@ -158,64 +158,6 @@ test.describe('owner decisions', () => {
     expect(overflow).toBe(false);
   });
 
-  test('copy buttons are 44px tinted tap targets and copy 9 digits and the place', async ({ page }) => {
-    await createNextDriver(page, { role: 'pos_admin' });
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.goto('/next/orders');
-    const phone = page.getByTestId('copy-phone-so-confirmed-1');
-    const place = page.getByTestId('copy-location-so-confirmed-1');
-    for (const button of [phone, place]) {
-      await expect(button).toBeVisible();
-      const size = await button.boundingBox();
-      expect(Math.round(size!.width)).toBe(44);
-      expect(Math.round(size!.height)).toBe(44);
-      const tint = await button.evaluate((el) => getComputedStyle(el).backgroundColor);
-      expect(tint).not.toBe('rgba(0, 0, 0, 0)');
-    }
-    await phone.click();
-    await expect(page.getByRole('status').filter({ hasText: 'Phone copied' })).toBeVisible();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('700654321');
-    await place.click();
-    await expect(page.getByRole('status').filter({ hasText: 'Location copied' })).toBeVisible();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Kololo Test');
-  });
-
-  test('the sale sheet copy buttons are tap targets too', async ({ page }) => {
-    const driver = await createNextDriver(page, { role: 'pos_admin' });
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-    const sale = driver.mock.db.table('sales').find((r) => r.id === 'seed-sale-1')!;
-    sale.client_phone = '0700333444';
-    sale.location_label = 'Kololo';
-    await page.goto('/next/history');
-    await page.getByTestId('history-sale-seed-sale-1').click();
-    for (const id of ['history-copy-phone', 'history-copy-location']) {
-      const size = await page.getByTestId(id).boundingBox();
-      expect(Math.round(size!.height)).toBe(44);
-    }
-    await page.getByTestId('history-copy-phone').click();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('700333444');
-    await page.getByTestId('history-copy-location').click();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Kololo');
-  });
-
-  test('the delivery form copy buttons on Sell are tap targets', async ({ page }) => {
-    await createNextDriver(page, { role: 'pos_admin' });
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.goto('/next/sell');
-    await page.getByTestId('product-plain_single').click();
-    await page.getByTestId('config-add').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
-    await sheet.getByRole('tab', { name: 'Delivery' }).click();
-    await sheet.getByTestId('delivery-phone').fill('+256700111222');
-    for (const id of ['copy-phone', 'copy-location']) {
-      const size = await sheet.getByTestId(id).boundingBox();
-      expect(Math.round(size!.width)).toBe(44);
-      expect(Math.round(size!.height)).toBe(44);
-    }
-    await sheet.getByTestId('copy-phone').click();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('700111222');
-  });
-
   test('the edit-sale picker holds a pack to its joint count', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/history');

@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'preact/hooks';
 import { copyText } from '../platform/clipboard';
-import { IconCheck, IconPhone, IconPin } from './icons';
+import { IconCheck, IconCopy, IconPhone, IconPin } from './icons';
 
 const KINDS = {
   phone: { Icon: IconPhone, ok: 'Phone copied', empty: 'No phone' },
   place: { Icon: IconPin, ok: 'Location copied', empty: 'No location' },
+  all: { Icon: IconCopy, ok: 'Delivery details copied', empty: 'Nothing to copy' },
 } as const;
 
 /**
- * A 44px tinted tap target that copies a phone number (mint) or a place (melon).
- * The icon turns into a tick for a moment so the tap is felt. With `label` it
- * becomes a tinted pill that says what it copies.
+ * A labelled 44px pill that copies one thing: the phone (9 digits), the drop-off, or the whole
+ * delivery block. There is no icon-only version. On compact cards the icon is left out to keep one row, and a tick appears on copy. The icon turns into a tick and a toast says what
+ * was copied. Phone and location share the amber style. Copy all is solid ink.
  */
 export function CopyButton({
   kind,
@@ -18,13 +19,15 @@ export function CopyButton({
   label,
   ariaLabel,
   testId,
+  compact,
 }: {
   kind: keyof typeof KINDS;
   /** Read at tap time, so a field that is still being typed in copies what is there. */
   value: () => string;
-  label?: string;
-  ariaLabel: string;
+  label: string;
+  ariaLabel?: string;
   testId?: string;
+  compact?: boolean;
 }) {
   const [done, setDone] = useState(false);
   useEffect(() => {
@@ -36,15 +39,17 @@ export function CopyButton({
   return (
     <button
       type="button"
-      class={`v-copy-btn v-copy-btn--${kind}${label ? ' v-copy-btn--pill' : ''}${done ? ' is-done' : ''}`}
-      aria-label={ariaLabel}
+      class={`v-copy-btn v-copy-btn--${kind}${compact ? ' v-copy-btn--compact' : ''}${done ? ' is-done' : ''}`}
+      aria-label={ariaLabel || label}
       data-testid={testId}
       onClick={() => void copyText(value(), ok, empty).then((copied) => setDone(copied))}
     >
-      <span class="v-copy-btn__icon" key={done ? 'done' : 'idle'}>
-        {done ? <IconCheck size={20} /> : <Icon size={20} />}
-      </span>
-      {label ? <span>{label}</span> : null}
+      {!compact || done ? (
+        <span class="v-copy-btn__icon" key={done ? 'done' : 'idle'}>
+          {done ? <IconCheck size={16} /> : <Icon size={18} />}
+        </span>
+      ) : null}
+      <span>{label}</span>
     </button>
   );
 }
