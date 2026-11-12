@@ -124,6 +124,10 @@
   color: var(--melon);
 }
 
+.v-money--xl.v-money--amber {
+  color: var(--melon-text-lg);
+}
+
 .v-qty {
   flex: 0 0 auto;
   min-width: 28px;
@@ -1040,7 +1044,7 @@ button.kpi-tile {
   font: var(--t-mono-micro);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  /* 11px on paper-50: --fg-3 (#6b7280) is 4.39:1; this step clears 4.5:1 */
+  /* 11px on paper-50: --fg-3 (was #6b7280) was 4.39:1; this step clears 4.5:1 */
   color: #666d7a;
   margin: var(--s-4) 0 var(--s-2);
 }
@@ -1497,6 +1501,14 @@ button.kpi-tile {
 .decision-row__main {
   flex: 1;
   min-width: 0;
+}
+
+/* Names wrap, as on order cards. A client is never shown as "Client With D…". */
+.decision-row__main .v-list-row__title {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
 }
 
 .decision-figures {
