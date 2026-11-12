@@ -68,10 +68,14 @@ test.describe('legacy register driver', () => {
     expect((posts[0]!.body as { is_credit?: boolean }).is_credit).toBe(true);
   });
 
-  test('S19 double-tap charge is one sale', async ({ page }) => {
+  test('S19 double-tap posts two sales', async ({ page }) => {
     const driver = await createLegacyDriver(page, { role: 'pos_staff' });
     await driver.run(S19);
-    expect(salePosts(driver)).toHaveLength(1);
+    // Quirk 7: the in-flight flag is set after the first await, so both clicks post.
+    expect(salePosts(driver)).toHaveLength(2);
+    for (const post of salePosts(driver)) {
+      expect(Number((post.body as { total_ugx?: number }).total_ugx)).toBe(8000);
+    }
   });
 
   test('S50 today revenue matches the seed clock', async ({ page }) => {

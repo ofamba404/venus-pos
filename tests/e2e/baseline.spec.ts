@@ -4,7 +4,8 @@ import { installMockBackend } from '../mock';
 
 /**
  * Phase 0 capture. These files are a before/after record, not a visual assertion.
- * D11 look approval is still the owner's.
+ * D11 approved the current look on 2026-11-12.
+ * Timings go to perf-latest.md so this run does not erase the notes in perf.md.
  */
 test('capture sell, stock, and legacy home', async ({ page }) => {
   test.setTimeout(180_000);
@@ -56,10 +57,10 @@ test('capture sell, stock, and legacy home', async ({ page }) => {
   });
 
   writeFileSync(
-    `${dir}/perf.md`,
-    `# Baseline timings
+    `${dir}/perf-latest.md`,
+    `# Baseline timings (latest capture)
 
-Local Playwright, mock backend. Unthrottled rows are not the budget in \`04-architecture.md\` §9. The throttled row uses a Fast 4G approximation (150 ms latency, 1.6 Mbps down, 750 kbps up) and 4× CPU. It is one sample on the mock, not a pass against the 2.0 s cold-start budget. D11 has not approved the look. Legacy home at 1280 still crops the product grid below the first screen.
+Local Playwright, mock backend. Unthrottled rows are not the budget in \`04-architecture.md\` §9. The throttled row uses a Fast 4G approximation (150 ms latency, 1.6 Mbps down, 750 kbps up) and 4× CPU. It is one sample on the mock, not a pass against the 2.0 s cold-start budget. D11 approved the current look on 2026-11-12. Legacy home at 1280 still crops the product grid below the first screen. This file is the latest capture only. The kept record is perf.md.
 
 | Capture | Viewport | Ready (ms) |
 | --- | --- | ---: |

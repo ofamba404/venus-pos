@@ -1,6 +1,6 @@
 # Baseline timings
 
-Local Playwright, mock backend. Unthrottled rows are not the budget in `04-architecture.md` §9. The throttled row uses a Fast 4G approximation (150 ms latency, 1.6 Mbps down, 750 kbps up) and 4× CPU. It is one sample on the mock, not a pass against the 2.0 s cold-start budget. D11 has not approved the look. Legacy home at 1280 still crops the product grid below the first screen.
+Local Playwright, mock backend. Unthrottled rows are not the budget in `04-architecture.md` §9. The throttled row uses a Fast 4G approximation (150 ms latency, 1.6 Mbps down, 750 kbps up) and 4× CPU. It is one sample on the mock, not a pass against the 2.0 s cold-start budget. D11 approved the current look on 2026-11-12. Legacy home at 1280 still crops the product grid below the first screen. Do not overwrite this file from `baseline.spec.ts` (that spec writes `perf-latest.md`).
 
 | Capture | Viewport | Ready (ms) |
 | --- | --- | ---: |

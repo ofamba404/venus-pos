@@ -1,64 +1,21 @@
 # Overhaul progress
 
-Update at the end of every session.
+Update at the end of every session. Phase 0 is the open phase. Do not start Phase 1 until its exit criteria pass.
 
 | Field | Value |
 |-------|-------|
-| Current phase | Phase 0 exit still open. Phase 8 locals (walk-in, hold, offline) are in |
+| Current phase | Phase 0 — Safety net. Not cleared |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | typecheck clean · 117 unit/dual-run · 54 next contracts · axe on /sell and /system · legacy S01, S02, S05, S07, S11, S50 |
-| Next step | See `docs/overhaul/HANDOFF.md`. Median sell 1963 ms; cold samples can still exceed 2.0 s. Finish writes + live push; close Phase 0 exit; reconcile `origin/master` before any deploy. Lint off CI. No deploy. Do not apply `client_sale_id` |
-| Open questions for the owner | D11 look, live Maps, and deploy stay blocked until the owner is back. Session handed off 2026-11-12 (no deploy). |
+| Tests passing | 118 unit/dual-run · typecheck clean. Full Playwright on `8ed5de7`: 65 passed, 2 failed (S32, S38), 1 skipped. Legacy S01–S05, S07, S08, S11, S50 one run; S19 ×3 posts two sales |
+| Next step | Phase 0 task 8: extend the legacy driver and record S01–S50 goldens ×3. See `HANDOFF.md` |
+| Open questions for the owner | Live Maps for production, and deploy/ship. D11 look is approved (2026-11-12). Checkpoints for Phases 4, 5, and 8 are waived. Do not apply `client_sale_id` |
 
-## Ready vs open (before a parallel run)
+## Ready vs open
 
-**Ready for you to decide.** `/next` can sell, take credit, set a stock count, and attach a drop-off. Place search talks to Google Maps in the app and to a local Maps stub in tests. A Scout sale writes the sale, then the mint stock delta (`tests/e2e/goldens/S01.next.json`). Fee prediction uses driving distance when Maps answers, and the stored fee is the model’s high end, same as v1.
+**Not ready to leave Phase 0.** The v2 app can sell on `/next` in local tests, but the Phase 0 exit in `05-implementation-plan.md` is not met: legacy goldens for all 50 scenarios do not exist, analytics period/heatmap is not snapshotted, and legacy screenshots are home-only.
 
-**Open before staff use v2 beside v1.**
-
-- D1–D6 are answered in `08-decisions.md` (2026-11-12). Walk-in, device hold, and the offline outbox are local. `client_sale_id` is a SQL file only. It is not applied.
-- S36 edits `seed-sale-1` (mint 1 → 2, stock −1, sale PATCH). S37 voids `seed-delivery-sale` and the mock drops the linked trip. S42 edits `seed-trip-1`. S49 signs out through `/next/auth.html` and returns to `/next/sell`. Boot reads a v1 IDB cache before the network fetch. Legacy home Today revenue, joints, and cookies match `computeTodayStats` on the seed. A quiet throttled production median on the split bundle was 1963 ms (3192, 2448, 1963, 1908, 1766). Legacy S01, S02, S05, S07, S11, and S50 were green with the 54 next contracts. A legacy double-tap still posts two sales, so S19 stays off that driver.
-- Phase 9 needs you to say deploy. That is `.\scripts\ship.ps1` from `venus-pos` (v1 stays at `/`, v2 at `/next/`). No test sales on production unless you ask.
-- Phase 10 needs you to say ship, after the parallel run. Same script, after the cutover edits. Rollback stays the previous Netlify deploy.
-
-Handoff: work pushed on `overhaul` (and `main` tip = overhaul). Production `master` left alone — **not deployed**.
-
-## D1–D6 — pick one each
-
-Reply with the letter. The marked default is what the app does today.
-
-**D1. Record the payment method on every sale?** (blocks Phase 8)
-
-- A. No. Paid / On credit only. **(default)**
-- B. Yes. Cash, MTN MoMo, Airtel Money, credit, or other, plus an optional MoMo/Airtel reference.
-
-**D2. Allow a walk-in sale with no client name when it is paid in full?** (blocks Phase 8)
-
-- A. No. A client name is required. **(default)**
-- B. Yes. A Walk-in chip for paid sales. Credit still needs a client.
-
-**D3. WhatsApp receipt button on the success screen and in History?** (Phase 8 copy stays draft until you approve it)
-
-- A. Yes. Behind a flag. The receipt text stays marked DRAFT until you approve it. **(default)**
-- B. No receipt button.
-
-**D4. Offline sales queue (sell with no signal, sync when the connection returns)?** (blocks Phase 8)
-
-- A. No. A sale needs signal, same as v1. **(default)**
-- B. Yes. Queue the sale on the device and sync later.
-
-**D5. End-of-day / shift close screen?** (depends on D1)
-
-- A. No shift close in v2.0. **(default)**
-- B. Yes. Opening float, cash count, and per-method totals. Only if D1 is B.
-
-**D6. Hold / park a counter sale on this device?**
-
-- A. Yes. Saved on the device only. No database change. **(default)**
-- B. No hold.
-
-Phase 8 is in progress from the answers in `docs/overhaul/08-decisions.md`. Phases 9 and 10 do not start until you give the deploy cue above.
+**Owner decisions.** D1 A, D2 B, D3 B, D4 B, D5 A, D6 A, D16 improve, D11 approved. Details in `08-decisions.md`.
 
 ## Log
 
@@ -74,14 +31,18 @@ Phase 8 is in progress from the answers in `docs/overhaul/08-decisions.md`. Phas
 | 2026-11-12 | 0/6/7 | Playwright next driver S01/S02/S07/S30 · fee model port · quote lab · partner UI | `588f3fe` |
 | 2026-11-12 | closeout | Maps place search + delivery quote · contract S01–S04, S07–S08, S10–S11, S30 · D1–D6 gate | `9693b36` |
 | 2026-11-12 | — | Owner answers D1 A, D2 B, D3 B, D4 B, D5 A, D6 A | `52f0d15` |
-| 2026-11-12 | D16 | Pending storefront orders claim sellable stock at place. Charge consumes the hold. Cancel releases it. 89 unit/dual-run | `c758760` |
-| 2026-11-12 | 8 | Walk-in chip on paid sales. Credit still needs a client | `cdc3a18` |
+| 2026-11-12 | D16 | Pending storefront orders claim sellable stock at place | `c758760` |
+| 2026-11-12 | 8 | Walk-in chip on paid sales | `cdc3a18` |
 | 2026-11-12 | 8 | Device-only hold | `cebddf6` |
 | 2026-11-12 | 8 | Offline sales outbox. `client_sale_id` SQL written, not applied | `0d7f053` |
-| 2026-11-12 | 0 | Legacy sale driver (S02, S05, S07). Next contract through S05, S09, S12, S13, S17, S19, S29. Analytics rank dual-run | `754a562` |
-| 2026-11-12 | 0 | Playwright CI job, first-viewport baselines, parity ticks for the tests that passed | `142182b` |
-| 2026-11-12 | 0 | Delivery, line edit, store-order load, credit settle, four-viewport baselines. Throttled sell sample 7.9 s, over the 2.0 s budget | `50b2595` |
-| 2026-11-12 | 0 | Live-order poll, busy hours, stock bulk/fallback/low toast, clients, store users, staff redirect, offline queue. 46 next contracts | `e4b6325` |
-| 2026-11-12 | 0 | History edit/void, trip edit, sign-in, seed display parity, GPS locate, 405 stock fallback. Production sell sample 2094 ms | `1c5713c` |
-| 2026-11-12 | 0 | 405 wait tied to the delta PATCH. Orders/reviews socket with poll fallback. IDB cache round-trip and v1 session hydrate. Quiet production median 2046 ms. 54 contracts + legacy S02/S05/S07 + axe on /sell and /system | `3a28513` |
-| 2026-11-12 | 3 | Boot hydrates the v1 IDB cache. Repository, prefetch, and write helpers. Sell route split. Legacy S01/S11/S50. Quiet median 1963 ms | this commit |
+| 2026-11-12 | 0 | Legacy sale driver (S02, S05, S07) | `754a562` |
+| 2026-11-12 | 0 | Playwright CI job, first-viewport baselines | `142182b` |
+| 2026-11-12 | 0 | Delivery, line edit, store-order load, credit settle | `50b2595` |
+| 2026-11-12 | 0 | Live-order poll, stock, clients, store users, offline queue | `e4b6325` |
+| 2026-11-12 | 0 | History edit/void, trip edit, sign-in | `1c5713c` |
+| 2026-11-12 | 0 | 405 wait, IDB hydrate, quiet median 2046 ms | `3a28513` |
+| 2026-11-12 | 3 | Boot hydrates the v1 IDB cache. Sell route split. Quiet median 1963 ms | `411cc13` |
+| 2026-11-12 | — | Handoff at `8ed5de7`. Writes WIP. Full Playwright later: 65 pass, S32 and S38 fail | `8ed5de7` |
+| 2026-11-12 | — | Signed-out `/next` goes to `/next/auth.html` | `21291d3` |
+| 2026-11-12 | — | D11 look approved. Phase 4/5/8 checkpoints waived | `cb3129a` |
+| 2026-11-12 | 0 | Quirk 7: legacy double-tap posts two sales (×3). Handoff rewritten. Phase 0 still open | this commit |
