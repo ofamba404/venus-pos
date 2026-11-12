@@ -218,6 +218,112 @@
   font: var(--t-label);
 }
 
+.auth {
+  min-height: 100dvh;
+  display: grid;
+  align-items: center;
+  padding: calc(var(--s-6) + env(safe-area-inset-top, 0px)) var(--gutter)
+    calc(var(--s-6) + env(safe-area-inset-bottom, 0px));
+  background:
+    radial-gradient(120% 70% at 50% -20%, var(--mint-tint), transparent 60%),
+    var(--bg);
+}
+
+.auth-card {
+  width: min(420px, 100%);
+  margin: 0 auto;
+  padding: var(--s-8) var(--s-5) var(--s-5);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: var(--e-2);
+}
+
+.auth-logo {
+  width: 56px;
+  height: 56px;
+  display: block;
+}
+
+.auth-kicker {
+  margin: var(--s-4) 0 0;
+  font: var(--t-mono-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.auth-title {
+  margin: var(--s-2) 0 0;
+  font: var(--t-display);
+}
+
+.auth-sub {
+  margin: var(--s-2) 0 var(--s-4);
+  color: var(--fg-2);
+  font: var(--t-body);
+}
+
+.auth-form {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.auth .v-field__input {
+  border-radius: var(--r-pill);
+  padding-inline: var(--s-4);
+}
+
+.auth-pass {
+  position: relative;
+  display: block;
+}
+
+.auth-pass .v-field__input {
+  padding-right: 76px;
+}
+
+.auth-pass__toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: var(--r-pill);
+  background: var(--mint-tint);
+  color: var(--accent-ink);
+  font: var(--t-meta);
+}
+
+.auth-alert,
+.auth-note {
+  margin: 0 0 var(--s-4);
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  font: var(--t-meta);
+}
+
+.auth-alert {
+  background: var(--berry-tint);
+  color: var(--danger);
+}
+
+.auth-note {
+  background: var(--mint-tint);
+  color: var(--accent-ink);
+}
+
+.auth-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--s-2);
+  padding: 0;
+  background: transparent;
+  color: var(--accent-ink);
+  font: var(--t-label);
+}
+
 .v-chart {
   display: flex;
   align-items: flex-end;

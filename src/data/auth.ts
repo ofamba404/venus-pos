@@ -148,6 +148,68 @@ export async function signIn(email: string, password: string): Promise<AuthSessi
   return session;
 }
 
+export function authErrorMessage(raw: string, status = 0): string {
+  const msg = String(raw || '');
+  if (/invalid login|invalid credentials|invalid_grant/i.test(msg)) return 'Wrong email or password.';
+  if (/email not confirmed/i.test(msg)) return 'This email has not been confirmed yet. Ask the owner.';
+  if (status === 429 || /rate limit|too many|429/i.test(msg)) return 'Too many attempts. Wait a minute and try again.';
+  if (/not authorized|not_staff/i.test(msg)) return 'This account is not authorized for the register.';
+  if (/should be different|same password/i.test(msg)) return 'Choose a password you have not used before.';
+  if (/weak|at least \d+ characters/i.test(msg)) return msg;
+  if (/failed to fetch|network|timeout|load failed/i.test(msg)) {
+    return 'Cannot reach the login service. Check your connection and try again.';
+  }
+  return '';
+}
+
+/** Session carried by a Supabase recovery link (#access_token=…&type=recovery). */
+export function recoverySessionFromHash(hash: string): AuthSession | null {
+  const params = new URLSearchParams(String(hash || '').replace(/^#/, ''));
+  const access = params.get('access_token');
+  if (params.get('type') !== 'recovery' || !access) return null;
+  const expiresIn = Number(params.get('expires_in')) || 3600;
+  return {
+    access_token: access,
+    refresh_token: params.get('refresh_token') || undefined,
+    expires_in: expiresIn,
+    expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+  };
+}
+
+export async function requestPasswordReset(email: string, redirectTo: string): Promise<void> {
+  const res = await fetch(
+    `${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo)}`,
+    {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON_JWT,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: email.trim() }),
+    },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(authErrorMessage(detail, res.status) || 'Could not send the reset link.');
+  }
+}
+
+export async function updatePassword(password: string, accessToken: string): Promise<void> {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: 'PUT',
+    headers: {
+      apikey: SUPABASE_ANON_JWT,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(authErrorMessage(detail, res.status) || 'Could not update the password.');
+  }
+}
+
 export function signOut() {
   authSession.value = null;
   authRole.value = null;
