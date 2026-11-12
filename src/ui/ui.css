@@ -343,14 +343,26 @@
 
 .v-heat {
   display: grid;
-  grid-template-columns: repeat(14, 1fr);
   gap: 3px;
+}
+
+.v-heat__row {
+  display: grid;
+  grid-template-columns: 14px repeat(14, minmax(0, 1fr));
+  gap: 3px;
+  align-items: center;
+}
+
+.v-heat__day {
+  font: var(--t-meta);
+  color: var(--fg-2);
 }
 
 .v-heat__cell {
   aspect-ratio: 1;
-  border-radius: 4px;
+  border-radius: 3px;
   background: var(--watermelon);
+  animation: chart-in var(--d-base) var(--ease-out) both;
 }
 
 .v-avatar {
@@ -494,6 +506,25 @@
 
 .v-tile[data-kind='joint'] {
   background: var(--mint-tint);
+}
+
+.kpi-tile__top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+button.kpi-tile {
+  width: 100%;
+  text-align: left;
+}
+
+.kpi-spark {
+  width: 72px;
+  height: 28px;
+  color: var(--accent);
+  flex: 0 0 auto;
 }
 
 .kpi-tile__trend {
@@ -1089,13 +1120,179 @@
   to { background-position: -100% 0; }
 }
 
+.chart-card {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 12px;
+  text-align: left;
+  color: inherit;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.chart-card--static {
+  cursor: default;
+}
+
+.chart-card__title {
+  font: var(--t-label);
+}
+
+.chart-card__caption {
+  display: block;
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.chart-legend__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+.chart-legend__swatch--profit {
+  background: var(--melon);
+}
+
+.chart-svg {
+  width: 100%;
+  height: 140px;
+  color: var(--accent);
+  animation: chart-in var(--d-base) var(--ease-out);
+}
+
+.chart-area {
+  fill: var(--mint-tint);
+}
+
+.chart-line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: chart-draw var(--d-slow) var(--ease-out) forwards;
+}
+
+.chart-line--profit {
+  color: var(--melon);
+}
+
+.chart-slice {
+  animation: chart-in var(--d-base) var(--ease-out);
+}
+
+.donut {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 168px;
+}
+
+.donut .chart-svg {
+  width: 168px;
+  height: 168px;
+}
+
+.donut__center {
+  position: absolute;
+  max-width: 72px;
+  text-align: center;
+  font: var(--t-title-sm);
+}
+
+.ring {
+  width: 96px;
+  height: 96px;
+}
+
+.ring__text {
+  fill: var(--fg);
+  font-size: 16px;
+}
+
+.ring-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ring-row--hit {
+  width: 100%;
+  text-align: left;
+}
+
+.batch-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  flex: 0 0 auto;
+}
+
+.stock-meter {
+  display: flex;
+  height: 10px;
+  gap: 3px;
+  margin: 8px 0 4px;
+  overflow: hidden;
+}
+
+.stock-meter > span {
+  min-width: 0;
+  border-radius: var(--r-pill);
+}
+
+.v-bars__track > span {
+  transform-origin: left center;
+  animation: chart-grow var(--d-base) var(--ease-out);
+}
+
+@keyframes chart-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes chart-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes chart-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .v-page,
   .v-stagger > .v-list-row,
   .v-stagger > .v-order-card,
   .v-stagger > .v-review,
   .success-check,
-  .v-skeleton {
+  .v-skeleton,
+  .chart-svg,
+  .chart-slice,
+  .v-heat__cell,
+  .v-bars__track > span {
     animation: none;
+  }
+
+  .chart-line {
+    animation: none;
+    stroke-dashoffset: 0;
   }
 }

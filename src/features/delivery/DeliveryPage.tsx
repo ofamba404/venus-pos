@@ -80,7 +80,7 @@ export function DeliveryPage() {
   }
 
   function applyToCheckout() {
-    if (point == null) {
+    if (point === undefined || point === null) {
       showToast('Need more logged quotes to predict');
       return;
     }
@@ -105,6 +105,11 @@ export function DeliveryPage() {
             ? `${confidence.label} · R² ${Math.round((model.r2 || 0) * 100)}% · ${rows.length} trips`
             : 'Log SafeBoda quotes to unlock estimates'}
         </div>
+        {model ? (
+          <span class="v-bars__track" aria-hidden="true">
+            <span style={{ width: `${Math.max(4, Math.round((model.r2 || 0) * 100))}%` }} />
+          </span>
+        ) : null}
         <Field
           label="Distance (km)"
           inputMode="decimal"
@@ -114,7 +119,7 @@ export function DeliveryPage() {
         <div class="v-stat-grid">
           <div class="v-stat">
             <div class="v-stat__label">Estimate</div>
-            <div class="v-stat__value">{point != null ? <Money value={point} /> : '—'}</div>
+            <div class="v-stat__value">{point !== undefined && point !== null ? <Money value={point} /> : '—'}</div>
           </div>
           <div class="v-stat">
             <div class="v-stat__label">Range</div>
@@ -138,7 +143,9 @@ export function DeliveryPage() {
       </div>
 
       <div class="v-section-label">Trips</div>
-      {rows.map((r) => (
+      {rows.map((r) => {
+        const maxFee = Math.max(1, ...rows.map((row) => Number(row.fee_ugx) || 0));
+        return (
         <button
           type="button"
           class="v-list-row"
@@ -152,7 +159,7 @@ export function DeliveryPage() {
           <div class="v-list-row__main">
             <div class="v-list-row__title">{r.client_name || 'Trip'}</div>
             <div class="v-list-row__meta">
-              {r.distance_km != null ? `${Number(r.distance_km).toFixed(1)} km · ` : ''}
+              {r.distance_km !== undefined && r.distance_km !== null ? `${Number(r.distance_km).toFixed(1)} km · ` : ''}
               {r.created_at
                 ? new Date(r.created_at).toLocaleString('en-GB', {
                     day: '2-digit',
@@ -162,10 +169,14 @@ export function DeliveryPage() {
                   })
                 : ''}
             </div>
+            <span class="v-bars__track" aria-hidden="true">
+              <span style={{ width: `${((Number(r.fee_ugx) || 0) / maxFee) * 100}%` }} />
+            </span>
           </div>
           <Money value={Number(r.fee_ugx) || 0} />
         </button>
-      ))}
+        );
+      })}
       {!rows.length ? (
         <div class="v-empty">
           <p class="v-empty__title">No trips yet</p>

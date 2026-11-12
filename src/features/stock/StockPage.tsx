@@ -32,6 +32,7 @@ export function StockPage() {
   const joints = shown.filter((c) => !c.id.startsWith('cookie_'));
   const cookies = shown.filter((c) => c.id.startsWith('cookie_'));
   const editCat = editId ? CATEGORIES.find((c) => c.id === editId) : null;
+  const glance = stockGlance(shown.map((c) => stockLevel(c.id, inventory.value[c.id] || 0)));
 
   async function bump(id: string, delta: number) {
     setBusy(id);
@@ -103,11 +104,13 @@ export function StockPage() {
   return (
     <section>
       <h1 class="page-title">Stock</h1>
+      <div class="stock-meter" aria-hidden="true">
+        <span style={{ flex: glance.out || 0, background: 'var(--watermelon)' }} />
+        <span style={{ flex: glance.low || 0, background: 'var(--melon)' }} />
+        <span style={{ flex: glance.ok || 0, background: 'var(--accent)' }} />
+      </div>
       <p class="v-muted" data-testid="stock-glance">
-        {(() => {
-          const glance = stockGlance(shown.map((c) => stockLevel(c.id, inventory.value[c.id] || 0)));
-          return `${glance.out} out · ${glance.low} low · ${glance.ok} ok`;
-        })()}
+        {`${glance.out} out · ${glance.low} low · ${glance.ok} ok`}
       </p>
       {!inventoryReady.value ? <p class="v-muted">Loading…</p> : null}
       <div class="v-section-label">Joints</div>

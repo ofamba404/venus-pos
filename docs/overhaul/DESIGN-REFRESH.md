@@ -55,7 +55,7 @@ Each flow was a restyled list row or a bare field. The question for this pass is
 | History row | Generic list row | `HistoryRow` | A past sale is recognisable closed: person, thumb, swatches, paid or credit. |
 | Edit sale | Sheet of steppers | Kept the sheet | Qty, add Plain, remove, payment, and customer are the edit. Reopening the flavour picker is still an owner question in `PARITY.md`. |
 | Client | Spreadsheet row | `ClientCard` | Initial, last order, and what they owe. Edit is its own control so settling credit does not rename them. |
-| Insights numbers | Four identical stats | `KpiTile` | Today carries a trend against yesterday (`revenueDelta`). The other three stay numbers because a trend there would be noise. Bars and the heatmap stay; they already are the right charts. |
+| Insights | Text and number lists | Charts first | An area for revenue and profit, product bars, a flavour donut, a peak-hours heatmap, a credit-aging bar, and a cookie-partner ring. KPI tiles carry a delta and a sparkline. The figures open when you tap the chart. |
 | Reviews | Text block | `ReviewCard` | A quote, stars, and a verdict. Approve, hide, delete, and rename sit on the card. |
 | Stock | Colour plus a number | `StockTile` | The flavour dot is the name. Low and out are tags on that tile, with the count and steppers beside it. |
 | Empty lists | A blank title | `EmptyState` | Sell, orders, and reviews say what to do next when there is nothing to show. |

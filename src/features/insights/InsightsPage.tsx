@@ -11,7 +11,7 @@ import { cookieBatchShareText, expandPartnerUnitsFromSales, partnerBoard, propos
 import { fetchCookiePartnerSettle, postCookiePartnerSettle } from '../../data/writes/partner';
 import { buildTimeSeries, CHART_RANGES } from '../../domain/analytics/periods';
 import { computeSalesPatterns } from '../../domain/analytics/patterns';
-import { revenueDelta, topProductForSales } from '../../domain/analytics/rank';
+import { revenueDelta } from '../../domain/analytics/rank';
 import { KpiTile } from '../../ui/KpiTile';
 import { readStoredId } from '../../domain/parity';
 import {
@@ -80,15 +80,18 @@ export function InsightsPage() {
     const chart = CHART_RANGES.find((row) => row.id === range) || CHART_RANGES[0]!;
     return buildTimeSeries(sales.value as Parameters<typeof buildTimeSeries>[0], chart);
   }, [sales.value, range]);
+  const weekSpark = useMemo(() => {
+    const chart = CHART_RANGES.find((row) => row.id === '1w') || CHART_RANGES[0]!;
+    return buildTimeSeries(sales.value as Parameters<typeof buildTimeSeries>[0], chart);
+  }, [sales.value]);
+  const monthSpark = useMemo(() => {
+    const chart = CHART_RANGES.find((row) => row.id === '1m') || CHART_RANGES[0]!;
+    return buildTimeSeries(sales.value as Parameters<typeof buildTimeSeries>[0], chart);
+  }, [sales.value]);
   const patterns = useMemo(
     () => computeSalesPatterns(sales.value as Parameters<typeof computeSalesPatterns>[0]),
     [sales.value],
   );
-  const rank = useMemo(
-    () => topProductForSales(sales.value as Parameters<typeof topProductForSales>[0]),
-    [sales.value],
-  );
-
   const flavors = useMemo(() => flavorMix(sales.value as Parameters<typeof flavorMix>[0]), [sales.value]);
   const products = useMemo(() => productBars(sales.value as Parameters<typeof productBars>[0]).slice(0, 6), [sales.value]);
   const aging = useMemo(
@@ -115,7 +118,50 @@ export function InsightsPage() {
     return Math.round(sumOwnerRevenue(list as Parameters<typeof sumOwnerRevenue>[0]));
   }, [sales.value]);
   const todayTrend = revenueDelta(today.revenue, yesterdayRevenue);
-  const seriesMax = Math.max(1, ...series.map((bucket) => bucket.revenue));
+  const yesterdaySales = useMemo(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const previous = new Date(start);
+    previous.setDate(previous.getDate() - 1);
+    return sales.value.filter((sale) => {
+      const at = new Date(sale.created_at || 0);
+      return at >= previous && at < start;
+    }).length;
+  }, [sales.value]);
+  const salesTrend = revenueDelta(today.salesCount, yesterdaySales);
+  const lastMonthRevenue = useMemo(() => {
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    const previous = new Date(start);
+    previous.setMonth(previous.getMonth() - 1);
+    const list = sales.value.filter((sale) => {
+      const at = new Date(sale.created_at || 0);
+      return at >= previous && at < start;
+    });
+    return Math.round(sumOwnerRevenue(list as Parameters<typeof sumOwnerRevenue>[0]));
+  }, [sales.value]);
+  const monthTrend = revenueDelta(monthRevenue, lastMonthRevenue);
+  const monthTrendText = monthTrend.text.replace('yesterday', 'last month').replace('today', 'this month');
+  const profit = useMemo(
+    () =>
+      series.map((bucket, index) => {
+        const start = bucket.date.getTime();
+        const span =
+          index < series.length - 1
+            ? series[index + 1]!.date.getTime() - start
+            : index > 0
+              ? start - series[index - 1]!.date.getTime()
+              : 86_400_000;
+        const slice = sales.value.filter((sale) => {
+          const at = new Date(sale.created_at || 0).getTime();
+          return at >= start && at < start + span;
+        });
+        return jointCommission(slice as Parameters<typeof jointCommission>[0], historyOrDefault(costHistory)).profit;
+      }),
+    [series, sales.value, costHistory],
+  );
+  const creditLead = aging.reduce((best, row) => (row.total > best.total ? row : best), aging[0]!);
   const settledCuts = serverSettle?.batches ?? [];
 
   const partner = useMemo(() => {
@@ -200,26 +246,36 @@ export function InsightsPage() {
           testId="insights-today"
           revenue={today.revenue}
           joints={today.joints}
+          spark={weekSpark.map((bucket) => bucket.revenue)}
           trend={{ text: todayTrend.text, tone: todayTrend.cls }}
         >
           <Money value={today.revenue} />
         </KpiTile>
-        <KpiTile label="Sales today">
+        <KpiTile label="Sales today" spark={weekSpark.map((bucket) => bucket.orders)} trend={{ text: salesTrend.text, tone: salesTrend.cls }}>
           <span>{today.salesCount}</span>
         </KpiTile>
-        <KpiTile label="Month">
+        <KpiTile
+          label="Month"
+          spark={monthSpark.map((bucket) => bucket.revenue)}
+          trend={{ text: monthTrendText, tone: monthTrend.cls }}
+        >
           <Money value={monthRevenue} />
         </KpiTile>
-        <KpiTile label="Credit owed" testId="insights-credit" owed={credit.total}>
+        <KpiTile
+          label="Credit owed"
+          testId="insights-credit"
+          owed={credit.total}
+          spark={aging.map((bucket) => bucket.total)}
+          trend={{ text: creditLead.total ? creditLead.label : 'Nothing owed', tone: creditLead.id === 'older' ? 'down' : 'neutral' }}
+        >
           <Money value={credit.total} />
         </KpiTile>
       </div>
 
       <InsightsBoards
         series={series}
-        seriesMax={seriesMax}
+        profit={profit}
         products={products}
-        topProduct={rank.topProduct}
         flavors={flavors}
         peakHour={patterns.peakHour.i}
         peakWeekday={patterns.peakWeekday.i}
@@ -227,56 +283,18 @@ export function InsightsPage() {
         heatMax={patterns.heatMax}
         leaders={leaders}
         aging={aging}
+        credit={credit.groups}
         commission={commission}
+        partnerQty={serverSettle ? serverSettle.qty : null}
+        partnerLoading={!serverSettle}
+        settled={
+          settledCuts.length
+            ? settledCuts.map((count, index) => ({ index: index + 1, cookieCount: count, every: 25 }))
+            : partner.settled
+        }
+        openBatch={partner.open}
+        onSettle={() => void settleNextBatch()}
       />
-
-      <div class="v-section-label">Top credit</div>
-      {credit.groups.length ? (
-        credit.groups.map((g) => (
-          <div class="v-list-row" key={g.key}>
-            <div class="v-list-row__main">
-              <div class="v-list-row__title">{g.name}</div>
-              <div class="v-list-row__meta">{g.sales.length} open</div>
-            </div>
-            <Money value={g.totalUgx} />
-          </div>
-        ))
-      ) : (
-        <p class="v-muted">No outstanding credit</p>
-      )}
-
-      <div class="v-section-label">Cookie partner</div>
-      <p data-testid="partner-settled-qty">
-        {serverSettle ? `${serverSettle.qty} cookies already settled` : 'Loading settlement…'}
-      </p>
-      {(settledCuts.length ? settledCuts.map((count, index) => ({ index: index + 1, cookieCount: count, every: 25 })) : partner.settled).map((batch) => (
-        <div class="v-list-row" key={`settled-${batch.index}`}>
-          <div class="v-list-row__main">
-            <div class="v-list-row__title">
-              Batch {batch.index} · {batch.cookieCount}/{batch.every}
-            </div>
-            <div class="v-list-row__meta">Settled</div>
-          </div>
-        </div>
-      ))}
-      {partner.open ? (
-        <div class="v-list-row">
-          <div class="v-list-row__main">
-            <div class="v-list-row__title">
-              Batch {partner.open.index} · {partner.open.cookieCount}/{partner.open.every}
-              {partner.open.complete ? '' : ' open'}
-            </div>
-            <div class="v-list-row__meta">
-              Partner <Money value={partner.open.partnerDue} /> · you <Money value={partner.open.ownerSplit} />
-            </div>
-          </div>
-          <Button variant="secondary" size="md" data-testid="partner-settle" onClick={() => void settleNextBatch()}>
-            Settle batch
-          </Button>
-        </div>
-      ) : (
-        <p class="v-muted">No open partner batch</p>
-      )}
     </section>
   );
 }
