@@ -1,4 +1,5 @@
 import { useState } from 'preact/hooks';
+import { enablePush } from '../../data/push';
 import { KEYS } from '../../data/keys';
 import { allowDevBypass, authRole, authSession, signOut } from '../../data/auth';
 import { Button } from '../../ui/Button';
@@ -36,11 +37,20 @@ export function SettingsPage() {
     showToast(`Notifications · ${key} ${next[key] ? 'on' : 'off'}`);
   }
 
-  function enableNotifications() {
+  async function enableNotifications() {
     const next = { ...notif, orders: true, stock: true };
     localStorage.setItem(KEYS.notifPrefs, JSON.stringify(next));
     setNotif(next);
-    showToast('Notifications on');
+    const result = await enablePush({ orders: true, schedules: false });
+    if (result.ok) {
+      showToast('Notifications on. This phone will buzz for new orders.');
+      return;
+    }
+    if (result.reason === 'denied') {
+      showToast('Notifications are blocked in the browser. Alerts in the app stay on.');
+      return;
+    }
+    showToast('Notifications stay on in the app. Background signup did not finish.');
   }
 
   function logout() {
@@ -82,7 +92,8 @@ export function SettingsPage() {
           Stock alerts: {notif.stock ? 'On' : 'Off'}
         </Button>
         <div class="v-muted">
-          Push subscribe stays on legacy until `/next` SW is registered (Phase 10). Prefs save now.
+          Enable asks the browser once, then registers this phone for order alerts. The original
+          register at / keeps its own alerts.
         </div>
         <div class="v-muted" data-testid="install-steps">
           {INSTALL_STEPS.join(' ')}

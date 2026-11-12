@@ -44,8 +44,6 @@ import { mapStoreOrderToCart } from '../../domain/store-order-map';
 import { patchStoreOrder } from '../../data/writes/store-orders';
 import { postStoreReserve } from '../../data/store-reserve';
 import { clients, ensureInventory, inventory, loadClients, loadSales, loadStoreOrders, sales, storeOrders, syncLabel } from '../../data/entities';
-import { connectSupabaseRealtime, startFeed } from '../../data/realtime';
-import { SUPABASE_KEY, SUPABASE_URL } from '../../data/env';
 import { openDebtForClientName } from '../../domain/credit';
 import { counterSellable } from '../../domain/stock-reservation';
 import { haptic } from '../../platform/haptics';
@@ -172,37 +170,6 @@ export function SellPage() {
       window.removeEventListener('online', onOnline);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, []);
-
-  useEffect(() => {
-    let seen = new Set<string>();
-    let primed = false;
-    const tick = () => {
-      void loadStoreOrders()
-        .then((rows) => {
-          const ids = rows.map((row) => row.id);
-          if (!primed) {
-            seen = new Set(ids);
-            primed = true;
-            return;
-          }
-          const fresh = rows.filter(
-            (row) => !seen.has(row.id) && (row.status === 'pending' || row.status === 'confirmed'),
-          );
-          for (const id of ids) seen.add(id);
-          if (fresh.length === 1) showToast('New order');
-          else if (fresh.length > 1) showToast(`${fresh.length} new orders`);
-        })
-        .catch(() => {});
-    };
-    return startFeed({
-      connect: () =>
-        connectSupabaseRealtime(
-          `${SUPABASE_URL.replace(/^https:/, 'wss:')}/realtime/v1/websocket?apikey=${SUPABASE_KEY}`,
-        ),
-      refetch: tick,
-      pollMs: 4000,
-    });
   }, []);
 
   async function onPlacePick(place: { label: string; lat: number; lng: number }) {

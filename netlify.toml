@@ -19,6 +19,12 @@
     Cache-Control = "no-cache"
     Service-Worker-Allowed = "/"
 
+# v2 worker stays under /next/. Do not grant it the root scope.
+[[headers]]
+  for = "/next/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
 [[headers]]
   for = "/manifest.webmanifest"
   [headers.values]
