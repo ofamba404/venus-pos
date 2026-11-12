@@ -3,7 +3,7 @@
 **Date:** 2026-11-12
 **Repo:** https://github.com/ofamba404/venus-pos (public)
 **Branch:** `overhaul` (fast-forward only)
-**Phase:** Phase 5 cleared. Next is Phase 6. Do not deploy. Do not apply migrations.
+**Phase:** Phase 6 cleared. Next is Phase 7. Do not deploy. Do not apply migrations.
 
 ## Cleared phases
 
@@ -50,13 +50,19 @@ The suite was not green on a fresh `npm test` / `npx playwright test`:
 3. **Tap count.** A Scout sale for the recent client Test Client A is **5 taps** (tile, mint, Add, client chip, Charge), under the 6-tap target. Recorded below and in `PROGRESS.md`.
 4. **Render budget.** With CPU throttling ×4, the in-page time from the Scout tile click to the config Add button is **≤ 100 ms**.
 
+**Phase 6 — Stock, Settings, Auth, PWA.** Exit criteria:
+
+1. **S29–S33, S45, S46, S48, S49 match.** `npx playwright test --project=chromium tests/e2e/contract.spec.ts -g "S29 stock|S30 set stock|S31 bulk|S32 inventory|S33 low-stock|S45 enable|S46 staff|S48 offline|S49 sign"`: **9 passed** (2.4m) against the mock at `/next/`.
+2. **Staff surface.** Those scenarios sign in as staff, change stock (including the 502 PATCH fallback), subscribe to notification prefs, bounce `/insights` back to Sell, queue an offline charge, and sign out and back in.
+3. **Service worker routing.** `tests/unit/sw-routing.test.ts` passes inside `npm test` (154 passed). The built worker is not registered while the app is under `/next/`.
+
 ## In progress
 
-Nothing. Phase 5 is closed.
+Nothing. Phase 6 is closed.
 
 ## Next concrete step
 
-Phase 6 in `05-implementation-plan.md`: S29–S33, S45, S46, S48, S49 against `/next/` and the mock. Do not deploy. Do not apply migrations.
+Phase 7 in `05-implementation-plan.md`. S34–S44, S47, and S50 already pass in the Playwright contract file. The phase is not cleared: `07-parity-checklist.md` still has open rows (draft stock in the config sheet, owes hint, success-screen copy, virtual list, debug log, install prompt, SW update while a cart is open, and the other unticked rows). Do not deploy. Do not apply migrations.
 
 ## How to run tests
 
