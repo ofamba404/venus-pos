@@ -19,3 +19,5 @@ Local Playwright, mock backend. Unthrottled rows are not the budget in `04-archi
 | next-sell-390x844-throttled | 390×844 | 7922 |
 
 Ready means the first sell tile, stock quantity, or legacy product row was visible after navigation.
+
+The throttled row was captured against the Vite dev server (one request per module), not a production bundle. That is why 7922 ms is far from the 2.0 s cold-start budget in `04-architecture.md` §9. The residual is the dev-server waterfall plus 4× CPU. A production `vite build` measurement is still outstanding, and this sample is not a budget pass.

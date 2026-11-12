@@ -35,6 +35,13 @@ export function SettingsPage() {
     showToast(`Notifications · ${key} ${next[key] ? 'on' : 'off'}`);
   }
 
+  function enableNotifications() {
+    const next = { ...notif, orders: true, stock: true };
+    localStorage.setItem(KEYS.notifPrefs, JSON.stringify(next));
+    setNotif(next);
+    showToast('Notifications on');
+  }
+
   function logout() {
     signOut();
     showToast('Signed out');
@@ -58,6 +65,9 @@ export function SettingsPage() {
         </div>
         <Button variant="secondary" onClick={toggleHaptics}>
           Haptics: {haptics ? 'On' : 'Off'}
+        </Button>
+        <Button variant="secondary" data-testid="enable-notifications" onClick={enableNotifications}>
+          Enable notifications
         </Button>
         <Button variant="secondary" onClick={() => toggleNotif('orders')}>
           Order alerts: {notif.orders ? 'On' : 'Off'}

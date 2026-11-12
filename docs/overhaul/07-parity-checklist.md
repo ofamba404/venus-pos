@@ -36,7 +36,7 @@ Legend: **S** = staff and admin, **A** = admin only.
 
 | ✓ | Capability | Role | v1 source | Proof |
 |---|-----------|:----:|-----------|-------|
-| [ ] | Waiting count badge (pending + confirmed, excl. dismissed) | S | `js/store-orders.js` | S26 |
+| [x] | Waiting count badge (pending + confirmed, excl. dismissed) | S | `js/store-orders.js` | S26 |
 | [ ] | Realtime + 4 s poll fallback + reconnect refetch | S | `js/store-orders.js:28-29`, `621-643`, `1398-1403` | L1 feed, S26 |
 | [ ] | Session paint cache `venus-pos-store-orders-v1` (90 s) | S | `js/store-orders.js:31-139` | L1 |
 | [x] | Load into cart (optimistic `accepted` PATCH), mapping storefront ids | S | `js/store-orders.js:1191-1203`, `applyStorefrontOrderToCart` | dual-run map, S21 |
@@ -56,8 +56,8 @@ Legend: **S** = staff and admin, **A** = admin only.
 
 | ✓ | Capability | Role | v1 source | Proof |
 |---|-----------|:----:|-----------|-------|
-| [ ] | Busy-until quick controls (staff) | S | `js/hours-widget.js` | S28 |
-| [ ] | Full hours: open/close, busy, suggest window | A | `js/admin.js:643-717`, `js/fulfillment.js` | S41 |
+| [x] | Busy-until quick controls (staff) | S | `js/hours-widget.js` | S28 |
+| [x] | Full hours: open/close, busy, suggest window | A | `js/admin.js:643-717`, `js/fulfillment.js` | S41 |
 | [ ] | Offline snapshot `venus.pos.fulfillment` | S | `js/fulfillment.js:14-92` | L1 |
 
 ## 4. Stock
@@ -67,7 +67,7 @@ Legend: **S** = staff and admin, **A** = admin only.
 | [ ] | Boot `ensure` call | S | `js/bootstrap.js:217-218`, `js/inventory.js:471-487` | all goldens (first write) |
 | [x] | +/− steppers with per-category queue | S | `js/inventory.js:112-209` | S29 |
 | [x] | Exact count edit | S | `js/inventory.js` | S30 |
-| [ ] | Bulk adjust | S | `#amountModal` | S31 |
+| [x] | Bulk adjust | S | `#amountModal` | S31 |
 | [ ] | 405/502 → direct PATCH fallback | S | `js/inventory.js:138-176` | S32 |
 | [ ] | Low (≤ 5) / out; cookie low < 30 % of 100 | S | `js/config.js:139-142` | dual-run stock-state |
 | [ ] | Stock crossing notifications with dedupe (`venus.notif.stock.v1`) | S | `notifyStockCrossing` | S33 |
@@ -77,7 +77,7 @@ Legend: **S** = staff and admin, **A** = admin only.
 
 | ✓ | Capability | Role | v1 source | Proof |
 |---|-----------|:----:|-----------|-------|
-| [ ] | Clients list, search, add, rename, delete (sales kept) | A | `js/clients.js` | S39 |
+| [x] | Clients list, search, add, rename, delete (sales kept) | A | `js/clients.js` | S39 |
 | [ ] | Owes per client | A | `js/clients.js:115-117` | S50 |
 | [ ] | Settle: amount, method cash/mobile/other, note, Full, FIFO, `credit_payments` + sales PATCH | A | `js/settle-credit.js:14-203` | S34, S35 |
 | [ ] | Merge duplicate names in credit view | A | analytics credit panel | dual-run credit |
@@ -95,7 +95,7 @@ Legend: **S** = staff and admin, **A** = admin only.
 | [ ] | Cookie partner: progress, batches, copy text, settle API, local progress key, baseline, corruption sanitise | A | `js/revenue.js`, `js/analytics.js:718-863` | dual-run partner, S38 |
 | [ ] | Delivery log, edit trip, fee model scatter/periods, quote lab presets, test tagging | A | `js/delivery*.js` | S42, S43, dual-run fee |
 | [ ] | Reviews list (100), refresh, realtime INSERT notification | A | `js/reviews.js:128-163` | S44 |
-| [ ] | Storefront users: list, display name, verify, delete | A | `js/admin.js:122-155`, `836-943` | S40 |
+| [x] | Storefront users: list, display name, verify, delete | A | `js/admin.js:122-155`, `836-943` | S40 |
 | [ ] | Admin tools (copy lists, links) | A | `js/admin.js:1029+` | manual |
 | [ ] | Debug log capture, copy, recover from server | A | `js/debug.js` | L4 |
 
@@ -114,7 +114,7 @@ Approved additions (D1, D4) are appended, never replacing a field.
 | ✓ | Capability | Role | v1 source | Proof |
 |---|-----------|:----:|-----------|-------|
 | [ ] | Auth: sign in, role check, refresh, transient tolerance, invalid → re-login, `next` | S | `js/auth/*` | S49, L1 |
-| [ ] | Staff page restrictions | S | `js/auth/client.js:190-194` | S46 |
+| [x] | Staff page restrictions | S | `js/auth/client.js:190-194` | S46 |
 | [ ] | Pre-paint gate (no flash of app when signed out) | S | `js/auth/gate-boot.js` | L4 |
 | [ ] | IDB cache reused (`venus-pos` / `cache`) | S | `js/store/idb.js` | Phase 3 test |
 | [ ] | Stale windows, dedupe, empty guard | S | `js/store/*` | L1 |

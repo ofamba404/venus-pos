@@ -20,6 +20,9 @@ export function ClientsPage() {
   const [method, setMethod] = useState<'cash' | 'mobile_money'>('cash');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
 
   useEffect(() => {
     void Promise.all([loadClients(), loadSales()]).catch((e) =>
@@ -79,9 +82,66 @@ export function ClientsPage() {
     }
   }
 
+  async function addClient() {
+    const name = newName.trim();
+    if (!name) return;
+    const res = await sbFetch('clients', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      showToast('Could not add client');
+      return;
+    }
+    setNewName('');
+    showToast('Client added');
+    await loadClients().catch(() => {});
+  }
+
+  async function renameClient() {
+    if (!editId) return;
+    const res = await sbFetch(`clients?id=eq.${encodeURIComponent(editId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name: editName.trim() }),
+    });
+    if (!res.ok) {
+      showToast('Could not rename client');
+      return;
+    }
+    setEditId(null);
+    showToast('Client renamed');
+    await loadClients().catch(() => {});
+  }
+
+  async function deleteClient() {
+    if (!editId) return;
+    const res = await sbFetch(`clients?id=eq.${encodeURIComponent(editId)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      showToast('Could not delete client');
+      return;
+    }
+    setEditId(null);
+    showToast('Client deleted');
+    await loadClients().catch(() => {});
+  }
+
   return (
     <section>
       <h1 class="page-title">Clients</h1>
+      <div class="v-chip-row" style={{ marginBottom: 12 }}>
+        <Field
+          label="New client"
+          data-testid="client-add-name"
+          value={newName}
+          onInput={(e) => setNewName((e.target as HTMLInputElement).value)}
+        />
+        <Button size="md" data-testid="client-add" onClick={() => void addClient()}>
+          Add
+        </Button>
+      </div>
       <input
         class="v-field__input"
         placeholder="Search"
@@ -97,9 +157,13 @@ export function ClientsPage() {
             class="v-list-row"
             key={c.id}
             onClick={() => {
-              if (clientOwed <= 0) return;
-              setSettleId(c.id);
-              setAmount(String(clientOwed));
+              if (clientOwed > 0) {
+                setSettleId(c.id);
+                setAmount(String(clientOwed));
+                return;
+              }
+              setEditId(c.id);
+              setEditName(c.name || '');
             }}
           >
             <div class="v-list-row__main">
@@ -158,6 +222,27 @@ export function ClientsPage() {
           placeholder="Optional"
           onInput={(e) => setNote((e.target as HTMLInputElement).value)}
         />
+      </Sheet>
+      <Sheet
+        open={Boolean(editId)}
+        title="Client"
+        onClose={() => setEditId(null)}
+        footer={
+          <Button size="xl" data-testid="client-rename" onClick={() => void renameClient()}>
+            Save name
+          </Button>
+        }
+      >
+        <Field
+          label="Name"
+          data-testid="client-edit-name"
+          value={editName}
+          onInput={(e) => setEditName((e.target as HTMLInputElement).value)}
+        />
+        <div style={{ height: 12 }} />
+        <Button size="md" variant="danger" data-testid="client-delete" onClick={() => void deleteClient()}>
+          Delete
+        </Button>
       </Sheet>
     </section>
   );

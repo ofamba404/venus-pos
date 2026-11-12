@@ -1,8 +1,8 @@
 import { useEffect } from 'preact/hooks';
 import { bootRouter, currentRoute, go, routeId, ROUTES } from './router';
 import { hydrateAuth, allowDevBypass, canAccessPath, authReady } from '../data/auth';
-import { bootstrapEntities, syncLabel } from '../data/entities';
-import { ToastHost } from '../ui/ToastHost';
+import { bootstrapEntities, storeOrders, syncLabel } from '../data/entities';
+import { ToastHost, showToast } from '../ui/ToastHost';
 import { IconSell, IconOrders, IconStock, IconMore } from '../ui/icons';
 import { SellPage } from '../features/sell/SellPage';
 import { OrdersPage } from '../features/orders/OrdersPage';
@@ -46,13 +46,19 @@ export function App() {
     void bootstrapEntities();
   }, []);
 
-  useEffect(() => {
-    if (!authReady.value) return;
-    if (allowDevBypass()) return;
-    if (!canAccessPath(currentRoute().path)) go('/sell', { replace: true });
-  }, [routeId.value, authReady.value]);
-
+  const ready = authReady.value;
   const route = currentRoute();
+  const waitingOrders = storeOrders.value.filter(
+    (order) => order.status === 'pending' || order.status === 'confirmed',
+  ).length;
+
+  useEffect(() => {
+    if (!ready) return;
+    if (allowDevBypass()) return;
+    if (canAccessPath(route.path)) return;
+    showToast("Staff can't open that page");
+    go('/sell', { replace: true });
+  }, [route.id, ready]);
   const Page = PAGES[route.id];
   const primaryNav = ROUTES.filter((r) => r.nav === 'primary');
 
@@ -84,6 +90,11 @@ export function App() {
             >
               {Icon ? <Icon /> : null}
               <span>{r.title}</span>
+              {r.id === 'orders' && waitingOrders > 0 ? (
+                <span class="shell__nav-badge" data-testid="orders-badge">
+                  {waitingOrders}
+                </span>
+              ) : null}
             </button>
           );
         })}

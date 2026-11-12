@@ -68,7 +68,11 @@ export const S26: Scenario = {
   title: 'New order arrives while on Sell',
   role: 'pos_staff',
   seed: 'default',
-  steps: [{ do: 'go', path: '/sell' }, { expect: 'toast', message: 'order' }],
+  steps: [
+    { do: 'go', path: '/sell' },
+    { do: 'arriveStoreOrder' },
+    { expect: 'toast', message: 'order' },
+  ],
 };
 
 export const S27: Scenario = {
@@ -126,7 +130,8 @@ export const S31: Scenario = {
   seed: 'default',
   steps: [
     { do: 'adjustStock', categoryId: 'strawberry', delta: 24 },
-    { expect: 'stock', categoryId: 'strawberry', qty: 24 },
+    // Seed strawberry is 3 (06-testing low mix). +24 displays 27.
+    { expect: 'stock', categoryId: 'strawberry', qty: 27 },
   ],
 };
 
@@ -137,7 +142,8 @@ export const S32: Scenario = {
   seed: 'default',
   steps: [
     { do: 'adjustStock', categoryId: 'mint', delta: 1 },
-    { expect: 'stock', categoryId: 'mint', qty: 1 },
+    // Seed mint is 20 so a +1 fallback displays 21.
+    { expect: 'stock', categoryId: 'mint', qty: 21 },
   ],
 };
 
@@ -147,7 +153,8 @@ export const S33: Scenario = {
   role: 'pos_staff',
   seed: 'default',
   steps: [
-    { do: 'setStockCount', categoryId: 'mint', qty: 1 },
+    // Threshold is 5. 5 → 4 is low. 1 → 0 would be out.
+    { do: 'setStockCount', categoryId: 'mint', qty: 5 },
     { do: 'addProduct', product: 'scout', flavors: { mint: 1 } },
     { do: 'setClient', name: 'Test Client A' },
     { do: 'charge' },

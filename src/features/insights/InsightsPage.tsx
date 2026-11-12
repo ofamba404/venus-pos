@@ -50,12 +50,17 @@ export function InsightsPage() {
     return openPartnerBatches(sales.value as Parameters<typeof openPartnerBatches>[0], settled);
   }, [sales.value]);
 
-  function copyBatch(index: number) {
-    const batch = partnerBatches[index];
-    if (!batch) return;
+  function settleNextBatch() {
+    const batch = partnerBatches.find((row) => row.complete) || partnerBatches[0];
+    if (!batch) {
+      showToast('No batch to settle');
+      return;
+    }
+    const prev = Number(localStorage.getItem(KEYS.partnerSettled) || 25);
+    localStorage.setItem(KEYS.partnerSettled, String(prev + batch.cookieCount));
     const text = cookieBatchShareText(batch);
     void navigator.clipboard?.writeText(text).then(
-      () => showToast('Batch text copied'),
+      () => showToast('Batch settled'),
       () => showToast(text),
     );
   }
@@ -116,8 +121,8 @@ export function InsightsPage() {
                 Partner <Money value={b.partnerDue} /> · you <Money value={b.ownerSplit} />
               </div>
             </div>
-            <Button variant="ghost" size="md" onClick={() => copyBatch(i)}>
-              Copy
+            <Button variant="ghost" size="md" data-testid="partner-settle" onClick={() => settleNextBatch()}>
+              Settle batch
             </Button>
           </div>
         ))

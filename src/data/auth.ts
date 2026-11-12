@@ -154,7 +154,14 @@ export function signOut() {
   writeStoredSession(null);
 }
 
-/** Dev-friendly: allow browsing without auth on Vite. */
+/** Dev-friendly: allow browsing without auth on Vite. Tests can turn this off. */
 export function allowDevBypass() {
+  try {
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('venus-enforce-access') === '1') {
+      return false;
+    }
+  } catch {
+    /* private mode */
+  }
   return typeof location !== 'undefined' && location.port === '5173';
 }

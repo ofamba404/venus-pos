@@ -30,6 +30,7 @@ export type MockHandle = {
   writes: RecordedWrite[];
   requests: Array<{ method: string; url: string }>;
   setFailure: (rule: FailureRule) => void;
+  setOffline: (offline: boolean) => void;
 };
 
 const SUPABASE = 'https://xiangrykfxlnacthjcad.supabase.co';
@@ -79,6 +80,7 @@ export async function installMockBackend(
   const writes: RecordedWrite[] = [];
   const requests: Array<{ method: string; url: string }> = [];
   const failures = [...(opts.failures || [])];
+  let networkOff = false;
 
   const handle: MockHandle = {
     db,
@@ -86,6 +88,9 @@ export async function installMockBackend(
     requests,
     setFailure(rule) {
       failures.push(rule);
+    },
+    setOffline(offline) {
+      networkOff = offline;
     },
   };
 
@@ -142,8 +147,11 @@ export async function installMockBackend(
 
     // Allow same-origin app assets
     const u = new URL(url);
-    const local =
-      u.hostname === '127.0.0.1' || u.hostname === 'localhost';
+    const local = u.hostname === '127.0.0.1' || u.hostname === 'localhost';
+    if (networkOff && (!local || u.pathname.startsWith('/api/'))) {
+      await route.abort('internetdisconnected');
+      return;
+    }
     if (local && (u.port === '4173' || u.port === '5173' || u.port === '')) {
       if (!u.pathname.startsWith('/api/')) {
         await route.continue();

@@ -147,6 +147,7 @@ export function StockPage() {
           <button
             type="button"
             class="v-tag"
+            data-testid="stock-bulk-24"
             onClick={() => setEditQty(String((Number(editQty) || 0) + 24))}
           >
             +24

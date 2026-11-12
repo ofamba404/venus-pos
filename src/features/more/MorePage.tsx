@@ -1,10 +1,10 @@
 import { go, ROUTES } from '../../app/router';
-import { isAdmin } from '../../data/auth';
+import { allowDevBypass, isAdmin } from '../../data/auth';
 import { IconChevronRight } from '../../ui/icons';
 
 export function MorePage() {
   const links = ROUTES.filter((r) => r.nav === 'more').filter(
-    (r) => r.minRole === 'staff' || isAdmin() || location.port === '5173',
+    (r) => r.minRole === 'staff' || isAdmin() || allowDevBypass(),
   );
 
   return (

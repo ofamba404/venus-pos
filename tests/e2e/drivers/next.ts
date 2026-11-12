@@ -18,6 +18,11 @@ async function saleScope(page: Page) {
 }
 
 async function addProduct(page: Page, step: Extract<ScenarioStep, { do: 'addProduct' }>) {
+  const tile = page.getByTestId(`product-${step.product}`);
+  if (!(await tile.isVisible().catch(() => false))) {
+    await page.goto('/next/sell');
+    await tile.waitFor({ timeout: 15000 });
+  }
   const review = page.getByRole('dialog', { name: 'Review sale' });
   if (await review.isVisible().catch(() => false)) {
     await review.getByRole('button', { name: 'Close' }).click();
@@ -51,6 +56,7 @@ function parseUgx(text: string) {
 }
 
 let creditOwedBefore = 0;
+let armInventory502 = false;
 
 const ROUTE_TITLES: Record<string, string> = {
   '/sell': 'Sell',
@@ -198,6 +204,93 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
       case 'restoreCounterCart':
         await page.getByTestId('held-sales').getByRole('button').first().click();
         return;
+      case 'arriveStoreOrder':
+        await page.getByTestId('orders-badge').waitFor({ timeout: 8000 });
+        mock.db.table('store_orders').unshift({
+          id: 'arrived-live-order',
+          status: 'pending',
+          customer_name: 'Live Customer',
+          phone_e164: '+256700000050',
+          created_at: new Date().toISOString(),
+          confirmed_at: null,
+          dismissed_at: null,
+          sale_id: null,
+          items: [
+            {
+              product_id: 'scout',
+              product_name: 'Scout Pack',
+              detail: 'Mint',
+              line_total: 8000,
+              breakdown: { mint: 1 },
+            },
+          ],
+          delivery_enabled: false,
+        });
+        return;
+      case 'setStoreBusy':
+        await page.goto('/next/store');
+        await page.getByTestId(step.minutes == null ? 'busy-clear' : 'busy-30').click();
+        return;
+      case 'setStoreHours': {
+        await page.goto('/next/store');
+        await page.getByRole('textbox', { name: 'Open' }).fill(step.open);
+        await page.getByRole('textbox', { name: 'Close' }).fill(step.close);
+        const suggest = String(step.suggest || '');
+        const parts = suggest.split(/[–-]/);
+        if (parts[0]) await page.getByRole('textbox', { name: 'Suggest start' }).fill(parts[0].trim());
+        if (parts[1]) await page.getByRole('textbox', { name: 'Suggest end' }).fill(parts[1].trim());
+        await page.getByRole('button', { name: /save hours/i }).click();
+        return;
+      }
+      case 'clientsCrud': {
+        await page.goto('/next/clients');
+        if (step.action === 'add') {
+          await page.getByTestId('client-add-name').fill(step.name || '');
+          await page.getByTestId('client-add').click();
+          return;
+        }
+        await page.getByRole('button', { name: new RegExp(step.name || '', 'i') }).first().click();
+        if (step.action === 'rename') {
+          await page.getByTestId('client-edit-name').fill(step.newName || '');
+          await page.getByTestId('client-rename').click();
+          return;
+        }
+        await page.getByTestId('client-delete').click();
+        return;
+      }
+      case 'storeUsers':
+        await page.goto('/next/store');
+        if (step.action === 'setName') {
+          await page.getByTestId('store-user-name').fill(step.name || '');
+          await page.getByTestId('store-user-save').click();
+          return;
+        }
+        if (step.action === 'verify') {
+          await page.getByTestId('store-user-verify').click();
+          return;
+        }
+        await page.getByTestId('store-user-delete').click();
+        return;
+      case 'quoteLabPreset':
+        await page.goto('/next/delivery');
+        await page.getByTestId('quote-log').click();
+        return;
+      case 'refreshReviews':
+        await page.goto('/next/reviews');
+        await page.getByTestId('reviews-refresh').click();
+        return;
+      case 'enableNotifications':
+        await page.goto('/next/settings');
+        await page.getByTestId('enable-notifications').click();
+        return;
+      case 'partnerSettleBatch':
+        await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+        await page.goto('/next/insights');
+        await page.getByTestId('partner-settle').first().click();
+        return;
+      case 'goOffline':
+        mock.setOffline(true);
+        return;
       case 'settleCredit': {
         await page.goto('/next/clients');
         const name = step.clientName || '';
@@ -214,6 +307,18 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
       }
       case 'adjustStock':
         await page.goto(`/next/stock`);
+        await page.getByTestId(`stock-${step.categoryId}-qty`).waitFor();
+        if (armInventory502) {
+          mock.setFailure({ method: 'POST', pathIncludes: '/api/inventory/write', status: 502, times: 1 });
+          armInventory502 = false;
+        }
+        if (step.delta === 24) {
+          await page.getByTestId(`stock-${step.categoryId}-qty`).click();
+          await page.getByTestId('stock-bulk-24').click();
+          await page.getByTestId('stock-set-confirm').click();
+          await page.getByRole('dialog').waitFor({ state: 'hidden', timeout: 8000 });
+          return;
+        }
         if (step.delta > 0) {
           for (let i = 0; i < step.delta; i += 1) {
             await page.getByTestId(`stock-${step.categoryId}-inc`).click();
@@ -304,6 +409,30 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
           }
           if (owed !== expected) throw new Error(`owed ${owed}, expected ${expected}`);
         }
+        if (step.values.busy === 'off') {
+          const status = page.getByTestId('store-status');
+          const deadline = Date.now() + 8000;
+          let text = await status.innerText();
+          while (/Status:\s*Busy/i.test(text) && Date.now() < deadline) {
+            await page.waitForTimeout(200);
+            text = await status.innerText();
+          }
+          if (/Status:\s*Busy/i.test(text)) throw new Error(`expected busy off, saw ${text}`);
+        }
+        if (step.values.reviews != null) {
+          const raw = String(step.values.reviews);
+          const count = Number((await page.getByTestId('review-count').innerText()).match(/\d+/)?.[0] || 0);
+          if (raw.startsWith('>=') && count < Number(raw.slice(2))) {
+            throw new Error(`expected reviews ${raw}, saw ${count}`);
+          }
+        }
+        return;
+      }
+      case 'clipboard': {
+        const text = await page.evaluate(() => navigator.clipboard.readText());
+        if (!text.toLowerCase().includes(String(step.includes).toLowerCase())) {
+          throw new Error(`clipboard missing ${step.includes}: ${text}`);
+        }
         return;
       }
       case 'reachable': {
@@ -337,6 +466,10 @@ export async function createNextDriver(page: Page, opts: { role?: 'pos_admin' | 
       if (scenario.steps.some((step) => 'do' in step && step.do === 'chargeRetry')) {
         mock.setFailure({ method: 'POST', table: 'sales', status: 500, times: 1 });
       }
+      if (scenario.id === 'S46') {
+        await page.addInitScript(() => sessionStorage.setItem('venus-enforce-access', '1'));
+      }
+      armInventory502 = scenario.id === 'S32';
       const first = scenario.steps[0];
       creditOwedBefore = 0;
       if (!first || !('do' in first) || first.do !== 'go') {

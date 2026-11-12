@@ -25,12 +25,26 @@ import {
   S23,
   S24,
   S25,
+  S26,
   S27,
+  S28,
   S29,
   S30,
+  S31,
+  S32,
+  S33,
   S34,
   S35,
+  S38,
+  S39,
+  S40,
+  S41,
+  S43,
+  S44,
+  S45,
+  S46,
   S47,
+  S48,
   SCENARIOS,
 } from './scenarios';
 import { createNextDriver } from './drivers/next';
@@ -302,6 +316,85 @@ test.describe('write-contract scenarios (next)', () => {
   test('S47 admin routes render', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     await driver.run(S47);
+  });
+
+  test('S26 a new order toasts on Sell', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S26);
+  });
+
+  test('S28 busy thirty minutes then clear', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S28);
+    const patches = driver.mock.writes.filter(
+      (w) => w.method === 'PATCH' && w.url.includes('/rest/v1/store_fulfillment'),
+    );
+    expect(patches.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test('S31 bulk add 24 to strawberry', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S31);
+  });
+
+  test('S32 inventory write falls back to a patch', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S32);
+    const patches = driver.mock.writes.filter(
+      (w) => w.method === 'PATCH' && w.url.includes('/rest/v1/inventory'),
+    );
+    expect(patches.length).toBeGreaterThanOrEqual(1);
+    expect((patches[0]!.body as { stock?: number }).stock).toBe(21);
+  });
+
+  test('S33 low-stock toast after a sale', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S33);
+  });
+
+  test('S38 partner batch copies cookie text', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S38);
+  });
+
+  test('S39 add rename and delete a client', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S39);
+  });
+
+  test('S40 rename verify and delete a store user', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S40);
+  });
+
+  test('S41 save store hours', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S41);
+  });
+
+  test('S43 quote lab logs a preset', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S43);
+  });
+
+  test('S44 reviews list at least one', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S44);
+  });
+
+  test('S45 enable notification prefs', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S45);
+  });
+
+  test('S46 staff insights redirects to sell', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S46);
+  });
+
+  test('S48 offline charge queues', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S48);
   });
 
   test('S17 remove line then undo then remove', async ({ page }) => {

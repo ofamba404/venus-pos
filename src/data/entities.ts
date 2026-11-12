@@ -108,11 +108,7 @@ export async function loadStoreOrders() {
   return storeOrders.value;
 }
 
-export async function adjustInventory(categoryId: string, delta: number) {
-  const id = String(categoryId);
-  const prev = inventory.value[id] || 0;
-  const nextQty = Math.max(0, prev + delta);
-  inventory.value = { ...inventory.value, [id]: nextQty };
+async function writeStockChange(id: string, prev: number, nextQty: number, delta: number) {
   try {
     await functionFetch('/api/inventory/write', {
       op: 'delta',
@@ -120,9 +116,26 @@ export async function adjustInventory(categoryId: string, delta: number) {
       delta,
     });
   } catch (e) {
+    const status = (e as { status?: number }).status;
+    if (status === 405 || status === 502 || status === 503) {
+      const res = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ stock: nextQty }),
+      });
+      if (res.ok) return;
+    }
     inventory.value = { ...inventory.value, [id]: prev };
     throw e;
   }
+}
+
+export async function adjustInventory(categoryId: string, delta: number) {
+  const id = String(categoryId);
+  const prev = inventory.value[id] || 0;
+  const nextQty = Math.max(0, prev + delta);
+  inventory.value = { ...inventory.value, [id]: nextQty };
+  await writeStockChange(id, prev, nextQty, delta);
 }
 
 export async function setInventoryCount(categoryId: string, qty: number) {
@@ -132,16 +145,7 @@ export async function setInventoryCount(categoryId: string, qty: number) {
   const delta = nextQty - prev;
   if (delta === 0) return nextQty;
   inventory.value = { ...inventory.value, [id]: nextQty };
-  try {
-    await functionFetch('/api/inventory/write', {
-      op: 'delta',
-      category_id: id,
-      delta,
-    });
-  } catch (e) {
-    inventory.value = { ...inventory.value, [id]: prev };
-    throw e;
-  }
+  await writeStockChange(id, prev, nextQty, delta);
   return nextQty;
 }
 

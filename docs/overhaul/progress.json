@@ -1,9 +1,9 @@
 {
-  "phase": "0 exit still open — next contract is 32. Phase 8 locals are in",
+  "phase": "0 exit still open — next contract is 46. Phase 8 locals are in",
   "branch": "overhaul",
   "commit": "see git log -1",
-  "next": "Still open: S26 live arrival, S28 busy, S31–S33 (do not assert strawberry 24; seed is 3), S36–S46, S48–S50. S46 staff redirect is skipped on port 5173 by the dev bypass. Throttled sell sample was 7922 ms against a 2.0 s budget — not met. Lint stays off CI (last full lint 94 errors). Do not push or deploy. Do not apply client_sale_id.",
-  "status": "Phase 0 exit is not closed. Next contract is 32 tests, all green in one run: catalog, S01–S25, S27, S29, S30, S34, S35, S47. Legacy S02, S05, S07 were not re-run this slice. 98 unit/dual-run. Typecheck clean. Baselines cover 360, 390, 768, and 1280 for sell, stock, and legacy home. One throttled sell sample (Fast 4G approximation, 4× CPU) was 7922 ms. client_sale_id SQL is not applied. D11, live Maps, and deploy stay blocked.",
+  "next": "Still open: S36 and S37 (seed has no seed-sale-1 or seed-delivery-sale, and history has no edit/void), S42 (no seed-trip-1), S49 sign-in through auth.html, S50 display parity. Realtime socket still closes. GPS locate is not on Sell. Push subscribe is not wired. Throttled 7.9s was the Vite dev server, not a production bundle, and it misses the 2.0s budget. Lint stays off CI. Do not push or deploy. Do not apply client_sale_id.",
+  "status": "Phase 0 exit is not closed. Next contract is 46 tests, all green in one run. 98 unit/dual-run. Typecheck clean. Legacy S02, S05, S07 were not re-run. S31 shows strawberry 27 (seed 3 + 24). S32 proved a 502 PATCH fallback to mint 21. S33 toasts running low on a 5→4 mint sale. S26 is a 4s poll, not a realtime socket. Place quotes ignore a stale reply; there is no GPS locate button. client_sale_id SQL is not applied. D11, live Maps, and deploy stay blocked.",
   "ownerGate": {
     "ready": "D1–D6 answered 2026-11-12. See docs/overhaul/08-decisions.md.",
     "phase8": "In progress. Build D2 walk-in, D4 offline queue, D6 device hold. Skip D3 and D5. D1 stays paid/credit.",
@@ -16,7 +16,7 @@
     { "id": "p0-mock", "label": "Phase 0: mock backend + fixtures", "state": "done" },
     { "id": "p0-exports", "label": "Phase 0: export legacy helpers", "state": "run" },
     { "id": "p0-dual", "label": "Phase 0: dual-run characterizations", "state": "done" },
-    { "id": "p0-scenarios", "label": "Phase 0: S01–S50. Next contract is 32. Legacy last proved S02, S05, S07", "state": "run" },
+    { "id": "p0-scenarios", "label": "Phase 0: S01–S50. Next contract is 46. Legacy last proved S02, S05, S07", "state": "run" },
     { "id": "p0-baseline", "label": "Phase 0: four viewports for sell, stock, and legacy home. One throttled sample, over the 2.0 s budget", "state": "run" },
     { "id": "p1", "label": "Phase 1: Vite + legacy/ strangler", "state": "done" },
     { "id": "p2", "label": "Phase 2: domain port", "state": "done" },

@@ -77,6 +77,7 @@ export function SellPage() {
   const [queuedNote, setQueuedNote] = useState(false);
   const [debtAsk, setDebtAsk] = useState<{ name: string; owed: number } | null>(null);
   const debtClearedRef = useRef(false);
+  const placeGen = useRef(0);
   const [editingKey, setEditingKey] = useState<string | null>(null);
 
   const lines = cartLines.value;
@@ -144,12 +145,42 @@ export function SellPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let seen = new Set<string>();
+    let primed = false;
+    let timer = 0;
+    const tick = () => {
+      void loadStoreOrders()
+        .then((rows) => {
+          const ids = rows.map((row) => row.id);
+          if (!primed) {
+            seen = new Set(ids);
+            primed = true;
+            return;
+          }
+          const fresh = rows.filter(
+            (row) => !seen.has(row.id) && (row.status === 'pending' || row.status === 'confirmed'),
+          );
+          for (const id of ids) seen.add(id);
+          if (fresh.length === 1) showToast('New order');
+          else if (fresh.length > 1) showToast(`${fresh.length} new orders`);
+        })
+        .catch(() => {});
+    };
+    tick();
+    timer = window.setInterval(tick, 4000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   async function onPlacePick(place: { label: string; lat: number; lng: number }) {
+    const gen = placeGen.current + 1;
+    placeGen.current = gen;
     setOrderMetaPatch({
       deliveryEnabled: true,
       deliveryLocationLabel: place.label,
     });
     const pred = await quoteFeeForDest({ lat: place.lat, lng: place.lng });
+    if (gen !== placeGen.current) return;
     setCheckoutDraft({
       dest: { lat: place.lat, lng: place.lng },
       destText: place.label,
@@ -254,7 +285,10 @@ export function SellPage() {
     }
     haptic(15);
     setQueuedNote(Boolean(result.queued));
-    if (result.queued) setWaiting((n) => n + 1);
+    if (result.queued) {
+      setWaiting((n) => n + 1);
+      showToast('Queued offline');
+    }
     setSuccessTotal(cartTotal(lines));
     clearCartKeepMeta();
     clearCheckoutDraft();

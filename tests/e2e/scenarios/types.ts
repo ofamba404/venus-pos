@@ -19,6 +19,7 @@ export type ScenarioStep =
   | { do: 'parkCounterCart' }
   | { do: 'restoreCounterCart' }
   | { do: 'setStoreBusy'; minutes: number | null }
+  | { do: 'arriveStoreOrder' }
   | { do: 'adjustStock'; categoryId: string; delta: number }
   | { do: 'setStockCount'; categoryId: string; qty: number }
   | { do: 'settleCredit'; clientId?: string; clientName?: string; amountUgx: number; method?: string; note?: string }

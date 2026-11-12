@@ -47,6 +47,24 @@ export function DeliveryPage() {
   const range =
     Number.isFinite(kmNum) && kmNum >= 0 ? predictSafeBodaFeeRange(kmNum, model) : null;
 
+  async function logPreset() {
+    const res = await sbFetch('deliveries', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        client_name: 'SafeBoda test',
+        distance_km: Number.isFinite(kmNum) ? kmNum : null,
+        fee_ugx: point ?? 0,
+        fee_was_edited: false,
+      }),
+    });
+    if (!res.ok) {
+      showToast('Could not log quote');
+      return;
+    }
+    showToast('Quote logged');
+  }
+
   function applyToCheckout() {
     if (point == null) {
       showToast('Need more logged quotes to predict');
@@ -97,6 +115,9 @@ export function DeliveryPage() {
             </div>
           </div>
         </div>
+        <Button variant="secondary" data-testid="quote-log" onClick={() => void logPreset()}>
+          Log preset
+        </Button>
         <Button variant="secondary" onClick={applyToCheckout}>
           Use estimate on next sale
         </Button>
