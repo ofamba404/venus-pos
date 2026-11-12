@@ -111,4 +111,21 @@ test.describe('owner decisions', () => {
     await expect(page.getByTestId('stock-mint-qty')).toHaveText('21');
     expect(deltas(driver, 'mint')).toContain(1);
   });
+
+  test('busy mode is one switch for delivery and pickup', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await page.goto('/next/store');
+    // No delivery/pickup split on this page.
+    await expect(page.getByRole('button', { name: /^(Delivery|Pickup)$/ })).toHaveCount(0);
+    await page.getByTestId('busy-30').click();
+    await expect(page.getByTestId('store-status')).toContainText('Busy');
+    const patch = () =>
+      driver.mock.writes.filter((w) => w.method === 'PATCH' && w.url.includes('store_fulfillment')).at(-1)!
+        .body as { busy_for: string | null; busy_until: string | null };
+    await expect.poll(() => patch().busy_for).toBe('both');
+    expect(patch().busy_until).toBeTruthy();
+    await page.getByTestId('busy-clear').click();
+    await expect.poll(() => patch().busy_for).toBeNull();
+    expect(patch().busy_until).toBeNull();
+  });
 });
