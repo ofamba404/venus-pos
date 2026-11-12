@@ -28,6 +28,9 @@ import {
   S27,
   S29,
   S30,
+  S34,
+  S35,
+  S47,
   SCENARIOS,
 } from './scenarios';
 import { createNextDriver } from './drivers/next';
@@ -223,13 +226,29 @@ test.describe('write-contract scenarios (next)', () => {
   test('S20 reward line checks out at the paid total', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S20);
-    expect(saleTotal(driver).total).toBe(8000);
+    const { total, posts } = saleTotal(driver);
+    expect(total).toBe(8000);
+    const items = (posts[0]!.body as {
+      items?: Array<{ is_reward?: boolean; reward_key?: string; points_cost?: number; line_total?: number }>;
+    }).items || [];
+    const reward = items.find((item) => item.is_reward);
+    expect(reward?.reward_key).toBe('plain');
+    expect(reward?.points_cost).toBe(1);
+    expect(reward?.line_total).toBe(0);
   });
 
   test('S21 load and confirm a pending order', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S21);
-    expect(saleTotal(driver).total).toBe(8000);
+    const { total, posts } = saleTotal(driver);
+    expect(total).toBe(8000);
+    expect((posts[0]!.body as { store_order_id?: string }).store_order_id).toBe('seed-pending-order');
+    const statuses = driver.mock.writes
+      .filter((w) => w.method === 'PATCH' && w.url.includes('/rest/v1/store_orders'))
+      .map((w) => (w.body as { status?: string } | null)?.status);
+    expect(statuses).toContain('accepted');
+    expect(statuses).toContain('confirmed');
+    expect(statuses).toContain('checked_out');
   });
 
   test('S22 cancel a pending order', async ({ page }) => {
@@ -257,6 +276,32 @@ test.describe('write-contract scenarios (next)', () => {
   test('S27 deep link opens the store order', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S27);
+  });
+
+  test('S34 settle part of a credit balance', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S34);
+    const payments = driver.mock.writes.filter(
+      (w) => w.method === 'POST' && w.url.includes('/rest/v1/credit_payments'),
+    );
+    expect(payments.length).toBeGreaterThanOrEqual(1);
+    expect((payments[0]!.body as { amount_ugx?: number; method?: string }).amount_ugx).toBe(5000);
+    expect((payments[0]!.body as { method?: string }).method).toBe('cash');
+  });
+
+  test('S35 settle the rest of a credit balance', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S35);
+    const payments = driver.mock.writes.filter(
+      (w) => w.method === 'POST' && w.url.includes('/rest/v1/credit_payments'),
+    );
+    expect((payments[0]!.body as { method?: string; note?: string }).method).toBe('mobile_money');
+    expect((payments[0]!.body as { note?: string }).note).toBe('Cleared at counter');
+  });
+
+  test('S47 admin routes render', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S47);
   });
 
   test('S17 remove line then undo then remove', async ({ page }) => {

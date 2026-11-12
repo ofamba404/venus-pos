@@ -7,8 +7,8 @@ Update at the end of every session.
 | Current phase | Phase 0 exit still open. Phase 8 locals (walk-in, hold, offline) are in |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | typecheck clean · 98 unit/dual-run · 18 Playwright next contract · 3 legacy (S02, S05, S07) |
-| Next step | S14–S16, S18, S20–S28, S31–S50. Throttled perf. Lint is not clean, so CI does not run it. No deploy. Do not apply `client_sale_id` |
+| Tests passing | typecheck clean · 98 unit/dual-run · 32 Playwright next contract · 3 legacy (S02, S05, S07) |
+| Next step | S26, S28, S31–S33, S36–S46, S48–S50. S31 still expects strawberry 24; seed is 3 so +24 shows 27. S33’s 1→0 crossing is “out”, not “low”. Lint stays off CI. No deploy. Do not apply `client_sale_id` |
 | Open questions for the owner | D11 look, live Maps, and deploy stay blocked until the owner is back |
 
 ## Ready vs open (before a parallel run)
@@ -18,7 +18,7 @@ Update at the end of every session.
 **Open before staff use v2 beside v1.**
 
 - D1–D6 are answered in `08-decisions.md` (2026-11-12). Walk-in, device hold, and the offline outbox are local. `client_sale_id` is a SQL file only. It is not applied.
-- The Playwright next contract that is green is the catalog plus S01–S13, S17, S19, S29, and S30. Legacy on port 4173 is green for S02, S05, and S07. The other scenarios are defined and not in this run yet.
+- The Playwright next contract that is green is 32 tests: catalog, S01–S25, S27, S29, S30, S34, S35, and S47. Legacy on port 4173 was last green for S02, S05, and S07. S26, S28, S31–S33, S36–S46, and S48–S50 are still out.
 - Phase 9 needs you to say deploy. That is `.\scripts\ship.ps1` from `venus-pos` (v1 stays at `/`, v2 at `/next/`). No test sales on production unless you ask.
 - Phase 10 needs you to say ship, after the parallel run. Same script, after the cutover edits. Rollback stays the previous Netlify deploy.
 
@@ -79,4 +79,5 @@ Phase 8 is in progress from the answers in `docs/overhaul/08-decisions.md`. Phas
 | 2026-11-12 | 8 | Device-only hold | `cebddf6` |
 | 2026-11-12 | 8 | Offline sales outbox. `client_sale_id` SQL written, not applied | `0d7f053` |
 | 2026-11-12 | 0 | Legacy sale driver (S02, S05, S07). Next contract through S05, S09, S12, S13, S17, S19, S29. Analytics rank dual-run | `754a562` |
-| 2026-11-12 | 0 | Playwright CI job, first-viewport baselines, parity ticks for the tests that passed | this commit |
+| 2026-11-12 | 0 | Playwright CI job, first-viewport baselines, parity ticks for the tests that passed | `142182b` |
+| 2026-11-12 | 0 | Delivery, line edit, store-order load, credit settle, four-viewport baselines. Throttled sell sample 7.9 s, over the 2.0 s budget | this commit |

@@ -44,6 +44,29 @@ async function addProduct(page: Page, step: Extract<ScenarioStep, { do: 'addProd
   await page.getByTestId('config-add').click();
 }
 
+function parseUgx(text: string) {
+  const matches = text.replace(/,/g, '').match(/\d+/g);
+  if (!matches) return 0;
+  return Number(matches[matches.length - 1]);
+}
+
+let creditOwedBefore = 0;
+
+const ROUTE_TITLES: Record<string, string> = {
+  '/sell': 'Sell',
+  '/orders': 'Orders',
+  '/stock': 'Stock',
+  '/more': 'More',
+  '/settings': 'Settings',
+  '/clients': 'Clients',
+  '/history': 'History',
+  '/insights': 'Insights',
+  '/delivery': 'Delivery',
+  '/reviews': 'Reviews',
+  '/store': 'Store',
+  '/system': 'System',
+};
+
 function productLabel(id: string | undefined) {
   if (!id) return '';
   return PRODUCTS.find((p) => p.id === id)?.name || id;
@@ -175,6 +198,20 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
       case 'restoreCounterCart':
         await page.getByTestId('held-sales').getByRole('button').first().click();
         return;
+      case 'settleCredit': {
+        await page.goto('/next/clients');
+        const name = step.clientName || '';
+        const row = page.getByRole('button', { name: new RegExp(name, 'i') }).first();
+        await row.waitFor({ timeout: 8000 });
+        creditOwedBefore = parseUgx(await row.innerText());
+        await row.click();
+        await page.getByTestId('settle-amount').fill(String(step.amountUgx));
+        const methodLabel = step.method === 'mobile_money' ? 'Mobile money' : 'Cash';
+        await page.getByRole('tab', { name: methodLabel }).click();
+        if (step.note) await page.getByRole('textbox', { name: 'Note' }).fill(step.note);
+        await page.getByTestId('settle-confirm').click();
+        return;
+      }
       case 'adjustStock':
         await page.goto(`/next/stock`);
         if (step.delta > 0) {
@@ -242,6 +279,44 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
           }
           if (count !== n) throw new Error(`expected ${n} cart lines, saw ${count}`);
         }
+        if (step.values.creditOwedDelta != null) {
+          const expected = Number(step.values.creditOwedDelta);
+          const row = page.getByRole('button', { name: /client with debt/i }).first();
+          const deadline = Date.now() + 8000;
+          let delta = parseUgx(await row.innerText()) - creditOwedBefore;
+          while (delta !== expected && Date.now() < deadline) {
+            await page.waitForTimeout(200);
+            delta = parseUgx(await row.innerText()) - creditOwedBefore;
+          }
+          if (delta !== expected) {
+            throw new Error(`owed delta ${delta}, expected ${expected} (before ${creditOwedBefore})`);
+          }
+        }
+        if (step.values.creditOwed != null) {
+          const expected = Number(step.values.creditOwed);
+          const row = page.getByRole('button', { name: /client with debt/i }).first();
+          const deadline = Date.now() + 8000;
+          let owed = /clear/i.test(await row.innerText()) ? 0 : parseUgx(await row.innerText());
+          while (owed !== expected && Date.now() < deadline) {
+            await page.waitForTimeout(200);
+            const text = await row.innerText();
+            owed = /clear/i.test(text) ? 0 : parseUgx(text);
+          }
+          if (owed !== expected) throw new Error(`owed ${owed}, expected ${expected}`);
+        }
+        return;
+      }
+      case 'reachable': {
+        for (const route of step.routes) {
+          await page.goto(`/next${route}`);
+          const title = ROUTE_TITLES[route] || route;
+          await page.locator('.shell__sync-label', { hasText: title }).waitFor({ timeout: 8000 });
+        }
+        return;
+      }
+      case 'redirect': {
+        const path = step.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        await page.waitForURL(new RegExp(`${path}\\/?$`), { timeout: 8000 });
         return;
       }
       default:
@@ -263,6 +338,7 @@ export async function createNextDriver(page: Page, opts: { role?: 'pos_admin' | 
         mock.setFailure({ method: 'POST', table: 'sales', status: 500, times: 1 });
       }
       const first = scenario.steps[0];
+      creditOwedBefore = 0;
       if (!first || !('do' in first) || first.do !== 'go') {
         await page.goto('/next/sell');
         await page.getByRole('heading', { name: /packs|sell|today/i }).first().waitFor({ timeout: 15000 }).catch(() => {});

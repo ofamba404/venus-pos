@@ -8,12 +8,12 @@ Legend: **S** = staff and admin, **A** = admin only.
 
 | ✓ | Capability | Role | v1 source | Proof |
 |---|-----------|:----:|-----------|-------|
-| [ ] | Product catalog and prices (packs 8,000 / 15,000 / 35,000 / 50,000; cookie packs 15,000 / 21,000 / 25,000; Plain and Bangis 5,000; cookies butterscotch 5,000, chocolate/mint/strawberry 8,000; wholesale manual) | S | `js/config.js:18-23`, `182-231` | dual-run catalog, S01–S09 |
+| [x] | Product catalog and prices (packs 8,000 / 15,000 / 35,000 / 50,000; cookie packs 15,000 / 21,000 / 25,000; Plain and Bangis 5,000; cookies butterscotch 5,000, chocolate/mint/strawberry 8,000; wholesale manual) | S | `js/config.js:18-23`, `182-231` | dual-run catalog, S01–S09 |
 | [x] | Pack flavour rules: `choose_any`, `choose_variety`, Quartet fixed butterscotch, cookie choice pool excludes butterscotch | S | `js/config.js:118-124`, `js/product-config.js` | dual-run pack-config, S03, S09 |
 | [x] | Flavoured cookie bulk pricing (≥ 4 → 6,500; packs repriced) | S | `js/flavored-cookie-pricing.js:28-129` | dual-run, S04, S05 |
 | [x] | Wholesale cookies with custom unit price | S | `js/product-config.js` | S06 |
 | [ ] | Draft stock shown in config; counter lines cap at refreshed on-hand stock (D16). A badge still does not block opening the product | S | `js/orders.js` `draftStock`, `SellPage` | S01, L4 |
-| [ ] | Edit a cart line with preserved config state | S | `js/orders.js:2142-2182` | S16 |
+| [x] | Edit a cart line with preserved config state | S | `js/orders.js:2142-2182` | S16 |
 | [ ] | Client autocomplete with "owes" hint | S | `js/client-autocomplete.js` | S01, S12 |
 | [x] | Create client inline | S | `js/clients.js:212-216` | S10 |
 | [ ] | Client required to check out (unless D2 approved) | S | `js/orders.js:2396-2398` | L4: Charge disabled without a client, and no writes |
@@ -26,9 +26,9 @@ Legend: **S** = staff and admin, **A** = admin only.
 | [ ] | Optimistic stock decrement + rollback on failure | S | `js/orders.js:2567-2575` | S18 |
 | [ ] | Sale POST body identical (§7) | S | `js/orders.js:2454-2485`, `298-334` | all selling goldens |
 | [ ] | `persistSoldBreakdown` deltas; legacy `cookie` → `cookie_butterscotch` | S | `js/inventory.js`, `netlify/functions/inventory-write.mjs` | S01–S09 goldens |
-| [ ] | `deliveries` row after a delivery sale | S | `js/orders.js:2268-2283`, `2514-2547` | S14 |
+| [x] | `deliveries` row after a delivery sale | S | `js/orders.js:2268-2283`, `2514-2547` | S14 |
 | [ ] | Success: totals, badges, delivery summary with "Saving delivery…" pending, Done / New order / Next store order | S | `js/orders.js:950-1030` | L4 + visual |
-| [ ] | Reward lines (`is_reward`, `reward_key`, `points_cost`) | S | `js/orders.js:2235-2243` | S20 |
+| [x] | Reward lines (`is_reward`, `reward_key`, `points_cost`) | S | `js/orders.js:2235-2243` | S20 |
 | [ ] | Cart persists across reload (`venus-pos-cart`, `venus-pos-order-meta`) | S | `js/state.js:72-114` | L4 reload test |
 | [ ] | Today numbers: owner revenue, joints, cookies | S | `js/home.js` `updateTodayStrip` | S50 |
 
@@ -39,12 +39,12 @@ Legend: **S** = staff and admin, **A** = admin only.
 | [ ] | Waiting count badge (pending + confirmed, excl. dismissed) | S | `js/store-orders.js` | S26 |
 | [ ] | Realtime + 4 s poll fallback + reconnect refetch | S | `js/store-orders.js:28-29`, `621-643`, `1398-1403` | L1 feed, S26 |
 | [ ] | Session paint cache `venus-pos-store-orders-v1` (90 s) | S | `js/store-orders.js:31-139` | L1 |
-| [ ] | Load into cart (optimistic `accepted` PATCH), mapping storefront ids | S | `js/store-orders.js:1191-1203`, `applyStorefrontOrderToCart` | dual-run map, S21 |
+| [x] | Load into cart (optimistic `accepted` PATCH), mapping storefront ids | S | `js/store-orders.js:1191-1203`, `applyStorefrontOrderToCart` | dual-run map, S21 |
 | [ ] | Confirm for customer → `confirmed_at` + push to storefront | S | `js/store-orders.js:47-93` | S21 |
 | [ ] | Cancel → status + push; duplicate toast suppressed | S | `staffCancelledIds` | S22 |
 | [ ] | Dismiss cancelled (`dismissed_at`) | S | `js/store-orders.js` | S23 |
 | [ ] | Multiple loaded orders + switcher | S | `.cart-order-switcher`, `js/orders.js:2646-2734` | S24 |
-| [ ] | Compose cart parking and restore | S | `js/orders.js:116-192`, `534-553` | S25 |
+| [x] | Compose cart parking and restore | S | `js/orders.js:116-192`, `534-553` | S25 |
 | [ ] | Checkout links sale (`store_order_id`) and PATCHes `checked_out` + `sale_id`. **D16:** if `delivery.stock_reservation` is `held` or `consumed`, charge does not deduct those units again | S | `js/store-orders.js`, `/api/store-order/reserve` | S21 |
 | [ ] | Release order from cart | S | `__venusReleaseStoreOrderFromCart` | L4 |
 | [ ] | Cancelled-while-in-cart banner (`store-order:cancelled`) | S | `js/orders.js:2618` | L4 |
