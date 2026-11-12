@@ -3,7 +3,7 @@
 **Date:** 2026-11-12
 **Repo:** https://github.com/ofamba404/venus-pos (public)
 **Branch:** `overhaul` (fast-forward only)
-**Phase:** Phase 2 cleared. Next is Phase 3. Do not deploy. Do not apply migrations.
+**Phase:** Phase 3 cleared. Next is Phase 4. Do not deploy. Do not apply migrations.
 
 ## Cleared phases
 
@@ -20,6 +20,16 @@
 
 `npm run typecheck` passed. `npx playwright test`: **109 passed, 2 skipped, 0 failed** (15.3m). Chart aggregations live in `src/domain/analytics/periods.ts` and `patterns.ts` and dual-run against `legacy/js/analytics-chart.js`. Partner batch lines and clipboard text dual-run against `legacy/js/revenue.js`.
 
+**Phase 3 — Data, auth, realtime.** Exit criteria:
+
+1. **L1 coverage ≥ 85% on `data/`.** `npm test` runs `scripts/check-coverage.mjs`. **Data lines 87.24% (1272/1458).** Domain stays gated at lines 99.44% and branches 95.45%. `npm test`: **154 passed**.
+2. **v1 IndexedDB hydrate.** `tests/unit/hydrate-boot.test.ts` seeds `{ key, ts, data }` sales and inventory rows and `hydrateEntities` paints them. `tests/unit/idb-cache.test.ts` reads the same row shape from the `cache` store.
+3. **v1 session cart.** `tests/unit/v1-hydrate.test.ts` loads `venus-pos-cart` and `venus-pos-order-meta` and reads the same line total, client name, and client id.
+4. **v1 auth session.** The same test accepts a `venus-pos-auth` payload wrapped as `currentSession` and sets `authRole` to `pos_admin`. `index.html` still redirects a signed-out visit to `/next/auth.html` before paint.
+5. **Checkout L1.** `tests/unit/data-layer.test.ts` covers a paid sale, a 500 that restores stock, a 503 that queues, a second call refused while the first is in flight, a short-stock refusal, and a store hold with no signal.
+
+`npm run typecheck` passed.
+
 ## Baseline repairs before Phase 2
 
 The suite was not green on a fresh `npm test` / `npx playwright test`:
@@ -29,11 +39,11 @@ The suite was not green on a fresh `npm test` / `npx playwright test`:
 
 ## In progress
 
-Nothing. Phase 2 is closed.
+Nothing. Phase 3 is closed.
 
 ## Next concrete step
 
-Phase 3 task 1 in `05-implementation-plan.md`: `src/data/keys.ts`, `src/data/api.ts`, `src/data/auth.ts`, and the inline pre-paint gate. Exit bar is L1 coverage ≥ 85% on `data/`, a v1 IDB hydrate, a v1 session cart, and a v1 `venus-pos-auth` session accepted by v2. Do not deploy. Do not apply migrations.
+Phase 4 in `05-implementation-plan.md`: design-system shell, size budget, and axe on `/system`. D11 already approved the look. Do not deploy. Do not apply migrations.
 
 ## How to run tests
 

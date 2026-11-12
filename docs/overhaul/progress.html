@@ -107,11 +107,11 @@
   <script>
     // Fallback if progress.json is missing. Prefer progress.json (kept in sync with PROGRESS.md).
     const STATE = {
-      phase: "Phase 2 cleared. Phase 3 not started",
+      phase: "Phase 3 cleared. Phase 4 not started",
       branch: "overhaul · v1-baseline @ 951a152",
-      commit: "see git log -1 — phase 2 domain port",
-      next: "Phase 3 data layer. See HANDOFF.md.",
-      status: "npm test 147 passed. Domain lines 99.43%, branches 95.36%, functions 100%. Catalog sync 14 ids. No deploy.",
+      commit: "see git log -1 — phase 3 data layer",
+      next: "Phase 4 shell, size budget, axe. See HANDOFF.md.",
+      status: "npm test 154 passed. Data lines 87.24%. Domain lines 99.44%, branches 95.45%. No deploy.",
       ownerGate: {
         ready: "D1 A · D2 B · D3 B · D4 B · D5 A · D6 A · D11 approved · D16 improve (2026-11-12).",
         phase8: "Locals done: walk-in, hold, offline outbox. client_sale_id SQL written, not applied. Skipped D3 receipt + D5 shift close.",
@@ -128,7 +128,7 @@
         { id: "p0-baseline", label: "Phase 0: every legacy screen at four viewports + perf.md", state: "done" },
         { id: "p1", label: "Phase 1: dist/ byte-identical to v1. S01–S50 passed against dist", state: "done" },
         { id: "p2", label: "Phase 2: domain port — dual-run 2000, coverage ≥ 95%, catalog sync", state: "done" },
-        { id: "p3", label: "Phase 3: data layer — not started", state: "wait" },
+        { id: "p3", label: "Phase 3: data layer — 87% lines, v1 IDB, cart, and auth session", state: "done" },
         { id: "p4", label: "Phase 4: D11 approved. Not the open phase", state: "wait" },
         { id: "p5", label: "Phase 5: not the open phase", state: "wait" },
         { id: "p6", label: "Phase 6: not the open phase", state: "wait" },

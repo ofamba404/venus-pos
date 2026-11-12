@@ -1,19 +1,19 @@
 # Overhaul progress
 
-Update at the end of every session. Phase 2 is cleared. Next is Phase 3.
+Update at the end of every session. Phase 3 is cleared. Next is Phase 4.
 
 | Field | Value |
 |-------|-------|
-| Current phase | Phase 2 cleared. Phase 3 not started |
+| Current phase | Phase 3 cleared. Phase 4 not started |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | `npm test` 147 passed. Domain coverage lines 99.43%, branches 95.36%, functions 100%. `check-catalog-sync` 14 ids. `npm run typecheck` passed. Playwright 109 passed, 2 skipped |
-| Next step | Phase 3 data layer. See `HANDOFF.md` |
+| Tests passing | `npm test` 154 passed. Data lines 87.24%. Domain lines 99.44%, branches 95.45%. Playwright 109 passed, 2 skipped |
+| Next step | Phase 4 shell, size budget, axe. See `HANDOFF.md` |
 | Open questions for the owner | Live Maps for production, and deploy/ship. D11 look is approved (2026-11-12). Checkpoints for Phases 4, 5, and 8 are waived. Do not apply `client_sale_id` |
 
 ## Ready vs open
 
-**Phase 2 is cleared.** Domain modules dual-run against v1 with 2,000 fast-check runs, including analytics period bucketing and the heatmap. Coverage on `src/domain/**` is lines 99.43%, branches 95.36%, functions 100%. `scripts/check-catalog-sync.mjs` matches inventory category meta to `catalog.ts` (14 ids) and skips the storefront when `../venus-store` is absent. Phase 3 has not been started.
+**Phase 3 is cleared.** `src/data/**` line coverage is 87.24% (1272/1458). A v1 IndexedDB cache, a v1 session cart, and a v1 `venus-pos-auth` session are covered by unit tests. Checkout covers success, rollback, double submit, and a 503 queue. Phase 4 has not been started.
 
 **Owner decisions.** D1 A, D2 B, D3 B, D4 B, D5 A, D6 A, D16 improve, D11 approved. Details in `08-decisions.md`.
 
@@ -49,4 +49,5 @@ Update at the end of every session. Phase 2 is cleared. Next is Phase 3.
 | 2026-11-12 | 0 | Legacy driver covers 35 of 50 scenarios once. Mock POST returns an array. Analytics chart snapshot. Phase 0 still open | `f62f24e` |
 | 2026-11-12 | 0 | Phase 0 cleared. S01–S50 goldens ×3 (150 passed). Remaining legacy screenshots. Hours-dial snapshot | `8cbdc36` |
 | 2026-11-12 | 1 | Phase 1 cleared. dist/ hash check. S01–S50 against dist. ship.ps1 builds first. D15 wording proposed | `2eae8a0` |
-| 2026-11-12 | 2 | Phase 2 cleared. Domain dual-run, 95% branch coverage, catalog sync. Hours-dial quirk 12. S32/S38/S48 driver fixes | this commit |
+| 2026-11-12 | 2 | Phase 2 cleared. Domain dual-run, 95% branch coverage, catalog sync. Hours-dial quirk 12. S32/S38/S48 driver fixes | `5dd1a59` |
+| 2026-11-12 | 3 | Phase 3 cleared. Data coverage 87.24%. v1 IDB, cart, and auth session. Checkout rollback and queue | this commit |

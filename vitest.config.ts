@@ -10,14 +10,20 @@ export default defineConfig({
     coverage: {
       enabled: true,
       provider: 'v8',
-      reporter: ['text-summary'],
-      // Data-layer coverage is the Phase 3 gate. Phase 2 locks domain/.
-      include: ['src/domain/**'],
+      reporter: ['text-summary', 'json-summary'],
+      include: ['src/domain/**', 'src/data/**'],
       thresholds: {
-        lines: 95,
-        branches: 95,
-        functions: 95,
-        statements: 95,
+        'src/domain/**': {
+          lines: 95,
+          branches: 95,
+          functions: 95,
+          statements: 95,
+        },
+        'src/data/**': {
+          lines: 85,
+          statements: 85,
+          functions: 85,
+        },
       },
     },
   },

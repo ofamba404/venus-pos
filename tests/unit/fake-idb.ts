@@ -1,4 +1,4 @@
-type Row = { key: string; ts: number; data: unknown };
+type Row = { key?: string; id?: string; clientSaleId?: string; ts?: number; data?: unknown };
 
 export function installFakeIndexedDb() {
   const dbs = new Map<string, { version: number; stores: Map<string, Map<string, Row>> }>();
@@ -61,8 +61,16 @@ export function installFakeIndexedDb() {
                     return request(() => rows.get(key));
                   },
                   put(value: Row) {
-                    rows.set(value.key, value);
+                    const id = value.key || value.id || value.clientSaleId || '';
+                    rows.set(id, value);
                     return request(() => value);
+                  },
+                  delete(key: string) {
+                    rows.delete(key);
+                    return request(() => undefined);
+                  },
+                  getAll() {
+                    return request(() => [...rows.values()]);
                   },
                 };
               },
