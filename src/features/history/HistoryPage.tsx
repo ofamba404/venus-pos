@@ -2,8 +2,8 @@ import { useEffect, useState } from 'preact/hooks';
 import { clients, loadClients, loadSales, sales, type SaleRow } from '../../data/entities';
 import { saleItems, saveSaleEdit, voidSaleRecord } from '../../data/sale-edit';
 import { postClient } from '../../data/writes/clients';
-import { CAT_MAP } from '../../domain/catalog';
 import { localPhoneDigits } from '../../domain/phone';
+import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { productImageSrc } from '../../domain/product-art';
 import { groupSalesByDay, partitionThisWeek } from '../../domain/history-groups';
 import { Money } from '../../ui/Money';
@@ -11,7 +11,6 @@ import { Tag } from '../../ui/Tag';
 import { Segmented } from '../../ui/Segmented';
 import { Sheet } from '../../ui/Sheet';
 import { Button } from '../../ui/Button';
-import { FlavorDot } from '../../ui/FlavorDot';
 import { showToast } from '../../ui/ToastHost';
 import { HistoryEditSheet } from './HistoryEditSheet';
 
@@ -150,14 +149,15 @@ export function HistoryPage() {
                   <div class="v-list-row__title">
                     {person || (full.store_order_id ? 'Store customer' : 'Counter')}
                   </div>
-                  <div class="v-list-row__meta v-dots">
+                  <div class="v-list-row__meta">
                     {items.slice(0, 3).map((item, index) => (
-                      <span class="v-dots" key={`${item.product_id}-${index}`}>
-                        {Object.keys(item.breakdown || {}).map((id) =>
-                          CAT_MAP[id] ? <FlavorDot key={id} color={CAT_MAP[id]!.color} /> : null,
-                        )}
-                        {item.product_name || 'Item'}
-                      </span>
+                      <div key={`${item.product_id}-${index}`}>
+                        <div>{item.product_name || 'Item'}</div>
+                        <FlavorSwatches
+                          breakdown={item.breakdown as Record<string, unknown>}
+                          productId={String(item.product_id || '')}
+                        />
+                      </div>
                     ))}
                     <span>
                       {new Date(s.created_at || '').toLocaleString('en-GB', {
@@ -169,7 +169,7 @@ export function HistoryPage() {
                   </div>
                 </div>
                 <Tag tone={credit ? 'credit' : 'paid'}>{credit ? 'Credit' : 'Paid'}</Tag>
-                <Money value={Number(s.total_ugx) || 0} />
+                <Money className="v-money--amber" value={Number(s.total_ugx) || 0} />
               </button>
             );
           })}

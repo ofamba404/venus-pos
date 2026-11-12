@@ -13,10 +13,9 @@ import { Money } from '../../ui/Money';
 import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
 import { formatUGX } from '../../domain/format';
-import { CAT_MAP } from '../../domain/catalog';
 import { productImageSrc } from '../../domain/product-art';
 import { localPhoneDigits } from '../../domain/phone';
-import { FlavorDot } from '../../ui/FlavorDot';
+import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { KEYS } from '../../data/keys';
 import { writePaint } from '../../domain/parity';
 import { SUPABASE_ANON_JWT, SUPABASE_URL } from '../../data/env';
@@ -196,21 +195,23 @@ export function OrdersPage() {
               {first?.product_id ? <img class="v-thumb" src={productImageSrc(first.product_id)} alt="" /> : null}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div class="v-list-row__title">{orderTitle(o, labels)}</div>
-                <div class="v-list-row__meta v-dots">
+                <div>
                   {items.slice(0, 3).map((raw, index) => {
-                    const item = raw as { product_name?: string; breakdown?: Record<string, number> };
+                    const item = raw as {
+                      product_id?: string;
+                      product_name?: string;
+                      breakdown?: Record<string, number>;
+                    };
                     return (
-                      <span class="v-dots" key={`${item.product_name}-${index}`}>
-                        {Object.keys(item.breakdown || {}).map((id) =>
-                          CAT_MAP[id] ? <FlavorDot key={id} color={CAT_MAP[id]!.color} /> : null,
-                        )}
-                        {item.product_name || 'Item'}
-                      </span>
+                      <div key={`${item.product_name}-${index}`}>
+                        <div class="v-list-row__meta">{item.product_name || 'Item'}</div>
+                        <FlavorSwatches breakdown={item.breakdown} productId={item.product_id} />
+                      </div>
                     );
                   })}
                 </div>
               </div>
-              <Money value={orderTotal(o)} />
+              <Money className="v-money--amber" value={orderTotal(o)} />
             </div>
             <div class="v-order-card__actions">
               <Tag tone={o.delivery_enabled === false ? 'default' : 'paid'}>

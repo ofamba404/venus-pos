@@ -55,6 +55,7 @@ import { Sheet } from '../../ui/Sheet';
 import { Field } from '../../ui/Field';
 import { Segmented } from '../../ui/Segmented';
 import { FlavorDot } from '../../ui/FlavorDot';
+import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { PlaceSearch } from '../../ui/PlaceSearch';
 import { showToast } from '../../ui/ToastHost';
 import { IconButton } from '../../ui/IconButton';
@@ -498,13 +499,22 @@ export function SellPage() {
         </div>
       ) : (
         <div>
-          {lines.map((line) => (
-            <div class="v-list-row" key={line.key}>
-              <div class="v-list-row__main">
-                <div class="v-list-row__title">{line.name}</div>
-                <div class="v-list-row__meta">{line.detail}</div>
+          {lines.map((line) => {
+            const qty = Object.values(line.breakdown || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+            return (
+            <div class="v-cart-line" key={line.key}>
+              {qty > 0 ? (
+                <span class="v-qty" aria-label={`Quantity ${qty}`}>
+                  {qty}
+                </span>
+              ) : null}
+              <div class="v-cart-line__main">
+                <div class="v-cart-line__head">
+                  <div class="v-list-row__title">{line.name}</div>
+                  <Money className="v-money--amber" value={line.isReward ? 0 : line.lineTotal} />
+                </div>
+                <FlavorSwatches breakdown={line.breakdown} productId={line.productId} />
               </div>
-              <Money value={line.isReward ? 0 : line.lineTotal} />
               <IconButton size="sm" label={`Edit ${line.name}`} onClick={() => openLine(line)}>
                 <IconPlus size={18} />
               </IconButton>
@@ -538,7 +548,8 @@ export function SellPage() {
                 <IconClose size={18} />
               </IconButton>
             </div>
-          ))}
+            );
+          })}
           {progress.hasAny ? (
             <p style={{ font: 'var(--t-meta)', color: 'var(--fg-2)' }}>{progress.message}</p>
           ) : null}
@@ -633,22 +644,23 @@ export function SellPage() {
             <span class="v-tag" data-testid="pickup-label">
               {draft.originText || 'Shop pickup'}
             </span>
-            <PlaceSearch
-              value={draft.destText || meta.deliveryLocationLabel || ''}
-              onPick={onPlacePick}
-            />
-            {draft.destText || meta.deliveryLocationLabel ? (
-              <Button
-                size="md"
-                variant="secondary"
+            <div class="v-fact">
+              <PlaceSearch
+                value={draft.destText || meta.deliveryLocationLabel || ''}
+                onPick={onPlacePick}
+              />
+              <button
+                type="button"
+                class="v-copy"
                 data-testid="copy-location"
+                aria-label="Copy delivery location"
                 onClick={() =>
                   void copyValue(draft.destText || meta.deliveryLocationLabel || '', 'Location copied', 'No location')
                 }
               >
-                Copy location
-              </Button>
-            ) : null}
+                Copy
+              </button>
+            </div>
             <Field
               label="Delivery fee (UGX)"
               inputMode="numeric"
@@ -660,21 +672,24 @@ export function SellPage() {
                 setCheckoutDraft({ feeValue, feeManuallyEdited: true });
               }}
             />
-            <Field
-              label="Phone"
-              data-testid="delivery-phone"
-              value={meta.clientPhone}
-              placeholder="+256…"
-              onInput={(e) => setOrderMetaPatch({ clientPhone: (e.target as HTMLInputElement).value })}
-            />
-            <Button
-              size="md"
-              variant="secondary"
-              data-testid="copy-phone"
-              onClick={() => void copyValue(localPhoneDigits(meta.clientPhone), 'Phone copied', 'No phone')}
-            >
-              Copy phone
-            </Button>
+            <div class="v-fact">
+              <Field
+                label="Phone"
+                data-testid="delivery-phone"
+                value={meta.clientPhone}
+                placeholder="+256…"
+                onInput={(e) => setOrderMetaPatch({ clientPhone: (e.target as HTMLInputElement).value })}
+              />
+              <button
+                type="button"
+                class="v-copy"
+                data-testid="copy-phone"
+                aria-label="Copy phone number"
+                onClick={() => void copyValue(localPhoneDigits(meta.clientPhone), 'Phone copied', 'No phone')}
+              >
+                Copy
+              </button>
+            </div>
             <Field
               label="Deliver at"
               data-testid="delivery-at"
@@ -699,7 +714,7 @@ export function SellPage() {
         ) : null}
         <div class="cart-total">
           <span class="cart-total__label">Total</span>
-          <Money value={cartSum.value} size="xl" />
+          <Money className="v-money--amber" value={cartSum.value} size="xl" />
         </div>
         {meta.storeOrderId ? (
           <div class="v-action-stack">
@@ -709,18 +724,18 @@ export function SellPage() {
                 {cancelledOrderBanner(storeOrders.value.find((row) => row.id === meta.storeOrderId)?.status)}
               </p>
             ) : null}
-            <Button size="md" data-testid="confirm-store-order" onClick={() => void confirmLoadedOrder()}>
-              Confirm order
+            <Button size="md" variant="secondary" data-testid="confirm-store-order" onClick={() => void confirmLoadedOrder()}>
+              Confirm
             </Button>
             <Button
               size="md"
-              variant="ghost"
+              variant="secondary"
               data-testid="release-store-order"
               onClick={() => setOrderMetaPatch({ storeOrderId: '' })}
             >
-              Release order
+              Clear
             </Button>
-            <p class="v-muted">Charge below records the sale. Confirm only tells the store the order is accepted.</p>
+            <p class="v-muted">Checkout below records the sale. Confirm only tells the store the order is accepted.</p>
           </div>
         ) : null}
         {features.holdSale && lines.length && !meta.storeOrderId ? (
@@ -860,7 +875,7 @@ export function SellPage() {
               ? 'Saving…'
               : payment === 'credit'
                 ? `Record on credit · ${formatUGX(cartSum.value)}`
-                : `Charge ${formatUGX(cartSum.value)}`}
+                : `Checkout ${formatUGX(cartSum.value)}`}
           </Button>
           {chargeReason ? (
             <p class="v-muted" data-testid="charge-reason" style={{ marginTop: 8 }}>
@@ -921,7 +936,7 @@ export function SellPage() {
                 ? 'Saving…'
                 : payment === 'credit'
                   ? `Record on credit · ${formatUGX(cartSum.value)}`
-                  : `Charge ${formatUGX(cartSum.value)}`}
+                  : `Checkout ${formatUGX(cartSum.value)}`}
             </Button>
             {chargeReason ? (
               <p class="v-muted" data-testid="charge-reason" style={{ marginTop: 8 }}>

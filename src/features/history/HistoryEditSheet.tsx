@@ -4,11 +4,10 @@ import {
   removeSaleLine,
   setLineQty,
 } from '../../data/sale-edit';
-import { CAT_MAP } from '../../domain/catalog';
 import { productImageSrc } from '../../domain/product-art';
 import { Button } from '../../ui/Button';
 import { Field } from '../../ui/Field';
-import { FlavorDot } from '../../ui/FlavorDot';
+import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { Money } from '../../ui/Money';
 import { Segmented } from '../../ui/Segmented';
 import { Sheet } from '../../ui/Sheet';
@@ -77,12 +76,11 @@ export function HistoryEditSheet({
               <img class="v-thumb" src={productImageSrc(String(item.product_id || ''))} alt="" />
               <div class="v-list-row__main">
                 <div class="v-list-row__title">{item.product_name || 'Item'}</div>
-                <div class="v-list-row__meta v-dots">
-                  {Object.keys(item.breakdown || {}).map((id) =>
-                    CAT_MAP[id] ? <FlavorDot key={id} color={CAT_MAP[id]!.color} /> : null,
-                  )}
-                  <Money value={Number(item.line_total) || 0} />
-                </div>
+                  <FlavorSwatches
+                    breakdown={item.breakdown as Record<string, unknown>}
+                    productId={String(item.product_id || '')}
+                  />
+                  <Money className="v-money--amber" value={Number(item.line_total) || 0} />
               </div>
               <Button size="md" variant="secondary" aria-label="Less" onClick={() => onDraft(setLineQty(draft, index, qty - 1))}>
                 −
