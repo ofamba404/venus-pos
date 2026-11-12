@@ -368,6 +368,30 @@
   min-height: var(--hit-lg);
 }
 
+.config-flavor--pick {
+  padding: 4px 6px 4px 14px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+  transition:
+    background var(--d-fast) var(--ease-out),
+    box-shadow var(--d-fast) var(--ease-out);
+}
+
+.config-flavor--pick.is-picked {
+  background: color-mix(in srgb, var(--flavor) 16%, var(--surface));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--flavor) 55%, transparent);
+}
+
+.config-flavor--pick .stepper button {
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.config-flavor--pick .stepper__n {
+  animation: v-pop var(--d-base) var(--ease-spring);
+}
+
 .config-flavor__label {
   display: inline-flex;
   align-items: center;

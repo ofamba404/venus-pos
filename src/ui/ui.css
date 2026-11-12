@@ -1500,3 +1500,71 @@ button.kpi-tile {
     stroke-dashoffset: 0;
   }
 }
+
+/* Edit sale: each line is a card with its own flavour, count and remove controls. */
+.edit-line {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.edit-line__top {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.edit-line__top .v-thumb {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  border-radius: 16px;
+}
+
+.edit-line__title {
+  font: var(--t-title-sm);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.edit-line__tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.edit-line__flavours {
+  min-height: 44px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--mint-tint);
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  font: var(--t-label);
+  transition: transform var(--d-instant) var(--ease-out);
+}
+
+.edit-line__flavours:active {
+  transform: scale(0.97);
+}
+
+.edit-line__remove {
+  min-height: 44px;
+  margin-inline-start: auto;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--berry-tint);
+  color: var(--danger);
+  font: var(--t-label);
+}
+
+.edit-picker__foot {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--s-2);
+}

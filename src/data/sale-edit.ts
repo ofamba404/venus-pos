@@ -1,3 +1,14 @@
+import { cookieLineDisplayName, type Product } from '../domain/catalog';
+import {
+  applyToCartLines,
+  isCookiePricedProduct,
+} from '../domain/pricing/flavored-bulk';
+import {
+  buildLineFromConfig,
+  findProduct,
+  itemToConfigSelection,
+  type ConfigSelection,
+} from '../domain/pricing/pack-config';
 import { adjustInventory, loadSales, type SaleRow } from './entities';
 import { deleteSale, patchSale } from './writes/sales';
 
@@ -83,6 +94,56 @@ export function addPlainLine(items: SaleItem[]): SaleItem[] {
       breakdown: { classic: 1 },
     },
   ];
+}
+
+/** Rules that pick flavours. Plain is a plain count, so it has nothing to re-pick. */
+const FLAVOUR_RULES = new Set(['choose_any', 'choose_variety', 'spliff_qty', 'cookie_qty', 'cookie_wholesale']);
+
+/** The catalog product behind a sale line, when its flavours can be re-picked. */
+export function flavourProduct(item: SaleItem | null | undefined): Product | null {
+  const product = findProduct(String(item?.product_id || ''));
+  return product && FLAVOUR_RULES.has(product.rule) ? product : null;
+}
+
+/** The picker's starting point: the sale line's current flavours. */
+export function flavourSelection(item: SaleItem): ConfigSelection {
+  return itemToConfigSelection(flavourProduct(item), item);
+}
+
+/** Total flavours picked, ignoring the wholesale unit-price key. */
+export function selectionCount(selection: ConfigSelection): number {
+  return Object.entries(selection).reduce(
+    (sum, [key, n]) => (key.startsWith('_') ? sum : sum + (Number(n) || 0)),
+    0,
+  );
+}
+
+/**
+ * Put new flavours on one sale line. Name, detail, breakdown and price are rebuilt
+ * the way Sell builds them, so a changed pack reads the same as a new one.
+ */
+export function reflavourLine(items: SaleItem[], index: number, selection: ConfigSelection): SaleItem[] {
+  const target = items[index];
+  const product = flavourProduct(target);
+  if (!target || !product) return items;
+  const others = items.filter((_, i) => i !== index).map((item) => ({ ...item, productId: item.product_id }));
+  const built = buildLineFromConfig(product, selection, { otherLines: others });
+  const next = items.map((item, i) =>
+    i === index
+      ? {
+          ...item,
+          product_name: cookieLineDisplayName(product.id, built.breakdown, product.name),
+          detail: built.detail,
+          breakdown: built.breakdown,
+          line_total: built.lineTotal,
+          ...(built.wholesaleUnitPrice ? { wholesale_unit_price: built.wholesaleUnitPrice } : {}),
+        }
+      : { ...item },
+  );
+  if (isCookiePricedProduct(product.id) || next.some((item) => isCookiePricedProduct(String(item.product_id)))) {
+    applyToCartLines(next);
+  }
+  return next;
 }
 
 export async function saveSaleItems(sale: SaleRow, nextItems: SaleItem[]) {
