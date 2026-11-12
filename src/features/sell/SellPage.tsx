@@ -64,7 +64,9 @@ import { showToast } from '../../ui/ToastHost';
 import { IconButton } from '../../ui/IconButton';
 import { IconClose, IconMinus, IconPlus } from '../../ui/icons';
 
-const PACKS = PRODUCTS.filter((p) => p.rule === 'choose_any' || p.rule === 'choose_variety');
+const PACKS = PRODUCTS.filter(
+  (p) => !p.retired && (p.rule === 'choose_any' || p.rule === 'choose_variety'),
+);
 const SINGLES = PRODUCTS.filter(
   (p) => p.rule === 'single_qty' || p.rule === 'spliff_qty' || p.rule === 'cookie_qty',
 );
@@ -761,7 +763,6 @@ export function SellPage() {
               name={p.name}
               kind={productKind(p)}
               image={productImageSrc(p.id)}
-              art={p.id === 'cookie_quartet' ? 'stack' : undefined}
               meta={`${p.joints} ${p.slotNoun || (Number(p.joints) === 1 ? 'joint' : 'joints')}`}
               price={productPriceLabel(p)}
               onClick={() => openConfig(p)}

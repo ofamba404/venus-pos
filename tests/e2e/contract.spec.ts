@@ -110,10 +110,11 @@ test.describe('write-contract scenarios (next)', () => {
     expect(saleTotal(driver).total).toBe(15000);
   });
 
-  test('S03 Cookie Quartet paid', async ({ page }) => {
+  test('S03 Cookie Quartet is not on the Sell screen', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S03);
-    expect(saleTotal(driver).total).toBe(25000);
+    await expect(page.getByTestId('product-cookie_duet')).toBeVisible();
+    await expect(page.getByTestId('product-cookie_quartet')).toHaveCount(0);
   });
 
   test('S04 four flavoured singles bulk', async ({ page }) => {

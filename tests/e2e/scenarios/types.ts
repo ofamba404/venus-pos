@@ -39,6 +39,7 @@ export type ScenarioStep =
   | { do: 'goOffline' }
   | { expect: 'saleRecorded'; total: number }
   | { expect: 'noWrites' }
+  | { expect: 'noProduct'; product: string }
   | { expect: 'toast'; message: string }
   | { expect: 'redirect'; path: string }
   | { expect: 'stock'; categoryId: string; qty: number }

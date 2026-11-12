@@ -1,7 +1,7 @@
 const COOKIE_COLORS = ['#D4A355', '#5c2e1f', '#3CB043', '#d81e2c'];
 
-/** Quartet is a stack. Wholesale is the flavour set. Neither has a catalog photo. */
-function CookieArt({ mode }: { mode: 'stack' | 'swatches' }) {
+/** Wholesale is the flavour set and has no catalog photo. */
+function CookieArt({ mode }: { mode: 'swatches' }) {
   return (
     <span class={`tile-art tile-art--${mode}`} aria-hidden="true">
       {COOKIE_COLORS.map((color) => (
@@ -27,7 +27,7 @@ export function ProductCard({
   meta?: string;
   price: string;
   image?: string;
-  art?: 'stack' | 'swatches';
+  art?: 'swatches';
   kind: 'joint' | 'cookie';
   onClick: () => void;
 }) {

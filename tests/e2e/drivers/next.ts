@@ -451,6 +451,12 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         if (bad.length) throw new Error(`expected no sale or stock writes, saw ${bad.length}`);
         return;
       }
+      case 'noProduct':
+        await page.getByTestId('product-scout').waitFor({ timeout: 15000 });
+        if ((await page.getByTestId(`product-${step.product}`).count()) > 0) {
+          throw new Error(`${step.product} is still on the Sell screen`);
+        }
+        return;
       case 'display': {
         if (step.values.todayRevenue === 'legacy') {
           const seed = buildDefaultSeed();

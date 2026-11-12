@@ -30,6 +30,8 @@ export type Product = {
   unitLabel?: string;
   priceFrom?: boolean;
   priceLabel?: string;
+  /** No longer sold. Stays in the catalog so old sales, held carts and store orders still read. */
+  retired?: boolean;
 };
 
 export const COOKIE_FLAVORS: CookieFlavor[] = [
@@ -210,6 +212,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'cookie_quartet',
     name: 'Cookie Quartet',
+    retired: true,
     price: 25000,
     joints: 4,
     rule: 'choose_variety',

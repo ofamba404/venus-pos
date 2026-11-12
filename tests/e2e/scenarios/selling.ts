@@ -19,18 +19,12 @@ export const S02: Scenario = {
 
 export const S03: Scenario = {
   id: 'S03',
-  title: 'Cookie Quartet (fixed butterscotch + variety), paid',
+  title: 'Cookie Quartet is no longer sold',
   role: 'pos_staff',
   seed: 'default',
   steps: [
-    {
-      do: 'addProduct',
-      product: 'cookie_quartet',
-      flavors: { cookie_mint: 1, cookie_chocolate: 1, cookie_strawberry: 1 },
-    },
-    { do: 'setClient', name: 'Test Client A' },
-    { do: 'charge' },
-    { expect: 'saleRecorded', total: 25000 },
+    { do: 'go', path: '/sell' },
+    { expect: 'noProduct', product: 'cookie_quartet' },
   ],
 };
 
