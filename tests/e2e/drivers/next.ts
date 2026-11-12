@@ -208,8 +208,13 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
       case 'restoreCounterCart':
         await page.getByTestId('held-sales').getByRole('button').first().click();
         return;
-      case 'arriveStoreOrder':
+      case 'arriveStoreOrder': {
         await page.getByTestId('orders-badge').waitFor({ timeout: 8000 });
+        const socketDeadline = Date.now() + 8000;
+        while (mock.realtimeClients < 1 && Date.now() < socketDeadline) {
+          await page.waitForTimeout(50);
+        }
+        if (mock.realtimeClients < 1) throw new Error('realtime socket did not open');
         mock.db.table('store_orders').unshift({
           id: 'arrived-live-order',
           status: 'pending',
@@ -230,7 +235,9 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
           ],
           delivery_enabled: false,
         });
+        mock.notifyRealtime();
         return;
+      }
       case 'setStoreBusy':
         await page.goto('/next/store');
         await page.getByTestId(step.minutes == null ? 'busy-clear' : 'busy-30').click();

@@ -1,7 +1,7 @@
 /**
  * Realtime feed: a socket message refetches immediately.
  * If the socket never opens, or it closes, the same refetch runs on a poll.
- * E2E closes the mock socket, so the poll is what the scenarios see.
+ * E2E keeps the mock socket open and pushes a frame. The poll starts only if connect fails or the socket closes.
  */
 export type FeedSocket = {
   close: () => void;

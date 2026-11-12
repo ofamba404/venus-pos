@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { sbFetch } from '../../data/api';
+import { patchDelivery, postDelivery } from '../../data/writes/deliveries';
 import {
   fitDeliveryFeeModel,
   modelConfidence,
@@ -51,15 +52,11 @@ export function DeliveryPage() {
     Number.isFinite(kmNum) && kmNum >= 0 ? predictSafeBodaFeeRange(kmNum, model) : null;
 
   async function logPreset() {
-    const res = await sbFetch('deliveries', {
-      method: 'POST',
-      headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({
-        client_name: 'SafeBoda test',
-        distance_km: Number.isFinite(kmNum) ? kmNum : null,
-        fee_ugx: point ?? 0,
-        fee_was_edited: false,
-      }),
+    const res = await postDelivery({
+      client_name: 'SafeBoda test',
+      distance_km: Number.isFinite(kmNum) ? kmNum : null,
+      fee_ugx: point ?? 0,
+      fee_was_edited: false,
     });
     if (!res.ok) {
       showToast('Could not log quote');
@@ -70,11 +67,7 @@ export function DeliveryPage() {
 
   async function saveTrip() {
     if (!edit) return;
-    const res = await sbFetch(`deliveries?id=eq.${encodeURIComponent(edit.id)}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ fee_ugx: Math.round(Number(fee) || 0) }),
-    });
+    const res = await patchDelivery(edit.id, { fee_ugx: Math.round(Number(fee) || 0) });
     if (!res.ok) {
       showToast('Could not save trip');
       return;

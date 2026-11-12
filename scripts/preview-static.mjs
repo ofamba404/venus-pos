@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -34,10 +35,26 @@ http
         res.end(`missing ${rel}`);
         return;
       }
-      res.writeHead(200, {
-        'content-type': types[path.extname(file)] || 'application/octet-stream',
+      const ext = path.extname(file);
+      const headers = {
+        'content-type': types[ext] || 'application/octet-stream',
         'cache-control': 'no-store',
-      });
+      };
+      const compressible = ext === '.html' || ext === '.js' || ext === '.css' || ext === '.svg' || ext === '.json' || ext === '.webmanifest';
+      const accept = String(req.headers['accept-encoding'] || '');
+      if (compressible && /\bgzip\b/.test(accept)) {
+        zlib.gzip(data, (zipErr, zipped) => {
+          if (zipErr) {
+            res.writeHead(200, headers);
+            res.end(data);
+            return;
+          }
+          res.writeHead(200, { ...headers, 'content-encoding': 'gzip', vary: 'accept-encoding' });
+          res.end(zipped);
+        });
+        return;
+      }
+      res.writeHead(200, headers);
       res.end(data);
     });
   })

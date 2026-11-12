@@ -1,5 +1,5 @@
-import { sbFetch } from './api';
 import { adjustInventory, loadSales, type SaleRow } from './entities';
+import { deleteSale, patchSale } from './writes/sales';
 
 type SaleItem = {
   product_id?: string;
@@ -59,25 +59,22 @@ export async function saveSaleItems(sale: SaleRow, nextItems: SaleItem[]) {
   const after = mergeBreakdown(nextItems);
   const total = nextItems.reduce((sum, item) => sum + Math.round(Number(item.line_total) || 0), 0);
   await applySoldDelta(before, after);
-  const res = await sbFetch(`sales?id=eq.${encodeURIComponent(sale.id)}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({
+  const res = await patchSale(
+    sale.id,
+    {
       items: nextItems,
       total_ugx: total,
       amount_paid_ugx: sale.is_credit ? sale.amount_paid_ugx : total,
-    }),
-  });
+    },
+    'return=minimal',
+  );
   if (!res.ok) throw new Error(`Could not save order (${res.status})`);
   await loadSales({ force: true });
 }
 
 export async function voidSaleRecord(sale: SaleRow) {
   const before = mergeBreakdown(saleItems(sale));
-  const res = await sbFetch(`sales?id=eq.${encodeURIComponent(sale.id)}`, {
-    method: 'DELETE',
-    headers: { Prefer: 'return=minimal' },
-  });
+  const res = await deleteSale(sale.id);
   if (!res.ok) throw new Error(`Could not void order (${res.status})`);
   await applySoldDelta(before, {});
   await loadSales({ force: true });

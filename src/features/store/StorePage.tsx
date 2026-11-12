@@ -9,6 +9,7 @@ import {
   type FulfillmentStatus,
 } from '../../domain/hours';
 import { sbFetch } from '../../data/api';
+import { deleteStoreAccount, patchFulfillment, patchStoreAccount } from '../../data/writes/store';
 import { Field } from '../../ui/Field';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
@@ -64,14 +65,11 @@ export function StorePage() {
   async function saveHours() {
     setBusy(true);
     try {
-      const res = await sbFetch('store_fulfillment?id=eq.default', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          open_time: status.openTime,
-          close_time: status.closeTime,
-          suggest_start: status.suggestStart,
-          suggest_end: status.suggestEnd,
-        }),
+      const res = await patchFulfillment({
+        open_time: status.openTime,
+        close_time: status.closeTime,
+        suggest_start: status.suggestStart,
+        suggest_end: status.suggestEnd,
       });
       if (!res.ok) throw new Error(`Could not save hours (${res.status})`);
       showToast('Hours saved');
@@ -86,12 +84,9 @@ export function StorePage() {
     setBusy(true);
     try {
       const until = minutes == null ? null : busyUntilFromNow(minutes);
-      const res = await sbFetch('store_fulfillment?id=eq.default', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          busy_until: until,
-          busy_for: minutes == null ? null : 'both',
-        }),
+      const res = await patchFulfillment({
+        busy_until: until,
+        busy_for: minutes == null ? null : 'both',
       });
       if (!res.ok) throw new Error(`Could not update busy (${res.status})`);
       setStatus((current) => ({
@@ -117,10 +112,7 @@ export function StorePage() {
       showToast('No store user');
       return;
     }
-    const res = await sbFetch(`store_accounts?id=eq.${encodeURIComponent(user.id)}`, {
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    });
+    const res = await patchStoreAccount(user.id, body);
     if (!res.ok) {
       showToast('Could not update user');
       return;
@@ -132,9 +124,7 @@ export function StorePage() {
   async function deleteUser() {
     const user = targetUser();
     if (!user) return;
-    const res = await sbFetch(`store_accounts?id=eq.${encodeURIComponent(user.id)}`, {
-      method: 'DELETE',
-    });
+    const res = await deleteStoreAccount(user.id);
     if (!res.ok) {
       showToast('Could not delete user');
       return;

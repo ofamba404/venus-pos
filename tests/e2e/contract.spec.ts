@@ -456,6 +456,7 @@ test.describe('write-contract scenarios (next)', () => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/reviews');
     await page.getByTestId('review-count').filter({ hasText: '2' }).waitFor({ timeout: 8000 });
+    await expect.poll(() => driver.mock.realtimeClients, { timeout: 8000 }).toBeGreaterThan(0);
     driver.mock.db.table('store_reviews').unshift({
       id: 'arrived-review',
       created_at: '2026-11-10T08:00:00.000Z',
@@ -463,6 +464,7 @@ test.describe('write-contract scenarios (next)', () => {
       body: 'Just arrived',
       customer_name: 'Live',
     });
+    driver.mock.notifyRealtime();
     await page.getByRole('status').filter({ hasText: /new review/i }).waitFor({ timeout: 8000 });
   });
 

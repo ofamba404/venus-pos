@@ -5,7 +5,9 @@ import {
   getClientOutstandingCredit,
   sumCreditOwed,
 } from '../../domain/credit';
-import { sbFetch } from '../../data/api';
+import { deleteClient, patchClient, postClient } from '../../data/writes/clients';
+import { postCreditPayment } from '../../data/writes/credit';
+import { patchSale } from '../../data/writes/sales';
 import { Money } from '../../ui/Money';
 import { Sheet } from '../../ui/Sheet';
 import { Field } from '../../ui/Field';
@@ -51,24 +53,18 @@ export function ClientsPage() {
       for (const row of allocations) {
         const sale = row.sale as SaleRow;
         if (!sale.id) continue;
-        const res = await sbFetch(`sales?id=eq.${encodeURIComponent(sale.id)}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            amount_paid_ugx: row.newPaid,
-            credit_cleared: row.clears,
-            ...(row.clears ? { cleared_at: new Date().toISOString() } : {}),
-          }),
+        const res = await patchSale(sale.id, {
+          amount_paid_ugx: row.newPaid,
+          credit_cleared: row.clears,
+          ...(row.clears ? { cleared_at: new Date().toISOString() } : {}),
         });
         if (!res.ok) throw new Error(`Could not update sale (${res.status})`);
       }
-      await sbFetch('credit_payments', {
-        method: 'POST',
-        body: JSON.stringify({
-          client_id: settleId,
-          amount_ugx: pay,
-          method,
-          note: note.trim() || null,
-        }),
+      await postCreditPayment({
+        client_id: settleId,
+        amount_ugx: pay,
+        method,
+        note: note.trim() || null,
       }).catch(() => {});
       showToast(`Settled ${pay.toLocaleString('en-UG')} UGX`);
       setSettleId(null);
@@ -85,11 +81,7 @@ export function ClientsPage() {
   async function addClient() {
     const name = newName.trim();
     if (!name) return;
-    const res = await sbFetch('clients', {
-      method: 'POST',
-      headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({ name }),
-    });
+    const res = await postClient(name);
     if (!res.ok) {
       showToast('Could not add client');
       return;
@@ -101,10 +93,7 @@ export function ClientsPage() {
 
   async function renameClient() {
     if (!editId) return;
-    const res = await sbFetch(`clients?id=eq.${encodeURIComponent(editId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ name: editName.trim() }),
-    });
+    const res = await patchClient(editId, { name: editName.trim() });
     if (!res.ok) {
       showToast('Could not rename client');
       return;
@@ -114,11 +103,9 @@ export function ClientsPage() {
     await loadClients().catch(() => {});
   }
 
-  async function deleteClient() {
+  async function removeClient() {
     if (!editId) return;
-    const res = await sbFetch(`clients?id=eq.${encodeURIComponent(editId)}`, {
-      method: 'DELETE',
-    });
+    const res = await deleteClient(editId);
     if (!res.ok) {
       showToast('Could not delete client');
       return;
@@ -240,7 +227,7 @@ export function ClientsPage() {
           onInput={(e) => setEditName((e.target as HTMLInputElement).value)}
         />
         <div style={{ height: 12 }} />
-        <Button size="md" variant="danger" data-testid="client-delete" onClick={() => void deleteClient()}>
+        <Button size="md" variant="danger" data-testid="client-delete" onClick={() => void removeClient()}>
           Delete
         </Button>
       </Sheet>

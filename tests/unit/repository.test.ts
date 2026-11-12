@@ -5,6 +5,7 @@ import {
   inventoryMapFromRows,
   keepCachedRows,
   mergeSalesRows,
+  shareLoad,
 } from '../../src/data/repository';
 import { isFresh, markFetched, resetFreshnessForTests } from '../../src/data/freshness';
 import { shouldSkipPrefetch, staleEntities } from '../../src/data/prefetch';
@@ -73,6 +74,20 @@ describe('prefetch and writes', () => {
 
   it('lists only stale entities', () => {
     expect(staleEntities((name) => name === 'sales')).toEqual(['inventory', 'clients', 'deliveries']);
+  });
+
+  it('shares one in-flight read', async () => {
+    let calls = 0;
+    const run = () =>
+      shareLoad('unit-share', async () => {
+        calls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return calls;
+      });
+    const [a, b] = await Promise.all([run(), run()]);
+    expect(calls).toBe(1);
+    expect(a).toBe(1);
+    expect(b).toBe(1);
   });
 
   it('builds the inventory fallback and store-order checkout writes', () => {

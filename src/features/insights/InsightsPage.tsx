@@ -9,7 +9,7 @@ import {
 } from '../../domain/credit';
 import { cookieBatchShareText, openPartnerBatches } from '../../domain/partner';
 import { KEYS } from '../../data/keys';
-import { peekAccessToken } from '../../data/auth';
+import { postCookiePartnerSettle } from '../../data/writes/partner';
 import { Money } from '../../ui/Money';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
@@ -61,14 +61,7 @@ export function InsightsPage() {
     const settled = prev + batch.cookieCount;
     localStorage.setItem(KEYS.partnerSettled, String(settled));
     try {
-      await fetch('/api/cookie-partner/settle', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${peekAccessToken()}`,
-        },
-        body: JSON.stringify({ settled_qty: settled }),
-      });
+      await postCookiePartnerSettle(settled);
     } catch {
       /* local progress still stands */
     }
@@ -124,7 +117,7 @@ export function InsightsPage() {
 
       <div class="v-section-label">Cookie partner</div>
       {partnerBatches.length ? (
-        partnerBatches.slice(0, 3).map((b, i) => (
+        partnerBatches.slice(0, 3).map((b) => (
           <div class="v-list-row" key={b.index}>
             <div class="v-list-row__main">
               <div class="v-list-row__title">

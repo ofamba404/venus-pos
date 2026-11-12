@@ -1,30 +1,31 @@
 {
-  "phase": "0 exit still open. S01–S50 are in the next contract. Phase 8 locals are in",
-  "branch": "overhaul",
-  "commit": "see git log -1",
-  "next": "Still open: measured data/domain coverage gates, live push subscribe, every v1 write endpoint moved into data/writes, and cold samples under 2.0s (the median is 1963ms; the first two of that five were 3192 and 2448). Phases 0–7 exit criteria are still red. Realtime e2e still polls because the mock closes the socket. Legacy double-tap posts two sales. Lint stays off CI. Do not push or deploy. Do not apply client_sale_id.",
-  "status": "Phase 0 exit is not closed. One full run: 54 next contracts, axe serious/critical clean on /sell and /system, legacy S01/S02/S05/S07/S11/S50. 117 unit/dual-run. Boot hydrates sales and inventory from the v1 IDB cache, then fetches. Clients stay select=* so the sheet can show a phone. Quiet production samples 3192, 2448, 1963, 1908, 1766 ms, median 1963. client_sale_id SQL is not applied. D11, live Maps, and deploy stay blocked.",
+  "phase": "0 exit still open · Phase 8 locals in · Phases 3/6/7 finishing",
+  "branch": "overhaul · v1-baseline @ 951a152",
+  "commit": "411cc13 — hydrate v1 IDB cache + split sell bundle",
+  "next": "HANDOFF.md — close Phase 0 exit; finish data/writes + live push; reconcile origin/master before Phase 9. Do not apply client_sale_id. No deploy.",
+  "status": "Handed off 2026-11-12. 117 unit/dual-run · 54 next contracts · axe on /sell + /system · legacy S01/S02/S05/S07/S11/S50. Quiet median 1963ms. D1–D6 answered. Phase 8 locals in. Pushed overhaul (+ main tip); master untouched; not deployed.",
   "ownerGate": {
-    "ready": "D1–D6 answered 2026-11-12. See docs/overhaul/08-decisions.md.",
-    "phase8": "In progress. Build D2 walk-in, D4 offline queue, D6 device hold. Skip D3 and D5. D1 stays paid/credit.",
-    "phase9": "Needs a deploy cue. .\\scripts\\ship.ps1 — v1 at /, v2 at /next/. No production test sales unless asked.",
-    "phase10": "Needs the owner to say ship, after the parallel run."
+    "ready": "D1 A · D2 B · D3 B · D4 B · D5 A · D6 A (2026-11-12). D16 yes.",
+    "phase8": "Locals done: walk-in, hold, offline outbox. client_sale_id SQL written, not applied. Skipped D3 receipt + D5 shift close.",
+    "phase9": "Blocked on deploy cue → .\\scripts\\ship.ps1 (v1 /, v2 /next/). No production test sales unless asked.",
+    "phase10": "Blocked until after parallel run + owner says ship."
   },
   "items": [
     { "id": "p0-branch", "label": "Phase 0: branch + v1-baseline tag", "state": "done" },
     { "id": "p0-tooling", "label": "Phase 0: Vitest / Playwright / TS tooling", "state": "done" },
     { "id": "p0-mock", "label": "Phase 0: mock backend + fixtures", "state": "done" },
     { "id": "p0-exports", "label": "Phase 0: export legacy helpers", "state": "run" },
-    { "id": "p0-dual", "label": "Phase 0: dual-run characterizations", "state": "done" },
-    { "id": "p0-scenarios", "label": "Phase 0: S01–S50 are in the next contract. Legacy proved S01, S02, S05, S07, S11, and S50 today numbers. S19 double-tap posts two legacy sales", "state": "run" },
-    { "id": "p0-baseline", "label": "Phase 0: four viewports. Quiet production median 1963ms. Cold samples in that five still over 2.0s", "state": "run" },
+    { "id": "p0-dual", "label": "Phase 0: dual-run characterizations (117 unit/dual-run)", "state": "done" },
+    { "id": "p0-scenarios", "label": "Phase 0: S01–S50 next contracts (54). Legacy S01/S02/S05/S07/S11/S50. S19 double-tap still open", "state": "run" },
+    { "id": "p0-baseline", "label": "Phase 0: 4-viewport baselines + CI. Quiet median 1963ms; cold samples still over 2.0s", "state": "run" },
     { "id": "p1", "label": "Phase 1: Vite + legacy/ strangler", "state": "done" },
     { "id": "p2", "label": "Phase 2: domain port", "state": "done" },
-    { "id": "p3", "label": "Phase 3: data / auth / realtime", "state": "run" },
-    { "id": "p4", "label": "Phase 4: design system + shell", "state": "done" },
+    { "id": "p3", "label": "Phase 3: data / auth / realtime — IDB hydrate + checkout in; writes + live push still open", "state": "run" },
+    { "id": "p4", "label": "Phase 4: design system + shell (D11 look approval still blocked)", "state": "done" },
     { "id": "p5", "label": "Phase 5: Sell + checkout + Orders", "state": "done" },
-    { "id": "p6", "label": "Phase 6: Stock + Settings + Auth + PWA", "state": "run" },
-    { "id": "p7", "label": "Phase 7: back office", "state": "run" },
-    { "id": "p8-10", "label": "Phase 8 in progress (D2 walk-in, D4 offline queue, D6 device hold). Phases 9–10 wait for a deploy cue", "state": "run" }
+    { "id": "p6", "label": "Phase 6: Stock + Settings + Auth + PWA — stock/auth in; live push subscribe open", "state": "run" },
+    { "id": "p7", "label": "Phase 7: back office — Clients/History/Insights/Delivery/Reviews/Store shipped; parity rows still open", "state": "run" },
+    { "id": "p8", "label": "Phase 8: walk-in + device hold + offline outbox (D2/D4/D6). D3/D5 skipped", "state": "done" },
+    { "id": "p9-10", "label": "Phases 9–10: parallel run + cutover — waiting on owner deploy/ship cue", "state": "wait" }
   ]
 }

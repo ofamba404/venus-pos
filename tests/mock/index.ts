@@ -33,6 +33,10 @@ export type MockHandle = {
   requests: Array<{ method: string; url: string }>;
   setFailure: (rule: FailureRule) => void;
   setOffline: (offline: boolean) => void;
+  /** Open realtime sockets. The mock no longer closes them on connect. */
+  realtimeClients: number;
+  /** Push one frame so the page refetches. Poll stays the fallback if this never fires. */
+  notifyRealtime: () => void;
 };
 
 const SUPABASE = 'https://xiangrykfxlnacthjcad.supabase.co';
@@ -94,6 +98,8 @@ export async function installMockBackend(
     setOffline(offline) {
       networkOff = offline;
     },
+    realtimeClients: 0,
+    notifyRealtime() {},
   };
 
   const token = makeJwt(role);
@@ -360,8 +366,25 @@ export async function installMockBackend(
     await route.continue();
   });
 
+  const sockets = new Set<{ send: (data: string) => void }>();
+  handle.realtimeClients = 0;
+  handle.notifyRealtime = () => {
+    for (const ws of sockets) {
+      try {
+        ws.send('{"event":"postgres_changes"}');
+      } catch {
+        /* already closed */
+      }
+    }
+  };
+
   await page.routeWebSocket(/realtime\/v1\/websocket/, (ws) => {
-    ws.close();
+    sockets.add(ws);
+    handle.realtimeClients = sockets.size;
+    ws.onClose(() => {
+      sockets.delete(ws);
+      handle.realtimeClients = sockets.size;
+    });
   });
 
   return handle;

@@ -35,9 +35,9 @@ import { deviceId } from '../../data/device-id';
 import { deleteHeld, listHeld, saveHeld } from '../../data/held';
 import { flushOutbox, listOutbox, outboxCountLabel } from '../../data/outbox';
 import { mapStoreOrderToCart } from '../../domain/store-order-map';
-import { sbFetch } from '../../data/api';
+import { patchStoreOrder } from '../../data/writes/store-orders';
 import { postStoreReserve } from '../../data/store-reserve';
-import { clients, ensureInventory, inventory, loadClients, loadSales, loadStoreOrders, sales, storeOrders, syncLabel } from '../../data/entities';
+import { clients, ensureInventory, inventory, loadClients, loadSales, loadStoreOrders, sales, syncLabel } from '../../data/entities';
 import { connectSupabaseRealtime, startFeed } from '../../data/realtime';
 import { SUPABASE_KEY, SUPABASE_URL } from '../../data/env';
 import { openDebtForClientName } from '../../domain/credit';
@@ -377,9 +377,9 @@ export function SellPage() {
   async function confirmLoadedOrder() {
     const id = meta.storeOrderId;
     if (!id) return;
-    const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'confirmed', confirmed_at: new Date().toISOString() }),
+    const res = await patchStoreOrder(id, {
+      status: 'confirmed',
+      confirmed_at: new Date().toISOString(),
     });
     if (!res.ok) {
       showToast('Could not confirm order');

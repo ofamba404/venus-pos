@@ -9,3 +9,22 @@ export function postSale(body: unknown) {
     body: JSON.stringify(body),
   });
 }
+
+export function saleByIdPath(id: string) {
+  return `sales?id=eq.${encodeURIComponent(id)}`;
+}
+
+export function patchSale(id: string, body: unknown, prefer?: string) {
+  return sbFetch(saleByIdPath(id), {
+    method: 'PATCH',
+    ...(prefer ? { headers: { Prefer: prefer } } : {}),
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteSale(id: string) {
+  return sbFetch(saleByIdPath(id), {
+    method: 'DELETE',
+    headers: { Prefer: 'return=minimal' },
+  });
+}

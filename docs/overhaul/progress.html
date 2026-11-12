@@ -100,30 +100,41 @@
     <ol id="list"></ol>
   </div>
 
+  <div class="card" id="gates" hidden>
+    <dl class="meta" id="gates-meta"></dl>
+  </div>
+
   <script>
-    // Updated by the agent as work progresses. Keep in sync with PROGRESS.md.
+    // Fallback if progress.json is missing. Prefer progress.json (kept in sync with PROGRESS.md).
     const STATE = {
-      phase: "0 — not started",
-      branch: "overhaul (to be created)",
-      commit: "—",
-      next: "Phase 0, task 1 — create branch + tooling",
-      status: "Agent starting Phase 0",
+      phase: "0 exit still open · Phase 8 locals in · Phases 3/6/7 finishing",
+      branch: "overhaul · v1-baseline @ 951a152",
+      commit: "411cc13 — hydrate v1 IDB cache + split sell bundle",
+      next: "Close Phase 0 exit (legacy goldens + cold samples ≤2.0s). Finish data/writes + live push. Owner cue for Phase 9 deploy. Do not apply client_sale_id. No push/deploy.",
+      status: "117 unit/dual-run · 54 next contracts · axe clean on /sell + /system · legacy S01/S02/S05/S07/S11/S50. Quiet sell median 1963ms (cold samples still over 2.0s). D1–D6 answered. Walk-in, device hold, offline outbox shipped locally.",
+      ownerGate: {
+        ready: "D1 A · D2 B · D3 B · D4 B · D5 A · D6 A (2026-11-12). D16 yes.",
+        phase8: "Locals done: walk-in, hold, offline outbox. client_sale_id SQL written, not applied. Skipped D3 receipt + D5 shift close.",
+        phase9: "Blocked on deploy cue → .\\scripts\\ship.ps1 (v1 /, v2 /next/). No production test sales unless asked.",
+        phase10: "Blocked until after parallel run + owner says ship.",
+      },
       items: [
-        { id: "p0-branch", label: "Phase 0: branch + v1-baseline tag", state: "run" },
-        { id: "p0-tooling", label: "Phase 0: Vitest / Playwright / TS tooling", state: "wait" },
-        { id: "p0-mock", label: "Phase 0: mock backend + fixtures", state: "wait" },
-        { id: "p0-exports", label: "Phase 0: export legacy helpers", state: "wait" },
-        { id: "p0-dual", label: "Phase 0: dual-run characterizations", state: "wait" },
-        { id: "p0-scenarios", label: "Phase 0: S01–S50 + goldens", state: "wait" },
-        { id: "p0-baseline", label: "Phase 0: screenshots + perf + CI", state: "wait" },
-        { id: "p1", label: "Phase 1: Vite + legacy/ strangler", state: "wait" },
-        { id: "p2", label: "Phase 2: domain port", state: "wait" },
-        { id: "p3", label: "Phase 3: data / auth / realtime", state: "wait" },
-        { id: "p4", label: "Phase 4: design system + shell", state: "wait" },
-        { id: "p5", label: "Phase 5: Sell + checkout + Orders", state: "wait" },
-        { id: "p6", label: "Phase 6: Stock + Settings + Auth + PWA", state: "wait" },
-        { id: "p7", label: "Phase 7: back office", state: "wait" },
-        { id: "p8-10", label: "Phases 8–10: owner-gated (improvements, parallel, cutover)", state: "wait" },
+        { id: "p0-branch", label: "Phase 0: branch + v1-baseline tag", state: "done" },
+        { id: "p0-tooling", label: "Phase 0: Vitest / Playwright / TS tooling", state: "done" },
+        { id: "p0-mock", label: "Phase 0: mock backend + fixtures", state: "done" },
+        { id: "p0-exports", label: "Phase 0: export legacy helpers", state: "run" },
+        { id: "p0-dual", label: "Phase 0: dual-run characterizations (117 unit/dual-run)", state: "done" },
+        { id: "p0-scenarios", label: "Phase 0: S01–S50 next contracts (54). Legacy S01/S02/S05/S07/S11/S50. S19 double-tap still open", state: "run" },
+        { id: "p0-baseline", label: "Phase 0: 4-viewport baselines + CI. Quiet median 1963ms; cold samples still over 2.0s", state: "run" },
+        { id: "p1", label: "Phase 1: Vite + legacy/ strangler", state: "done" },
+        { id: "p2", label: "Phase 2: domain port", state: "done" },
+        { id: "p3", label: "Phase 3: data / auth / realtime — IDB hydrate + checkout in; writes + live push still open", state: "run" },
+        { id: "p4", label: "Phase 4: design system + shell (D11 look approval still blocked)", state: "done" },
+        { id: "p5", label: "Phase 5: Sell + checkout + Orders", state: "done" },
+        { id: "p6", label: "Phase 6: Stock + Settings + Auth + PWA — stock/auth in; live push subscribe open", state: "run" },
+        { id: "p7", label: "Phase 7: back office — Clients/History/Insights/Delivery/Reviews/Store shipped; parity rows still open", state: "run" },
+        { id: "p8", label: "Phase 8: walk-in + device hold + offline outbox (D2/D4/D6). D3/D5 skipped", state: "done" },
+        { id: "p9-10", label: "Phases 9–10: parallel run + cutover — waiting on owner deploy/ship cue", state: "wait" },
       ],
     };
 
@@ -155,6 +166,32 @@
           tag +
           "</span>";
         list.appendChild(li);
+      }
+
+      const gates = document.getElementById("gates");
+      const gatesMeta = document.getElementById("gates-meta");
+      if (STATE.ownerGate) {
+        gates.hidden = false;
+        gatesMeta.innerHTML = "";
+        const rows = [
+          ["D1–D6", STATE.ownerGate.ready],
+          ["Phase 8", STATE.ownerGate.phase8],
+          ["Phase 9", STATE.ownerGate.phase9],
+          ["Phase 10", STATE.ownerGate.phase10],
+        ];
+        for (const [k, v] of rows) {
+          if (!v) continue;
+          const dt = document.createElement("dt");
+          dt.textContent = k;
+          const dd = document.createElement("dd");
+          dd.textContent = v;
+          dd.style.fontFamily = "inherit";
+          dd.style.fontSize = "13px";
+          gatesMeta.appendChild(dt);
+          gatesMeta.appendChild(dd);
+        }
+      } else {
+        gates.hidden = true;
       }
     }
 

@@ -8,8 +8,8 @@ Update at the end of every session.
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
 | Tests passing | typecheck clean · 117 unit/dual-run · 54 next contracts · axe on /sell and /system · legacy S01, S02, S05, S07, S11, S50 |
-| Next step | Median sell sample is 1963 ms. Cold samples in that five still exceed 2.0 s. Phase coverage gates, live push, and a full write-module port are still open. Lint stays off CI. No deploy. Do not apply `client_sale_id` |
-| Open questions for the owner | D11 look, live Maps, and deploy stay blocked until the owner is back |
+| Next step | See `docs/overhaul/HANDOFF.md`. Median sell 1963 ms; cold samples can still exceed 2.0 s. Finish writes + live push; close Phase 0 exit; reconcile `origin/master` before any deploy. Lint off CI. No deploy. Do not apply `client_sale_id` |
+| Open questions for the owner | D11 look, live Maps, and deploy stay blocked until the owner is back. Session handed off 2026-11-12 (no deploy). |
 
 ## Ready vs open (before a parallel run)
 
@@ -22,7 +22,7 @@ Update at the end of every session.
 - Phase 9 needs you to say deploy. That is `.\scripts\ship.ps1` from `venus-pos` (v1 stays at `/`, v2 at `/next/`). No test sales on production unless you ask.
 - Phase 10 needs you to say ship, after the parallel run. Same script, after the cutover edits. Rollback stays the previous Netlify deploy.
 
-Nothing in this closeout was pushed or deployed.
+Handoff: work pushed on `overhaul` (and `main` tip = overhaul). Production `master` left alone — **not deployed**.
 
 ## D1–D6 — pick one each
 

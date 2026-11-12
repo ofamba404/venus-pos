@@ -6,12 +6,12 @@ import { applySoldToInventory, mergeSoldBreakdown } from '../domain/inventory-de
 import { categoryLabel, soldExcludingHold } from '../domain/stock-reservation';
 import { buildSalePostBody, type CheckoutDeliveryInput } from '../domain/sale-payload';
 import { BASE_ORIGIN } from '../domain/geo';
-import { sbFetch, functionFetch } from './api';
+import { functionFetch } from './api';
 import { postClient } from './writes/clients';
 import { postDelivery } from './writes/deliveries';
 import { inventoryDeltaBody } from './writes/inventory';
 import { postSale } from './writes/sales';
-import { storeOrderCheckedOutBody, storeOrderPatchPath } from './writes/store-orders';
+import { patchStoreOrder, storeOrderCheckedOutBody } from './writes/store-orders';
 import { clients, ensureInventory, inventory, loadSales, syncLabel, type SaleRow } from './entities';
 import { deviceId } from './device-id';
 import { postStoreReserve } from './store-reserve';
@@ -153,10 +153,10 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
 
     if (input.meta.storeOrderId) {
       try {
-        const marked = await sbFetch(storeOrderPatchPath(input.meta.storeOrderId), {
-          method: 'PATCH',
-          body: JSON.stringify(storeOrderCheckedOutBody(String(sale.id || ''))),
-        });
+        const marked = await patchStoreOrder(
+          input.meta.storeOrderId,
+          storeOrderCheckedOutBody(String(sale.id || '')),
+        );
         if (!marked.ok) console.warn('store order checkout patch failed', marked.status);
       } catch (e) {
         console.warn('store order checkout patch failed', e);

@@ -1,5 +1,4 @@
 import { signal } from '@preact/signals';
-import { sbFetch } from './api';
 import { functionFetch } from './api';
 import { allowDevBypass, peekAccessToken } from './auth';
 import { isFresh, markFetched } from './freshness';
@@ -10,13 +9,15 @@ import {
   fetchClients,
   fetchDeliveries,
   fetchSalesMerged,
+  fetchStoreOrders,
   inventoryMapFromRows,
   inventoryRowsFromMap,
   keepCachedRows,
+  shareLoad,
   type EntityName,
   type InventoryMap,
 } from './repository';
-import { inventoryDeltaBody, inventoryEnsureBody, inventoryPatchBody, inventoryPatchPath } from './writes/inventory';
+import { inventoryDeltaBody, inventoryEnsureBody, patchInventoryStock } from './writes/inventory';
 
 export type { InventoryMap };
 
@@ -110,7 +111,11 @@ async function persistSnapshot(entity: EntityName, data: unknown, opts?: { bump?
   if (opts?.bump !== false) markFetched(entity, Date.now());
 }
 
-export async function ensureInventory() {
+export function ensureInventory(): Promise<InventoryMap> {
+  return shareLoad('inventory', ensureInventoryNow);
+}
+
+async function ensureInventoryNow(): Promise<InventoryMap> {
   syncLabel.value = 'syncing';
   try {
     if (!peekAccessToken() && allowDevBypass()) {
@@ -143,8 +148,12 @@ export async function ensureInventory() {
   }
 }
 
-export async function loadSales(opts?: { force?: boolean }) {
-  if (!opts?.force && isFresh('sales')) return sales.value;
+export function loadSales(opts?: { force?: boolean }) {
+  if (!opts?.force && isFresh('sales')) return Promise.resolve(sales.value);
+  return shareLoad('sales', storeSales);
+}
+
+async function storeSales() {
   const rows = (await fetchSalesMerged()) as SaleRow[];
   if (keepCachedRows(rows, sales.value.length > 0)) {
     markFetched('sales', Date.now());
@@ -155,8 +164,12 @@ export async function loadSales(opts?: { force?: boolean }) {
   return sales.value;
 }
 
-export async function loadClients(opts?: { force?: boolean }) {
-  if (!opts?.force && isFresh('clients')) return clients.value;
+export function loadClients(opts?: { force?: boolean }) {
+  if (!opts?.force && isFresh('clients')) return Promise.resolve(clients.value);
+  return shareLoad('clients', storeClients);
+}
+
+async function storeClients() {
   const rows = (await fetchClients()) as ClientRow[];
   if (keepCachedRows(rows, clients.value.length > 0)) {
     markFetched('clients', Date.now());
@@ -167,8 +180,12 @@ export async function loadClients(opts?: { force?: boolean }) {
   return clients.value;
 }
 
-export async function loadDeliveries(opts?: { force?: boolean }) {
-  if (!opts?.force && isFresh('deliveries')) return deliveries.value;
+export function loadDeliveries(opts?: { force?: boolean }) {
+  if (!opts?.force && isFresh('deliveries')) return Promise.resolve(deliveries.value);
+  return shareLoad('deliveries', storeDeliveries);
+}
+
+async function storeDeliveries() {
   const rows = (await fetchDeliveries()) as DeliveryRow[];
   if (keepCachedRows(rows, deliveries.value.length > 0)) {
     markFetched('deliveries', Date.now());
@@ -180,11 +197,7 @@ export async function loadDeliveries(opts?: { force?: boolean }) {
 }
 
 export async function loadStoreOrders() {
-  const q =
-    'store_orders?or=(status.in.(pending,confirmed,accepted),and(status.eq.cancelled,dismissed_at.is.null))&order=created_at.desc&limit=40';
-  const res = await sbFetch(q);
-  if (!res.ok) throw new Error(`store_orders ${res.status}`);
-  storeOrders.value = (await res.json()) as StoreOrderRow[];
+  storeOrders.value = (await fetchStoreOrders()) as StoreOrderRow[];
   return storeOrders.value;
 }
 
@@ -194,11 +207,7 @@ async function writeStockChange(id: string, prev: number, nextQty: number, delta
   } catch (e) {
     const status = (e as { status?: number }).status;
     if (status === 405 || status === 502 || status === 503) {
-      const res = await sbFetch(inventoryPatchPath(id), {
-        method: 'PATCH',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify(inventoryPatchBody(nextQty)),
-      });
+      const res = await patchInventoryStock(id, nextQty);
       if (res.ok) return;
     }
     inventory.value = { ...inventory.value, [id]: prev };

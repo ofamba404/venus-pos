@@ -5,7 +5,7 @@ import { postStoreReserve } from '../../data/store-reserve';
 import { mapStoreOrderToCart } from '../../domain/store-order-map';
 import { orderMeta, replaceCart, setOrderMetaPatch } from '../../data/session-cart';
 import { replaceCheckoutDraft } from '../../data/checkout-draft';
-import { sbFetch } from '../../data/api';
+import { patchStoreOrder } from '../../data/writes/store-orders';
 import { go } from '../../app/router';
 import { Button } from '../../ui/Button';
 import { Tag } from '../../ui/Tag';
@@ -73,10 +73,7 @@ export function OrdersPage() {
     setOrderMetaPatch(mapped.meta);
     replaceCheckoutDraft(mapped.checkout);
     if (order.status === 'pending' || order.status === 'confirmed') {
-      void sbFetch(`store_orders?id=eq.${encodeURIComponent(order.id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'accepted' }),
-      }).catch(() => {});
+      void patchStoreOrder(order.id, { status: 'accepted' }).catch(() => {});
     }
     showToast(`Loaded ${orderTitle(order)}`);
     go('/sell');
@@ -85,12 +82,9 @@ export function OrdersPage() {
   async function cancelOrder(order: StoreOrderRow) {
     const result = await postStoreReserve({ op: 'release', id: order.id, cancel: true });
     if (result.unsupported) {
-      const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(order.id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-        }),
+      const res = await patchStoreOrder(order.id, {
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
       });
       if (!res.ok) {
         showToast('Could not cancel order');
@@ -105,10 +99,7 @@ export function OrdersPage() {
   }
 
   async function dismissOrder(order: StoreOrderRow) {
-    const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(order.id)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ dismissed_at: new Date().toISOString() }),
-    });
+    const res = await patchStoreOrder(order.id, { dismissed_at: new Date().toISOString() });
     if (!res.ok) {
       showToast('Could not dismiss order');
       return;

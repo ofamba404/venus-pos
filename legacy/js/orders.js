@@ -2404,10 +2404,15 @@ async function checkout() {
     return;
   }
 
+  // Set before the first await. A second click from a double-tap used to pass
+  // the guard while inventory and the debt dialog were still pending.
+  checkoutInFlight = true;
+
   const { awaitInventoryReady } = await import('./inventory.js');
   try {
     await awaitInventoryReady();
   } catch (e) {
+    checkoutInFlight = false;
     console.error('inventory ready failed', e);
     showToast('Could not load stock — check connection', true);
     return;
@@ -2419,11 +2424,12 @@ async function checkout() {
       const ok = await showConfirm(
         `${orderClientName} already owes ${fmtUGX(openDebt.totalUgx)} across ${openDebt.count} order${openDebt.count === 1 ? '' : 's'}. Record another credit?`,
       );
-      if (!ok) return;
+      if (!ok) {
+        checkoutInFlight = false;
+        return;
+      }
     }
   }
-
-  checkoutInFlight = true;
 
   const total = cartTotal(cart);
   let holdForRollback = false;

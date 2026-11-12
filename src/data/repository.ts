@@ -22,6 +22,8 @@ export const QUERIES = {
   clientsApp: 'clients?select=*&order=name.asc&limit=500',
   deliveries:
     'deliveries?select=id,client_id,client_name,sale_id,origin_lat,origin_lng,origin_label,dest_lat,dest_lng,dest_label,distance_km,duration_min,fee_ugx,predicted_fee_ugx,fee_was_edited,created_at&order=created_at.desc&limit=500',
+  storeOrders:
+    'store_orders?or=(status.in.(pending,confirmed,accepted),and(status.eq.cancelled,dismissed_at.is.null))&order=created_at.desc&limit=40',
 } as const;
 
 type SaleLike = { id?: string; created_at?: string };
@@ -94,9 +96,29 @@ export async function fetchClients(): Promise<unknown[]> {
   return Array.isArray(rows) ? rows : [];
 }
 
+const loads = new Map<string, Promise<unknown>>();
+
+/** One network read per entity while a fetch is already running. */
+export function shareLoad<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const pending = loads.get(key) as Promise<T> | undefined;
+  if (pending) return pending;
+  const work = run().finally(() => {
+    if (loads.get(key) === work) loads.delete(key);
+  });
+  loads.set(key, work);
+  return work;
+}
+
 export async function fetchDeliveries(): Promise<unknown[]> {
   const res = await sbFetch(QUERIES.deliveries);
   if (!res.ok) throw new Error(`Supabase ${res.status}`);
+  const rows = await res.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function fetchStoreOrders(): Promise<unknown[]> {
+  const res = await sbFetch(QUERIES.storeOrders);
+  if (!res.ok) throw new Error(`store_orders ${res.status}`);
   const rows = await res.json();
   return Array.isArray(rows) ? rows : [];
 }

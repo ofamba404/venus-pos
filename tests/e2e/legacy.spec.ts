@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { S01, S02, S05, S07, S11 } from './scenarios';
+import { S01, S02, S03, S04, S05, S07, S08, S11, S19 } from './scenarios';
 import { createLegacyDriver } from './drivers/legacy';
 import { buildDefaultSeed } from '../fixtures/seed';
 import { computeTodayStats } from '../../src/domain/today';
@@ -41,6 +41,24 @@ test.describe('legacy register driver', () => {
     expect(saleTotal(driver)).toBe(32500);
   });
 
+  test('S03 Cookie Quartet paid', async ({ page }) => {
+    const driver = await createLegacyDriver(page, { role: 'pos_staff' });
+    await driver.run(S03);
+    expect(saleTotal(driver)).toBe(25000);
+  });
+
+  test('S04 four flavoured singles', async ({ page }) => {
+    const driver = await createLegacyDriver(page, { role: 'pos_staff' });
+    await driver.run(S04);
+    expect(saleTotal(driver)).toBe(26000);
+  });
+
+  test('S08 Bangis mix', async ({ page }) => {
+    const driver = await createLegacyDriver(page, { role: 'pos_staff' });
+    await driver.run(S08);
+    expect(saleTotal(driver)).toBe(15000);
+  });
+
   test('S11 credit sale', async ({ page }) => {
     const driver = await createLegacyDriver(page, { role: 'pos_staff' });
     await driver.run(S11);
@@ -48,6 +66,12 @@ test.describe('legacy register driver', () => {
     expect(posts.length).toBeGreaterThanOrEqual(1);
     expect(Number((posts[0]!.body as { total_ugx?: number }).total_ugx)).toBe(8000);
     expect((posts[0]!.body as { is_credit?: boolean }).is_credit).toBe(true);
+  });
+
+  test('S19 double-tap charge is one sale', async ({ page }) => {
+    const driver = await createLegacyDriver(page, { role: 'pos_staff' });
+    await driver.run(S19);
+    expect(salePosts(driver)).toHaveLength(1);
   });
 
   test('S50 today revenue matches the seed clock', async ({ page }) => {

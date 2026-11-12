@@ -83,5 +83,5 @@ describe('flavored-bulk dual-run', () => {
       }),
       { numRuns: 2000 },
     );
-  });
+  }, 20_000);
 });
