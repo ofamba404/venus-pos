@@ -10,9 +10,16 @@ test('capture 390px screens', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await createNextDriver(page, { role: 'pos_admin' });
 
+  async function frame() {
+    await page.addStyleTag({
+      content: '.shell__nav{display:none!important}.shell__main{padding-bottom:24px!important}',
+    });
+  }
+
   async function shot(name: string, path: string, ready: string) {
     await page.goto(path);
     await page.locator(ready).first().waitFor({ timeout: 20_000 });
+    await frame();
     await page.screenshot({ path: `${dir}/${name}.png`, fullPage: true });
   }
 
@@ -20,6 +27,7 @@ test('capture 390px screens', async ({ page }) => {
   await page.getByTestId('product-plain_single').click();
   await page.getByTestId('config-add').click();
   await page.getByRole('dialog', { name: 'Review sale' }).waitFor();
+  await frame();
   await page.screenshot({ path: `${dir}/review-sheet.png`, fullPage: true });
   await page.keyboard.press('Escape');
 
@@ -28,6 +36,7 @@ test('capture 390px screens', async ({ page }) => {
   await page.getByTestId('history-sale-seed-sale-1').click();
   await page.getByTestId('sale-edit').click();
   await page.getByRole('dialog', { name: 'Edit sale' }).waitFor();
+  await frame();
   await page.screenshot({ path: `${dir}/edit-sale.png`, fullPage: true });
   await page.keyboard.press('Escape');
   await shot('clients', '/next/clients', 'h1');

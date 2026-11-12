@@ -612,9 +612,9 @@ export function SellPage() {
             <Button size="md" variant="secondary" data-testid="pickup-locate" onClick={locatePickup}>
               Use GPS
             </Button>
-            <span class="v-tag" data-testid="pickup-label">
+            <button type="button" class="pickup-control" data-testid="pickup-label" onClick={locatePickup}>
               {draft.originText || 'Shop pickup'}
-            </span>
+            </button>
             <div class="v-fact">
               <PlaceSearch
                 value={draft.destText || meta.deliveryLocationLabel || ''}
@@ -761,6 +761,7 @@ export function SellPage() {
               name={p.name}
               kind={productKind(p)}
               image={productImageSrc(p.id)}
+              art={p.id === 'cookie_quartet' ? 'stack' : undefined}
               meta={`${p.joints} ${p.slotNoun || (Number(p.joints) === 1 ? 'joint' : 'joints')}`}
               price={productPriceLabel(p)}
               onClick={() => openConfig(p)}
@@ -793,6 +794,7 @@ export function SellPage() {
                   name={p.name}
                   kind={productKind(p)}
                   image={productImageSrc(p.id)}
+                  art="swatches"
                   price={productPriceLabel(p)}
                   onClick={() => openConfig(p)}
                 />
@@ -811,6 +813,7 @@ export function SellPage() {
           <Button
             size="xl"
             data-testid="charge"
+            className={chargeReason ? 'v-btn--reason' : ''}
             disabled={!lines.length || !canCharge || paying}
             onClick={() => void charge()}
           >
@@ -821,7 +824,7 @@ export function SellPage() {
                 : `Checkout ${formatUGX(cartSum.value)}`}
           </Button>
           {chargeReason ? (
-            <p class="v-muted" data-testid="charge-reason" style={{ marginTop: 8 }}>
+            <p class="charge-reason" data-testid="charge-reason">
               {chargeReason}
             </p>
           ) : null}
@@ -872,6 +875,7 @@ export function SellPage() {
             <Button
               size="xl"
               data-testid="charge"
+              className={chargeReason ? 'v-btn--reason' : ''}
               disabled={!lines.length || !canCharge || paying}
               onClick={() => void charge()}
             >
@@ -882,7 +886,7 @@ export function SellPage() {
                   : `Checkout ${formatUGX(cartSum.value)}`}
             </Button>
             {chargeReason ? (
-              <p class="v-muted" data-testid="charge-reason" style={{ marginTop: 8 }}>
+              <p class="charge-reason" data-testid="charge-reason">
                 {chargeReason}
               </p>
             ) : null}

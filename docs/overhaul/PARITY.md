@@ -10,8 +10,9 @@ Do not build these until he says yes.
 2. **Edit sale flavours.** Qty, add Plain, remove, payment, and customer are in the sheet. Reopening the pack flavour picker on a past sale is the rest of v1’s editor. Is the current sheet enough?
 3. **Staff commission ledger.** Insights shows joint profit × 40% from `joint_cost_history` (the schedule in `20261111153700`). v1’s staff card reads `staff_commission_summary` and `staff_settlements` (per-person rate, balance, payouts). Show that ledger, or keep the 40% estimate?
 4. **Busy for delivery vs pickup.** `store_fulfillment.busy_for` exists. The mock seed leaves it null. v2 always writes `both`. v1 also offers Delivery and Pickup. Split it, or keep both?
-5. **Staff email password reset on the v2 sign-in page.** Storefront reset codes are on Store. Staff email recovery still lives on legacy `auth.html`. Add it to `/next` sign-in, or leave it on the legacy page until cutover?
-6. **Staff stock edits.** v1 inventory is view-only for staff (`isStaffReadOnly`). v2 still lets staff change counts. Scenarios S29 and S30 sign in as staff and edit stock, so this was left as-is. Lock edits to admin?
+5. **Staff stock edits.** v1 inventory is view-only for staff (`isStaffReadOnly`). v2 still lets staff change counts. Scenarios S29 and S30 sign in as staff and edit stock, so this was left as-is. Lock edits to admin?
+
+Staff email reset is no longer an ask. It is on `/next/auth.html` (show/hide password, and the recovery link back to that page).
 
 ## Port
 

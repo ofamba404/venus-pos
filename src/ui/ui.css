@@ -81,6 +81,33 @@
   cursor: not-allowed;
 }
 
+.v-btn.v-btn--reason:disabled {
+  background: var(--melon-tint);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1.5px var(--melon);
+}
+
+.charge-reason {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--melon-tint);
+  color: var(--fg);
+  font: var(--t-label);
+}
+
+.pickup-control {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  color: var(--fg);
+  font: var(--t-label);
+}
+
 .v-money {
   font: var(--t-money);
   font-variant-numeric: tabular-nums;
@@ -483,6 +510,48 @@
   font: var(--t-money);
 }
 
+.tile-art {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 92px;
+  border-radius: 16px;
+  background: var(--melon-tint);
+}
+
+.tile-art i {
+  display: block;
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px rgb(33 33 33 / 0.12);
+}
+
+.tile-art--stack {
+  align-items: center;
+}
+
+.tile-art--stack i {
+  width: 36px;
+  height: 28px;
+  margin-left: -14px;
+  border-radius: 40% 40% 46% 46%;
+}
+
+.tile-art--stack i:first-child {
+  margin-left: 0;
+}
+
+.tile-art--swatches {
+  align-items: center;
+  gap: 8px;
+  background: var(--paper-100);
+}
+
+.tile-art--swatches i {
+  width: 22px;
+  height: 22px;
+}
+
 .product-card__blank,
 .v-tile__img,
 .v-thumb {
@@ -525,6 +594,85 @@ button.kpi-tile {
   height: 28px;
   color: var(--accent);
   flex: 0 0 auto;
+}
+
+.cover {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.4fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 36px;
+}
+
+.cover--urgent .cover__days {
+  color: var(--watermelon);
+}
+
+.cover__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  font: var(--t-label);
+  white-space: nowrap;
+}
+
+.cover__name .v-flavor {
+  flex: 0 0 auto;
+}
+
+.cover__track {
+  position: relative;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: var(--paper-100);
+  overflow: visible;
+}
+
+.cover__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.cover__mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  left: 50%;
+  width: 2px;
+  background: var(--fg);
+}
+
+.cover__days {
+  min-width: 36px;
+  text-align: right;
+  font: var(--t-label);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.kpi-tile {
+  min-width: 0;
+  padding: 12px;
+  border-radius: var(--r-lg);
+  background: var(--mint-tint);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.kpi-tile__label {
+  font: var(--t-label);
+  color: var(--fg-2);
+}
+
+.kpi-tile__value {
+  margin-top: 4px;
+  font: var(--t-title-sm);
 }
 
 .kpi-tile__trend {
@@ -895,8 +1043,18 @@ button.kpi-tile {
   display: flex;
   gap: var(--s-2);
   margin-top: var(--s-3);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
+}
+
+.v-order-card__actions > .v-btn:not(.v-btn--ghost) {
+  flex: 1 1 auto;
+}
+
+.order-card__tools {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
 }
 
 .v-chip-row {

@@ -1,12 +1,13 @@
 import type { ChaseRow, PackLine, ProfitPicture, RestockRow } from '../../domain/decisions';
 import type { PartnerBatch } from '../../domain/partner';
+import { ECONOMICS } from '../../domain/economics';
 import { formatUGX } from '../../domain/format';
 import { FlavorDot } from '../../ui/FlavorDot';
 import { Money } from '../../ui/Money';
 import { Button } from '../../ui/Button';
-import { Tag } from '../../ui/Tag';
 import { showToast } from '../../ui/ToastHost';
 import { localPhoneDigits } from '../../domain/phone';
+import { EmptyState } from '../../ui/EmptyState';
 
 function copyText(text: string, ok: string) {
   void navigator.clipboard?.writeText(text).then(
@@ -46,7 +47,11 @@ export function InsightsDecisions({
   openBatch: PartnerBatch | null;
   onSettle: () => void;
 }) {
-  const maxPack = Math.max(1, ...picture.packs.map((row) => row.soldProfit));
+  const selling = restock.filter((row) => row.sold > 0);
+  const quiet = restock.length - selling.length;
+  const horizon = ECONOMICS.restockCycleDays * 2;
+  const soldPacks = picture.packs.filter((row) => row.soldProfit > 0);
+  const maxPack = Math.max(1, ...soldPacks.map((row) => row.soldProfit));
   const firstSettled = settled[0];
   return (
     <>
@@ -56,16 +61,26 @@ export function InsightsDecisions({
 
       <section class="decision" aria-label="What should I restock">
         <h2 class="decision__q">What should I restock?</h2>
-        {restock.map((row) => (
-          <div class={`decision-row${row.urgent ? ' decision-row--urgent' : ''}`} key={row.id}>
-            <FlavorDot color={row.color} />
-            <div class="decision-row__main">
-              <div class="v-list-row__title">{row.line}</div>
-              <div class="v-list-row__meta">{row.stock} on hand · {row.sold} sold in this cycle</div>
+        {selling.map((row) => {
+          const days = row.daysLeft === null ? horizon : row.daysLeft;
+          const width = Math.max(0, Math.min(100, (days / horizon) * 100));
+          const fill = row.color.toLowerCase() === '#ffffff' || row.color.toLowerCase() === '#fff' ? 'var(--plain)' : row.color;
+          const label = row.stock <= 0 ? 'Out' : row.daysLeft !== null && row.daysLeft < ECONOMICS.restockCycleDays ? `~${Math.max(1, Math.round(row.daysLeft))}d` : `${Math.max(1, Math.round((row.daysLeft || 0) / 7))}w`;
+          return (
+            <div class={`cover${row.urgent ? ' cover--urgent' : ''}`} key={row.id}>
+              <span class="cover__name">
+                <FlavorDot color={row.color} />
+                {row.name}
+              </span>
+              <span class="cover__track" aria-hidden="true">
+                <span class="cover__fill" style={{ width: `${width}%`, background: fill }} />
+                <span class="cover__mark" />
+              </span>
+              <span class="cover__days">{label}</span>
             </div>
-            {row.urgent ? <Tag tone="out">Before next cycle</Tag> : null}
-          </div>
-        ))}
+          );
+        })}
+        {quiet ? <p class="decision__why">{quiet} with no sales this cycle</p> : null}
         <Button size="md" variant="secondary" data-testid="copy-restock" onClick={() => copyText(restockText, 'Restock list copied')}>
           Copy restock list
         </Button>
@@ -106,32 +121,38 @@ export function InsightsDecisions({
 
       <section class="decision" aria-label="What am I making">
         <h2 class="decision__q">What am I really making?</h2>
-        <div class="decision-figures">
-          <div>
-            <div class="v-stat__label">You keep</div>
-            <Money value={picture.owner} />
+        <div class="kpi-grid">
+          <div class="kpi-tile">
+            <div class="kpi-tile__label">You keep</div>
+            <div class="kpi-tile__value"><Money value={picture.owner} /></div>
           </div>
-          <div>
-            <div class="v-stat__label">Helper {Math.round(picture.helperShare * 100)}%</div>
-            <Money value={picture.helper} />
+          <div class="kpi-tile">
+            <div class="kpi-tile__label">Helper {Math.round(picture.helperShare * 100)}%</div>
+            <div class="kpi-tile__value"><Money value={picture.helper} /></div>
           </div>
-          <div>
-            <div class="v-stat__label">Cookie partner</div>
-            <Money value={picture.partner} />
+          <div class="kpi-tile">
+            <div class="kpi-tile__label">Cookie partner</div>
+            <div class="kpi-tile__value"><Money value={picture.partner} /></div>
           </div>
         </div>
-        <div class="v-bars" data-testid="insights-rank">
-          {picture.packs.map((row: PackLine) => (
-            <div class="v-bars__row" key={row.id}>
-              <span class="v-bars__label">{row.name}</span>
-              <span class="v-bars__track">
-                <span style={{ width: `${(row.soldProfit / maxPack) * 100}%` }} />
-              </span>
-              <span class="v-bars__val">{formatUGX(row.unitProfit)}</span>
-            </div>
-          ))}
-        </div>
-        <p class="decision__why">{packSentence}</p>
+        {soldPacks.length ? (
+          <div class="v-bars" data-testid="insights-rank">
+            {soldPacks.map((row: PackLine) => (
+              <div class="v-bars__row" key={row.id}>
+                <span class="v-bars__label">{row.name}</span>
+                <span class="v-bars__track">
+                  <span style={{ width: `${(row.soldProfit / maxPack) * 100}%` }} />
+                </span>
+                <span class="v-bars__val">{formatUGX(row.soldProfit)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div data-testid="insights-rank">
+            <EmptyState title="No pack sales in this period" body={packSentence} />
+          </div>
+        )}
+        {soldPacks.length ? <p class="decision__why">{packSentence}</p> : null}
       </section>
 
       <section class="decision" aria-label="What do I owe" data-testid="insights-commission">

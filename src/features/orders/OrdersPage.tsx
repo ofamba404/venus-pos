@@ -11,10 +11,10 @@ import { Button } from '../../ui/Button';
 import { Tag } from '../../ui/Tag';
 import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
-import { formatUGX } from '../../domain/format';
 import { productImageSrc } from '../../domain/product-art';
 import { localPhoneDigits } from '../../domain/phone';
 import { EmptyState } from '../../ui/EmptyState';
+import { IconButton } from '../../ui/IconButton';
 import { OrderCard } from '../../ui/OrderCard';
 import { KEYS } from '../../data/keys';
 import { writePaint } from '../../domain/parity';
@@ -69,11 +69,39 @@ function orderTitle(o: StoreOrderRow, labels: PosLabelIndex) {
   );
 }
 
+function orderLine(raw: unknown): { name: string; productId?: string; breakdown?: Record<string, unknown> } {
+  if (!raw || typeof raw !== 'object') return { name: '' };
+  const item = raw as {
+    product_id?: string;
+    store_product_id?: string;
+    product_name?: string;
+    name?: string;
+    breakdown?: Record<string, unknown>;
+    flavors?: string[];
+  };
+  const productId = String(item.product_id || item.store_product_id || '')
+    .replace(/-/g, '_')
+    .replace(/_pack$/, '');
+  let breakdown = item.breakdown;
+  if ((!breakdown || !Object.keys(breakdown).length) && Array.isArray(item.flavors)) {
+    breakdown = {};
+    for (const flavor of item.flavors) {
+      const key = String(flavor).replace(/-/g, '_');
+      const id = productId.startsWith('cookie') && !key.startsWith('cookie') ? `cookie_${key}` : key;
+      breakdown[id] = (Number(breakdown[id]) || 0) + 1;
+    }
+  }
+  return { name: String(item.product_name || item.name || '').trim(), productId, breakdown };
+}
+
 function orderTotal(o: StoreOrderRow): number {
   const items = Array.isArray(o.items) ? o.items : [];
   return items.reduce<number>((sum, it) => {
-    const row = it as { line_total?: number; is_reward?: boolean };
-    return sum + (row.is_reward ? 0 : Math.round(Number(row.line_total) || 0));
+    const row = it as { line_total?: number; unit_price_ugx?: number; quantity?: number; is_reward?: boolean };
+    if (row.is_reward) return sum;
+    const line = Math.round(Number(row.line_total) || 0);
+    if (line) return sum + line;
+    return sum + Math.round((Number(row.unit_price_ugx) || 0) * (Number(row.quantity) || 1));
   }, 0);
 }
 
@@ -189,7 +217,10 @@ export function OrdersPage() {
             product_id?: string;
             breakdown?: Record<string, unknown>;
           } | undefined;
-          const thumb = first?.product_id ? productImageSrc(first.product_id, first.breakdown) : '';
+          const summary = orderLine(first);
+          const thumb = summary.productId ? productImageSrc(summary.productId, summary.breakdown) : '';
+          const phone = String(o.phone_e164 || o.phone || '');
+          const place = String(o.location_label || '');
           return (
           <OrderCard
             key={o.id}
@@ -197,18 +228,48 @@ export function OrdersPage() {
             status={String(o.status || 'open')}
             total={orderTotal(o)}
             image={thumb}
-            lines={items.slice(0, 3).map((raw) => {
-              const item = raw as {
-                product_id?: string;
-                product_name?: string;
-                breakdown?: Record<string, unknown>;
-              };
-              return {
-                name: item.product_name || 'Item',
-                productId: item.product_id,
-                breakdown: item.breakdown,
-              };
-            })}
+            lines={items.slice(0, 3).map(orderLine)}
+            tools={
+              <>
+                {phone ? (
+                  <IconButton
+                    size="sm"
+                    label="Copy phone"
+                    data-testid={`copy-phone-${o.id}`}
+                    onClick={() => {
+                      const digits = localPhoneDigits(phone);
+                      void navigator.clipboard?.writeText(digits).then(
+                        () => showToast('Phone copied'),
+                        () => showToast(digits),
+                      );
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                      <path d="M8 4h8v16H8z" />
+                      <path d="M11 18h2" />
+                    </svg>
+                  </IconButton>
+                ) : null}
+                {place ? (
+                  <IconButton
+                    size="sm"
+                    label="Copy location"
+                    data-testid={`copy-location-${o.id}`}
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(place).then(
+                        () => showToast('Location copied'),
+                        () => showToast(place),
+                      );
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+                      <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z" />
+                      <circle cx="12" cy="10" r="2.2" />
+                    </svg>
+                  </IconButton>
+                ) : null}
+              </>
+            }
           >
             <div class="v-order-card__actions">
               <Tag tone={o.delivery_enabled === false ? 'default' : 'paid'}>
@@ -219,27 +280,17 @@ export function OrdersPage() {
                   <Button size="md" data-testid={`load-order-${o.id}`} onClick={() => void loadIntoSale(o)}>
                     Load into sale
                   </Button>
-                  <Button
-                    size="md"
-                    variant="secondary"
-                    data-testid={`cancel-order-${o.id}`}
-                    onClick={() => void cancelOrder(o)}
-                  >
+                  <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => void cancelOrder(o)}>
                     Cancel
                   </Button>
                 </>
               ) : null}
               {seg === 'in_sale' ? (
                 <>
-                  <Button size="md" variant="secondary" data-testid={`load-order-${o.id}`} onClick={() => void loadIntoSale(o)}>
+                  <Button size="md" data-testid={`load-order-${o.id}`} onClick={() => void loadIntoSale(o)}>
                     Open cart
                   </Button>
-                  <Button
-                    size="md"
-                    variant="secondary"
-                    data-testid={`cancel-order-${o.id}`}
-                    onClick={() => void cancelOrder(o)}
-                  >
+                  <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => void cancelOrder(o)}>
                     Cancel
                   </Button>
                 </>
@@ -255,46 +306,6 @@ export function OrdersPage() {
                 </Button>
               ) : null}
             </div>
-            {o.location_label ? (
-              <div class="v-chip-row" style={{ marginTop: 8 }}>
-                <span class="v-muted">
-                  {String(o.location_label)}
-                  {o.delivery_fee_ugx !== undefined && o.delivery_fee_ugx !== null
-                    ? ` · ${formatUGX(Number(o.delivery_fee_ugx))}`
-                    : ''}
-                </span>
-                <Button
-                  size="md"
-                  variant="secondary"
-                  data-testid={`copy-location-${o.id}`}
-                  onClick={() => {
-                    const text = String(o.location_label);
-                    void navigator.clipboard?.writeText(text).then(
-                      () => showToast('Location copied'),
-                      () => showToast(text),
-                    );
-                  }}
-                >
-                  Copy location
-                </Button>
-              </div>
-            ) : null}
-            {o.phone_e164 ? (
-              <Button
-                size="md"
-                variant="secondary"
-                data-testid={`copy-phone-${o.id}`}
-                onClick={() => {
-                  const digits = localPhoneDigits(o.phone_e164);
-                  void navigator.clipboard?.writeText(digits).then(
-                    () => showToast('Phone copied'),
-                    () => showToast(digits),
-                  );
-                }}
-              >
-                Copy phone
-              </Button>
-            ) : null}
           </OrderCard>
           );
         })}

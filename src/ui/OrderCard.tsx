@@ -9,6 +9,7 @@ export function OrderCard({
   total,
   image,
   lines,
+  tools,
   children,
 }: {
   title: string;
@@ -16,8 +17,10 @@ export function OrderCard({
   total: number;
   image?: string;
   lines: Array<{ name: string; productId?: string; breakdown?: Record<string, unknown> }>;
+  tools?: ComponentChildren;
   children: ComponentChildren;
 }) {
+  const shown = lines.filter((line) => line.name && line.name !== 'Item').slice(0, 3);
   return (
     <article class="v-order-card order-card">
       <div class="order-card__top">
@@ -26,10 +29,11 @@ export function OrderCard({
           <div class="v-list-row__title">{title}</div>
           <div class="v-list-row__meta">{status}</div>
         </div>
+        {tools}
         <Money className="v-money--amber" value={total} />
       </div>
       <div class="order-card__lines">
-        {lines.slice(0, 3).map((line, index) => (
+        {shown.map((line, index) => (
           <div key={`${line.name}-${index}`}>
             <div class="v-list-row__meta">{line.name}</div>
             <FlavorSwatches breakdown={line.breakdown} productId={line.productId} />
