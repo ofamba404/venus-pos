@@ -141,7 +141,11 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
     });
     saleBody = body;
     const res = await postSale(body);
-    if (!res.ok) throw new Error(`Sale failed (${res.status})`);
+    if (!res.ok) {
+      const err = new Error(`Sale failed (${res.status})`) as Error & { status?: number };
+      err.status = res.status;
+      throw err;
+    }
     const sale = rowsFrom<SaleRow>(await res.json())[0];
     if (!sale) throw new Error('Sale failed — empty response');
 

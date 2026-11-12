@@ -17,6 +17,10 @@ const memory: OutboxSale[] = [];
 export function shouldQueueSale(error: unknown, storeOrderId: string): boolean {
   if (String(storeOrderId || '').trim()) return false;
   if (error instanceof TypeError) return true;
+  const status = Number((error as { status?: number } | null)?.status);
+  // 502/503/504 are how the offline mock and a dead gateway show up. A 500 is a
+  // real reject and must not be queued (S18 retries that one).
+  if (status === 502 || status === 503 || status === 504) return true;
   const message = error instanceof Error ? error.message : String(error || '');
   return /failed to fetch|network|offline|load failed/i.test(message);
 }

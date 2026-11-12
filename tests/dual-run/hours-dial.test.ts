@@ -53,12 +53,34 @@ describe('hours dial legacy snapshot', () => {
           expect(parts.hour12).toBe(hour12);
           expect(parts.minute).toBe(minute);
           expect(parts.ampm).toBe(ampm);
-          // A clock that lands exactly 30s ahead is kept. Anything sooner rolls a day.
-          expect(d.getTime()).toBeGreaterThanOrEqual(now.getTime() + 30_000);
+          // v1 keeps a same-day clock only when it is strictly more than 30s ahead.
+          // Exactly 30s rolls (`<=`). It adds at most one day, so a clock just after
+          // midnight can still land inside that 30s window once milliseconds are cleared.
+          let h24 = hour12 % 12;
+          if (ampm === 'pm') h24 += 12;
+          const sameDay = new Date(now);
+          sameDay.setHours(h24, minute, 0, 0);
+          if (sameDay.getTime() > now.getTime() + 30_000) {
+            expect(d.getTime()).toBe(sameDay.getTime());
+          } else {
+            const rolled = new Date(sameDay);
+            rolled.setDate(rolled.getDate() + 1);
+            expect(d.getTime()).toBe(rolled.getTime());
+          }
+          expect(d.getTime()).toBeGreaterThan(now.getTime());
         },
       ),
       { numRuns: 2000 },
     );
+  });
+
+  it('adds only one day when now is in the last 30s before midnight', () => {
+    const now = new Date(2026, 5, 1, 23, 59, 30, 1);
+    const d = dialPartsToDate({ hour12: 12, minute: 0, ampm: 'am' }, now);
+    expect(d.getTime()).toBe(new Date(2026, 5, 2, 0, 0, 0, 0).getTime());
+    expect(d.getTime()).toBeLessThan(now.getTime() + 30_000);
+    expect(d.getTime()).toBeGreaterThan(now.getTime());
+    expect(toDialParts(d)).toMatchObject({ hour12: 12, minute: 0, ampm: 'am' });
   });
 
   it('labels the same civil day Today and the next day Tomorrow', () => {

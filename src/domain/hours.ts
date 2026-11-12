@@ -126,16 +126,11 @@ export function earliestAvailableAt(
     if (t.getTime() < until.getTime()) t = new Date(until);
   }
 
+  // Busy is applied once above. A later open-hours step cannot enter a new busy
+  // window, because busyUntil is a single instant and next open is later.
   for (let i = 0; i < 3; i += 1) {
-    if (!isWithinOpenHours(t, status)) t = nextOpenAt(t, status);
-    if (isBusyActive(status, t) && appliesToMode(status, deliveryEnabled)) {
-      const until = new Date(status.busyUntil!);
-      if (t.getTime() < until.getTime()) {
-        t = new Date(until);
-        continue;
-      }
-    }
-    break;
+    if (isWithinOpenHours(t, status)) break;
+    t = nextOpenAt(t, status);
   }
 
   return roundUpToStep(t, opts.stepMinutes ?? 5);

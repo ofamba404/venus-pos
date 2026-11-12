@@ -11,6 +11,12 @@ describe('offline sales queue', () => {
   it('queues a counter sale when the network fails and not a store order', () => {
     expect(shouldQueueSale(new TypeError('Failed to fetch'), '')).toBe(true);
     expect(shouldQueueSale(new Error('Sale failed (400)'), '')).toBe(false);
+    const unavailable = new Error('Sale failed (503)') as Error & { status?: number };
+    unavailable.status = 503;
+    expect(shouldQueueSale(unavailable, '')).toBe(true);
+    const rejected = new Error('Sale failed (500)') as Error & { status?: number };
+    rejected.status = 500;
+    expect(shouldQueueSale(rejected, '')).toBe(false);
     expect(shouldQueueSale(new TypeError('Failed to fetch'), 'order-1')).toBe(false);
   });
 

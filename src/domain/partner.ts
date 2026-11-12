@@ -6,20 +6,31 @@ import {
   COOKIE_PARTNER_SETTLED_BASELINE,
   COOKIE_PARTNER_TRACK_FROM_MS,
 } from './catalog';
-import {
-  expandCookieUnitsFromItem,
-  salePaidRatio,
-  type SaleLike,
-  type SaleItemLike,
-} from './revenue';
+import { cookieBatchProductLines } from './partner-lines';
+import { expandCookieUnitsFromItem, type SaleLike, type SaleItemLike } from './revenue';
 
 export { expandCookieUnitsFromItem } from './revenue';
+export {
+  cookieBatchLineTitle,
+  cookieBatchProductLines,
+  cookieBatchShareText,
+  cookieFlavorMixPhrase,
+  cookiePartnerShareText,
+} from './partner-lines';
 
 export type PartnerUnit = {
   revenue?: number;
   ownerSplit?: number;
   partnerDue?: number;
+  flavorId?: string;
+  productKind?: string;
+  saleId?: string;
+  created_at?: string;
+  lineKey?: string;
+  lineCookieQty?: number;
 };
+
+type PartnerSale = SaleLike & { id?: string; created_at?: string };
 
 export type PartnerBatch = {
   index: number;
@@ -29,6 +40,7 @@ export type PartnerBatch = {
   revenue: number;
   ownerSplit: number;
   partnerDue: number;
+  lines: ReturnType<typeof cookieBatchProductLines>;
 };
 
 function sumUnitMoney(units: PartnerUnit[]): {
@@ -63,6 +75,7 @@ export function cookiePartnerBatchesFromUnits(
       cookieCount: slice.length,
       every: size,
       complete: slice.length === size,
+      lines: cookieBatchProductLines(slice),
       revenue: Math.round(totals.revenue),
       ownerSplit: Math.round(totals.ownerSplit),
       partnerDue: Math.round(totals.partnerDue),
@@ -71,34 +84,35 @@ export function cookiePartnerBatchesFromUnits(
   return batches;
 }
 
-export function cookieBatchShareText(batch: PartnerBatch & { lines?: Array<{ text?: string }> } | null): string {
-  if (!batch) return '';
-  const lines = (batch.lines || []).map((row) => String(row.text || ''));
-  lines.push('');
-  lines.push(`${batch.cookieCount} cookies — ${Math.round(batch.revenue)}`);
-  lines.push(`Your split — ${Math.round(batch.ownerSplit)}`);
-  lines.push(`Send partner — ${Math.round(batch.partnerDue)}`);
-  return lines.join('\n');
-}
-
-export function expandPartnerUnitsFromSales(sales: SaleLike[] | null | undefined): PartnerUnit[] {
+/** Chronological cookie units from the partner track-from date. Paid ratio is 1, as v1. */
+export function expandPartnerUnitsFromSales(sales: PartnerSale[] | null | undefined): PartnerUnit[] {
+  const sorted = [...(sales || [])]
+    .filter((sale) => new Date(sale.created_at || '').getTime() >= COOKIE_PARTNER_TRACK_FROM_MS)
+    .sort(
+      (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime(),
+    );
   const units: PartnerUnit[] = [];
-  for (const sale of sales || []) {
-    const created = new Date(sale.created_at || 0).getTime();
-    if (!Number.isFinite(created) || created < COOKIE_PARTNER_TRACK_FROM_MS) continue;
-    const paidRatio = salePaidRatio(sale);
-    for (const item of sale.items || []) {
-      for (const unit of expandCookieUnitsFromItem(item as SaleItemLike, paidRatio)) {
-        units.push(unit);
+  for (const sale of sorted) {
+    (sale.items || []).forEach((item, itemIndex) => {
+      const expanded = expandCookieUnitsFromItem(item as SaleItemLike, 1);
+      const lineCookieQty = expanded.length;
+      for (const unit of expanded) {
+        units.push({
+          ...unit,
+          saleId: sale.id,
+          created_at: sale.created_at,
+          lineKey: `${sale.id}:${itemIndex}`,
+          lineCookieQty,
+        });
       }
-    }
+    });
   }
   return units;
 }
 
 /** Open (unsettled) batches after the baseline of already-settled cookies. */
 export function openPartnerBatches(
-  sales: SaleLike[] | null | undefined,
+  sales: PartnerSale[] | null | undefined,
   settledQty: number = COOKIE_PARTNER_SETTLED_BASELINE,
 ): PartnerBatch[] {
   const units = expandPartnerUnitsFromSales(sales);

@@ -8,8 +8,17 @@ export default defineConfig({
     include: ['tests/unit/**/*.test.ts', 'tests/dual-run/**/*.test.ts'],
     setupFiles: ['tests/dual-run/setup.ts'],
     coverage: {
+      enabled: true,
       provider: 'v8',
-      include: ['src/domain/**', 'src/data/**'],
+      reporter: ['text-summary'],
+      // Data-layer coverage is the Phase 3 gate. Phase 2 locks domain/.
+      include: ['src/domain/**'],
+      thresholds: {
+        lines: 95,
+        branches: 95,
+        functions: 95,
+        statements: 95,
+      },
     },
   },
   resolve: {

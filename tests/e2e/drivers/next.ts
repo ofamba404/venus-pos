@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import type { Scenario, ScenarioStep } from '../scenarios/types';
 import { installMockBackend, type MockHandle } from '../../mock';
 import { PRODUCTS } from '../../../src/domain/catalog';
@@ -298,6 +298,7 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
         await page.goto('/next/insights');
         await page.getByTestId('partner-settle').first().click();
+        await page.getByRole('status').filter({ hasText: /settled|cookies/i }).waitFor({ timeout: 8000 });
         return;
       case 'goOffline':
         mock.setOffline(true);
@@ -320,7 +321,13 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         await page.goto(`/next/stock`);
         await page.getByTestId(`stock-${step.categoryId}-qty`).waitFor();
         if (armInventory502) {
-          mock.setFailure({ method: 'POST', pathIncludes: '/api/inventory/write', status: 502, times: 1 });
+          mock.setFailure({
+            method: 'POST',
+            pathIncludes: '/api/inventory/write',
+            bodyOp: 'delta',
+            status: 502,
+            times: 1,
+          });
           armInventory502 = false;
         }
         if (step.delta === 24) {
@@ -330,6 +337,21 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
           await page.getByRole('dialog').waitFor({ state: 'hidden', timeout: 8000 });
           return;
         }
+        const qty = page.getByTestId(`stock-${step.categoryId}-qty`);
+        const before = Number((await qty.innerText()).trim());
+        // Resolve on the delta/set write, or on the 502 fallback PATCH.
+        // A 502 itself must not resolve the waiter: the PATCH can finish
+        // before a second waitForResponse is registered.
+        const settled = page.waitForResponse((res) => {
+          const method = res.request().method();
+          const url = res.url();
+          if (method === 'PATCH' && url.includes('/rest/v1/inventory')) return true;
+          if (method === 'POST' && url.includes('/api/inventory/write') && res.status() < 500) {
+            const body = res.request().postData() || '';
+            return body.includes('"delta"') || body.includes('"set"');
+          }
+          return false;
+        });
         if (step.delta > 0) {
           for (let i = 0; i < step.delta; i += 1) {
             await page.getByTestId(`stock-${step.categoryId}-inc`).click();
@@ -339,6 +361,8 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
             await page.getByTestId(`stock-${step.categoryId}-dec`).click();
           }
         }
+        await settled;
+        await expect(qty).toHaveText(String(Math.max(0, before + step.delta)));
         return;
       case 'setStockCount':
         await page.goto(`/next/stock`);

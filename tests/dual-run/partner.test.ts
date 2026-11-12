@@ -5,12 +5,18 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import {
+  cookieBatchShareText,
   cookiePartnerBatchesFromUnits,
+  cookiePartnerShareText,
+  cookieUnitsChronological,
   expandCookieUnitsFromItem,
 } from '../../legacy/js/revenue.js';
 import {
+  cookieBatchShareText as nextShare,
   cookiePartnerBatchesFromUnits as nextBatches,
+  cookiePartnerShareText as nextShares,
   expandCookieUnitsFromItem as nextExpand,
+  expandPartnerUnitsFromSales,
 } from '../../src/domain/partner.ts';
 
 describe('partner dual-run', () => {
@@ -32,7 +38,15 @@ describe('partner dual-run', () => {
       ownerSplit: b.ownerSplit,
       partnerDue: b.partnerDue,
     }));
-    const ours = nextBatches(units, 25);
+    const ours = nextBatches(units, 25).map((b) => ({
+      index: b.index,
+      cookieCount: b.cookieCount,
+      every: b.every,
+      complete: b.complete,
+      revenue: b.revenue,
+      ownerSplit: b.ownerSplit,
+      partnerDue: b.partnerDue,
+    }));
     expect(ours).toEqual(legacy);
   });
 
@@ -57,6 +71,60 @@ describe('partner dual-run', () => {
     expect(ours).toEqual(legacy);
   });
 
+  it('matches chronological units and the clipboard text', () => {
+    const sales = [
+      {
+        id: 'early',
+        created_at: '2026-08-01T10:00:00+03:00',
+        items: [
+          {
+            product_id: 'cookie_single',
+            line_total: 8000,
+            breakdown: { cookie_mint: 1 },
+          },
+        ],
+      },
+      {
+        id: 'later',
+        created_at: '2026-08-13T10:00:00+03:00',
+        is_credit: true,
+        credit_cleared: false,
+        total_ugx: 15000,
+        amount_paid_ugx: 5000,
+        items: [
+          {
+            product_id: 'cookie_duet',
+            line_total: 15000,
+            breakdown: { cookie_chocolate: 1, cookie_strawberry: 1 },
+          },
+        ],
+      },
+    ];
+    const legacyUnits = cookieUnitsChronological(sales).map((u: Record<string, unknown>) => ({
+      flavorId: u.flavorId,
+      productKind: u.productKind,
+      saleId: u.saleId,
+      lineKey: u.lineKey,
+      lineCookieQty: u.lineCookieQty,
+      revenue: u.revenue,
+    }));
+    const ours = expandPartnerUnitsFromSales(sales).map((u) => ({
+      flavorId: u.flavorId,
+      productKind: u.productKind,
+      saleId: u.saleId,
+      lineKey: u.lineKey,
+      lineCookieQty: u.lineCookieQty,
+      revenue: u.revenue,
+    }));
+    expect(ours).toEqual(legacyUnits);
+    const legacyBatches = cookiePartnerBatchesFromUnits(cookieUnitsChronological(sales), 25);
+    const next = nextBatches(expandPartnerUnitsFromSales(sales), 25);
+    expect(nextShare(next[0] || null)).toBe(cookieBatchShareText(legacyBatches[0]));
+    expect(nextShares(next)).toBe(cookiePartnerShareText(legacyBatches));
+    expect(nextShare(null)).toBe('');
+    expect(nextShares([])).toBe('');
+  });
+
   it('chunks 2000 generated unit lists the same way', () => {
     const money = fc.integer({ min: 0, max: 100_000 });
     fc.assert(
@@ -75,6 +143,12 @@ describe('partner dual-run', () => {
           });
           const legacy = cookiePartnerBatchesFromUnits(units, every).map(pick);
           expect(nextBatches(units, every).map(pick)).toEqual(legacy);
+          expect(nextShare(nextBatches(units, every)[0] || null)).toBe(
+            cookieBatchShareText(cookiePartnerBatchesFromUnits(units, every)[0] || null),
+          );
+          expect(nextShares(nextBatches(units, every))).toBe(
+            cookiePartnerShareText(cookiePartnerBatchesFromUnits(units, every)),
+          );
         },
       ),
       { numRuns: 2000 },
