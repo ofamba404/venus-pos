@@ -9,18 +9,18 @@ function Swatch({ entry }: { entry: FlavorSwatch }) {
   const title = entry.qty > 1 ? `${entry.name} ×${entry.qty}` : entry.name;
   return (
     <span
-      class={`v-swatch${isLight(entry.color) ? ' v-swatch--bordered' : ''}`}
+      class={`v-swatch${entry.qty > 1 ? ' v-swatch--count' : ''}${isLight(entry.color) ? ' v-swatch--bordered' : ''}`}
       role="listitem"
       style={{ '--swatch': entry.color } as Record<string, string>}
       title={title}
     >
       <span class="v-swatch__dot" aria-hidden="true" />
-      {entry.qty > 1 ? <span class="v-swatch__qty">×{entry.qty}</span> : null}
+      {entry.qty > 1 ? <span class="v-swatch__qty">{entry.qty}</span> : null}
     </span>
   );
 }
 
-/** One filled circle per flavour. The readable list is the aria-label, not on-screen text. */
+/** Colour chips for a line. Repeats show a count in the chip. Plain sits after a gap. Names stay in the aria-label. */
 export function FlavorSwatches({
   breakdown,
   productId,

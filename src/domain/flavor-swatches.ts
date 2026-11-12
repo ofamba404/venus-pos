@@ -1,7 +1,7 @@
 /**
- * Cart flavour dots. Same rules as `cartFlavorEntries` / `cartFlavorSwatchesHtml`
- * in `legacy/js/orders.js`: one filled circle per flavour, Plain (or the
- * variety pack's fixed flavour) pinned after a divider, overflow collapses to +N.
+ * Which flavours a line shows, and in what order.
+ * Repeats keep a count. A variety pack's fixed flavour (Plain, or butterscotch
+ * on the quartet) sits after the others. Extra flavours collapse to +N.
  */
 import { CAT_MAP } from './catalog';
 import { findProduct, varietyFixedFlavor } from './pricing/pack-config';
