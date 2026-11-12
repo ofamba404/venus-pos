@@ -5,10 +5,12 @@ import {
   busyUntilFromNow,
   isBusyActive,
   isWithinOpenHours,
+  fulfillmentFromSnapshot,
   toHHmm,
   type FulfillmentStatus,
 } from '../../domain/hours';
 import { sbFetch } from '../../data/api';
+import { KEYS } from '../../data/keys';
 import { deleteStoreAccount, patchFulfillment, patchStoreAccount } from '../../data/writes/store';
 import { Field } from '../../ui/Field';
 import { Button } from '../../ui/Button';
@@ -39,7 +41,22 @@ export function StorePage() {
     if (target && !userName) setUserName(String(target.pos_display_name || ''));
   }
 
+  function remember(next: FulfillmentStatus) {
+    setStatus(next);
+    try {
+      localStorage.setItem(KEYS.fulfillment, JSON.stringify(next));
+    } catch {
+      /* private mode */
+    }
+  }
+
   useEffect(() => {
+    try {
+      const snap = fulfillmentFromSnapshot(JSON.parse(localStorage.getItem(KEYS.fulfillment) || 'null'));
+      if (snap) setStatus(snap);
+    } catch {
+      /* corrupt snapshot */
+    }
     void (async () => {
       try {
         const res = await sbFetch('store_fulfillment?select=*&limit=1');
@@ -47,7 +64,7 @@ export function StorePage() {
         const rows = (await res.json()) as Array<Record<string, unknown>>;
         const row = rows[0];
         if (!row) return;
-        setStatus({
+        remember({
           openTime: toHHmm(row.open_time) || DEFAULT_OPEN,
           closeTime: toHHmm(row.close_time) || DEFAULT_CLOSE,
           suggestStart: toHHmm(row.suggest_start),
@@ -89,11 +106,19 @@ export function StorePage() {
         busy_for: minutes == null ? null : 'both',
       });
       if (!res.ok) throw new Error(`Could not update busy (${res.status})`);
-      setStatus((current) => ({
-        ...current,
-        busyUntil: until,
-        busyFor: minutes == null ? undefined : 'both',
-      }));
+      setStatus((current) => {
+        const next = {
+          ...current,
+          busyUntil: until,
+          busyFor: minutes == null ? undefined : ('both' as const),
+        };
+        try {
+          localStorage.setItem(KEYS.fulfillment, JSON.stringify(next));
+        } catch {
+          /* private mode */
+        }
+        return next;
+      });
       showToast(minutes == null ? 'Busy cleared' : `Busy for ${minutes} min`);
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Could not update busy');

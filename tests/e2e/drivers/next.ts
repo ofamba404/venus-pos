@@ -203,6 +203,7 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
       case 'parkCounterCart': {
         const scope = await saleScope(page);
         await scope.getByTestId('hold-sale').click();
+        await page.getByRole('status').filter({ hasText: /held/i }).waitFor({ timeout: 8000 });
         return;
       }
       case 'restoreCounterCart':

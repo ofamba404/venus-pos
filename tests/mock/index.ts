@@ -267,6 +267,11 @@ export async function installMockBackend(
         body = null;
       }
       writes.push({ method, url, headers: {}, body });
+      const reserve = (body || {}) as { id?: string; cancel?: boolean; op?: string };
+      if (reserve.cancel || reserve.op === 'release') {
+        const row = db.table('store_orders').find((order) => order.id === reserve.id);
+        if (row && reserve.cancel) row.status = 'cancelled';
+      }
       await fulfillJson(route, 200, { ok: true, locked: true, consumed: true, released: true });
       return;
     }

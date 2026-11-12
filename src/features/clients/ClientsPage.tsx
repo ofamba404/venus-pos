@@ -14,6 +14,7 @@ import { Field } from '../../ui/Field';
 import { Button } from '../../ui/Button';
 import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
+import { clientNamesText, virtualWindow } from '../../domain/parity';
 
 export function ClientsPage() {
   const [q, setQ] = useState('');
@@ -25,6 +26,7 @@ export function ClientsPage() {
   const [newName, setNewName] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [scrollTop, setScrollTop] = useState(0);
 
   useEffect(() => {
     void Promise.all([loadClients(), loadSales()]).catch((e) =>
@@ -136,7 +138,25 @@ export function ClientsPage() {
         onInput={(e) => setQ((e.target as HTMLInputElement).value)}
         style={{ marginBottom: 12 }}
       />
-      {list.map((c) => {
+      <Button
+        size="md"
+        variant="secondary"
+        data-testid="copy-client-names"
+        onClick={() => {
+          const text = clientNamesText(clients.value.map((c) => c.name));
+          void navigator.clipboard?.writeText(text);
+          showToast(text ? 'Names copied' : 'No clients');
+        }}
+      >
+        Copy names
+      </Button>
+      <div
+        data-testid="client-list"
+        onScroll={(e) => setScrollTop((e.currentTarget as HTMLElement).scrollTop)}
+        style={{ maxHeight: '70vh', overflow: 'auto' }}
+      >
+      <div style={{ height: virtualWindow(list, scrollTop, 672, 56).padPx }} />
+      {virtualWindow(list, scrollTop, 672, 56).items.map((c) => {
         const clientOwed = sumCreditOwed(getClientOutstandingCredit(sales.value, c.id));
         return (
           <button
@@ -167,6 +187,7 @@ export function ClientsPage() {
           </button>
         );
       })}
+      </div>
 
       <Sheet
         open={Boolean(settleId)}

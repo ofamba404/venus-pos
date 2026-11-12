@@ -16,6 +16,20 @@ function toRad(deg: number) {
   return (deg * Math.PI) / 180;
 }
 
+/** Pickup for a delivery row. Missing GPS uses the shop, including store-order carts. */
+export function resolveDeliveryOrigin(origin?: { lat?: number | null; lng?: number | null; label?: string | null } | null): {
+  lat: number;
+  lng: number;
+  label: string;
+} {
+  const lat = Number(origin?.lat);
+  const lng = Number(origin?.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    return { lat, lng, label: origin?.label || 'GPS pickup' };
+  }
+  return { lat: BASE_ORIGIN.lat, lng: BASE_ORIGIN.lng, label: BASE_ORIGIN.label };
+}
+
 /** Great-circle km between two WGS84 points. */
 export function haversineKm(a: LatLng, b: LatLng): number {
   const dLat = toRad(b.lat - a.lat);

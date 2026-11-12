@@ -3,7 +3,7 @@
 **Date:** 2026-11-12
 **Repo:** https://github.com/ofamba404/venus-pos (public)
 **Branch:** `overhaul` (fast-forward only)
-**Phase:** Phase 6 cleared. Next is Phase 7. Do not deploy. Do not apply migrations.
+**Phase:** Phase 7 cleared. Next is Phase 8. Do not deploy. Do not apply migrations.
 
 ## Cleared phases
 
@@ -54,15 +54,23 @@ The suite was not green on a fresh `npm test` / `npx playwright test`:
 
 1. **S29–S33, S45, S46, S48, S49 match.** `npx playwright test --project=chromium tests/e2e/contract.spec.ts -g "S29 stock|S30 set stock|S31 bulk|S32 inventory|S33 low-stock|S45 enable|S46 staff|S48 offline|S49 sign"`: **9 passed** (2.4m) against the mock at `/next/`.
 2. **Staff surface.** Those scenarios sign in as staff, change stock (including the 502 PATCH fallback), subscribe to notification prefs, bounce `/insights` back to Sell, queue an offline charge, and sign out and back in.
-3. **Service worker routing.** `tests/unit/sw-routing.test.ts` passes inside `npm test` (154 passed). The built worker is not registered while the app is under `/next/`.
+3. **Service worker routing.** `tests/unit/sw-routing.test.ts` passes inside `npm test`. The built worker is not registered while the app is under `/next/`.
+
+**Phase 7 — Back office.** Exit criteria:
+
+1. **S34–S44, S47, S50 match.** They are in the full `npx playwright test`: **122 passed, 2 skipped, 0 failed** (15.4m). Axe on `/sell` and `/system` is clean. `baseline.spec.ts` captured the L5 screenshots in that same run.
+2. **Parity rows.** `07-parity-checklist.md` is ticked for every row the mock can prove, including draft stock, the owes hint, cart reload, store-order release and the cancelled banner, stock glance, insights range and heatmap text, debug capture/copy/reload, install steps, the manifest `id: "/"`, and legacy URL hashes.
+3. **Unit gate.** `npm test`: **166 passed**. Domain lines **99.48% (3070/3086)**, branches **95.14% (1702/1789)**. Data lines **87.23% (1271/1457)**. `npm run typecheck` passed.
+
+Five checklist rows stay open because they need a production deploy or the cutover worker: new-order push, push subscribe, the `/sw.js` handlers, surviving push subscriptions, and Netlify function reachability.
 
 ## In progress
 
-Nothing. Phase 6 is closed.
+Nothing. Phase 7 is closed.
 
 ## Next concrete step
 
-Phase 7 in `05-implementation-plan.md`. S34–S44, S47, and S50 already pass in the Playwright contract file. The phase is not cleared: `07-parity-checklist.md` still has open rows (draft stock in the config sheet, owes hint, success-screen copy, virtual list, debug log, install prompt, SW update while a cart is open, and the other unticked rows). Do not deploy. Do not apply migrations.
+Phase 8 in `05-implementation-plan.md`. Walk-in, device hold, and the offline queue are already flagged on. The `client_sale_id` migration is written and must not be applied. The checkpoint is waived. Do not deploy.
 
 ## How to run tests
 

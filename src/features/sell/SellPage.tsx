@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
 import { itemToConfigSelection } from '../../domain/pricing/pack-config';
-import { stockCrossing } from '../../domain/stock-state';
+import { stockNotifyDecision } from '../../domain/stock-notify';
+import { KEYS } from '../../data/keys';
+import { cancelledOrderBanner, clientOwesLabel, selectionOverStock, successCopy } from '../../domain/parity';
 import { formatUGX } from '../../domain/format';
 import {
   buildCartLine,
@@ -37,7 +39,7 @@ import { flushOutbox, listOutbox, outboxCountLabel } from '../../data/outbox';
 import { mapStoreOrderToCart } from '../../domain/store-order-map';
 import { patchStoreOrder } from '../../data/writes/store-orders';
 import { postStoreReserve } from '../../data/store-reserve';
-import { clients, ensureInventory, inventory, loadClients, loadSales, loadStoreOrders, sales, syncLabel } from '../../data/entities';
+import { clients, ensureInventory, inventory, loadClients, loadSales, loadStoreOrders, sales, storeOrders, syncLabel } from '../../data/entities';
 import { connectSupabaseRealtime, startFeed } from '../../data/realtime';
 import { SUPABASE_KEY, SUPABASE_URL } from '../../data/env';
 import { openDebtForClientName } from '../../domain/credit';
@@ -77,6 +79,7 @@ export function SellPage() {
   const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
   const [waiting, setWaiting] = useState(0);
   const [queuedNote, setQueuedNote] = useState(false);
+  const [deliveryPending, setDeliveryPending] = useState(false);
   const [debtAsk, setDebtAsk] = useState<{ name: string; owed: number } | null>(null);
   const debtClearedRef = useRef(false);
   const placeGen = useRef(0);
@@ -270,7 +273,13 @@ export function SellPage() {
   function addConfigured() {
     if (!configProduct) return;
     const sellable = sellableNow();
-    if (sellable && selectionOverStock(configProduct, selection, sellable)) {
+    if (
+      sellable &&
+      selectionOverStock(configProduct.rule, selection, sellable, {
+        categoryId: configProduct.categoryId,
+        fixedFlavor: configProduct.fixedFlavor,
+      })
+    ) {
       showToast('Not enough in stock for that quantity');
       return;
     }
@@ -318,19 +327,40 @@ export function SellPage() {
       clientId: meta.clientId || null,
       checkout: draft,
     });
-    setPaying(false);
     if (!result.ok) {
+      setPaying(false);
       showToast(result.error);
       return;
     }
     if (!result.queued) {
-      for (const [id, prev] of Object.entries(beforeStock)) {
-        const next = inventory.value[id] ?? 0;
-        if (next === prev) continue;
-        const cross = stockCrossing(id, prev, next);
-        const label = CAT_MAP[id]?.name || id;
-        if (cross.crossedOut) showToast(`${label} is out of stock`);
-        else if (cross.crossedLow) showToast(`${label} is running low`);
+      let fired: Record<string, string> = {};
+      try {
+        fired = JSON.parse(localStorage.getItem(KEYS.notifStock) || '{}') as Record<string, string>;
+      } catch {
+        fired = {};
+      }
+      const prefs = (() => {
+        try {
+          return JSON.parse(localStorage.getItem(KEYS.notifPrefs) || '{}') as { stock?: boolean };
+        } catch {
+          return {};
+        }
+      })();
+      if (prefs.stock !== false) {
+        for (const [id, prev] of Object.entries(beforeStock)) {
+          const next = inventory.value[id] ?? 0;
+          if (next === prev) continue;
+          const decision = stockNotifyDecision(id, Number(prev), next, fired);
+          fired = decision.fired;
+          const label = CAT_MAP[id]?.name || id;
+          if (decision.toast === 'out') showToast(`${label} is out of stock`);
+          else if (decision.toast === 'low') showToast(`${label} is running low`);
+        }
+        try {
+          localStorage.setItem(KEYS.notifStock, JSON.stringify(fired));
+        } catch {
+          /* private mode */
+        }
       }
     }
     haptic(15);
@@ -339,6 +369,8 @@ export function SellPage() {
       setWaiting((n) => n + 1);
       showToast('Queued offline');
     }
+    const delivery = result.delivery;
+    setDeliveryPending(Boolean(delivery));
     setSuccessTotal(cartTotal(lines));
     clearCartKeepMeta();
     clearCheckoutDraft();
@@ -353,6 +385,11 @@ export function SellPage() {
       clientPhone: '',
     });
     void loadSales({ force: true }).catch(() => {});
+    if (delivery) {
+      await delivery;
+      setDeliveryPending(false);
+    }
+    setPaying(false);
   }
 
   async function parkSale() {
@@ -513,16 +550,19 @@ export function SellPage() {
                 Walk-in
               </button>
             ) : null}
-            {recentClients.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                class="v-tag"
-                onClick={() => setOrderMetaPatch({ clientName: c.name || '', clientId: c.id })}
-              >
-                {c.name}
-              </button>
-            ))}
+            {recentClients.map((c) => {
+              const owes = clientOwesLabel(openDebtForClientName(c.name || '', clients.value, sales.value));
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  class="v-tag"
+                  onClick={() => setOrderMetaPatch({ clientName: c.name || '', clientId: c.id })}
+                >
+                  {owes ? `${c.name} · ${owes}` : c.name}
+                </button>
+              );
+            })}
           </div>
         ) : null}
         <Segmented
@@ -621,6 +661,23 @@ export function SellPage() {
             Confirm order
           </Button>
         ) : null}
+        {meta.storeOrderId ? (
+          <>
+            {cancelledOrderBanner(storeOrders.value.find((row) => row.id === meta.storeOrderId)?.status) ? (
+              <p data-testid="cancelled-banner">
+                {cancelledOrderBanner(storeOrders.value.find((row) => row.id === meta.storeOrderId)?.status)}
+              </p>
+            ) : null}
+            <Button
+              size="md"
+              variant="secondary"
+              data-testid="release-store-order"
+              onClick={() => setOrderMetaPatch({ storeOrderId: '' })}
+            >
+              Release order
+            </Button>
+          </>
+        ) : null}
         {features.holdSale && lines.length && !meta.storeOrderId ? (
           <Button size="md" variant="secondary" data-testid="hold-sale" onClick={() => void parkSale()}>
             Hold on this phone
@@ -638,17 +695,14 @@ export function SellPage() {
         </div>
         <p class="success-total">{formatUGX(successTotal)}</p>
         <p style={{ textAlign: 'center', color: 'var(--fg-2)', marginBottom: 24 }}>
-          {queuedNote
-            ? 'Saved on this phone. It will sync when the signal returns.'
-            : payment === 'credit'
-              ? 'Recorded on credit'
-              : 'Sale recorded'}
+          {successCopy({ queued: queuedNote, credit: payment === 'credit', savingDelivery: deliveryPending })}
         </p>
         <Button
           size="xl"
           onClick={() => {
             setSuccessTotal(null);
             setQueuedNote(false);
+            setDeliveryPending(false);
             setPayment('paid');
           }}
         >
@@ -855,25 +909,6 @@ export function SellPage() {
       </Sheet>
     </section>
   );
-}
-
-function selectionOverStock(
-  product: Product,
-  selection: Record<string, number>,
-  sellable: Record<string, number>,
-) {
-  if (product.rule === 'single_qty') {
-    const id = product.categoryId || '';
-    return (selection.qty || 0) > (sellable[id] || 0);
-  }
-  if (product.rule === 'choose_variety') {
-    const fixed = product.fixedFlavor || 'classic';
-    if ((sellable[fixed] || 0) < 1) return true;
-  }
-  return Object.entries(selection).some(([id, qty]) => {
-    if (id === 'qty' || id === '_unitPrice' || qty <= 0) return false;
-    return qty > (sellable[id] || 0);
-  });
 }
 
 function ConfigBody({

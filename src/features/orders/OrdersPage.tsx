@@ -13,6 +13,17 @@ import { Money } from '../../ui/Money';
 import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
 import { formatUGX } from '../../domain/format';
+import { KEYS } from '../../data/keys';
+import { writePaint } from '../../domain/parity';
+import { SUPABASE_ANON_JWT, SUPABASE_URL } from '../../data/env';
+import {
+  buildPosLabelIndex,
+  labelsAreStale,
+  posCustomerLabel,
+  POS_LABEL_STALE_MS,
+  type PosLabelIndex,
+  type PosLabelRow,
+} from '../../domain/pos-labels';
 
 type Segment = 'waiting' | 'in_sale' | 'closed';
 
@@ -22,8 +33,37 @@ function segmentOf(o: StoreOrderRow): Segment {
   return 'waiting';
 }
 
-function orderTitle(o: StoreOrderRow) {
-  return String(o.customer_name || o.phone_e164 || 'Store order');
+let posLabels: PosLabelIndex = buildPosLabelIndex([]);
+let posLabelsAt = 0;
+
+async function loadPosLabels(now = Date.now()) {
+  if (!labelsAreStale(posLabelsAt, now, POS_LABEL_STALE_MS)) return posLabels;
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/store-auth`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_JWT,
+      Authorization: `Bearer ${SUPABASE_ANON_JWT}`,
+    },
+    body: JSON.stringify({ action: 'admin_list_pos_labels' }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { labels?: PosLabelRow[]; users?: PosLabelRow[] };
+  const rows = Array.isArray(data.labels) ? data.labels : Array.isArray(data.users) ? data.users : [];
+  posLabels = buildPosLabelIndex(rows);
+  posLabelsAt = Date.now();
+  return posLabels;
+}
+
+function orderTitle(o: StoreOrderRow, labels: PosLabelIndex) {
+  return posCustomerLabel(
+    {
+      account_id: (o as { account_id?: string }).account_id,
+      customer_name: o.customer_name,
+      pos_display_name: (o as { pos_display_name?: string }).pos_display_name,
+    },
+    labels,
+    'Store order',
+  );
 }
 
 function orderTotal(o: StoreOrderRow): number {
@@ -37,10 +77,21 @@ function orderTotal(o: StoreOrderRow): number {
 export function OrdersPage() {
   const [seg, setSeg] = useState<Segment>('waiting');
   const [loading, setLoading] = useState(true);
+  const [labels, setLabels] = useState<PosLabelIndex>(posLabels);
 
   useEffect(() => {
+    void loadPosLabels()
+      .then((index) => setLabels(index))
+      .catch(() => {});
     void loadStoreOrders()
-      .then(() => ensureInventory())
+      .then((rows) => {
+        try {
+          sessionStorage.setItem(KEYS.storeOrdersPaint, writePaint(rows, Date.now()));
+        } catch {
+          /* private mode */
+        }
+        return ensureInventory();
+      })
       .catch((e) => showToast(e instanceof Error ? e.message : 'Could not load orders'))
       .finally(() => setLoading(false));
   }, []);
@@ -67,7 +118,7 @@ export function OrdersPage() {
         ...order,
         items: (order.items || []) as never,
       },
-      { customerName: orderTitle(order) },
+      { customerName: orderTitle(order, labels) },
     );
     replaceCart(mapped.lines, mapped.meta);
     setOrderMetaPatch(mapped.meta);
@@ -75,7 +126,7 @@ export function OrdersPage() {
     if (order.status === 'pending' || order.status === 'confirmed') {
       void patchStoreOrder(order.id, { status: 'accepted' }).catch(() => {});
     }
-    showToast(`Loaded ${orderTitle(order)}`);
+    showToast(`Loaded ${orderTitle(order, labels)}`);
     go('/sell');
   }
 
@@ -94,7 +145,7 @@ export function OrdersPage() {
       showToast(result.message || result.error || 'Could not cancel order');
       return;
     }
-    showToast(`Cancelled ${orderTitle(order)}`);
+    showToast(`Cancelled ${orderTitle(order, labels)}`);
     await Promise.allSettled([loadStoreOrders(), ensureInventory()]);
   }
 
@@ -104,7 +155,7 @@ export function OrdersPage() {
       showToast('Could not dismiss order');
       return;
     }
-    showToast(`Dismissed ${orderTitle(order)}`);
+    showToast(`Dismissed ${orderTitle(order, labels)}`);
     await loadStoreOrders().catch(() => {});
   }
 
@@ -136,7 +187,7 @@ export function OrdersPage() {
           <article key={o.id} class="v-order-card">
             <div class="v-order-card__top">
               <div>
-                <div class="v-list-row__title">{orderTitle(o)}</div>
+                <div class="v-list-row__title">{orderTitle(o, labels)}</div>
                 <div class="v-list-row__meta">
                   {o.status} · {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
                 </div>
@@ -163,9 +214,19 @@ export function OrdersPage() {
                 </>
               ) : null}
               {seg === 'in_sale' ? (
-                <Button size="md" variant="secondary" data-testid={`load-order-${o.id}`} onClick={() => void loadIntoSale(o)}>
-                  Open cart
-                </Button>
+                <>
+                  <Button size="md" variant="secondary" data-testid={`load-order-${o.id}`} onClick={() => void loadIntoSale(o)}>
+                    Open cart
+                  </Button>
+                  <Button
+                    size="md"
+                    variant="secondary"
+                    data-testid={`cancel-order-${o.id}`}
+                    onClick={() => void cancelOrder(o)}
+                  >
+                    Cancel
+                  </Button>
+                </>
               ) : null}
               {seg === 'closed' && !o.dismissed_at ? (
                 <Button

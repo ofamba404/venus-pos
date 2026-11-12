@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { loadSales, sales, clients, loadClients } from '../../data/entities';
 import { computeTodayStats } from '../../domain/today';
 import { sumOwnerRevenue } from '../../domain/revenue';
@@ -7,7 +7,11 @@ import {
   groupOutstandingByClient,
   sumCreditOwed,
 } from '../../domain/credit';
-import { cookieBatchShareText, openPartnerBatches } from '../../domain/partner';
+import { cookieBatchShareText, expandPartnerUnitsFromSales, openPartnerBatches, sanitizeCookiePartnerSettled } from '../../domain/partner';
+import { buildTimeSeries, CHART_RANGES, INSIGHT_PERIODS } from '../../domain/analytics/periods';
+import { computeSalesPatterns } from '../../domain/analytics/patterns';
+import { topProductForSales } from '../../domain/analytics/rank';
+import { readStoredId } from '../../domain/parity';
 import { KEYS } from '../../data/keys';
 import { postCookiePartnerSettle } from '../../data/writes/partner';
 import { Money } from '../../ui/Money';
@@ -15,6 +19,21 @@ import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
 
 export function InsightsPage() {
+  const [range, setRange] = useState(() =>
+    readStoredId(
+      localStorage.getItem(KEYS.chartRange),
+      CHART_RANGES.map((row) => row.id),
+      '1w',
+    ),
+  );
+  const [period, setPeriod] = useState(() =>
+    readStoredId(
+      localStorage.getItem(KEYS.insightPeriod),
+      INSIGHT_PERIODS.map((row) => row.id),
+      'week',
+    ),
+  );
+
   useEffect(() => {
     void Promise.all([loadSales(), loadClients()]).catch((e) =>
       showToast(e instanceof Error ? e.message : 'Could not load insights'),
@@ -40,15 +59,38 @@ export function InsightsPage() {
     };
   }, [sales.value, clients.value]);
 
+  const series = useMemo(() => {
+    const chart = CHART_RANGES.find((row) => row.id === range) || CHART_RANGES[0]!;
+    return buildTimeSeries(sales.value as Parameters<typeof buildTimeSeries>[0], chart);
+  }, [sales.value, range]);
+  const patterns = useMemo(
+    () => computeSalesPatterns(sales.value as Parameters<typeof computeSalesPatterns>[0]),
+    [sales.value],
+  );
+  const rank = useMemo(
+    () => topProductForSales(sales.value as Parameters<typeof topProductForSales>[0]),
+    [sales.value],
+  );
+
   const partnerBatches = useMemo(() => {
+    const list = sales.value as Parameters<typeof openPartnerBatches>[0];
     let settled = 25;
     try {
       const raw = localStorage.getItem(KEYS.partnerSettled);
-      if (raw != null && raw !== '') settled = Math.max(0, Math.round(Number(raw) || 0));
+      if (raw != null && raw !== '') settled = Math.round(Number(raw) || 0);
     } catch {
       /* private mode */
     }
-    return openPartnerBatches(sales.value as Parameters<typeof openPartnerBatches>[0], settled);
+    const total = expandPartnerUnitsFromSales(list).length;
+    const clean = sanitizeCookiePartnerSettled(settled, total);
+    if (clean !== settled) {
+      try {
+        localStorage.setItem(KEYS.partnerSettled, String(clean));
+      } catch {
+        /* private mode */
+      }
+    }
+    return openPartnerBatches(list, clean);
   }, [sales.value]);
 
   async function settleNextBatch() {
@@ -75,6 +117,36 @@ export function InsightsPage() {
   return (
     <section>
       <h1 class="page-title">Insights</h1>
+      <div class="v-chip-row" data-testid="chart-range">
+        {CHART_RANGES.map((row) => (
+          <Button
+            key={row.id}
+            size="md"
+            variant={range === row.id ? 'primary' : 'secondary'}
+            onClick={() => {
+              localStorage.setItem(KEYS.chartRange, row.id);
+              setRange(row.id);
+            }}
+          >
+            {row.short}
+          </Button>
+        ))}
+      </div>
+      <div class="v-chip-row" data-testid="insight-period">
+        {INSIGHT_PERIODS.map((row) => (
+          <Button
+            key={row.id}
+            size="md"
+            variant={period === row.id ? 'primary' : 'secondary'}
+            onClick={() => {
+              localStorage.setItem(KEYS.insightPeriod, row.id);
+              setPeriod(row.id);
+            }}
+          >
+            {row.short}
+          </Button>
+        ))}
+      </div>
       <div class="v-stat-grid">
         <div class="v-stat" data-testid="insights-today" data-revenue={today.revenue} data-joints={today.joints}>
           <div class="v-stat__label">Today</div>
@@ -99,6 +171,16 @@ export function InsightsPage() {
           </div>
         </div>
       </div>
+
+      <p class="v-muted" data-testid="insights-series">
+        {series.length} buckets · {Math.round(series.reduce((sum, bucket) => sum + bucket.revenue, 0))}
+      </p>
+      <p class="v-muted" data-testid="insights-heatmap">
+        Peak hour {patterns.peakHour.i} · weekday {patterns.peakWeekday.i}
+      </p>
+      <p class="v-muted" data-testid="insights-rank">
+        {rank.topProduct} · {rank.topCount}
+      </p>
 
       <div class="v-section-label">Top credit</div>
       {credit.groups.length ? (

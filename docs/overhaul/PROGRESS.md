@@ -1,19 +1,19 @@
 # Overhaul progress
 
-Update at the end of every session. Phase 6 is cleared. Next is Phase 7.
+Update at the end of every session. Phase 7 is cleared. Next is Phase 8.
 
 | Field | Value |
 |-------|-------|
-| Current phase | Phase 6 cleared. Phase 7 not started |
+| Current phase | Phase 7 cleared. Phase 8 not cleared |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | Phase 6 scenarios S29–S33, S45, S46, S48, S49: 9 passed. L4 4 passed. Scout sale is 5 taps |
-| Next step | Phase 7 back office and the open parity rows. See `HANDOFF.md` |
+| Tests passing | `npm test` 166 passed. `npm run typecheck` passed. Full Playwright 122 passed, 2 skipped, 0 failed (15.4m) |
+| Next step | Phase 8 approved improvements. Do not apply `client_sale_id`. Do not deploy |
 | Open questions for the owner | Live Maps for production, and deploy/ship. D11 look is approved (2026-11-12). Checkpoints for Phases 4, 5, and 8 are waived. Do not apply `client_sale_id` |
 
 ## Ready vs open
 
-**Phase 6 is cleared.** S29–S33, S45, S46, S48, and S49 passed together (9 passed) on the mock at `/next/`. Phase 7 has not been started. The parity checklist still has open rows, listed in `HANDOFF.md`.
+**Phase 7 is cleared.** S34–S44, S47, and S50 passed inside the full Playwright run (122 passed, 2 skipped, 0 failed). The parity checklist is ticked except five rows that need a deploy or the cutover service worker. Phase 8 is next. The checkpoint is waived. Do not apply `client_sale_id`.
 
 **Tap count.** Scout, one mint, recent client Test Client A, paid: tile, flavour, Add, client chip, Charge. **5 taps** (target ≤ 6).
 
@@ -55,4 +55,5 @@ Update at the end of every session. Phase 6 is cleared. Next is Phase 7.
 | 2026-11-12 | 3 | Phase 3 cleared. Data coverage 87.24%. v1 IDB, cart, and auth session. Checkout rollback and queue | `0f8f0c1` |
 | 2026-11-12 | 4 | Phase 4 cleared. D11 look. Shell JS 27926 B gzip, CSS 4470 B gzip. Axe /sell and /system clean | `95485a5` |
 | 2026-11-12 | 5 | Phase 5 cleared. S01–S28 in the 109-pass run. L4 4 passed. Scout sale is 5 taps. Sheet ≤ 100 ms at 4× CPU | `edb16fe` |
-| 2026-11-12 | 6 | Phase 6 cleared. S29–S33, S45, S46, S48, S49: 9 passed on the mock | this commit |
+| 2026-11-12 | 6 | Phase 6 cleared. S29–S33, S45, S46, S48, S49: 9 passed on the mock | `29684fc` |
+| 2026-11-12 | 7 | Phase 7 cleared. Full Playwright 122 passed, 2 skipped. npm test 166 passed. Five deploy-gated checklist rows stay open | this commit |

@@ -5,7 +5,7 @@ import { enqueueSale, shouldQueueSale } from './outbox';
 import { applySoldToInventory, mergeSoldBreakdown } from '../domain/inventory-delta';
 import { categoryLabel, soldExcludingHold } from '../domain/stock-reservation';
 import { buildSalePostBody, type CheckoutDeliveryInput } from '../domain/sale-payload';
-import { BASE_ORIGIN } from '../domain/geo';
+import { resolveDeliveryOrigin } from '../domain/geo';
 import { functionFetch } from './api';
 import { postClient } from './writes/clients';
 import { postDelivery } from './writes/deliveries';
@@ -25,7 +25,7 @@ export type CheckoutInput = {
 };
 
 export type CheckoutResult =
-  | { ok: true; sale: SaleRow; queued?: boolean }
+  | { ok: true; sale: SaleRow; queued?: boolean; delivery?: Promise<void> }
   | { ok: false; error: string; restored: boolean };
 
 let inFlight = false;
@@ -168,14 +168,14 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
     }
 
     void loadSales({ force: true }).catch(() => {});
-    await recordDelivery({
+    const delivery = recordDelivery({
       saleId: String(sale.id || ''),
       clientId,
       clientName,
       meta: input.meta,
       checkout: input.checkout,
     });
-    return { ok: true, sale };
+    return { ok: true, sale, delivery };
   } catch (e) {
     if (features.offlineQueue && saleBody && shouldQueueSale(e, input.meta.storeOrderId)) {
       const clientSaleId =
@@ -245,12 +245,11 @@ async function recordDelivery(input: {
     origin?: { lat?: number | null; lng?: number | null } | null;
     originText?: string;
   };
-  const originLat = Number(draft.origin?.lat);
-  const originLng = Number(draft.origin?.lng);
-  const origin =
-    Number.isFinite(originLat) && Number.isFinite(originLng)
-      ? { lat: originLat, lng: originLng, label: draft.originText || 'GPS pickup' }
-      : BASE_ORIGIN;
+  const origin = resolveDeliveryOrigin(
+    draft.origin
+      ? { lat: draft.origin.lat, lng: draft.origin.lng, label: draft.originText || 'GPS pickup' }
+      : null,
+  );
   try {
     await postDelivery({
         client_id: input.clientId,

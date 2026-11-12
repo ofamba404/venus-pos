@@ -1,4 +1,5 @@
 import { signal } from '@preact/signals';
+import { legacyTarget } from '../domain/legacy-urls';
 
 export type RouteId =
   | 'sell'
@@ -52,15 +53,23 @@ export function currentRoute() {
 }
 
 export function go(path: string, opts?: { replace?: boolean }) {
+  const hashAt = path.indexOf('#');
+  const bare = hashAt >= 0 ? path.slice(0, hashAt) : path;
+  const hash = hashAt >= 0 ? path.slice(hashAt) : '';
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-  const full = `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  const full = `${base}${bare.startsWith('/') ? bare : `/${bare}`}${hash}`;
   if (opts?.replace) history.replaceState({}, '', full);
   else history.pushState({}, '', full);
-  routeId.value = pathToId(path);
+  routeId.value = pathToId(bare);
 }
 
 export function bootRouter() {
   const sync = () => {
+    const target = legacyTarget(location.pathname, location.hash);
+    if (target) {
+      go(target, { replace: true });
+      return;
+    }
     routeId.value = pathToId(location.pathname);
   };
   sync();

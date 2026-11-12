@@ -3,6 +3,7 @@ import { KEYS } from '../../data/keys';
 import { allowDevBypass, authRole, authSession, signOut } from '../../data/auth';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
+import { INSTALL_STEPS } from '../../domain/parity';
 
 function readJson(key: string) {
   try {
@@ -82,6 +83,9 @@ export function SettingsPage() {
         </Button>
         <div class="v-muted">
           Push subscribe stays on legacy until `/next` SW is registered (Phase 10). Prefs save now.
+        </div>
+        <div class="v-muted" data-testid="install-steps">
+          {INSTALL_STEPS.join(' ')}
         </div>
         <div class="v-muted">Build {typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'}</div>
         <Button variant="danger" data-testid="sign-out" onClick={logout}>

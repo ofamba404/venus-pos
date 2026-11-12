@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { CATEGORIES } from '../../domain/catalog';
 import { stockLevel } from '../../domain/stock-state';
+import { stockGlance } from '../../domain/parity';
 import {
   adjustInventory,
   ensureInventory,
@@ -107,6 +108,12 @@ export function StockPage() {
   return (
     <section>
       <h1 class="page-title">Stock</h1>
+      <p class="v-muted" data-testid="stock-glance">
+        {(() => {
+          const glance = stockGlance(CATEGORIES.map((c) => stockLevel(c.id, inventory.value[c.id] || 0)));
+          return `${glance.out} out · ${glance.low} low · ${glance.ok} ok`;
+        })()}
+      </p>
       {!inventoryReady.value ? <p class="v-muted">Loading…</p> : null}
       <div class="v-section-label">Joints</div>
       <div class="stock-grid">

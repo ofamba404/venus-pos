@@ -6,6 +6,8 @@ import { hydrateAuth, allowDevBypass, canAccessPath, authReady } from '../data/a
 import { bootstrapEntities, loadClients, loadDeliveries, loadSales, storeOrders, syncLabel, ensureInventory } from '../data/entities';
 import { isFresh } from '../data/freshness';
 import { readConnection, scheduleIdlePrefetch, shouldSkipPrefetch, staleEntities } from '../data/prefetch';
+import { KEYS } from '../data/keys';
+import { SCHEDULE_POLL_MS, tickLocalSchedules } from '../domain/schedule-notify';
 import { ToastHost, showToast } from '../ui/ToastHost';
 import { IconSell, IconOrders, IconStock, IconMore } from '../ui/icons';
 import { SellPage } from '../features/sell/SellPage';
@@ -51,9 +53,23 @@ export function App() {
         if (stale.includes('inventory')) void ensureInventory().catch(() => {});
       });
     });
+    const scheduleTick = window.setInterval(() => {
+      try {
+        const prefs = JSON.parse(localStorage.getItem(KEYS.notifPrefs) || '{}') as { schedules?: boolean };
+        const fired = JSON.parse(localStorage.getItem(KEYS.notifFired) || '{}') as Record<string, string>;
+        const next = tickLocalSchedules([], fired, prefs.schedules === true);
+        if (next.titles.length) {
+          localStorage.setItem(KEYS.notifFired, JSON.stringify(next.fired));
+          next.titles.forEach((title) => showToast(title));
+        }
+      } catch {
+        /* private mode or a bad prefs blob */
+      }
+    }, SCHEDULE_POLL_MS);
     return () => {
       alive = false;
       stopPrefetch();
+      window.clearInterval(scheduleTick);
     };
   }, []);
 

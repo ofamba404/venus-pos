@@ -110,6 +110,22 @@ export function expandPartnerUnitsFromSales(sales: PartnerSale[] | null | undefi
   return units;
 }
 
+/**
+ * Drop a corrupted “all cookies settled” local value back to the baseline.
+ * Same rule as `syncCookiePartnerSettledQty` in `legacy/js/revenue.js`.
+ */
+export function sanitizeCookiePartnerSettled(
+  qty: number,
+  totalCookies: number,
+  baseline = COOKIE_PARTNER_SETTLED_BASELINE,
+): number {
+  if (!Number.isFinite(qty) || qty < 0) return baseline;
+  const q = Math.floor(qty);
+  const total = Math.max(0, Math.floor(Number(totalCookies) || 0));
+  if (total > baseline && q >= total) return baseline;
+  return q;
+}
+
 /** Open (unsettled) batches after the baseline of already-settled cookies. */
 export function openPartnerBatches(
   sales: PartnerSale[] | null | undefined,

@@ -7,9 +7,13 @@ import { Field } from '../../ui/Field';
 import { IconMinus, IconPlus } from '../../ui/icons';
 import { useState } from 'preact/hooks';
 import { CAT_MAP } from '../../domain/catalog';
+import { debugLogText, pushDebug, type DebugEntry } from '../../domain/parity';
+import { loadSales } from '../../data/entities';
+import { showToast } from '../../ui/ToastHost';
 
 export function SystemPage() {
   const [seg, setSeg] = useState<'a' | 'b'>('a');
+  const [debugLog, setDebugLog] = useState<DebugEntry[]>([]);
   return (
     <section>
       <h1 class="page-title">System</h1>
@@ -47,6 +51,42 @@ export function SystemPage() {
       />
       <div style={{ height: 12 }} />
       <Field label="Customer" placeholder="Amina" />
+      <div class="v-section-label">Debug</div>
+      <div class="v-chip-row">
+        <Button
+          size="md"
+          variant="secondary"
+          data-testid="debug-capture"
+          onClick={() => setDebugLog((log) => pushDebug(log, 'capture'))}
+        >
+          Capture
+        </Button>
+        <Button
+          size="md"
+          variant="secondary"
+          data-testid="debug-copy"
+          onClick={() => {
+            void navigator.clipboard?.writeText(debugLogText(debugLog));
+            showToast(debugLog.length ? 'Log copied' : 'Log is empty');
+          }}
+        >
+          Copy log
+        </Button>
+        <Button
+          size="md"
+          variant="secondary"
+          data-testid="debug-recover"
+          onClick={() =>
+            void loadSales({ force: true }).then(
+              () => showToast('Data reloaded'),
+              () => showToast('Could not reload data'),
+            )
+          }
+        >
+          Reload from server
+        </Button>
+      </div>
+      <pre data-testid="debug-log">{debugLogText(debugLog)}</pre>
       <div class="v-section-label">Stepper</div>
       <div class="stepper">
         <button type="button" aria-label="Decrease">
