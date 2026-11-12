@@ -5,6 +5,7 @@ import {
   S03,
   S04,
   S05,
+  S06,
   S07,
   S08,
   S09,
@@ -92,6 +93,12 @@ test.describe('write-contract scenarios (next)', () => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S05);
     expect(saleTotal(driver).total).toBe(32500);
+  });
+
+  test('S06 wholesale cookies at a custom unit price', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await driver.run(S06);
+    expect(saleTotal(driver).total).toBe(25000);
   });
 
   test('S07 Plain × 3', async ({ page }) => {

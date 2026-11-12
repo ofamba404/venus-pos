@@ -11,7 +11,7 @@ Legend: **S** = staff and admin, **A** = admin only.
 | [ ] | Product catalog and prices (packs 8,000 / 15,000 / 35,000 / 50,000; cookie packs 15,000 / 21,000 / 25,000; Plain and Bangis 5,000; cookies butterscotch 5,000, chocolate/mint/strawberry 8,000; wholesale manual) | S | `js/config.js:18-23`, `182-231` | dual-run catalog, S01–S09 |
 | [x] | Pack flavour rules: `choose_any`, `choose_variety`, Quartet fixed butterscotch, cookie choice pool excludes butterscotch | S | `js/config.js:118-124`, `js/product-config.js` | dual-run pack-config, S03, S09 |
 | [x] | Flavoured cookie bulk pricing (≥ 4 → 6,500; packs repriced) | S | `js/flavored-cookie-pricing.js:28-129` | dual-run, S04, S05 |
-| [ ] | Wholesale cookies with custom unit price | S | `js/product-config.js` | S06 |
+| [x] | Wholesale cookies with custom unit price | S | `js/product-config.js` | S06 |
 | [ ] | Draft stock shown in config; counter lines cap at refreshed on-hand stock (D16). A badge still does not block opening the product | S | `js/orders.js` `draftStock`, `SellPage` | S01, L4 |
 | [ ] | Edit a cart line with preserved config state | S | `js/orders.js:2142-2182` | S16 |
 | [ ] | Client autocomplete with "owes" hint | S | `js/client-autocomplete.js` | S01, S12 |
