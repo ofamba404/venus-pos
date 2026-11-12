@@ -14,7 +14,7 @@ Feel: calm, exact, fast. Premium through restraint and precise type, not decorat
 
 1. Light theme only in v2. Tokens are structured so a dark theme can be added later (D10).
 2. Fonts: **Geograph** (UI), **Akkurat Mono** (all money, counts, times, IDs), **Self Modern** (display moments only). Self-hosted from `assets/fonts/` (files already exist in POS and match the storefront).
-3. Primary actions are solid ink. There is no brand-coloured primary button.
+3. Primary actions are solid ink. There is no brand-coloured primary button. Amber is the highlight (totals, celebration, focus, active-nav marker). Green is for paid, done and success only. Red is for overdue and errors. Flavour colours never change.
 4. Flavour colours come only from the catalog. Never invent a flavour colour; never use flavour colour for text.
 5. Money is always mono with tabular numerals, formatted by `formatUGX`.
 6. One signature motion: the "sale recorded" check (§6.3). Nothing else animates for decoration.
@@ -40,8 +40,13 @@ All values below are the implementation. Hex values appear **only** in `src/styl
 | `--stroke-400` | `#cdcdcd` | `--color-stroke` |
 | `--red-700` | `#9c0f0f` | `--color-red` |
 | `--green-600` | `#16a34a` | `--color-green-600` |
+| `--green-700` | `#15803d` | Success fill (white icon on it ≥ 5:1) |
 | `--amber-100` | `#fef3c7` | `--color-amber-100` |
+| `--amber-500` | `#f5a524` | Highlight fill (nav marker, chart bars, cart CTA on ink). Never text on light |
+| `--amber-600` | `#d97706` | Borders and large strokes on amber tint |
+| `--amber-700` | `#b04f08` | **All amber text**, money, focus ring. 5.3:1 on white, 4.8:1 on `--paper-50`, 4.7:1 on the pink and success tints. `#b45309` missed 4.5:1 on those |
 | `--amber-800` | `#92400e` | `--color-amber-800` |
+| `--pink-300` | `#f4a6c1` | Storefront pink. Source of `--pink-tint` |
 
 ### 3.2 Colour — semantic roles (use these in components, never ramps)
 
@@ -53,17 +58,22 @@ All values below are the implementation. Hex values appear **only** in `src/styl
 | `--surface-selected` | `var(--paper-200)` | Selected rows/chips (non-primary) |
 | `--fg` | `var(--ink-900)` | Primary text and icons |
 | `--fg-2` | `var(--ink-700)` | Secondary text (≥ 4.5:1 on `--bg`) |
-| `--fg-3` | `var(--ink-500)` | Meta text only, ≥ 14 px |
+| `--fg-3` | `var(--ink-500)` | Meta text only, ≥ 14 px (AA on `--paper-50` and the amber, pink and success tints) |
 | `--fg-disabled` | `var(--ink-300)` | Disabled text/icons (never for information) |
 | `--line` | `var(--paper-200)` | Dividers, card borders |
 | `--line-strong` | `var(--stroke-400)` | Input borders, swatch outlines |
-| `--action` | `var(--ink-900)` | Primary button fill, active nav pill, focus ring |
+| `--action` | `var(--ink-900)` | Primary button fill, active tab or filter pill, cart bar |
+| `--accent` / `--accent-ink` | `var(--ink-900)` | Brand ink for chart lines, bars and links. It was green before the retheme |
+| `--highlight` | `var(--amber-500)` | Highlights: active nav marker, chart bars, cart CTA text on ink, celebration glow |
+| `--money` | `var(--amber-700)` | Totals and every money figure that uses the amber voice (AA at any size) |
+| `--amber-tint` / `--pink-tint` | `#fff4dc` / `#fdeef4` | Highlight panels (loaded order, delivery block, auth) / pack tiles and KPI tiles |
 | `--on-action` | `var(--paper-0)` | Text on primary |
 | `--danger` | `var(--red-700)` | Destructive buttons, debt amounts, errors |
-| `--success` | `var(--green-600)` | Success icon fills, "Paid" dot, Live dot. **Never small text** (contrast 3.3:1); pair with ink text |
+| `--success` | `var(--green-700)` | Green means paid, done or success only: success check, "Paid" tag, Live dot, copied tick |
+| `--success-ink` / `--success-tint` | `#166534` / `#e5f6f1` | Small text on a paid tag; paid chips |
 | `--warn-bg` / `--warn-fg` | `var(--amber-100)` / `var(--amber-800)` | Low-stock tags and banners |
 | `--scrim` | `rgb(33 33 33 / 0.32)` | Behind sheets and dialogs |
-| `--focus` | `var(--ink-900)` | 2 px focus ring + 2 px `--surface` offset |
+| `--focus` | `var(--amber-700)` | 2 px amber focus ring + 2 px offset |
 
 ### 3.3 Flavour colour
 

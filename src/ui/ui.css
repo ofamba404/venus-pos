@@ -121,11 +121,7 @@
 }
 
 .v-money--amber {
-  color: var(--melon);
-}
-
-.v-money--xl.v-money--amber {
-  color: var(--melon-text-lg);
+  color: var(--money);
 }
 
 .v-qty {
@@ -139,8 +135,8 @@
   align-items: center;
   justify-content: center;
   font: 500 13px/1 var(--font-mono);
-  color: var(--accent-ink);
-  background: var(--mint-tint);
+  color: var(--ink-900);
+  background: var(--amber-tint);
 }
 
 .v-cart-line {
@@ -257,15 +253,15 @@
 }
 
 .v-copy-btn--phone {
-  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  background: color-mix(in srgb, var(--ink-900) 8%, var(--surface));
   color: var(--accent-ink);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink-900) 35%, transparent);
 }
 
 .v-copy-btn--place {
-  background: var(--melon-tint);
+  background: var(--amber-tint);
   color: var(--amber-800);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--melon) 45%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--amber-600) 60%, transparent);
 }
 
 .v-copy-btn--pill {
@@ -278,7 +274,7 @@
 }
 
 .v-copy-btn.is-done {
-  background: var(--accent);
+  background: var(--success);
   color: var(--on-action);
   box-shadow: none;
 }
@@ -297,7 +293,7 @@
   padding: calc(var(--s-6) + env(safe-area-inset-top, 0px)) var(--gutter)
     calc(var(--s-6) + env(safe-area-inset-bottom, 0px));
   background:
-    radial-gradient(120% 70% at 50% -20%, var(--mint-tint), transparent 60%),
+    radial-gradient(120% 70% at 50% -20%, var(--amber-tint), transparent 60%),
     var(--bg);
 }
 
@@ -321,7 +317,7 @@
   font: var(--t-mono-micro);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--amber-700);
 }
 
 .auth-title {
@@ -362,8 +358,8 @@
   min-height: 36px;
   padding: 0 12px;
   border-radius: var(--r-pill);
-  background: var(--mint-tint);
-  color: var(--accent-ink);
+  background: var(--amber-tint);
+  color: var(--ink-900);
   font: var(--t-meta);
 }
 
@@ -381,8 +377,8 @@
 }
 
 .auth-note {
-  background: var(--mint-tint);
-  color: var(--accent-ink);
+  background: var(--amber-tint);
+  color: var(--ink-900);
 }
 
 .auth-link {
@@ -392,7 +388,7 @@
   margin-top: var(--s-2);
   padding: 0;
   background: transparent;
-  color: var(--accent-ink);
+  color: var(--ink-900);
   font: var(--t-label);
 }
 
@@ -403,14 +399,14 @@
   height: 96px;
   padding: 12px;
   border-radius: var(--r-lg);
-  background: var(--mint-tint);
+  background: var(--amber-tint);
 }
 
 .v-chart__bar {
   flex: 1;
   min-height: 8px;
   border-radius: var(--r-pill);
-  background: var(--accent);
+  background: var(--highlight);
 }
 
 .v-heat {
@@ -479,14 +475,19 @@
 }
 
 .v-tag.is-active {
-  background: var(--mint-tint);
-  color: var(--accent-ink);
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+  background: var(--ink-900);
+  color: var(--on-action);
+  box-shadow: none;
+}
+
+.v-tag--amber {
+  background: var(--amber-tint);
+  color: var(--amber-800);
 }
 
 .v-tag--paid {
-  background: color-mix(in srgb, var(--success) 16%, var(--surface));
-  color: var(--fg);
+  background: color-mix(in srgb, var(--success) 14%, var(--surface));
+  color: var(--success-ink);
 }
 
 .v-tag--credit {
@@ -604,7 +605,7 @@
 }
 
 .v-tile[data-kind='joint'] {
-  background: var(--mint-tint);
+  background: var(--pink-tint);
 }
 
 .kpi-tile__top {
@@ -691,7 +692,7 @@ button.kpi-tile {
   min-width: 0;
   padding: 12px;
   border-radius: var(--r-lg);
-  background: var(--mint-tint);
+  background: var(--pink-tint);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
@@ -711,7 +712,7 @@ button.kpi-tile {
 }
 
 .kpi-tile__trend--up {
-  color: var(--accent);
+  color: var(--success-ink);
 }
 
 .kpi-tile__trend--down {
@@ -796,11 +797,11 @@ button.kpi-tile {
   gap: 12px;
   padding: 12px;
   border-radius: var(--r-lg);
-  background: var(--mint-tint);
+  background: var(--amber-tint);
 }
 
 .delivery-block .v-section-label {
-  color: var(--accent-ink);
+  color: var(--amber-800);
 }
 
 .celebration {
@@ -808,6 +809,12 @@ button.kpi-tile {
   justify-items: center;
   gap: 8px;
   padding: 32px 0;
+  border-radius: var(--r-lg);
+  background: radial-gradient(110% 60% at 50% 0%, var(--amber-tint), transparent 70%);
+}
+
+.celebration .success-check {
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--highlight) 35%, transparent);
 }
 
 .celebration__message {
@@ -871,8 +878,8 @@ button.kpi-tile {
 }
 
 .v-seg__btn.is-on {
-  background: var(--surface);
-  color: var(--fg);
+  background: var(--ink-900);
+  color: var(--on-action);
   box-shadow: var(--e-1);
 }
 
@@ -1163,7 +1170,7 @@ button.kpi-tile {
 }
 
 .v-stat:nth-child(4n + 1) {
-  background: var(--mint-tint);
+  background: var(--pink-tint);
 }
 
 .v-stat:nth-child(4n + 2) {
@@ -1303,7 +1310,7 @@ button.kpi-tile {
 }
 
 .v-review__stars {
-  color: var(--melon);
+  color: var(--amber-600);
   letter-spacing: 2px;
   font: var(--t-label);
 }
@@ -1394,7 +1401,7 @@ button.kpi-tile {
 }
 
 .chart-area {
-  fill: var(--mint-tint);
+  fill: var(--amber-tint);
 }
 
 .chart-line {
@@ -1628,9 +1635,9 @@ button.kpi-tile {
   min-height: 48px;
   padding: 0 var(--s-4);
   border-radius: var(--r-pill);
-  background: var(--mint-tint);
-  color: var(--accent-ink);
-  box-shadow: inset 0 0 0 1.5px var(--accent);
+  background: var(--amber-tint);
+  color: var(--ink-900);
+  box-shadow: inset 0 0 0 1.5px var(--amber-600);
   font: var(--t-label);
   transition: transform var(--d-instant) var(--ease-out);
 }
@@ -1698,7 +1705,7 @@ button.kpi-tile {
 }
 
 .owe__chip--paid {
-  background: var(--mint-tint);
+  background: var(--success-tint);
 }
 
 .owe__chip-label {
@@ -1719,8 +1726,8 @@ button.kpi-tile {
   min-width: 0;
   padding: var(--s-4);
   border-radius: var(--r-lg);
-  background: var(--mint-tint);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint) 30%, transparent);
+  background: var(--amber-tint);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber-600) 45%, transparent);
 }
 
 .v-loaded-order__top {
@@ -1734,7 +1741,7 @@ button.kpi-tile {
   font: var(--t-meta);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--accent-ink);
+  color: var(--amber-800);
 }
 
 .v-loaded-order__name {

@@ -11,7 +11,12 @@
   --red-700: #9c0f0f;
   --green-600: #16a34a;
   --amber-100: #fef3c7;
+  --amber-500: #f5a524;
+  --amber-600: #d97706;
+  --amber-700: #b04f08;
   --amber-800: #92400e;
+  --pink-300: #f4a6c1;
+  --green-700: #15803d;
 
   --bg: var(--paper-50);
   --surface: var(--paper-0);
@@ -25,29 +30,34 @@
   --line-strong: var(--stroke-400);
   --mint: #0f8f78;
   --melon: #ef7d1a;
-  /* Orange for large money (24px and up). 3.5:1 on white; --melon itself is 2.76:1. */
-  --melon-text-lg: #d9680c;
   --grape: #6d4ea3;
   --blueberry: #3156c9;
   --watermelon: #e23b4a;
   --strawberry: #d81e2c;
   --coconut: #5f8f6a;
   --plain: #c4a574;
-  --accent: #0b7a62;
-  --accent-ink: #084e3e;
+  /* Brand ink leads. Amber is the highlight. Green is only for paid, done and success. */
+  --accent: var(--ink-900);
+  --accent-ink: var(--ink-900);
+  --highlight: var(--amber-500);
+  --amber-tint: #fff4dc;
+  --pink-tint: #fdeef4;
   --mint-tint: #e5f6f1;
+  --success-tint: #e5f6f1;
+  --success-ink: #166534;
+  --money: var(--amber-700);
   --melon-tint: #fff1e2;
   --grape-tint: #f3eef8;
   --berry-tint: #fdecee;
 
-  --action: var(--accent);
+  --action: var(--ink-900);
   --on-action: #ffffff;
   --danger: var(--red-700);
-  --success: var(--green-600);
+  --success: var(--green-700);
   --warn-bg: var(--amber-100);
   --warn-fg: var(--amber-800);
   --scrim: rgb(33 33 33 / 0.32);
-  --focus: var(--ink-900);
+  --focus: var(--amber-700);
 
   --font-ui: 'Geograph', 'Segoe UI', sans-serif;
   --font-mono: 'Akkurat Mono', ui-monospace, monospace;

@@ -247,7 +247,7 @@ export function OrdersPage() {
             }
           >
             <div class="v-order-card__actions">
-              <Tag tone={o.delivery_enabled === false ? 'default' : 'paid'}>
+              <Tag tone={o.delivery_enabled === false ? 'default' : 'amber'}>
                 {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
               </Tag>
               {seg === 'waiting' ? (

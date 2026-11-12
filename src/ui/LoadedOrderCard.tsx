@@ -37,7 +37,7 @@ export function LoadedOrderCard({
     <section class="v-loaded-order" data-testid={testId} data-mode={delivery ? 'delivery' : 'pickup'}>
       <div class="v-loaded-order__top">
         <span class="v-loaded-order__kicker">Store order</span>
-        <Tag tone={delivery ? 'paid' : 'default'}>{delivery ? 'Delivery' : 'Pickup'}</Tag>
+        <Tag tone={delivery ? 'amber' : 'default'}>{delivery ? 'Delivery' : 'Pickup'}</Tag>
       </div>
       <div class="v-loaded-order__name" data-testid={`${testId}-name`}>
         {name || 'Store order'}

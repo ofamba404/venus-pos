@@ -74,6 +74,7 @@
 }
 
 .shell__nav-btn {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -105,6 +106,16 @@
 
 .shell__nav-btn.is-on {
   color: var(--fg);
+}
+
+.shell__nav-btn.is-on::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 28px;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--highlight);
 }
 
 .shell__nav-btn.is-on svg {
@@ -149,6 +160,13 @@
     background: var(--surface-selected);
   }
 
+  .shell__nav-btn.is-on::before {
+    top: auto;
+    left: 0;
+    width: 3px;
+    height: 24px;
+  }
+
   .shell__main {
     grid-column: 2;
     padding-bottom: var(--s-8);
@@ -181,6 +199,7 @@
 .cart-bar__cta {
   font: var(--t-title-sm);
   line-height: 1.2;
+  color: var(--highlight);
 }
 
 .cart-total {
@@ -477,7 +496,7 @@
   height: 64px;
   margin: 0 auto var(--s-4);
   border-radius: var(--r-pill);
-  background: var(--action);
+  background: var(--success);
   color: var(--on-action);
   display: grid;
   place-items: center;
@@ -501,6 +520,7 @@
 }
 
 .success-total {
+  color: var(--money);
   font: var(--t-display);
   text-align: center;
   margin: 0 0 var(--s-2);
