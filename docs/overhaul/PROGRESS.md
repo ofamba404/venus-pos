@@ -7,8 +7,8 @@ Update at the end of every session.
 | Current phase | Phase 8. D1–D6 answered 2026-11-12. Build walk-in, offline queue, device hold |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | typecheck clean · 89 unit/dual-run · 10 Playwright contract |
-| Next step | Phase 8: walk-in chip (D2), offline sales queue (D4), device-only hold (D6). Skip receipt (D3) and shift close (D5). No deploy |
+| Tests passing | typecheck clean · 93 unit/dual-run · 10 Playwright contract (not re-run this slice) |
+| Next step | Phase 8 features are in locally. Next: Phase 0 exit gaps (legacy driver, baselines, CI Playwright), then parity rows. No deploy |
 | Open questions for the owner | None for Phase 8. D11 look, live Maps, and deploy stay blocked until the owner is back |
 
 ## Ready vs open (before a parallel run)

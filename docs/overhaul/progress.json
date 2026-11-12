@@ -2,8 +2,8 @@
   "phase": "8 — walk-in, offline queue, device hold (D1–D6 answered)",
   "branch": "overhaul",
   "commit": "see git log -1",
-  "next": "Phase 8: walk-in chip for paid sales (D2), offline sales queue (D4), device-only hold (D6). Do not build payment methods (D1), WhatsApp receipt (D3), or shift close (D5). Do not push or deploy. Phases 9–10 still need a deploy cue.",
-  "status": "D1–D6 recorded. D16 stock reservation is committed and not deployed. Phase 8 local: walk-in chip, device-only hold, offline outbox. client_sale_id SQL is written and not applied. Phase 0–7 exit criteria still open (legacy driver, full S01–S50, baselines, parity rows). Typecheck clean.",
+  "next": "Phase 8 walk-in, hold, and offline outbox are local. Next automatable work is Phase 0 exit gaps: legacy scenario driver, baselines, CI Playwright, then parity rows. Do not push or deploy. Do not apply client_sale_id until the owner approves. Phases 9–10 still need a deploy cue.",
+  "status": "D1–D6 recorded. D16 stock reservation committed, not deployed. Phase 8 local: walk-in, device hold, offline outbox. client_sale_id SQL written, not applied. Phase 0–7 exit criteria still open. 93 unit/dual-run. Typecheck clean. Playwright contract slice not re-run.",
   "ownerGate": {
     "ready": "D1–D6 answered 2026-11-12. See docs/overhaul/08-decisions.md.",
     "phase8": "In progress. Build D2 walk-in, D4 offline queue, D6 device hold. Skip D3 and D5. D1 stays paid/credit.",
