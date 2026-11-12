@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'preact/hooks';
-import { loadSales, sales, type SaleRow } from '../../data/entities';
-import { bumpFirstLine, saleItems, saveSaleItems, voidSaleRecord } from '../../data/sale-edit';
+import { clients, loadClients, loadSales, sales, type SaleRow } from '../../data/entities';
+import { saleItems, saveSaleEdit, voidSaleRecord } from '../../data/sale-edit';
+import { postClient } from '../../data/writes/clients';
+import { CAT_MAP } from '../../domain/catalog';
+import { productImageSrc } from '../../domain/product-art';
 import { groupSalesByDay, partitionThisWeek } from '../../domain/history-groups';
 import { Money } from '../../ui/Money';
 import { Tag } from '../../ui/Tag';
 import { Segmented } from '../../ui/Segmented';
 import { Sheet } from '../../ui/Sheet';
 import { Button } from '../../ui/Button';
+import { FlavorDot } from '../../ui/FlavorDot';
 import { showToast } from '../../ui/ToastHost';
+import { HistoryEditSheet } from './HistoryEditSheet';
 
 type Filter = 'all' | 'week' | 'credit';
 
@@ -18,9 +23,12 @@ export function HistoryPage() {
   const [draft, setDraft] = useState<ReturnType<typeof saleItems>>([]);
   const [voiding, setVoiding] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editCredit, setEditCredit] = useState(false);
+  const [editCleared, setEditCleared] = useState(false);
 
   useEffect(() => {
-    void loadSales().catch((e) =>
+    void Promise.all([loadSales(), loadClients()]).catch((e) =>
       showToast(e instanceof Error ? e.message : 'Could not load history'),
     );
   }, []);
@@ -46,7 +54,23 @@ export function HistoryPage() {
     if (!open || busy) return;
     setBusy(true);
     try {
-      await saveSaleItems(open, draft);
+      const typed = editName.trim();
+      const match = clients.value.find((c) => String(c.name || '').trim().toLowerCase() === typed.toLowerCase());
+      let clientId = typed ? match?.id || open.client_id || null : null;
+      if (typed && !match) {
+        const created = await postClient(typed);
+        if (created.ok) {
+          const rows = (await created.json().catch(() => [])) as Array<{ id?: string }>;
+          clientId = rows[0]?.id || clientId;
+          await loadClients().catch(() => {});
+        }
+      }
+      await saveSaleEdit(open, {
+        items: draft,
+        clientId,
+        isCredit: editCredit,
+        creditCleared: editCleared,
+      });
       showToast('Order updated');
       closeAll();
     } catch (e) {
@@ -103,6 +127,9 @@ export function HistoryPage() {
             const full = (sales.value.find((row) => row.id === s.id) || s) as SaleRow;
             const credit = Boolean(full.is_credit && !full.credit_cleared);
             const delivery = Boolean(full.delivery_enabled);
+            const person = clients.value.find((c) => c.id === full.client_id)?.name;
+            const items = saleItems(full);
+            const first = items[0];
             return (
               <button
                 type="button"
@@ -115,15 +142,29 @@ export function HistoryPage() {
                   setVoiding(false);
                 }}
               >
+                {first?.product_id ? (
+                  <img class="v-thumb" src={productImageSrc(String(first.product_id))} alt="" />
+                ) : null}
                 <div class="v-list-row__main">
                   <div class="v-list-row__title">
-                    {new Date(s.created_at || '').toLocaleString('en-GB', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {person || (full.store_order_id ? 'Store customer' : 'Counter')}
                   </div>
-                  <div class="v-list-row__meta">
-                    {full.store_order_id ? 'Store order' : delivery ? 'Delivery' : 'Counter'}
+                  <div class="v-list-row__meta v-dots">
+                    {items.slice(0, 3).map((item, index) => (
+                      <span class="v-dots" key={`${item.product_id}-${index}`}>
+                        {Object.keys(item.breakdown || {}).map((id) =>
+                          CAT_MAP[id] ? <FlavorDot key={id} color={CAT_MAP[id]!.color} /> : null,
+                        )}
+                        {item.product_name || 'Item'}
+                      </span>
+                    ))}
+                    <span>
+                      {new Date(s.created_at || '').toLocaleString('en-GB', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                      {delivery ? ' · Delivery' : ''}
+                    </span>
                   </div>
                 </div>
                 <Tag tone={credit ? 'credit' : 'paid'}>{credit ? 'Credit' : 'Paid'}</Tag>
@@ -153,6 +194,10 @@ export function HistoryPage() {
               data-testid="sale-edit"
               onClick={() => {
                 setDraft(saleItems(open));
+                const person = clients.value.find((c) => c.id === open.client_id)?.name || '';
+                setEditName(person);
+                setEditCredit(Boolean(open.is_credit));
+                setEditCleared(Boolean(open.credit_cleared));
                 setEditing(true);
               }}
             >
@@ -165,25 +210,23 @@ export function HistoryPage() {
         ) : null}
       </Sheet>
 
-      <Sheet open={editing} title="Edit sale" onClose={() => setEditing(false)} dismissible={false}>
-        <div style={{ display: 'grid', gap: 12 }}>
-          {draft.map((item, index) => (
-            <div key={`${item.product_id}-${index}`}>
-              <div class="v-list-row__title">{item.product_name || 'Item'}</div>
-              <div class="v-list-row__meta">{item.detail}</div>
-              <div class="v-list-row__meta">
-                <Money value={Number(item.line_total) || 0} />
-              </div>
-            </div>
-          ))}
-          <Button data-testid="sale-edit-inc" variant="secondary" onClick={() => setDraft(bumpFirstLine(draft))}>
-            Add 1
-          </Button>
-          <Button data-testid="sale-edit-save" disabled={busy} onClick={() => void saveEdit()}>
-            Save sale
-          </Button>
-        </div>
-      </Sheet>
+      <HistoryEditSheet
+        open={editing}
+        busy={busy}
+        draft={draft}
+        name={editName}
+        credit={editCredit}
+        cleared={editCleared}
+        onClose={() => setEditing(false)}
+        onName={setEditName}
+        onCredit={(next) => {
+          setEditCredit(next);
+          if (!next) setEditCleared(false);
+        }}
+        onCleared={setEditCleared}
+        onDraft={setDraft}
+        onSave={() => void saveEdit()}
+      />
 
       {voiding && open ? (
         <div class="v-sheet-scrim" style={{ zIndex: 40 }}>

@@ -54,6 +54,37 @@ async function applySoldDelta(before: Record<string, number>, after: Record<stri
   }
 }
 
+export function setLineQty(items: SaleItem[], index: number, qty: number): SaleItem[] {
+  return items.map((item, i) => {
+    if (i !== index) return item;
+    const breakdown = { ...(item.breakdown || {}) };
+    const key = Object.keys(breakdown)[0] || 'mint';
+    const prev = Math.max(1, Math.round(Number(breakdown[key]) || 0) || 1);
+    const next = Math.max(1, Math.round(qty));
+    breakdown[key] = next;
+    const line = Math.round(Number(item.line_total) || 0);
+    const unit = prev > 0 ? Math.round(line / prev) : line;
+    return { ...item, breakdown, line_total: unit * next };
+  });
+}
+
+export function removeSaleLine(items: SaleItem[], index: number): SaleItem[] {
+  return items.filter((_, i) => i !== index);
+}
+
+export function addPlainLine(items: SaleItem[]): SaleItem[] {
+  return [
+    ...items,
+    {
+      product_id: 'plain_single',
+      product_name: 'Plain',
+      detail: '1 × Plain',
+      line_total: 5000,
+      breakdown: { classic: 1 },
+    },
+  ];
+}
+
 export async function saveSaleItems(sale: SaleRow, nextItems: SaleItem[]) {
   const before = mergeBreakdown(saleItems(sale));
   const after = mergeBreakdown(nextItems);
@@ -65,6 +96,32 @@ export async function saveSaleItems(sale: SaleRow, nextItems: SaleItem[]) {
       items: nextItems,
       total_ugx: total,
       amount_paid_ugx: sale.is_credit ? sale.amount_paid_ugx : total,
+    },
+    'return=minimal',
+  );
+  if (!res.ok) throw new Error(`Could not save order (${res.status})`);
+  await loadSales({ force: true });
+}
+
+export async function saveSaleEdit(
+  sale: SaleRow,
+  next: { items: SaleItem[]; clientId: string | null; isCredit: boolean; creditCleared: boolean },
+) {
+  const before = mergeBreakdown(saleItems(sale));
+  const after = mergeBreakdown(next.items);
+  const total = next.items.reduce((sum, item) => sum + Math.round(Number(item.line_total) || 0), 0);
+  await applySoldDelta(before, after);
+  const cleared = next.isCredit ? next.creditCleared : false;
+  const res = await patchSale(
+    sale.id,
+    {
+      items: next.items,
+      total_ugx: total,
+      client_id: next.clientId,
+      is_credit: next.isCredit,
+      credit_cleared: cleared,
+      amount_paid_ugx: next.isCredit && !cleared ? Math.min(total, Math.round(Number(sale.amount_paid_ugx) || 0)) : total,
+      ...(cleared ? { cleared_at: new Date().toISOString() } : {}),
     },
     'return=minimal',
   );

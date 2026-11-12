@@ -78,6 +78,7 @@ export async function installMockBackend(
     seed?: 'default' | 'empty';
     role?: 'pos_admin' | 'pos_staff';
     failures?: FailureRule[];
+    partnerSettle?: { qty: number; batches: number[] };
   } = {},
 ): Promise<MockHandle> {
   const role = opts.role || 'pos_admin';
@@ -87,6 +88,10 @@ export async function installMockBackend(
   const requests: Array<{ method: string; url: string }> = [];
   const failures = [...(opts.failures || [])];
   let networkOff = false;
+  const partnerSettle = {
+    qty: opts.partnerSettle?.qty ?? 25,
+    batches: opts.partnerSettle?.batches ? [...opts.partnerSettle.batches] : [25],
+  };
 
   const handle: MockHandle = {
     db,
@@ -255,6 +260,13 @@ export async function installMockBackend(
         await fulfillJson(route, 200, { users: db.table('store_accounts') });
         return;
       }
+      if (action === 'admin_issue_reset_code') {
+        await fulfillJson(route, 200, {
+          code: 'ABCD-2345',
+          expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+        });
+        return;
+      }
       await fulfillJson(route, 200, { ok: true });
       return;
     }
@@ -313,7 +325,44 @@ export async function installMockBackend(
       return;
     }
 
-    if (u.pathname.startsWith('/api/push/') || u.pathname === '/api/cookie-partner/settle') {
+    if (u.pathname === '/api/cookie-partner/settle') {
+      if (method === 'GET') {
+        await fulfillJson(route, 200, {
+          ok: true,
+          settled_qty: partnerSettle.qty,
+          batches: partnerSettle.batches,
+        });
+        return;
+      }
+      let body: { settled_qty?: number; batches?: number[] } = {};
+      try {
+        body = req.postDataJSON() as { settled_qty?: number; batches?: number[] };
+      } catch {
+        body = {};
+      }
+      writes.push({ method, url, headers: {}, body });
+      const next = Math.floor(Number(body.settled_qty) || 0);
+      if (!(next > partnerSettle.qty)) {
+        await fulfillJson(route, 200, {
+          ok: true,
+          applied: false,
+          settled_qty: partnerSettle.qty,
+          batches: partnerSettle.batches,
+        });
+        return;
+      }
+      partnerSettle.qty = next;
+      if (Array.isArray(body.batches) && body.batches.length) partnerSettle.batches = body.batches.map(Number);
+      await fulfillJson(route, 200, {
+        ok: true,
+        applied: true,
+        settled_qty: partnerSettle.qty,
+        batches: partnerSettle.batches,
+      });
+      return;
+    }
+
+    if (u.pathname.startsWith('/api/push/')) {
       let body: unknown = null;
       try {
         body = req.postDataJSON();

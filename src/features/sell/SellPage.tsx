@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
+import { productImageSrc } from '../../domain/product-art';
+import { localPhoneDigits } from '../../domain/phone';
+import { kampalaInputToIso, kampalaLocalInput } from '../../domain/kampala-time';
 import { itemToConfigSelection } from '../../domain/pricing/pack-config';
 import { stockNotifyDecision } from '../../domain/stock-notify';
 import { KEYS } from '../../data/keys';
@@ -62,6 +65,24 @@ const SINGLES = PRODUCTS.filter(
   (p) => p.rule === 'single_qty' || p.rule === 'spliff_qty' || p.rule === 'cookie_qty',
 );
 const WHOLESALE = PRODUCTS.filter((p) => p.rule === 'cookie_wholesale');
+
+function productKind(p: Product) {
+  return String(p.id).startsWith('cookie') ? 'cookie' : 'joint';
+}
+
+async function copyValue(text: string, ok: string, empty: string) {
+  const value = text.trim();
+  if (!value) {
+    showToast(empty);
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    showToast(ok);
+  } catch {
+    showToast(value);
+  }
+}
 
 function productPriceLabel(p: Product) {
   if (p.priceLabel) return p.priceLabel;
@@ -606,16 +627,28 @@ export function SellPage() {
         />
         {meta.deliveryEnabled !== false ? (
           <>
-            <button type="button" class="v-tag" data-testid="pickup-locate" onClick={locatePickup}>
+            <Button size="md" variant="secondary" data-testid="pickup-locate" onClick={locatePickup}>
               Use GPS
-            </button>
-            <p class="v-muted" data-testid="pickup-label">
+            </Button>
+            <span class="v-tag" data-testid="pickup-label">
               {draft.originText || 'Shop pickup'}
-            </p>
+            </span>
             <PlaceSearch
               value={draft.destText || meta.deliveryLocationLabel || ''}
               onPick={onPlacePick}
             />
+            {draft.destText || meta.deliveryLocationLabel ? (
+              <Button
+                size="md"
+                variant="secondary"
+                data-testid="copy-location"
+                onClick={() =>
+                  void copyValue(draft.destText || meta.deliveryLocationLabel || '', 'Location copied', 'No location')
+                }
+              >
+                Copy location
+              </Button>
+            ) : null}
             <Field
               label="Delivery fee (UGX)"
               inputMode="numeric"
@@ -634,13 +667,23 @@ export function SellPage() {
               placeholder="+256…"
               onInput={(e) => setOrderMetaPatch({ clientPhone: (e.target as HTMLInputElement).value })}
             />
+            <Button
+              size="md"
+              variant="secondary"
+              data-testid="copy-phone"
+              onClick={() => void copyValue(localPhoneDigits(meta.clientPhone), 'Phone copied', 'No phone')}
+            >
+              Copy phone
+            </Button>
             <Field
               label="Deliver at"
               data-testid="delivery-at"
-              value={meta.deliveryDeliverAt}
-              placeholder="2026-11-12T15:00:00+03:00"
+              type="datetime-local"
+              value={kampalaLocalInput(meta.deliveryDeliverAt)}
               onInput={(e) =>
-                setOrderMetaPatch({ deliveryDeliverAt: (e.target as HTMLInputElement).value })
+                setOrderMetaPatch({
+                  deliveryDeliverAt: kampalaInputToIso((e.target as HTMLInputElement).value),
+                })
               }
             />
             {draft.distanceKm != null ? (
@@ -648,7 +691,7 @@ export function SellPage() {
                 {Number(draft.distanceKm).toFixed(1)} km
                 {draft.durationMin != null ? ` · ~${Math.round(Number(draft.durationMin))} min` : ''}
                 {draft.predictedFee != null && !draft.feeManuallyEdited
-                  ? ` · model ${formatUGX(Number(draft.predictedFee))}`
+                  ? ` · Delivery est. ${formatUGX(Number(draft.predictedFee))}`
                   : ''}
               </p>
             ) : null}
@@ -659,29 +702,29 @@ export function SellPage() {
           <Money value={cartSum.value} size="xl" />
         </div>
         {meta.storeOrderId ? (
-          <Button size="md" variant="secondary" data-testid="confirm-store-order" onClick={() => void confirmLoadedOrder()}>
-            Confirm order
-          </Button>
-        ) : null}
-        {meta.storeOrderId ? (
-          <>
+          <div class="v-action-stack">
+            <div class="v-section-label">Store order</div>
             {cancelledOrderBanner(storeOrders.value.find((row) => row.id === meta.storeOrderId)?.status) ? (
               <p data-testid="cancelled-banner">
                 {cancelledOrderBanner(storeOrders.value.find((row) => row.id === meta.storeOrderId)?.status)}
               </p>
             ) : null}
+            <Button size="md" data-testid="confirm-store-order" onClick={() => void confirmLoadedOrder()}>
+              Confirm order
+            </Button>
             <Button
               size="md"
-              variant="secondary"
+              variant="ghost"
               data-testid="release-store-order"
               onClick={() => setOrderMetaPatch({ storeOrderId: '' })}
             >
               Release order
             </Button>
-          </>
+            <p class="v-muted">Charge below records the sale. Confirm only tells the store the order is accepted.</p>
+          </div>
         ) : null}
         {features.holdSale && lines.length && !meta.storeOrderId ? (
-          <Button size="md" variant="secondary" data-testid="hold-sale" onClick={() => void parkSale()}>
+          <Button size="md" variant="ghost" data-testid="hold-sale" onClick={() => void parkSale()}>
             Hold on this phone
           </Button>
         ) : null}
@@ -747,9 +790,11 @@ export function SellPage() {
               key={p.id}
               type="button"
               class="v-tile"
+              data-kind={productKind(p)}
               data-testid={`product-${p.id}`}
               onClick={() => openConfig(p)}
             >
+              <img class="v-tile__img" src={productImageSrc(p.id)} alt="" />
               <span class="v-tile__name">{p.name}</span>
               <span class="v-tile__meta">
                 {p.joints} {p.slotNoun || (Number(p.joints) === 1 ? 'joint' : 'joints')}
@@ -765,9 +810,11 @@ export function SellPage() {
               key={p.id}
               type="button"
               class="v-tile"
+              data-kind={productKind(p)}
               data-testid={`product-${p.id}`}
               onClick={() => openConfig(p)}
             >
+              <img class="v-tile__img" src={productImageSrc(p.id)} alt="" />
               <span class="v-tile__name">{p.name}</span>
               <span class="v-tile__meta">{p.unitLabel || 'per joint'}</span>
               <span class="v-tile__price">{productPriceLabel(p)}</span>
@@ -783,9 +830,11 @@ export function SellPage() {
                   key={p.id}
                   type="button"
                   class="v-tile"
+                  data-kind={productKind(p)}
                   data-testid={`product-${p.id}`}
                   onClick={() => openConfig(p)}
                 >
+                  <img class="v-tile__img" src={productImageSrc(p.id)} alt="" />
                   <span class="v-tile__name">{p.name}</span>
                   <span class="v-tile__price">{productPriceLabel(p)}</span>
                 </button>

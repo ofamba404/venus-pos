@@ -99,7 +99,7 @@ export function App() {
         </div>
       </header>
 
-      <main class="shell__main">
+      <main class="shell__main v-page">
         <Suspense fallback={null}>
           <Page />
         </Suspense>

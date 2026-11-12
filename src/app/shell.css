@@ -50,10 +50,12 @@
 }
 
 .shell__main {
-  padding: 0 var(--gutter) calc(var(--s-4) + 72px);
+  padding: 0 var(--gutter) calc(var(--nav-h) + 96px);
   max-width: 1280px;
   width: 100%;
+  min-width: 0;
   margin: 0 auto;
+  overflow-x: clip;
 }
 
 .shell__nav {
@@ -165,7 +167,7 @@
   gap: var(--s-3);
   min-height: var(--hit-xl);
   padding: 0 var(--s-4);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-pill);
   background: var(--action);
   color: var(--on-action);
   box-shadow: var(--e-1);
@@ -397,6 +399,16 @@
   display: grid;
   place-items: center;
   line-height: 0;
+  animation: v-pop var(--d-base) var(--ease-spring);
+}
+
+@keyframes v-pop {
+  from {
+    transform: scale(0.7);
+  }
+  to {
+    transform: none;
+  }
 }
 
 .success-check svg {

@@ -7,16 +7,27 @@ import {
   groupOutstandingByClient,
   sumCreditOwed,
 } from '../../domain/credit';
-import { cookieBatchShareText, expandPartnerUnitsFromSales, openPartnerBatches, sanitizeCookiePartnerSettled } from '../../domain/partner';
-import { buildTimeSeries, CHART_RANGES, INSIGHT_PERIODS } from '../../domain/analytics/periods';
+import { cookieBatchShareText, expandPartnerUnitsFromSales, partnerBoard, proposeSettle } from '../../domain/partner';
+import { fetchCookiePartnerSettle, postCookiePartnerSettle } from '../../data/writes/partner';
+import { buildTimeSeries, CHART_RANGES } from '../../domain/analytics/periods';
 import { computeSalesPatterns } from '../../domain/analytics/patterns';
 import { topProductForSales } from '../../domain/analytics/rank';
 import { readStoredId } from '../../domain/parity';
+import {
+  creditAging,
+  flavorMix,
+  historyOrDefault,
+  jointCommission,
+  productBars,
+  topClients,
+} from '../../domain/insights-view';
+import type { JointCostRow } from '../../domain/joint-cost';
+import { sbFetch } from '../../data/api';
 import { KEYS } from '../../data/keys';
-import { postCookiePartnerSettle } from '../../data/writes/partner';
 import { Money } from '../../ui/Money';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
+import { InsightsBoards } from './InsightsBoards';
 
 export function InsightsPage() {
   const [range, setRange] = useState(() =>
@@ -26,18 +37,23 @@ export function InsightsPage() {
       '1w',
     ),
   );
-  const [period, setPeriod] = useState(() =>
-    readStoredId(
-      localStorage.getItem(KEYS.insightPeriod),
-      INSIGHT_PERIODS.map((row) => row.id),
-      'week',
-    ),
-  );
+  const [serverSettle, setServerSettle] = useState<{ qty: number; batches: number[] } | null>(null);
+  const [costHistory, setCostHistory] = useState<JointCostRow[]>([]);
 
   useEffect(() => {
     void Promise.all([loadSales(), loadClients()]).catch((e) =>
       showToast(e instanceof Error ? e.message : 'Could not load insights'),
     );
+    void fetchCookiePartnerSettle().then((state) => {
+      if (state) setServerSettle(state);
+    });
+    void sbFetch('joint_cost_history?select=category_id,cost_ugx,effective_from')
+      .then(async (res) => {
+        if (!res.ok) return;
+        const rows = (await res.json()) as JointCostRow[];
+        if (Array.isArray(rows) && rows.length) setCostHistory(rows);
+      })
+      .catch(() => {});
   }, []);
 
   const today = useMemo(
@@ -72,42 +88,75 @@ export function InsightsPage() {
     [sales.value],
   );
 
-  const partnerBatches = useMemo(() => {
-    const list = sales.value as Parameters<typeof openPartnerBatches>[0];
-    let settled = 25;
-    try {
-      const raw = localStorage.getItem(KEYS.partnerSettled);
-      if (raw != null && raw !== '') settled = Math.round(Number(raw) || 0);
-    } catch {
-      /* private mode */
-    }
-    const total = expandPartnerUnitsFromSales(list).length;
-    const clean = sanitizeCookiePartnerSettled(settled, total);
-    if (clean !== settled) {
-      try {
-        localStorage.setItem(KEYS.partnerSettled, String(clean));
-      } catch {
-        /* private mode */
-      }
-    }
-    return openPartnerBatches(list, clean);
-  }, [sales.value]);
+  const flavors = useMemo(() => flavorMix(sales.value as Parameters<typeof flavorMix>[0]), [sales.value]);
+  const products = useMemo(() => productBars(sales.value as Parameters<typeof productBars>[0]).slice(0, 6), [sales.value]);
+  const aging = useMemo(
+    () => creditAging(sales.value as Parameters<typeof creditAging>[0]),
+    [sales.value],
+  );
+  const leaders = useMemo(
+    () => topClients(sales.value as Parameters<typeof topClients>[0], clients.value),
+    [sales.value, clients.value],
+  );
+  const commission = useMemo(
+    () => jointCommission(sales.value as Parameters<typeof jointCommission>[0], historyOrDefault(costHistory)),
+    [sales.value, costHistory],
+  );
+  const seriesMax = Math.max(1, ...series.map((bucket) => bucket.revenue));
+  const settledCuts = serverSettle?.batches ?? [];
+
+  const partner = useMemo(() => {
+    const list = sales.value as Parameters<typeof expandPartnerUnitsFromSales>[0];
+    const cookieUnits = expandPartnerUnitsFromSales(list);
+    const qty = serverSettle?.qty ?? 0;
+    return partnerBoard(cookieUnits, qty, serverSettle?.batches ?? []);
+  }, [sales.value, serverSettle]);
 
   async function settleNextBatch() {
-    const batch = partnerBatches.find((row) => row.complete) || partnerBatches[0];
-    if (!batch) {
+    const open = partner.open;
+    if (!open || !serverSettle) {
       showToast('No batch to settle');
       return;
     }
-    const prev = Number(localStorage.getItem(KEYS.partnerSettled) || 25);
-    const settled = prev + batch.cookieCount;
-    localStorage.setItem(KEYS.partnerSettled, String(settled));
-    try {
-      await postCookiePartnerSettle(settled);
-    } catch {
-      /* local progress still stands */
+    const send = open.complete ? open.every : open.cookieCount;
+    const proposed = proposeSettle(serverSettle.qty, serverSettle.batches, send);
+    if (!proposed) {
+      showToast('Already settled');
+      return;
     }
-    const text = cookieBatchShareText(batch);
+    let res: Response;
+    try {
+      res = await postCookiePartnerSettle(proposed.qty, proposed.batches, serverSettle.qty);
+    } catch {
+      showToast('Could not reach the server. Batch not marked sent.');
+      return;
+    }
+    if (!res.ok) {
+      showToast('Server refused the settlement. Batch not marked sent.');
+      return;
+    }
+    const data = (await res.json().catch(() => null)) as { ok?: boolean; settled_qty?: number; batches?: number[] } | null;
+    if (!data?.ok || data.settled_qty === undefined || data.settled_qty === null || data.settled_qty < proposed.qty) {
+      if (data?.settled_qty !== undefined && data?.settled_qty !== null) {
+        setServerSettle({
+          qty: data.settled_qty,
+          batches: Array.isArray(data.batches) ? data.batches : serverSettle.batches,
+        });
+      }
+      showToast('Server kept the earlier total. Batch not marked sent.');
+      return;
+    }
+    const next = {
+      qty: data.settled_qty,
+      batches: Array.isArray(data.batches) ? data.batches : proposed.batches,
+    };
+    setServerSettle(next);
+    try {
+      localStorage.setItem(KEYS.partnerSettled, String(next.qty));
+    } catch {
+      /* private mode */
+    }
+    const text = cookieBatchShareText(open);
     void navigator.clipboard?.writeText(text).then(
       () => showToast('Batch settled'),
       () => showToast(text),
@@ -132,26 +181,11 @@ export function InsightsPage() {
           </Button>
         ))}
       </div>
-      <div class="v-chip-row" data-testid="insight-period">
-        {INSIGHT_PERIODS.map((row) => (
-          <Button
-            key={row.id}
-            size="md"
-            variant={period === row.id ? 'primary' : 'secondary'}
-            onClick={() => {
-              localStorage.setItem(KEYS.insightPeriod, row.id);
-              setPeriod(row.id);
-            }}
-          >
-            {row.short}
-          </Button>
-        ))}
-      </div>
       <div class="v-stat-grid">
         <div class="v-stat" data-testid="insights-today" data-revenue={today.revenue} data-joints={today.joints}>
           <div class="v-stat__label">Today</div>
-          <div class="v-stat__value v-stat__value--display">
-            <Money value={today.revenue} size="xl" />
+          <div class="v-stat__value">
+            <Money value={today.revenue} />
           </div>
         </div>
         <div class="v-stat">
@@ -166,21 +200,26 @@ export function InsightsPage() {
         </div>
         <div class="v-stat" data-testid="insights-credit" data-owed={credit.total}>
           <div class="v-stat__label">Credit owed</div>
-          <div class="v-stat__value" style={{ color: 'var(--danger)' }}>
+          <div class="v-stat__value">
             <Money value={credit.total} />
           </div>
         </div>
       </div>
 
-      <p class="v-muted" data-testid="insights-series">
-        {series.length} buckets · {Math.round(series.reduce((sum, bucket) => sum + bucket.revenue, 0))}
-      </p>
-      <p class="v-muted" data-testid="insights-heatmap">
-        Peak hour {patterns.peakHour.i} · weekday {patterns.peakWeekday.i}
-      </p>
-      <p class="v-muted" data-testid="insights-rank">
-        {rank.topProduct} · {rank.topCount}
-      </p>
+      <InsightsBoards
+        series={series}
+        seriesMax={seriesMax}
+        products={products}
+        topProduct={rank.topProduct}
+        flavors={flavors}
+        peakHour={patterns.peakHour.i}
+        peakWeekday={patterns.peakWeekday.i}
+        heat={patterns.heat}
+        heatMax={patterns.heatMax}
+        leaders={leaders}
+        aging={aging}
+        commission={commission}
+      />
 
       <div class="v-section-label">Top credit</div>
       {credit.groups.length ? (
@@ -198,31 +237,37 @@ export function InsightsPage() {
       )}
 
       <div class="v-section-label">Cookie partner</div>
-      {partnerBatches.length ? (
-        partnerBatches.slice(0, 3).map((b) => (
-          <div class="v-list-row" key={b.index}>
-            <div class="v-list-row__main">
-              <div class="v-list-row__title">
-                Batch {b.index} · {b.cookieCount}/{b.every}
-                {b.complete ? '' : ' (open)'}
-              </div>
-              <div class="v-list-row__meta">
-                Partner <Money value={b.partnerDue} /> · you <Money value={b.ownerSplit} />
-              </div>
-            </div>
-            <Button variant="ghost" size="md" data-testid="partner-settle" onClick={() => void settleNextBatch()}>
-              Settle batch
-            </Button>
-          </div>
-        ))
-      ) : (
-        <p class="v-muted">No open partner batches</p>
-      )}
-
-      <p class="v-muted" style={{ marginTop: 16, color: 'var(--fg-2)' }}>
-        Owner revenue uses the v1 recognition rules (paid + partial credit cash). Charts still
-        porting.
+      <p data-testid="partner-settled-qty">
+        {serverSettle ? `${serverSettle.qty} cookies already settled` : 'Loading settlement…'}
       </p>
+      {(settledCuts.length ? settledCuts.map((count, index) => ({ index: index + 1, cookieCount: count, every: 25 })) : partner.settled).map((batch) => (
+        <div class="v-list-row" key={`settled-${batch.index}`}>
+          <div class="v-list-row__main">
+            <div class="v-list-row__title">
+              Batch {batch.index} · {batch.cookieCount}/{batch.every}
+            </div>
+            <div class="v-list-row__meta">Settled</div>
+          </div>
+        </div>
+      ))}
+      {partner.open ? (
+        <div class="v-list-row">
+          <div class="v-list-row__main">
+            <div class="v-list-row__title">
+              Batch {partner.open.index} · {partner.open.cookieCount}/{partner.open.every}
+              {partner.open.complete ? '' : ' open'}
+            </div>
+            <div class="v-list-row__meta">
+              Partner <Money value={partner.open.partnerDue} /> · you <Money value={partner.open.ownerSplit} />
+            </div>
+          </div>
+          <Button variant="secondary" size="md" data-testid="partner-settle" onClick={() => void settleNextBatch()}>
+            Settle batch
+          </Button>
+        </div>
+      ) : (
+        <p class="v-muted">No open partner batch</p>
+      )}
     </section>
   );
 }

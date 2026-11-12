@@ -160,6 +160,54 @@ export function sanitizeCookiePartnerSettled(
   return q;
 }
 
+export type PartnerBoard = {
+  settledQty: number;
+  totalCookies: number;
+  settled: PartnerBatch[];
+  open: PartnerBatch | null;
+};
+
+/**
+ * Settled batches come from the server cuts. The open batch is only the
+ * cookies after that settled qty, so already-sent batches are never offered again.
+ */
+export function partnerBoard(
+  units: PartnerUnit[] | null | undefined,
+  settledQty: number,
+  cuts: Array<number | string> | null | undefined,
+): PartnerBoard {
+  const list = units || [];
+  const qty = Math.max(0, Math.floor(Number(settledQty) || 0));
+  const settledUnits = list.slice(0, Math.min(qty, list.length));
+  const settled =
+    cuts && cuts.length
+      ? cookiePartnerBatchesFromCuts(settledUnits, cuts)
+      : cookiePartnerBatchesFromUnits(settledUnits).filter((batch) => batch.complete);
+  const openUnits = list.slice(qty);
+  const next = cookiePartnerBatchesFromUnits(openUnits)[0];
+  return {
+    settledQty: qty,
+    totalCookies: list.length,
+    settled,
+    open: next ? { ...next, index: settled.length + 1 } : null,
+  };
+}
+
+/** Next write. Null when it would not raise the server total. */
+export function proposeSettle(
+  settledQty: number,
+  cuts: Array<number | string> | null | undefined,
+  sendCount: number,
+): { qty: number; batches: number[] } | null {
+  const current = Math.max(0, Math.floor(Number(settledQty) || 0));
+  const send = Math.floor(Number(sendCount) || 0);
+  if (send <= 0) return null;
+  const qty = current + send;
+  if (qty <= current) return null;
+  const prior = (cuts || []).map((n) => Math.floor(Number(n) || 0)).filter((n) => n > 0);
+  return { qty, batches: [...prior, send] };
+}
+
 /** Open (unsettled) batches after the baseline of already-settled cookies. */
 export function openPartnerBatches(
   sales: PartnerSale[] | null | undefined,

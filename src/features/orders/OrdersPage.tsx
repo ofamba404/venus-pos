@@ -13,6 +13,10 @@ import { Money } from '../../ui/Money';
 import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
 import { formatUGX } from '../../domain/format';
+import { CAT_MAP } from '../../domain/catalog';
+import { productImageSrc } from '../../domain/product-art';
+import { localPhoneDigits } from '../../domain/phone';
+import { FlavorDot } from '../../ui/FlavorDot';
 import { KEYS } from '../../data/keys';
 import { writePaint } from '../../domain/parity';
 import { SUPABASE_ANON_JWT, SUPABASE_URL } from '../../data/env';
@@ -174,7 +178,7 @@ export function OrdersPage() {
         />
       </div>
 
-      {loading ? <p class="v-muted">Loading…</p> : null}
+      {loading ? <div class="v-skeleton" data-testid="orders-loading" /> : null}
       {!loading && !list.length ? (
         <div class="v-empty">
           <p class="v-empty__title">No orders here</p>
@@ -182,14 +186,28 @@ export function OrdersPage() {
         </div>
       ) : null}
 
-      <div>
-        {list.map((o) => (
+      <div class="v-stagger">
+        {list.map((o) => {
+          const items = Array.isArray(o.items) ? o.items : [];
+          const first = items[0] as { product_id?: string } | undefined;
+          return (
           <article key={o.id} class="v-order-card">
             <div class="v-order-card__top">
-              <div>
+              {first?.product_id ? <img class="v-thumb" src={productImageSrc(first.product_id)} alt="" /> : null}
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div class="v-list-row__title">{orderTitle(o, labels)}</div>
-                <div class="v-list-row__meta">
-                  {o.status} · {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
+                <div class="v-list-row__meta v-dots">
+                  {items.slice(0, 3).map((raw, index) => {
+                    const item = raw as { product_name?: string; breakdown?: Record<string, number> };
+                    return (
+                      <span class="v-dots" key={`${item.product_name}-${index}`}>
+                        {Object.keys(item.breakdown || {}).map((id) =>
+                          CAT_MAP[id] ? <FlavorDot key={id} color={CAT_MAP[id]!.color} /> : null,
+                        )}
+                        {item.product_name || 'Item'}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
               <Money value={orderTotal(o)} />
@@ -240,13 +258,48 @@ export function OrdersPage() {
               ) : null}
             </div>
             {o.location_label ? (
-              <p class="v-muted" style={{ margin: '8px 0 0' }}>
-                {String(o.location_label)}
-                {o.delivery_fee_ugx != null ? ` · ${formatUGX(Number(o.delivery_fee_ugx))}` : ''}
-              </p>
+              <div class="v-chip-row" style={{ marginTop: 8 }}>
+                <span class="v-muted">
+                  {String(o.location_label)}
+                  {o.delivery_fee_ugx !== undefined && o.delivery_fee_ugx !== null
+                    ? ` · ${formatUGX(Number(o.delivery_fee_ugx))}`
+                    : ''}
+                </span>
+                <Button
+                  size="md"
+                  variant="secondary"
+                  data-testid={`copy-location-${o.id}`}
+                  onClick={() => {
+                    const text = String(o.location_label);
+                    void navigator.clipboard?.writeText(text).then(
+                      () => showToast('Location copied'),
+                      () => showToast(text),
+                    );
+                  }}
+                >
+                  Copy location
+                </Button>
+              </div>
+            ) : null}
+            {o.phone_e164 ? (
+              <Button
+                size="md"
+                variant="secondary"
+                data-testid={`copy-phone-${o.id}`}
+                onClick={() => {
+                  const digits = localPhoneDigits(o.phone_e164);
+                  void navigator.clipboard?.writeText(digits).then(
+                    () => showToast('Phone copied'),
+                    () => showToast(digits),
+                  );
+                }}
+              >
+                Copy phone
+              </Button>
             ) : null}
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

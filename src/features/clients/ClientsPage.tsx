@@ -120,7 +120,7 @@ export function ClientsPage() {
   return (
     <section>
       <h1 class="page-title">Clients</h1>
-      <div class="v-chip-row" style={{ marginBottom: 12 }}>
+      <div class="v-add-row">
         <Field
           label="New client"
           data-testid="client-add-name"
@@ -151,40 +151,63 @@ export function ClientsPage() {
         Copy names
       </Button>
       <div
+        class="v-stagger"
         data-testid="client-list"
         onScroll={(e) => setScrollTop((e.currentTarget as HTMLElement).scrollTop)}
-        style={{ maxHeight: '70vh', overflow: 'auto' }}
+        style={{ maxHeight: '70vh', overflow: 'auto', paddingRight: 4 }}
       >
-      <div style={{ height: virtualWindow(list, scrollTop, 672, 56).padPx }} />
-      {virtualWindow(list, scrollTop, 672, 56).items.map((c) => {
+      <div style={{ height: virtualWindow(list, scrollTop, 672, 72).padPx }} />
+      {virtualWindow(list, scrollTop, 672, 72).items.map((c) => {
         const clientOwed = sumCreditOwed(getClientOutstandingCredit(sales.value, c.id));
+        const latest = sales.value
+          .filter((sale) => sale.client_id === c.id)
+          .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+        const lastLabel = latest?.created_at
+          ? new Date(latest.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+          : 'No orders yet';
+        const initial = String(c.name || '?').trim().charAt(0).toUpperCase() || '?';
         return (
-          <button
-            type="button"
-            class="v-list-row"
-            key={c.id}
-            onClick={() => {
-              if (clientOwed > 0) {
-                setSettleId(c.id);
-                setAmount(String(clientOwed));
-                return;
-              }
-              setEditId(c.id);
-              setEditName(c.name || '');
-            }}
-          >
-            <div class="v-list-row__main">
-              <div class="v-list-row__title">{c.name}</div>
-              <div class="v-list-row__meta">{c.phone || c.id.slice(0, 8)}</div>
-            </div>
-            {clientOwed > 0 ? (
-              <span style={{ color: 'var(--danger)', lineHeight: 1 }}>
-                <Money value={clientOwed} />
-              </span>
-            ) : (
-              <span class="v-muted">Clear</span>
-            )}
-          </button>
+          <div class="v-list-row" key={c.id}>
+            <button
+              type="button"
+              class="v-client"
+              onClick={() => {
+                if (clientOwed > 0) {
+                  setSettleId(c.id);
+                  setAmount(String(clientOwed));
+                  return;
+                }
+                setEditId(c.id);
+                setEditName(c.name || '');
+              }}
+            >
+              <span class="v-avatar" aria-hidden="true">{initial}</span>
+              <div class="v-list-row__main">
+                <div class="v-list-row__title">{c.name}</div>
+                <div class="v-list-row__meta">
+                  {c.phone ? `${c.phone} · ` : ''}Last order {lastLabel}
+                </div>
+              </div>
+              {clientOwed > 0 ? (
+                <span class="v-tag v-tag--credit">
+                  <Money value={clientOwed} />
+                </span>
+              ) : (
+                <span class="v-tag">Clear</span>
+              )}
+            </button>
+            <Button
+              size="md"
+              variant="ghost"
+              data-testid={`client-edit-${c.id}`}
+              onClick={() => {
+                setEditId(c.id);
+                setEditName(c.name || '');
+              }}
+            >
+              Edit
+            </Button>
+          </div>
         );
       })}
       </div>

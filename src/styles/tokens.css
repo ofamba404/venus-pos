@@ -23,8 +23,23 @@
   --fg-disabled: var(--ink-300);
   --line: var(--paper-200);
   --line-strong: var(--stroke-400);
-  --action: var(--ink-900);
-  --on-action: var(--paper-0);
+  --mint: #0f8f78;
+  --melon: #ef7d1a;
+  --grape: #6d4ea3;
+  --blueberry: #3156c9;
+  --watermelon: #e23b4a;
+  --strawberry: #d81e2c;
+  --coconut: #5f8f6a;
+  --plain: #c4a574;
+  --accent: #0b7a62;
+  --accent-ink: #084e3e;
+  --mint-tint: #e5f6f1;
+  --melon-tint: #fff1e2;
+  --grape-tint: #f3eef8;
+  --berry-tint: #fdecee;
+
+  --action: var(--accent);
+  --on-action: #ffffff;
   --danger: var(--red-700);
   --success: var(--green-600);
   --warn-bg: var(--amber-100);

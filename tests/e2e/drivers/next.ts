@@ -122,7 +122,10 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
           await scope.getByTestId('delivery-fee').fill(String(step.feeUgx));
         }
         if (step.phone) await scope.getByTestId('delivery-phone').fill(step.phone);
-        if (step.deliverAt) await scope.getByTestId('delivery-at').fill(step.deliverAt);
+        if (step.deliverAt) {
+          const local = step.deliverAt.length >= 16 ? step.deliverAt.slice(0, 16) : step.deliverAt;
+          await scope.getByTestId('delivery-at').fill(local);
+        }
         return;
       }
       case 'editLine': {

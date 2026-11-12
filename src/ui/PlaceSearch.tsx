@@ -17,15 +17,20 @@ export function PlaceSearch({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const timer = useRef<number | null>(null);
+  const typing = useRef(false);
 
   useEffect(() => {
     setQ(value || '');
+    typing.current = false;
+    setOpen(false);
+    setItems([]);
   }, [value]);
 
   useEffect(() => {
     if (timer.current) window.clearTimeout(timer.current);
-    if (q.trim().length < 2) {
+    if (!typing.current || q.trim().length < 2) {
       setItems([]);
+      setOpen(false);
       return;
     }
     timer.current = window.setTimeout(() => {
@@ -47,7 +52,7 @@ export function PlaceSearch({
     setBusy(true);
     try {
       const resolved = await resolvePlace(row);
-      if (resolved.lat == null || resolved.lng == null) return;
+      if (resolved.lat === undefined || resolved.lat === null || resolved.lng === undefined || resolved.lng === null) return;
       setQ(resolved.label);
       setOpen(false);
       onPick({ label: resolved.label, lat: resolved.lat, lng: resolved.lng });
@@ -66,8 +71,13 @@ export function PlaceSearch({
           value={q}
           placeholder={placeholder}
           autocomplete="off"
-          onInput={(e) => setQ((e.target as HTMLInputElement).value)}
-          onFocus={() => items.length && setOpen(true)}
+          onInput={(e) => {
+            typing.current = true;
+            setQ((e.target as HTMLInputElement).value);
+          }}
+          onBlur={() => {
+            window.setTimeout(() => setOpen(false), 180);
+          }}
         />
       </label>
       {busy ? <div class="v-muted" style={{ marginTop: 4 }}>Searching…</div> : null}

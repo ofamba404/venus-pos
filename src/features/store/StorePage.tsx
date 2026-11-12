@@ -11,7 +11,7 @@ import {
 } from '../../domain/hours';
 import { sbFetch } from '../../data/api';
 import { KEYS } from '../../data/keys';
-import { deleteStoreAccount, patchFulfillment, patchStoreAccount } from '../../data/writes/store';
+import { deleteStoreAccount, patchFulfillment, patchStoreAccount, storeAuth } from '../../data/writes/store';
 import { Field } from '../../ui/Field';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
@@ -31,6 +31,7 @@ export function StorePage() {
   const [busy, setBusy] = useState(false);
   const [users, setUsers] = useState<StoreUser[]>([]);
   const [userName, setUserName] = useState('');
+  const [resetCode, setResetCode] = useState('');
 
   async function loadUsers() {
     const res = await sbFetch('store_accounts?select=*&limit=20');
@@ -100,17 +101,17 @@ export function StorePage() {
   async function setBusyMinutes(minutes: number | null) {
     setBusy(true);
     try {
-      const until = minutes == null ? null : busyUntilFromNow(minutes);
+      const until = minutes === null ? null : busyUntilFromNow(minutes);
       const res = await patchFulfillment({
         busy_until: until,
-        busy_for: minutes == null ? null : 'both',
+        busy_for: minutes === null ? null : 'both',
       });
       if (!res.ok) throw new Error(`Could not update busy (${res.status})`);
       setStatus((current) => {
         const next = {
           ...current,
           busyUntil: until,
-          busyFor: minutes == null ? undefined : ('both' as const),
+          busyFor: minutes === null ? undefined : ('both' as const),
         };
         try {
           localStorage.setItem(KEYS.fulfillment, JSON.stringify(next));
@@ -119,7 +120,7 @@ export function StorePage() {
         }
         return next;
       });
-      showToast(minutes == null ? 'Busy cleared' : `Busy for ${minutes} min`);
+      showToast(minutes === null ? 'Busy cleared' : `Busy for ${minutes} min`);
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Could not update busy');
     } finally {
@@ -144,6 +145,21 @@ export function StorePage() {
     }
     showToast(toast);
     await loadUsers().catch(() => {});
+  }
+
+  async function issueReset() {
+    const user = targetUser();
+    if (!user) {
+      showToast('No store user');
+      return;
+    }
+    const result = await storeAuth('admin_issue_reset_code', { user_id: user.id });
+    if (!result.ok || !result.data.code) {
+      showToast(result.data.error || 'Could not create reset code');
+      return;
+    }
+    setResetCode(result.data.code);
+    showToast('Reset code ready');
   }
 
   async function deleteUser() {
@@ -233,7 +249,17 @@ export function StorePage() {
           <Button size="md" variant="danger" data-testid="store-user-delete" onClick={() => void deleteUser()}>
             Delete
           </Button>
+          <Button size="md" variant="secondary" data-testid="store-user-reset" onClick={() => void issueReset()}>
+            Reset code
+          </Button>
         </div>
+        {resetCode ? (
+          <p data-testid="store-reset-code">
+            Give this once: <strong>{resetCode}</strong>. It expires in 24 hours and will not be shown again.
+          </p>
+        ) : (
+          <p class="v-muted">A reset code lets the customer set a new store password. It is shown once.</p>
+        )}
       </div>
       <div style={{ marginTop: 16 }}>
         <Button variant="secondary" onClick={() => (location.href = '/')}>

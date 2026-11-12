@@ -45,17 +45,27 @@ import { KEYS } from '../../src/data/keys';
 import { enqueueSale, flushOutbox, listOutbox, removeOutbox } from '../../src/data/outbox';
 import { readConnection, scheduleIdlePrefetch, shouldSkipPrefetch, staleEntities } from '../../src/data/prefetch';
 import { connectSupabaseRealtime } from '../../src/data/realtime';
-import { bumpFirstLine, mergeBreakdown, saleItems, saveSaleItems, voidSaleRecord } from '../../src/data/sale-edit';
+import {
+  addPlainLine,
+  bumpFirstLine,
+  mergeBreakdown,
+  removeSaleLine,
+  saleItems,
+  saveSaleEdit,
+  saveSaleItems,
+  setLineQty,
+  voidSaleRecord,
+} from '../../src/data/sale-edit';
 import { clearCartKeepMeta, dispatchCart, readStoredCart, replaceCart } from '../../src/data/session-cart';
 import { postStoreReserve } from '../../src/data/store-reserve';
 import { postClient } from '../../src/data/writes/clients';
 import { postCreditPayment } from '../../src/data/writes/credit';
 import { patchDelivery, postDelivery } from '../../src/data/writes/deliveries';
 import { patchInventoryStock } from '../../src/data/writes/inventory';
-import { postCookiePartnerSettle } from '../../src/data/writes/partner';
+import { fetchCookiePartnerSettle, postCookiePartnerSettle } from '../../src/data/writes/partner';
 import { deleteSale, patchSale, postSale } from '../../src/data/writes/sales';
 import { patchStoreOrder } from '../../src/data/writes/store-orders';
-import { deleteStoreAccount, patchFulfillment, patchStoreAccount } from '../../src/data/writes/store';
+import { deleteStoreAccount, patchFulfillment, patchStoreAccount, storeAuth } from '../../src/data/writes/store';
 import { installFakeIndexedDb } from './fake-idb';
 
 type Mode = {
@@ -156,7 +166,16 @@ beforeEach(() => {
       if (mode.reserve === 'throw') throw new TypeError('Failed to fetch');
       return json(mode.reserve.status, mode.reserve.body);
     }
-    if (url.includes('/api/cookie-partner/settle')) return json(200, { ok: true });
+    if (url.includes('/api/cookie-partner/settle')) {
+      if (url.includes('bad-settle')) return json(500, { ok: false });
+      if (url.includes('empty-settle')) return json(200, { ok: false });
+      if (method === 'GET') return json(200, { ok: true, settled_qty: 262, batches: [25, 'nope', 0] });
+      return json(200, { ok: true, settled_qty: 285 });
+    }
+    if (url.includes('/functions/v1/store-auth')) {
+      if (url.includes('bad-auth')) return json(400, { error: 'no' });
+      return json(200, { code: 'ABCD-2345' });
+    }
     if (url.includes('/rest/v1/sales') && method === 'POST') return json(mode.saleStatus, mode.saleBody);
     if (url.includes('/rest/v1/clients') && method === 'POST') return json(201, [{ id: 'client-new', name: 'New Person' }]);
     if (url.includes('/rest/v1/deliveries') && method === 'POST') return json(201, [{ id: 'trip-1' }]);
@@ -337,9 +356,22 @@ describe('data layer', () => {
     };
     const nextItems = bumpFirstLine(saleItems(sale));
     expect(mergeBreakdown(nextItems).mint).toBe(2);
+    expect(mergeBreakdown(setLineQty(nextItems, 0, 3)).mint).toBe(3);
+    expect(removeSaleLine(nextItems, 0)).toEqual([]);
+    expect(addPlainLine([] )[0]?.product_id).toBe('plain_single');
+    expect(setLineQty([{ line_total: 0 }], 0, 2)[0]?.line_total).toBe(0);
     mode.deltaStatus = 200;
     await saveSaleItems(sale, nextItems);
+    await saveSaleEdit(sale, { items: nextItems, clientId: 'c1', isCredit: true, creditCleared: false });
+    await saveSaleEdit(sale, { items: nextItems, clientId: null, isCredit: true, creditCleared: true });
     await voidSaleRecord({ ...sale, items: nextItems });
+    const settled = await fetchCookiePartnerSettle();
+    expect(settled).toEqual({ qty: 262, batches: [25] });
+    await postCookiePartnerSettle(285, [25, 23], 262);
+    expect(await storeAuth('admin_issue_reset_code', { user_id: 'acc-1' })).toMatchObject({
+      ok: true,
+      data: { code: 'ABCD-2345' },
+    });
 
     await enqueueSale({
       clientSaleId: 'q1',

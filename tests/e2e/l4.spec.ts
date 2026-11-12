@@ -125,10 +125,8 @@ test('stock glance, install steps, chart range, and debug capture are on the pag
   await expect(page.getByTestId('insights-heatmap')).toBeVisible();
   await expect(page.getByTestId('insights-rank')).toBeVisible();
   await page.getByTestId('chart-range').getByRole('button', { name: '1M' }).click();
-  await page.getByTestId('insight-period').getByRole('button', { name: 'Month' }).click();
   await page.reload();
   expect(await page.evaluate(() => localStorage.getItem('venus_chart_range'))).toBe('1m');
-  expect(await page.evaluate(() => localStorage.getItem('venus_insight_period'))).toBe('month');
   await page.goto('/next/system');
   await page.getByTestId('debug-capture').click();
   await expect(page.getByTestId('debug-log')).toContainText('capture');

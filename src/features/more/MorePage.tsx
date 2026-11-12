@@ -2,10 +2,19 @@ import { go, ROUTES } from '../../app/router';
 import { allowDevBypass, isAdmin } from '../../data/auth';
 import { IconChevronRight } from '../../ui/icons';
 
+function showSystemPage() {
+  if (import.meta.env.DEV) return true;
+  try {
+    return localStorage.getItem('venus-dev-ui') === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function MorePage() {
-  const links = ROUTES.filter((r) => r.nav === 'more').filter(
-    (r) => r.minRole === 'staff' || isAdmin() || allowDevBypass(),
-  );
+  const links = ROUTES.filter((r) => r.nav === 'more')
+    .filter((r) => r.id !== 'system' || showSystemPage())
+    .filter((r) => r.minRole === 'staff' || isAdmin() || allowDevBypass());
 
   return (
     <section>
