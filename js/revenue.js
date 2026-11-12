@@ -489,7 +489,10 @@ export async function fetchCookiePartnerSettledQty() {
   return state ? state.qty : null;
 }
 
-/** Persist settled qty locally and to the shared blob store. */
+/**
+ * Sync-only push of a higher settled qty to the shared blob (the server also refuses to lower it).
+ * If the server already holds more, adopt that. Never used for "Mark sent" (see sendCookiePartnerBatch).
+ */
 export async function persistCookiePartnerSettledQty(qty, extra = {}) {
   const n = setCookiePartnerSettledQty(qty);
   const cuts = cutsMatchingQty(extra?.batches, n);
@@ -499,7 +502,7 @@ export async function persistCookiePartnerSettledQty(qty, extra = {}) {
     if (!token) return n;
     const body = { settled_qty: n };
     if (cuts) body.batches = cuts;
-    await fetch('/api/cookie-partner/settle', {
+    const res = await fetch('/api/cookie-partner/settle', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -508,8 +511,18 @@ export async function persistCookiePartnerSettledQty(qty, extra = {}) {
       body: JSON.stringify(body),
       cache: 'no-store',
     });
+    if (res?.ok) {
+      const data = await res.json().catch(() => null);
+      const serverQty = Math.max(0, Math.floor(Number(data?.settled_qty) || 0));
+      if (data?.ok && serverQty > n) {
+        setCookiePartnerSettledQty(serverQty);
+        const serverCuts = cutsMatchingQty(data.batches, serverQty);
+        if (serverCuts) setLocalSettledBatches(serverCuts);
+        return serverQty;
+      }
+    }
   } catch {
-    /* local write still counts; sync can retry next mark */
+    /* local value stands; the next sync retries */
   }
   return n;
 }
@@ -561,7 +574,7 @@ export async function syncCookiePartnerSettledQty(totalCookiesHint = 0) {
   if (cuts) setLocalSettledBatches(cuts);
   else if (!trusted(merged, localBatches)) clearLocalSettledBatches();
 
-  if (merged !== remote) {
+  if (merged > remote) {
     const catchesAll = total > baseline && merged >= total;
     // Never push an “all cookies settled” qty onto a blob that cannot store the
     // batch sizes proving it was intentional. The old client would read that as
@@ -590,9 +603,8 @@ export function cookiePartnerSettlementSummary(sales) {
   let settledQty = settledRaw;
   if (totalCookies > 0 && settledQty > totalCookies) settledQty = totalCookies;
   if (totalCookies > COOKIE_PARTNER_SETTLED_BASELINE && settledRaw >= totalCookies && !trustedRaw) {
+    // Display-only guard. Rendering must never write storage (sync owns corrections).
     settledQty = COOKIE_PARTNER_SETTLED_BASELINE;
-    setCookiePartnerSettledQty(COOKIE_PARTNER_SETTLED_BASELINE);
-    clearLocalSettledBatches();
   }
 
   const unsettled = units.slice(settledQty);
@@ -684,42 +696,93 @@ export function cookiePartnerSettlementSummary(sales) {
   };
 }
 
+function sameCuts(a, b) {
+  return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((n, i) => n === b[i]);
+}
+
+/** Adopt the server's settled state locally. Only ever raises the local qty. */
+function adoptServerSettleState(qty, batches) {
+  const n = Math.max(0, Math.floor(Number(qty) || 0));
+  if (n < readLocalSettledQty()) return;
+  setCookiePartnerSettledQty(n);
+  const cuts = cutsMatchingQty(batches, n);
+  if (cuts) setLocalSettledBatches(cuts);
+}
+
 /**
- * Mark the next batch sent.
+ * Mark the next batch sent, and only report success once the server has confirmed it.
  * Default: the next full batch of COOKIE_PARTNER_SETTLE_EVERY.
  * `{ partial: true }`: the in-progress batch only, when no full batch is waiting.
  * Never sends 0 cookies or more than are actually unsettled.
+ * Local state is not advanced until the server confirms; on any failure it is left untouched.
+ *
+ * @returns {Promise<{ ok: boolean, reason?: 'nothing'|'auth'|'offline'|'http'|'stale'|'invalid', status?: number, summary: object }>}
  */
-export async function markCookiePartnerBatchesSent(sales, options = {}) {
+export async function sendCookiePartnerBatch(sales, options = {}) {
   const summary = cookiePartnerSettlementSummary(sales);
+  const fail = (reason, extra = {}) => ({ ok: false, reason, summary: cookiePartnerSettlementSummary(sales), ...extra });
   const partial = options?.partial === true;
   let sendCount = 0;
   if (partial) {
-    if (summary.readyCount > 0) return summary;
-    if (summary.unsettledCount <= 0 || summary.unsettledCount >= summary.every) return summary;
+    if (summary.readyCount > 0) return fail('nothing');
+    if (summary.unsettledCount <= 0 || summary.unsettledCount >= summary.every) return fail('nothing');
     sendCount = summary.unsettledCount;
   } else if (summary.readyCount <= 0) {
-    return summary;
+    return fail('nothing');
   } else {
     sendCount = summary.readyCount;
   }
-  if (sendCount <= 0 || sendCount > summary.unsettledCount) return summary;
-  if (!partial && sendCount !== summary.every) return summary;
+  if (sendCount <= 0 || sendCount > summary.unsettledCount) return fail('nothing');
+  if (!partial && sendCount !== summary.every) return fail('nothing');
 
   const nextQty = summary.settledQty + sendCount;
   const nextCuts = [...cookiePartnerBatchCuts(summary.settledQty), sendCount];
-  if (!cutsMatchingQty(nextCuts, nextQty)) return summary;
-  const catchesAll =
-    summary.totalCookies > COOKIE_PARTNER_SETTLED_BASELINE && nextQty >= summary.totalCookies;
-  if (catchesAll) {
-    const remote = await fetchCookiePartnerSettleState();
-    // A signed-in client must not write a catch-up qty unless the blob can store
-    // the batch sizes. Otherwise the next device treats it as corruption and
-    // overwrites the live counter with the baseline.
-    if (!remote?.supportsBatches && (await staffSettleToken())) return summary;
+  if (!cutsMatchingQty(nextCuts, nextQty)) return fail('invalid');
+
+  const token = await staffSettleToken();
+  if (!token) return fail('auth');
+
+  // The server is the source of truth: if another device already moved ahead, adopt it and stop.
+  const remote = await fetchCookiePartnerSettleState();
+  if (remote == null) return fail('offline');
+  if (remote.qty > summary.settledQty) {
+    adoptServerSettleState(remote.qty, remote.batches);
+    return fail('stale');
   }
-  await persistCookiePartnerSettledQty(nextQty, { batches: nextCuts });
-  return cookiePartnerSettlementSummary(sales);
+
+  let res;
+  try {
+    res = await fetch('/api/cookie-partner/settle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ settled_qty: nextQty, batches: nextCuts, qty_before: summary.settledQty }),
+      cache: 'no-store',
+    });
+  } catch {
+    return fail('offline');
+  }
+  if (!res?.ok) return fail('http', { status: res?.status });
+  const data = await res.json().catch(() => null);
+  if (!data?.ok || data.settled_qty == null) return fail('http', { status: res.status });
+
+  const serverQty = Math.max(0, Math.floor(Number(data.settled_qty) || 0));
+  const serverCuts = cutsMatchingQty(data.batches, serverQty);
+  if (serverQty === nextQty && data.applied !== false) {
+    adoptServerSettleState(serverQty, serverCuts || nextCuts);
+    return { ok: true, summary: cookiePartnerSettlementSummary(sales) };
+  }
+  // Server did not apply our write. A repeat of the identical send is fine (idempotent retry).
+  if (serverQty === nextQty && sameCuts(serverCuts, nextCuts)) {
+    adoptServerSettleState(serverQty, serverCuts);
+    return { ok: true, summary: cookiePartnerSettlementSummary(sales) };
+  }
+  adoptServerSettleState(serverQty, serverCuts);
+  return fail('stale');
+}
+
+/** Back-compat wrapper: returns the settlement summary. Use sendCookiePartnerBatch to learn success. */
+export async function markCookiePartnerBatchesSent(sales, options = {}) {
+  return (await sendCookiePartnerBatch(sales, options)).summary;
 }
 
 /**
