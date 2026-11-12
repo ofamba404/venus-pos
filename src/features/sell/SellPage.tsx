@@ -55,6 +55,7 @@ import { Segmented } from '../../ui/Segmented';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { FlavorPicker } from '../../ui/FlavorPicker';
 import { CopyButton } from '../../ui/CopyButton';
+import { LoadedOrderCard } from '../../ui/LoadedOrderCard';
 import { ProductCard } from '../../ui/ProductCard';
 import { DeliveryBlock } from '../../ui/DeliveryBlock';
 import { TimePicker } from '../../ui/TimePicker';
@@ -438,8 +439,23 @@ export function SellPage() {
         ? 'Credit needs a client name'
         : 'Add a customer to continue';
 
+  const loadedOrderProps = {
+    name: meta.clientName,
+    delivery: meta.deliveryEnabled !== false,
+    timeLabel: meta.deliveryTimeLabel,
+    place: draft.destText || meta.deliveryLocationLabel || '',
+    phone: meta.clientPhone,
+    itemCount: cartCount.value,
+    total: cartSum.value,
+  };
+
   const cartBody = (
     <>
+      {meta.storeOrderId ? (
+        <div style={{ marginBottom: 'var(--s-3)' }}>
+          <LoadedOrderCard {...loadedOrderProps} testId="loaded-order-cart" />
+        </div>
+      ) : null}
       {features.holdSale && heldSales.length ? (
         <div class="v-chip-row" data-testid="held-sales">
           {heldSales.map((sale) => (
@@ -531,7 +547,7 @@ export function SellPage() {
             });
           }}
         />
-        {features.walkInClient || recentClients.length ? (
+        {!meta.storeOrderId && (features.walkInClient || recentClients.length) ? (
           <div class="v-chip-row">
             {features.walkInClient && !credit ? (
               <button
@@ -679,9 +695,12 @@ export function SellPage() {
               data-testid="release-store-order"
               onClick={() => setOrderMetaPatch({ storeOrderId: '' })}
             >
-              Clear
+              Unlink order
             </Button>
-            <p class="v-muted">Checkout below records the sale. Confirm only tells the store the order is accepted.</p>
+            <p class="v-muted">
+              Checkout records the sale. Confirm tells the store the order is accepted. Unlink keeps these items but stops
+              treating them as a store order.
+            </p>
           </div>
         ) : null}
         {features.holdSale && lines.length && !meta.storeOrderId ? (
@@ -715,6 +734,15 @@ export function SellPage() {
           <p class="v-muted" data-testid="sync-chip">
             {outboxCountLabel(waiting)}
           </p>
+        ) : null}
+        {meta.storeOrderId ? (
+          <div class="v-loaded-order--page">
+            <LoadedOrderCard
+              {...loadedOrderProps}
+              onReview={() => setCartOpen(true)}
+              onUnlink={() => setOrderMetaPatch({ storeOrderId: '' })}
+            />
+          </div>
         ) : null}
         <button
           type="button"

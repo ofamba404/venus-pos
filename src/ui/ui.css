@@ -1711,3 +1711,95 @@ button.kpi-tile {
 .owe .decision__why {
   margin: 0;
 }
+
+/* Loaded store order: the card that says this cart is an order being fulfilled. */
+.v-loaded-order {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+  padding: var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--mint-tint);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mint) 30%, transparent);
+}
+
+.v-loaded-order__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.v-loaded-order__kicker {
+  font: var(--t-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+.v-loaded-order__name {
+  font: var(--t-title-sm);
+  overflow-wrap: anywhere;
+}
+
+.v-loaded-order__meta {
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.v-loaded-order__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.v-loaded-order__text {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.v-loaded-order__actions {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-1);
+}
+
+.v-loaded-order__actions > .v-btn:not(.v-btn--ghost) {
+  flex: 1 1 auto;
+}
+
+.v-loaded-order--page {
+  margin-bottom: var(--s-3);
+}
+
+@media (min-width: 960px) {
+  .v-loaded-order--page {
+    display: none;
+  }
+}
+
+/* Cart lines: long names wrap, money stays whole, a full flavour set shows every swatch. */
+.v-cart-line__head {
+  flex-wrap: wrap;
+}
+
+.v-cart-line__head .v-list-row__title {
+  flex: 1 1 96px;
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+.v-cart-line__head .v-money {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.v-cart-line .v-swatches {
+  flex-wrap: wrap;
+  overflow: visible;
+}
