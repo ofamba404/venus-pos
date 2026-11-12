@@ -14,7 +14,7 @@ The implementer must not decide these. Each has a **default** that applies until
 | D8 | Sell screen group order | **Joints, then Cookies** (v1 list order) | — |
 | D9 | Keep busy controls available to staff (now on Orders, with undo)? | **Yes** (as v1) | — |
 | D10 | Evening dark theme? | **No** for v2.0 | — |
-| D11 | Brand direction: store-aligned ink, paper and flavour colour (vs keep jade) | **Store-aligned** (approve at Phase 4 checkpoint) | Phase 4 |
+| D11 | Brand direction: store-aligned ink, paper and flavour colour (vs keep jade) | **Approved** — current look (2026-11-12). Phase 4 checkpoint waived | — |
 | D12 | UI framework | **Preact + signals** on Vite + TS | Phase 1 |
 | D13 | Require `pos_staff`/`pos_admin` in `/api/inventory/write` (security fix) | **Propose, don't apply** | — |
 | D14 | Make the push-notify secret mandatory (needs a coordinated storefront change) | **Propose, don't apply** | — |
@@ -116,6 +116,7 @@ These replace the defaults. Phase 8 builds only what is approved here. Do not as
 | 2026-11-12 | D5 | **A** | No end-of-day / shift close in v2.0. |
 | 2026-11-12 | D6 | **A** | Hold / park a counter sale on this device only. IndexedDB `held` store. No database change. |
 | 2026-11-12 | D16 | **Improve** | Pending storefront orders claim sellable stock at place. Charge consumes the hold. Cancel releases it. |
+| 2026-11-12 | D11 | **Approved** | The current look is approved: store-aligned ink, paper, and flavour colour. The Phase 4, 5, and 8 checkpoints are waived. Deploy and ship stay blocked. |
 
 Phase 8 scope from this log: walk-in chip (D2), offline sales queue + sync (D4), device-only hold/park (D6). Skip the receipt button (D3) and shift close (D5). D1 stays Paid / On credit.
 
