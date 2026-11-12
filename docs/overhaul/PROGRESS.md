@@ -7,8 +7,8 @@ Update at the end of every session.
 | Current phase | Phase 0 exit still open. Phase 8 locals (walk-in, hold, offline) are in |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | typecheck clean · 108 unit/dual-run · 54 next contracts green in one run (405 included) · axe serious/critical clean on /sell and /system · legacy S02, S05, S07 green |
-| Next step | Quiet production median is 2046 ms (budget 2.0 s). Push subscribe, IDB entity hydrate, repository/prefetch/writes, and a legacy display golden are still open. Lint stays off CI. No deploy. Do not apply `client_sale_id` |
+| Tests passing | typecheck clean · 117 unit/dual-run · 54 next contracts · axe on /sell and /system · legacy S01, S02, S05, S07, S11, S50 |
+| Next step | Median sell sample is 1963 ms. Cold samples in that five still exceed 2.0 s. Phase coverage gates, live push, and a full write-module port are still open. Lint stays off CI. No deploy. Do not apply `client_sale_id` |
 | Open questions for the owner | D11 look, live Maps, and deploy stay blocked until the owner is back |
 
 ## Ready vs open (before a parallel run)
@@ -18,7 +18,7 @@ Update at the end of every session.
 **Open before staff use v2 beside v1.**
 
 - D1–D6 are answered in `08-decisions.md` (2026-11-12). Walk-in, device hold, and the offline outbox are local. `client_sale_id` is a SQL file only. It is not applied.
-- S36 edits `seed-sale-1` (mint 1 → 2, stock −1, sale PATCH). S37 voids `seed-delivery-sale` and the mock drops the linked trip. S42 edits `seed-trip-1`. S49 signs out through `/next/auth.html` (the Vite base; `/auth.html` is the dev hint) and returns to `/next/sell`. S50 checks Today, Insights credit, history day groups, and the debt row against the seed in this app. That is not a legacy golden. Day totals inside `buildOrderHistoryTree` match `groupSalesByDay` for 2000 generated lists. A quiet throttled production median was 2046 ms (2574, 1884, 1804, 2046, 2108). Legacy S02, S05, and S07 were green in the same run as the 54 next contracts.
+- S36 edits `seed-sale-1` (mint 1 → 2, stock −1, sale PATCH). S37 voids `seed-delivery-sale` and the mock drops the linked trip. S42 edits `seed-trip-1`. S49 signs out through `/next/auth.html` and returns to `/next/sell`. Boot reads a v1 IDB cache before the network fetch. Legacy home Today revenue, joints, and cookies match `computeTodayStats` on the seed. A quiet throttled production median on the split bundle was 1963 ms (3192, 2448, 1963, 1908, 1766). Legacy S01, S02, S05, S07, S11, and S50 were green with the 54 next contracts. A legacy double-tap still posts two sales, so S19 stays off that driver.
 - Phase 9 needs you to say deploy. That is `.\scripts\ship.ps1` from `venus-pos` (v1 stays at `/`, v2 at `/next/`). No test sales on production unless you ask.
 - Phase 10 needs you to say ship, after the parallel run. Same script, after the cutover edits. Rollback stays the previous Netlify deploy.
 
@@ -83,4 +83,5 @@ Phase 8 is in progress from the answers in `docs/overhaul/08-decisions.md`. Phas
 | 2026-11-12 | 0 | Delivery, line edit, store-order load, credit settle, four-viewport baselines. Throttled sell sample 7.9 s, over the 2.0 s budget | `50b2595` |
 | 2026-11-12 | 0 | Live-order poll, busy hours, stock bulk/fallback/low toast, clients, store users, staff redirect, offline queue. 46 next contracts | `e4b6325` |
 | 2026-11-12 | 0 | History edit/void, trip edit, sign-in, seed display parity, GPS locate, 405 stock fallback. Production sell sample 2094 ms | `1c5713c` |
-| 2026-11-12 | 0 | 405 wait tied to the delta PATCH. Orders/reviews socket with poll fallback. IDB cache round-trip and v1 session hydrate. Quiet production median 2046 ms. 54 contracts + legacy S02/S05/S07 + axe on /sell and /system | this commit |
+| 2026-11-12 | 0 | 405 wait tied to the delta PATCH. Orders/reviews socket with poll fallback. IDB cache round-trip and v1 session hydrate. Quiet production median 2046 ms. 54 contracts + legacy S02/S05/S07 + axe on /sell and /system | `3a28513` |
+| 2026-11-12 | 3 | Boot hydrates the v1 IDB cache. Repository, prefetch, and write helpers. Sell route split. Legacy S01/S11/S50. Quiet median 1963 ms | this commit |

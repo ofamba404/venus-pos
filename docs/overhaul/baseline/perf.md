@@ -24,4 +24,6 @@ The throttled row above was captured against the Vite dev server (one request pe
 
 A later sample loaded `vite build` output (`dist/next`, static server on port 4174, SPA fallback) at 390×844 with the same 4× CPU and Fast 4G profile. The Scout tile was visible at **2094 ms**. That is one run, taken while the contract suite was also running, so it is a ceiling rather than a quiet median of five. It still misses the 2.0 s budget by about 0.1 s. The residual is font preload plus the throttled main bundle, not the dev-server waterfall. This sample is not a budget pass.
 
-Quiet median of five, same production bundle and throttle, nothing else running: **2574, 1884, 1804, 2046, 2108 ms**, median **2046 ms**. Two samples are under 2.0 s. The median misses the budget by 46 ms. Still not a pass. Residual is the same throttled main bundle and font preload; no further cut was made in this slice.
+Quiet median of five, same production bundle and throttle, nothing else running: **2574, 1884, 1804, 2046, 2108 ms**, median **2046 ms**. Two samples are under 2.0 s. The median misses the budget by 46 ms.
+
+After splitting every route except Sell out of the first chunk, the main bundle dropped from 102 kB to 82 kB (gzip 31 kB to 28 kB). A second quiet five on that build: **3192, 2448, 1963, 1908, 1766 ms**, median **1963 ms**. The median is under 2.0 s. The first two samples are still over, so a single cold load can miss the budget. Residual is the throttled 82 kB main chunk plus the UI chunk and the font files, which the static server does not gzip.

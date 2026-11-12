@@ -1,10 +1,24 @@
 import { signal } from '@preact/signals';
-import { CATEGORIES } from '../domain/catalog';
 import { sbFetch } from './api';
 import { functionFetch } from './api';
 import { allowDevBypass, peekAccessToken } from './auth';
+import { isFresh, markFetched } from './freshness';
+import { hydrateEntities } from './hydrate';
+import { idbWrite } from './idb';
+import {
+  emptyInventoryMap,
+  fetchClients,
+  fetchDeliveries,
+  fetchSalesMerged,
+  inventoryMapFromRows,
+  inventoryRowsFromMap,
+  keepCachedRows,
+  type EntityName,
+  type InventoryMap,
+} from './repository';
+import { inventoryDeltaBody, inventoryEnsureBody, inventoryPatchBody, inventoryPatchPath } from './writes/inventory';
 
-export type InventoryMap = Record<string, number>;
+export type { InventoryMap };
 
 export type SaleRow = {
   id: string;
@@ -48,15 +62,53 @@ export type StoreOrderRow = {
 };
 
 function emptyInventory(): InventoryMap {
-  return Object.fromEntries(CATEGORIES.map((c) => [c.id, 0]));
+  return emptyInventoryMap();
 }
+
+export type DeliveryRow = {
+  id: string;
+  sale_id?: string | null;
+  [key: string]: unknown;
+};
 
 export const inventory = signal<InventoryMap>(emptyInventory());
 export const inventoryReady = signal(false);
 export const sales = signal<SaleRow[]>([]);
 export const clients = signal<ClientRow[]>([]);
 export const storeOrders = signal<StoreOrderRow[]>([]);
+export const deliveries = signal<DeliveryRow[]>([]);
 export const syncLabel = signal<'idle' | 'syncing' | 'live' | 'offline'>('idle');
+
+export function applyCachedEntity(entity: EntityName, data: unknown) {
+  if (entity === 'sales' && Array.isArray(data)) {
+    sales.value = data as SaleRow[];
+    return;
+  }
+  if (entity === 'clients' && Array.isArray(data)) {
+    clients.value = data as ClientRow[];
+    return;
+  }
+  if (entity === 'deliveries' && Array.isArray(data)) {
+    deliveries.value = data as DeliveryRow[];
+    return;
+  }
+  if (entity === 'inventory') {
+    const { map, applied } = inventoryMapFromRows(data, inventory.value);
+    if (applied > 0) {
+      inventory.value = map;
+      inventoryReady.value = true;
+    }
+  }
+}
+
+async function persistSnapshot(entity: EntityName, data: unknown, opts?: { bump?: boolean }) {
+  try {
+    await idbWrite(entity, data);
+  } catch {
+    return;
+  }
+  if (opts?.bump !== false) markFetched(entity, Date.now());
+}
 
 export async function ensureInventory() {
   syncLabel.value = 'syncing';
@@ -66,16 +118,22 @@ export async function ensureInventory() {
       syncLabel.value = 'offline';
       return inventory.value;
     }
-    const data = await functionFetch('/api/inventory/write', { op: 'ensure' });
+    const data = await functionFetch('/api/inventory/write', inventoryEnsureBody());
     const rows = Array.isArray(data?.rows) ? data.rows : [];
     const next = emptyInventory();
     for (const row of rows) {
       const id = String(row.category_id || '');
       if (id in next) next[id] = Math.max(0, Math.round(Number(row.stock) || 0));
     }
+    if (keepCachedRows(rows, inventoryReady.value)) {
+      markFetched('inventory', Date.now());
+      syncLabel.value = 'live';
+      return inventory.value;
+    }
     inventory.value = next;
     inventoryReady.value = true;
     syncLabel.value = 'live';
+    await persistSnapshot('inventory', inventoryRowsFromMap(next));
     return next;
   } catch (e) {
     console.warn('inventory ensure failed', e);
@@ -85,18 +143,40 @@ export async function ensureInventory() {
   }
 }
 
-export async function loadSales() {
-  const res = await sbFetch('sales?select=*&order=created_at.desc&limit=200');
-  if (!res.ok) throw new Error(`sales ${res.status}`);
-  sales.value = (await res.json()) as SaleRow[];
+export async function loadSales(opts?: { force?: boolean }) {
+  if (!opts?.force && isFresh('sales')) return sales.value;
+  const rows = (await fetchSalesMerged()) as SaleRow[];
+  if (keepCachedRows(rows, sales.value.length > 0)) {
+    markFetched('sales', Date.now());
+    return sales.value;
+  }
+  sales.value = rows;
+  await persistSnapshot('sales', rows);
   return sales.value;
 }
 
-export async function loadClients() {
-  const res = await sbFetch('clients?select=*&order=name.asc&limit=500');
-  if (!res.ok) throw new Error(`clients ${res.status}`);
-  clients.value = (await res.json()) as ClientRow[];
+export async function loadClients(opts?: { force?: boolean }) {
+  if (!opts?.force && isFresh('clients')) return clients.value;
+  const rows = (await fetchClients()) as ClientRow[];
+  if (keepCachedRows(rows, clients.value.length > 0)) {
+    markFetched('clients', Date.now());
+    return clients.value;
+  }
+  clients.value = rows;
+  await persistSnapshot('clients', rows);
   return clients.value;
+}
+
+export async function loadDeliveries(opts?: { force?: boolean }) {
+  if (!opts?.force && isFresh('deliveries')) return deliveries.value;
+  const rows = (await fetchDeliveries()) as DeliveryRow[];
+  if (keepCachedRows(rows, deliveries.value.length > 0)) {
+    markFetched('deliveries', Date.now());
+    return deliveries.value;
+  }
+  deliveries.value = rows;
+  await persistSnapshot('deliveries', rows);
+  return deliveries.value;
 }
 
 export async function loadStoreOrders() {
@@ -110,18 +190,14 @@ export async function loadStoreOrders() {
 
 async function writeStockChange(id: string, prev: number, nextQty: number, delta: number) {
   try {
-    await functionFetch('/api/inventory/write', {
-      op: 'delta',
-      category_id: id,
-      delta,
-    });
+    await functionFetch('/api/inventory/write', inventoryDeltaBody(id, delta));
   } catch (e) {
     const status = (e as { status?: number }).status;
     if (status === 405 || status === 502 || status === 503) {
-      const res = await sbFetch(`inventory?category_id=eq.${encodeURIComponent(id)}`, {
+      const res = await sbFetch(inventoryPatchPath(id), {
         method: 'PATCH',
         headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({ stock: nextQty }),
+        body: JSON.stringify(inventoryPatchBody(nextQty)),
       });
       if (res.ok) return;
     }
@@ -136,6 +212,7 @@ export async function adjustInventory(categoryId: string, delta: number) {
   const nextQty = Math.max(0, prev + delta);
   inventory.value = { ...inventory.value, [id]: nextQty };
   await writeStockChange(id, prev, nextQty, delta);
+  await persistSnapshot('inventory', inventoryRowsFromMap(inventory.value), { bump: false });
 }
 
 export async function setInventoryCount(categoryId: string, qty: number) {
@@ -146,11 +223,13 @@ export async function setInventoryCount(categoryId: string, qty: number) {
   if (delta === 0) return nextQty;
   inventory.value = { ...inventory.value, [id]: nextQty };
   await writeStockChange(id, prev, nextQty, delta);
+  await persistSnapshot('inventory', inventoryRowsFromMap(inventory.value), { bump: false });
   return nextQty;
 }
 
 export async function bootstrapEntities() {
+  await hydrateEntities((entity, data) => applyCachedEntity(entity, data));
   await ensureInventory();
   if (!peekAccessToken() && allowDevBypass()) return;
-  await Promise.allSettled([loadSales(), loadClients(), loadStoreOrders()]);
+  await Promise.allSettled([loadSales(), loadClients(), loadDeliveries(), loadStoreOrders()]);
 }

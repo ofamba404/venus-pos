@@ -30,7 +30,7 @@ Legend: **S** = staff and admin, **A** = admin only.
 | [ ] | Success: totals, badges, delivery summary with "Saving delivery…" pending, Done / New order / Next store order | S | `js/orders.js:950-1030` | L4 + visual |
 | [x] | Reward lines (`is_reward`, `reward_key`, `points_cost`) | S | `js/orders.js:2235-2243` | S20 |
 | [ ] | Cart persists across reload (`venus-pos-cart`, `venus-pos-order-meta`) | S | `js/state.js:72-114` | L4 reload test |
-| [ ] | Today numbers: owner revenue, joints, cookies | S | `js/home.js` `updateTodayStrip` | S50 |
+| [x] | Today numbers: owner revenue, joints, cookies | S | `js/home.js` `updateTodayStrip` | legacy S50 + next S50 |
 
 ## 2. Storefront orders
 
@@ -116,7 +116,7 @@ Approved additions (D1, D4) are appended, never replacing a field.
 | [ ] | Auth: sign in, role check, refresh, transient tolerance, invalid → re-login, `next` | S | `js/auth/*` | S49, L1 |
 | [x] | Staff page restrictions | S | `js/auth/client.js:190-194` | S46 |
 | [ ] | Pre-paint gate (no flash of app when signed out) | S | `js/auth/gate-boot.js` | L4 |
-| [ ] | IDB cache reused (`venus-pos` / `cache`) | S | `js/store/idb.js` | Phase 3 test |
+| [x] | IDB cache reused (`venus-pos` / `cache`) | S | `js/store/idb.js` | hydrate-boot test |
 | [ ] | Stale windows, dedupe, empty guard | S | `js/store/*` | L1 |
 | [ ] | Push subscribe/unsubscribe, prefs (`venus.notif.prefs.v1`), schedules tick (30 s), fired dedupe | S | `js/notifications.js` | S45, L1 |
 | [ ] | SW at `/sw.js` scope `/`; push handler; notification click → postMessage / openWindow; display-mode ping; `META_CACHE` | S | `sw.js` | L1 (handler unit tests), manual |

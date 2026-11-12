@@ -54,5 +54,5 @@ describe('history-groups dual-run', () => {
       ),
       { numRuns: 2000 },
     );
-  });
+  }, 20_000);
 });

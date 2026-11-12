@@ -7,6 +7,11 @@ import { categoryLabel, soldExcludingHold } from '../domain/stock-reservation';
 import { buildSalePostBody, type CheckoutDeliveryInput } from '../domain/sale-payload';
 import { BASE_ORIGIN } from '../domain/geo';
 import { sbFetch, functionFetch } from './api';
+import { postClient } from './writes/clients';
+import { postDelivery } from './writes/deliveries';
+import { inventoryDeltaBody } from './writes/inventory';
+import { postSale } from './writes/sales';
+import { storeOrderCheckedOutBody, storeOrderPatchPath } from './writes/store-orders';
 import { clients, ensureInventory, inventory, loadSales, syncLabel, type SaleRow } from './entities';
 import { deviceId } from './device-id';
 import { postStoreReserve } from './store-reserve';
@@ -44,11 +49,7 @@ async function resolveClientId(name: string, existingId: string): Promise<string
   );
   if (local) return local.id;
 
-  const res = await sbFetch('clients', {
-    method: 'POST',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({ name: trimmed }),
-  });
+  const res = await postClient(trimmed);
   if (!res.ok) throw new Error(`Could not create client (${res.status})`);
   const row = rowsFrom<{ id: string }>(await res.json())[0];
   const id = row?.id || null;
@@ -139,41 +140,30 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
       checkout: input.checkout,
     });
     saleBody = body;
-    const res = await sbFetch('sales', {
-      method: 'POST',
-      headers: { Prefer: 'return=representation' },
-      body: JSON.stringify(body),
-    });
+    const res = await postSale(body);
     if (!res.ok) throw new Error(`Sale failed (${res.status})`);
     const sale = rowsFrom<SaleRow>(await res.json())[0];
     if (!sale) throw new Error('Sale failed — empty response');
 
     void Promise.all(
       Object.entries(sold).map(([category_id, qty]) =>
-        functionFetch('/api/inventory/write', {
-          op: 'delta',
-          category_id,
-          delta: -Number(qty),
-        }),
+        functionFetch('/api/inventory/write', inventoryDeltaBody(category_id, -Number(qty))),
       ),
     ).catch((e) => console.warn('persist sold failed', e));
 
     if (input.meta.storeOrderId) {
       try {
-        const marked = await sbFetch(
-          `store_orders?id=eq.${encodeURIComponent(input.meta.storeOrderId)}`,
-          {
-            method: 'PATCH',
-            body: JSON.stringify({ status: 'checked_out', sale_id: sale.id }),
-          },
-        );
+        const marked = await sbFetch(storeOrderPatchPath(input.meta.storeOrderId), {
+          method: 'PATCH',
+          body: JSON.stringify(storeOrderCheckedOutBody(String(sale.id || ''))),
+        });
         if (!marked.ok) console.warn('store order checkout patch failed', marked.status);
       } catch (e) {
         console.warn('store order checkout patch failed', e);
       }
     }
 
-    void loadSales().catch(() => {});
+    void loadSales({ force: true }).catch(() => {});
     await recordDelivery({
       saleId: String(sale.id || ''),
       clientId,
@@ -258,10 +248,7 @@ async function recordDelivery(input: {
       ? { lat: originLat, lng: originLng, label: draft.originText || 'GPS pickup' }
       : BASE_ORIGIN;
   try {
-    await sbFetch('deliveries', {
-      method: 'POST',
-      headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({
+    await postDelivery({
         client_id: input.clientId,
         client_name: input.clientName || null,
         sale_id: input.saleId || null,
@@ -276,7 +263,6 @@ async function recordDelivery(input: {
         fee_ugx: Number.isFinite(fee) ? fee : 0,
         predicted_fee_ugx: draft.predictedFee == null ? null : Number(draft.predictedFee),
         fee_was_edited: Boolean(draft.feeManuallyEdited),
-      }),
     });
   } catch (e) {
     console.warn('delivery log failed', e);

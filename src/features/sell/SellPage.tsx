@@ -352,7 +352,7 @@ export function SellPage() {
       deliveryDeliverAt: '',
       clientPhone: '',
     });
-    void loadSales().catch(() => {});
+    void loadSales({ force: true }).catch(() => {});
   }
 
   async function parkSale() {

@@ -69,7 +69,7 @@ export async function saveSaleItems(sale: SaleRow, nextItems: SaleItem[]) {
     }),
   });
   if (!res.ok) throw new Error(`Could not save order (${res.status})`);
-  await loadSales();
+  await loadSales({ force: true });
 }
 
 export async function voidSaleRecord(sale: SaleRow) {
@@ -80,5 +80,5 @@ export async function voidSaleRecord(sale: SaleRow) {
   });
   if (!res.ok) throw new Error(`Could not void order (${res.status})`);
   await applySoldDelta(before, {});
-  await loadSales();
+  await loadSales({ force: true });
 }

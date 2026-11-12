@@ -74,7 +74,7 @@ export function ClientsPage() {
       setSettleId(null);
       setAmount('');
       setNote('');
-      await loadSales();
+      await loadSales({ force: true });
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Settle failed');
     } finally {

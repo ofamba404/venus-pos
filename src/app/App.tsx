@@ -1,36 +1,31 @@
 import { useEffect } from 'preact/hooks';
+import { lazy, Suspense } from 'preact/compat';
+import type { ComponentType } from 'preact';
 import { bootRouter, currentRoute, go, routeId, ROUTES } from './router';
 import { hydrateAuth, allowDevBypass, canAccessPath, authReady } from '../data/auth';
-import { bootstrapEntities, storeOrders, syncLabel } from '../data/entities';
+import { bootstrapEntities, loadClients, loadDeliveries, loadSales, storeOrders, syncLabel, ensureInventory } from '../data/entities';
+import { isFresh } from '../data/freshness';
+import { readConnection, scheduleIdlePrefetch, shouldSkipPrefetch, staleEntities } from '../data/prefetch';
 import { ToastHost, showToast } from '../ui/ToastHost';
 import { IconSell, IconOrders, IconStock, IconMore } from '../ui/icons';
 import { SellPage } from '../features/sell/SellPage';
-import { OrdersPage } from '../features/orders/OrdersPage';
-import { StockPage } from '../features/stock/StockPage';
-import { MorePage } from '../features/more/MorePage';
-import { SettingsPage } from '../features/settings/SettingsPage';
-import { ClientsPage } from '../features/clients/ClientsPage';
-import { HistoryPage } from '../features/history/HistoryPage';
-import { InsightsPage } from '../features/insights/InsightsPage';
-import { DeliveryPage } from '../features/delivery/DeliveryPage';
-import { ReviewsPage } from '../features/reviews/ReviewsPage';
-import { StorePage } from '../features/store/StorePage';
-import { SystemPage } from '../features/system/SystemPage';
+
+const page = (load: () => Promise<{ default: ComponentType }>) => lazy(load);
 
 const PAGES = {
   sell: SellPage,
-  orders: OrdersPage,
-  stock: StockPage,
-  more: MorePage,
-  settings: SettingsPage,
-  clients: ClientsPage,
-  history: HistoryPage,
-  insights: InsightsPage,
-  delivery: DeliveryPage,
-  reviews: ReviewsPage,
-  store: StorePage,
-  system: SystemPage,
-} as const;
+  orders: page(() => import('../features/orders/OrdersPage').then((m) => ({ default: m.OrdersPage }))),
+  stock: page(() => import('../features/stock/StockPage').then((m) => ({ default: m.StockPage }))),
+  more: page(() => import('../features/more/MorePage').then((m) => ({ default: m.MorePage }))),
+  settings: page(() => import('../features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage }))),
+  clients: page(() => import('../features/clients/ClientsPage').then((m) => ({ default: m.ClientsPage }))),
+  history: page(() => import('../features/history/HistoryPage').then((m) => ({ default: m.HistoryPage }))),
+  insights: page(() => import('../features/insights/InsightsPage').then((m) => ({ default: m.InsightsPage }))),
+  delivery: page(() => import('../features/delivery/DeliveryPage').then((m) => ({ default: m.DeliveryPage }))),
+  reviews: page(() => import('../features/reviews/ReviewsPage').then((m) => ({ default: m.ReviewsPage }))),
+  store: page(() => import('../features/store/StorePage').then((m) => ({ default: m.StorePage }))),
+  system: page(() => import('../features/system/SystemPage').then((m) => ({ default: m.SystemPage }))),
+};
 
 const NAV_ICONS = {
   sell: IconSell,
@@ -43,7 +38,23 @@ export function App() {
   useEffect(() => {
     hydrateAuth();
     bootRouter();
-    void bootstrapEntities();
+    let stopPrefetch = () => {};
+    let alive = true;
+    void bootstrapEntities().finally(() => {
+      if (!alive) return;
+      stopPrefetch = scheduleIdlePrefetch(() => {
+        if (shouldSkipPrefetch(readConnection())) return;
+        const stale = staleEntities((name) => isFresh(name));
+        if (stale.includes('sales')) void loadSales().catch(() => {});
+        if (stale.includes('clients')) void loadClients().catch(() => {});
+        if (stale.includes('deliveries')) void loadDeliveries().catch(() => {});
+        if (stale.includes('inventory')) void ensureInventory().catch(() => {});
+      });
+    });
+    return () => {
+      alive = false;
+      stopPrefetch();
+    };
   }, []);
 
   const ready = authReady.value;
@@ -73,7 +84,9 @@ export function App() {
       </header>
 
       <main class="shell__main">
-        <Page />
+        <Suspense fallback={null}>
+          <Page />
+        </Suspense>
       </main>
 
       <nav class="shell__nav" aria-label="Primary">
