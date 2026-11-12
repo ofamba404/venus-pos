@@ -1,19 +1,19 @@
 # Overhaul progress
 
-Update at the end of every session. Phase 0 is cleared. Do not start Phase 1 until the owner says so.
+Update at the end of every session. Phase 1 is cleared. Do not start Phase 2 until the owner says so.
 
 | Field | Value |
 |-------|-------|
-| Current phase | Phase 0 cleared. Phase 1 not started |
+| Current phase | Phase 1 cleared. Phase 2 not started |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | `npm test`: 36 files, 125 passed. Legacy S01–S50 ×3: 150 passed, goldens identical. S19 is two sales |
-| Next step | Phase 1 when the owner says so. See `HANDOFF.md` |
+| Tests passing | `npm run build` hash check: 82 legacy files match dist/. Legacy S01–S50 against dist: 50 passed |
+| Next step | Phase 2 when the owner says so. See `HANDOFF.md` |
 | Open questions for the owner | Live Maps for production, and deploy/ship. D11 look is approved (2026-11-12). Checkpoints for Phases 4, 5, and 8 are waived. Do not apply `client_sale_id` |
 
 ## Ready vs open
 
-**Phase 0 is cleared.** Legacy goldens S01–S50 matched three times. Dual-run snapshots cover `06-testing.md` §4.3. Quirks 1–11 are logged. Legacy screenshots exist for every screen at four viewports, and `baseline/perf.md` has the v1 numbers. Phase 1 has not been started.
+**Phase 1 is cleared.** `npm run build` copies v1 into `dist/` and checks SHA-256 against `legacy/` (82 files) and `public/assets`. S01–S50 passed against that `dist/` tree. The optional Netlify draft deploy was not run. Phase 2 has not been started.
 
 **Owner decisions.** D1 A, D2 B, D3 B, D4 B, D5 A, D6 A, D16 improve, D11 approved. Details in `08-decisions.md`.
 
@@ -47,4 +47,5 @@ Update at the end of every session. Phase 0 is cleared. Do not start Phase 1 unt
 | 2026-11-12 | — | D11 look approved. Phase 4/5/8 checkpoints waived | `cb3129a` |
 | 2026-11-12 | 0 | Quirk 7: legacy double-tap posts two sales (×3). Handoff rewritten. Phase 0 still open | `ee6bd31` |
 | 2026-11-12 | 0 | Legacy driver covers 35 of 50 scenarios once. Mock POST returns an array. Analytics chart snapshot. Phase 0 still open | `f62f24e` |
-| 2026-11-12 | 0 | Phase 0 cleared. S01–S50 goldens ×3 (150 passed). Remaining legacy screenshots. Hours-dial snapshot | this commit |
+| 2026-11-12 | 0 | Phase 0 cleared. S01–S50 goldens ×3 (150 passed). Remaining legacy screenshots. Hours-dial snapshot | `8cbdc36` |
+| 2026-11-12 | 1 | Phase 1 cleared. dist/ hash check. S01–S50 against dist. ship.ps1 builds first. D15 wording proposed | this commit |

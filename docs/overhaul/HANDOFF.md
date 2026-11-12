@@ -3,24 +3,27 @@
 **Date:** 2026-11-12
 **Repo:** https://github.com/ofamba404/venus-pos (public)
 **Branch:** `overhaul` (fast-forward only)
-**Phase:** Phase 0 cleared. Do not start Phase 1 until the owner says to.
+**Phase:** Phase 1 cleared. Do not start Phase 2 until the owner says to.
 
 ## Cleared phases
 
-**Phase 0 — Safety net.** Exit criteria from `05-implementation-plan.md`:
+**Phase 0 — Safety net.** S01–S50 goldens matched three times (150 passed). `npm test` 125 passed. Quirks 1–11. Baselines and `perf.md` are in `docs/overhaul/baseline/`. Commit `8cbdc36`.
 
-1. **S01–S50 vs legacy, three times, identical goldens.** `npx playwright test tests/e2e/legacy.spec.ts --timeout=30000 --repeat-each=3` → **150 passed** (exit 0, 5.2m). Goldens are `tests/e2e/goldens/S01.json`–`S50.json`. S19 contains two `POST /rest/v1/sales` (quirk 7). Boot `ensure` and `admin_list_*` reads are omitted (quirk 10).
-2. **Dual-run legacy snapshots for `06-testing.md` §4.3.** `npm test` → **36 files, 125 passed**. Includes `tests/dual-run/analytics-chart.test.ts` (Monday bounds, heatmap, 2,000 runs) and `tests/dual-run/hours-dial.test.ts` (dial clock, 2,000 runs).
-3. **QUIRKS.md.** Rows 1–11. Do not “fix” 7, 8, 10, or 11 in `legacy/`.
-4. **Baselines.** Legacy home, inventory, clients, history, analytics, delivery, reviews, admin, and auth at 360×740, 390×844, 768×1024, and 1280×800 in `docs/overhaul/baseline/`. Perf numbers are already in `docs/overhaul/baseline/perf.md` (quiet production median 1963 ms). `baseline.spec.ts` writes `perf-latest.md` and must not overwrite `perf.md`.
+**Phase 1 — Restructure and build pipeline.** Exit criteria from `05-implementation-plan.md`:
+
+1. **`dist/` outside `/next/` is byte-identical to v1.** `npm run build` runs `scripts/check-legacy-dist.mjs`. Result: **82 legacy files match `dist/`**, `dist/assets` matches `public/assets`, `dist/next` ignored.
+2. **L3 scenarios pass against `dist/` served statically.** `LEGACY_ROOT=dist LEGACY_PORT=4175 npx playwright test tests/e2e/legacy.spec.ts --timeout=30000` → **50 passed** (exit 0, 1.8m). Goldens still match. The server log was `from .../dist`. `GET /next/index.html` on that root is 200. Served `/` and `/sw.js` hash-match `legacy/`.
+3. **Optional Netlify draft deploy.** Not run. The plan requires owner approval, and deploy is still blocked. Production check stays in Phase 9.
+
+`ship.ps1` now runs `npm ci` and `npm run build` before a local Netlify deploy, still bumps `CACHE_VERSION` in `legacy/sw.js`, and deploys `dist`. It was not executed. D15 wording is proposed in `08-decisions.md` and not applied. `.cursor/rules/work-on-venus-store.mdc` is not in this repo.
 
 ## In progress
 
-Nothing. Phase 0 is closed.
+Nothing. Phase 1 is closed.
 
 ## Next concrete step
 
-Phase 1 task 1 in `05-implementation-plan.md`: confirm the v1 files already under `legacy/`, then the byte-identical `dist/` check. Do not deploy. Do not apply migrations.
+Phase 2 task 1 in `05-implementation-plan.md`: `src/domain/catalog.ts` and `scripts/check-catalog-sync.mjs`, with the dual-run test passing. Do not deploy. Do not apply migrations.
 
 ## How to run tests
 
@@ -28,10 +31,12 @@ Phase 1 task 1 in `05-implementation-plan.md`: confirm the v1 files already unde
 npm ci
 npm test
 npm run typecheck
+npm run build
 npx playwright test tests/e2e/legacy.spec.ts --timeout=30000 --repeat-each=3
+LEGACY_ROOT="$PWD/dist" LEGACY_PORT=4175 npx playwright test tests/e2e/legacy.spec.ts --timeout=30000
 ```
 
-`RECORD=1` rewrites `tests/e2e/goldens/Sxx.json`. `CAPTURE=1` refreshes the legacy screen shots. Vite is `http://127.0.0.1:5173`. Legacy is `http://127.0.0.1:4173`. Use `tests/mock/` only.
+The default legacy server still serves `legacy/` on port 4173. Set `LEGACY_ROOT` to `dist` to serve the built register. Vite is `http://127.0.0.1:5173`. Use `tests/mock/` only.
 
 ## Standing rules
 

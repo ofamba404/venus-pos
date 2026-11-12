@@ -7,7 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../legacy');
+const root = process.env.LEGACY_ROOT
+  ? path.resolve(process.env.LEGACY_ROOT)
+  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../legacy');
 const port = Number(process.env.LEGACY_PORT || 4173);
 const host = '127.0.0.1';
 
@@ -50,5 +52,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, host, () => {
-  process.stdout.write(`legacy register http://${host}:${port}/\n`);
+  process.stdout.write(`legacy register http://${host}:${port}/ from ${root}\n`);
 });

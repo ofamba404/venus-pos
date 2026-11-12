@@ -18,7 +18,7 @@ The implementer must not decide these. Each has a **default** that applies until
 | D12 | UI framework | **Preact + signals** on Vite + TS | Phase 1 |
 | D13 | Require `pos_staff`/`pos_admin` in `/api/inventory/write` (security fix) | **Propose, don't apply** | — |
 | D14 | Make the push-notify secret mandatory (needs a coordinated storefront change) | **Propose, don't apply** | — |
-| D15 | Update the workspace ship rule wording once `ship.ps1` builds first | **Propose wording at Phase 1** | Phase 1 |
+| D15 | Update the workspace ship rule wording once `ship.ps1` builds first | **Proposed 2026-11-12. Not applied.** The rule file is not in this repo, and the owner has not approved the edit | Phase 1 |
 | D16 | Pending storefront orders claim sellable stock immediately | **Yes — improve beyond v1** (owner, 2026-11-12) | — |
 
 ---
@@ -88,6 +88,12 @@ Local IndexedDB only (`held` store). No data leaves the device. Default on.
 
 - D13: in `netlify/functions/_shared/supabase-admin.mjs` `requireStaffUser`, reject tokens whose `app_metadata.role` is not `pos_staff` or `pos_admin`. One-line change plus a function test. Low risk, but it changes a live function, so it needs approval.
 - D14: make `PUSH_NOTIFY_SECRET` mandatory in `push-notify.mjs`, coordinated with a storefront release that sends it. Requires a change in `venus-store`, so it needs explicit approval and a joint deploy.
+
+## D15 — Ship rule wording (proposed, not applied)
+
+`.cursor/rules/work-on-venus-store.mdc` is not in this repo. Do not add it until the owner approves. Proposed replacement for the deploy paragraph:
+
+> Deploy only with `.\scripts\ship.ps1` from the venus-pos repo, and only after the owner says `push deploy netlify` or `ship`. The script runs `npm ci` and `npm run build`, bumps `CACHE_VERSION` in `legacy/sw.js`, then deploys the `dist` directory (`netlify.deploy.json` `publishDir`). Do not call the Netlify CLI directly. v1 stays at `/`. v2 stays at `/next/` until cutover.
 
 ## D16 — Store order stock reservation
 

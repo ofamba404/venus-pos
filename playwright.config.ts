@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.POS_BASE_URL || 'http://127.0.0.1:5173';
+const legacyPort = process.env.LEGACY_PORT || '4173';
+const legacyOrigin = `http://127.0.0.1:${legacyPort}`;
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -28,7 +30,7 @@ export default defineConfig({
         },
         {
           command: 'node scripts/serve-legacy.mjs',
-          url: 'http://127.0.0.1:4173/',
+          url: `${legacyOrigin}/`,
           reuseExistingServer: !process.env.CI,
           timeout: 30_000,
         },
@@ -42,7 +44,7 @@ export default defineConfig({
     {
       name: 'legacy',
       testMatch: /legacy\.spec\.ts/,
-      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:4173' },
+      use: { ...devices['Desktop Chrome'], baseURL: legacyOrigin },
     },
   ],
 });

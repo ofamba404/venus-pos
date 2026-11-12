@@ -175,11 +175,10 @@ export async function installMockBackend(
       await route.fulfill({ status: 503, contentType: 'text/plain', body: 'offline' });
       return;
     }
-    if (local && (u.port === '4173' || u.port === '4174' || u.port === '5173' || u.port === '')) {
-      if (!u.pathname.startsWith('/api/')) {
-        await route.continue();
-        return;
-      }
+    // App HTML, JS, and CSS from whichever local static port is serving dist/ or legacy/.
+    if (local && !u.pathname.startsWith('/api/')) {
+      await route.continue();
+      return;
     }
 
     const failStatus = consumeFailure(method, url, req.postData());
@@ -364,12 +363,8 @@ export async function installMockBackend(
       return;
     }
 
-    // Realtime websocket handled separately; other unknown off-origin → fail
-    if (
-      u.origin !== 'http://127.0.0.1:4173' &&
-      u.origin !== 'http://localhost:4173' &&
-      u.origin !== 'http://127.0.0.1:4174'
-    ) {
+    // Realtime websocket handled separately. Unknown off-origin hosts fail closed.
+    if (!local) {
       throw new Error(`Mock backend: unrecognised request ${method} ${url}`);
     }
 

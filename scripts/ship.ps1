@@ -135,7 +135,13 @@ if (Test-GitContinuousDeployment) {
     exit 0
 }
 
-$publishDir = if ($config.publishDir) { $config.publishDir } else { "." }
+Write-Host "Building dist before deploy (npm ci && npm run build)..."
+& npm ci
+if ($LASTEXITCODE -ne 0) { throw "npm ci failed." }
+& npm run build
+if ($LASTEXITCODE -ne 0) { throw "npm run build failed." }
+
+$publishDir = if ($config.publishDir) { $config.publishDir } else { "dist" }
 $netlify = Get-NetlifyCli
 Write-Host "Deploying to Netlify production..."
 & $netlify deploy --prod --dir $publishDir --message "ship $commit"

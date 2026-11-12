@@ -107,11 +107,11 @@
   <script>
     // Fallback if progress.json is missing. Prefer progress.json (kept in sync with PROGRESS.md).
     const STATE = {
-      phase: "Phase 0 cleared. Phase 1 not started",
+      phase: "Phase 1 cleared. Phase 2 not started",
       branch: "overhaul · v1-baseline @ 951a152",
-      commit: "see git log -1 — phase 0 goldens",
-      next: "Phase 1 when the owner says so. See HANDOFF.md.",
-      status: "S01–S50 legacy goldens matched three times (150 passed). npm test 125 passed. Quirks 1–11. Legacy screenshots at four viewports. No deploy.",
+      commit: "see git log -1 — phase 1 dist check",
+      next: "Phase 2 when the owner says so. See HANDOFF.md.",
+      status: "npm run build: 82 legacy files match dist/. S01–S50 against dist: 50 passed. Draft deploy not run. No deploy.",
       ownerGate: {
         ready: "D1 A · D2 B · D3 B · D4 B · D5 A · D6 A · D11 approved · D16 improve (2026-11-12).",
         phase8: "Locals done: walk-in, hold, offline outbox. client_sale_id SQL written, not applied. Skipped D3 receipt + D5 shift close.",
@@ -126,7 +126,7 @@
         { id: "p0-dual", label: "Phase 0: dual-run §4.3 including analytics chart and hours dial", state: "done" },
         { id: "p0-scenarios", label: "Phase 0: S01–S50 goldens identical across 3 runs", state: "done" },
         { id: "p0-baseline", label: "Phase 0: every legacy screen at four viewports + perf.md", state: "done" },
-        { id: "p1", label: "Phase 1: code present, exit not claimed", state: "wait" },
+        { id: "p1", label: "Phase 1: dist/ byte-identical to v1. S01–S50 passed against dist", state: "done" },
         { id: "p2", label: "Phase 2: not the open phase", state: "wait" },
         { id: "p3", label: "Phase 3: not the open phase", state: "wait" },
         { id: "p4", label: "Phase 4: D11 approved. Not the open phase", state: "wait" },
