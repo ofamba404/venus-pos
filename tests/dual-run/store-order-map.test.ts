@@ -4,6 +4,7 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest';
+import fc from 'fast-check';
 import { PRODUCTS, cookieLineDisplayName } from '../../legacy/js/config.js';
 import {
   STORE_COOKIE_TITLES,
@@ -81,6 +82,34 @@ describe('store-order-map dual-run', () => {
       const product = PRODUCTS.find((p: { id: string }) => p.id === line.product_id);
       expect(resolveStoreLineName(line, product)).toBe(legacyResolveStoreLineName(line, product));
     }
+  });
+
+  it('matches resolveStoreLineName on 2000 generated lines', () => {
+    fc.assert(
+      fc.property(
+        fc.record({
+          store_product_id: fc.constantFrom(
+            '',
+            'mint-cookie',
+            'butterscotch-cookie',
+            'strawberry-cookie',
+            'chocolate-cookie',
+            'cookie-duet',
+            'cookie-trio',
+            'cookie-quartet',
+            'nope',
+          ),
+          product_id: fc.constantFrom('cookie_single', 'scout', 'pilot', 'cookie_duet', 'nope', ''),
+          product_name: fc.constantFrom('Cookies', 'Scout Pack', 'Pilot Pack', '', 'Custom name'),
+          breakdown: fc.constantFrom({}, { cookie_mint: 1 }, { mint: 1 }, { cookie_chocolate: 2 }),
+        }),
+        (line) => {
+          const product = PRODUCTS.find((p: { id: string }) => p.id === line.product_id);
+          expect(resolveStoreLineName(line, product)).toBe(legacyResolveStoreLineName(line, product));
+        },
+      ),
+      { numRuns: 2000 },
+    );
   });
 
   it('matches rowsToCartLines with injected clock/rand', () => {

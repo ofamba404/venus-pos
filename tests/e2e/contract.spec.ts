@@ -433,13 +433,23 @@ test.describe('write-contract scenarios (next)', () => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await page.goto('/next/stock');
     await page.getByTestId('stock-mint-qty').filter({ hasText: '20' }).waitFor({ timeout: 15000 });
-    driver.mock.setFailure({ method: 'POST', pathIncludes: '/api/inventory/write', status: 405, times: 1 });
+    driver.mock.setFailure({
+      method: 'POST',
+      pathIncludes: '/api/inventory/write',
+      bodyOp: 'delta',
+      status: 405,
+      times: 1,
+    });
     await page.getByTestId('stock-mint-inc').click();
-    await page.getByTestId('stock-mint-qty').filter({ hasText: '21' }).waitFor({ timeout: 8000 });
     const patches = () =>
-      driver.mock.writes.filter((w) => w.method === 'PATCH' && w.url.includes('/rest/v1/inventory'));
+      driver.mock.writes.filter(
+        (w) =>
+          w.method === 'PATCH' &&
+          w.url.includes('/rest/v1/inventory') &&
+          (w.body as { stock?: number } | null)?.stock === 21,
+      );
     await expect.poll(() => patches().length, { timeout: 8000 }).toBeGreaterThanOrEqual(1);
-    expect((patches().at(-1)!.body as { stock?: number }).stock).toBe(21);
+    await page.getByTestId('stock-mint-qty').filter({ hasText: '21' }).waitFor({ timeout: 8000 });
   });
 
   test('a new review toasts on the reviews page', async ({ page }) => {

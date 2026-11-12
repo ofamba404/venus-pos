@@ -15,10 +15,15 @@ test('throttled production sell ready', async ({ page, context }) => {
     uploadThroughput: (750 * 1024) / 8,
   });
   await client.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-  const start = Date.now();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/next/sell');
-  await page.getByTestId('product-scout').waitFor({ timeout: 30000 });
-  const ms = Date.now() - start;
-  console.log(`PREVIEW_READY_MS ${ms}`);
+  const samples: number[] = [];
+  for (let i = 0; i < 5; i += 1) {
+    const start = Date.now();
+    await page.goto('/next/sell');
+    await page.getByTestId('product-scout').waitFor({ timeout: 30000 });
+    samples.push(Date.now() - start);
+  }
+  const sorted = [...samples].sort((a, b) => a - b);
+  const median = sorted[2] ?? 0;
+  console.log(`PREVIEW_READY_MS ${samples.join(',')} median ${median}`);
 });

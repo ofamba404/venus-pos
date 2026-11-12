@@ -3,6 +3,7 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest';
+import fc from 'fast-check';
 import {
   toHHmm,
   isBusyActive,
@@ -41,6 +42,19 @@ describe('hours dual-run', () => {
     expect(next.nextOpenAt(closed, status).getTime()).toBe(nextOpenAt(closed, status).getTime());
     expect(next.earliestAvailableAt(closed, { status }).getTime()).toBe(
       earliestAvailableAt(closed, { status }).getTime(),
+    );
+  });
+
+  it('matches toHHmm on 2000 clock strings', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 23 }), fc.integer({ min: 0, max: 59 }), (hour, minute) => {
+        const hh = String(hour).padStart(2, '0');
+        const mm = String(minute).padStart(2, '0');
+        for (const value of [`${hour}:${mm}`, `${hh}:${mm}`, `${hh}:${mm}:00`]) {
+          expect(next.toHHmm(value)).toBe(toHHmm(value));
+        }
+      }),
+      { numRuns: 2000 },
     );
   });
 });

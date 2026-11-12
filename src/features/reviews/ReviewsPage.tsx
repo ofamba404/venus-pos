@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { sbFetch } from '../../data/api';
+import { SUPABASE_KEY, SUPABASE_URL } from '../../data/env';
+import { connectSupabaseRealtime, startFeed } from '../../data/realtime';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
 
@@ -24,7 +26,6 @@ export function ReviewsPage() {
   useEffect(() => {
     let primed = false;
     const seen = new Set<string>();
-    let timer = 0;
     const tick = async () => {
       const res = await sbFetch('store_reviews?select=*&order=created_at.desc&limit=100');
       if (!res.ok) throw new Error(`reviews ${res.status}`);
@@ -40,11 +41,18 @@ export function ReviewsPage() {
       if (fresh.length === 1) showToast('New review');
       else if (fresh.length > 1) showToast(`${fresh.length} new reviews`);
     };
-    void tick().catch((e) => showToast(e instanceof Error ? e.message : 'Could not load reviews'));
-    timer = window.setInterval(() => {
-      void tick().catch(() => {});
-    }, 4000);
-    return () => window.clearInterval(timer);
+    return startFeed({
+      connect: () =>
+        connectSupabaseRealtime(
+          `${SUPABASE_URL.replace(/^https:/, 'wss:')}/realtime/v1/websocket?apikey=${SUPABASE_KEY}`,
+        ),
+      refetch: () => {
+        void tick().catch((e) => {
+          if (!primed) showToast(e instanceof Error ? e.message : 'Could not load reviews');
+        });
+      },
+      pollMs: 4000,
+    });
   }, []);
 
   return (

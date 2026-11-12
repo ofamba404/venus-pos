@@ -14,6 +14,8 @@ export type FailureRule = {
   method: string;
   table?: string;
   pathIncludes?: string;
+  /** When set, only a JSON body with this `op` consumes the failure. */
+  bodyOp?: string;
   status: number;
   times?: number;
 };
@@ -121,11 +123,20 @@ export async function installMockBackend(
     },
   );
 
-  const consumeFailure = (method: string, url: string): number | null => {
+  const consumeFailure = (method: string, url: string, rawBody: string | null): number | null => {
     const idx = failures.findIndex((f) => {
       if (f.method.toUpperCase() !== method.toUpperCase()) return false;
       if (f.table && !url.includes(`/rest/v1/${f.table}`)) return false;
       if (f.pathIncludes && !url.includes(f.pathIncludes)) return false;
+      if (f.bodyOp) {
+        let op = '';
+        try {
+          op = String((JSON.parse(rawBody || '{}') as { op?: string }).op || '');
+        } catch {
+          op = '';
+        }
+        if (op !== f.bodyOp) return false;
+      }
       return true;
     });
     if (idx < 0) return null;
@@ -164,7 +175,7 @@ export async function installMockBackend(
       }
     }
 
-    const failStatus = consumeFailure(method, url);
+    const failStatus = consumeFailure(method, url, req.postData());
     if (failStatus != null) {
       await fulfillJson(route, failStatus, { error: 'injected failure' });
       return;

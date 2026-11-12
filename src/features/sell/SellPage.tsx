@@ -38,6 +38,8 @@ import { mapStoreOrderToCart } from '../../domain/store-order-map';
 import { sbFetch } from '../../data/api';
 import { postStoreReserve } from '../../data/store-reserve';
 import { clients, ensureInventory, inventory, loadClients, loadSales, loadStoreOrders, sales, storeOrders, syncLabel } from '../../data/entities';
+import { connectSupabaseRealtime, startFeed } from '../../data/realtime';
+import { SUPABASE_KEY, SUPABASE_URL } from '../../data/env';
 import { openDebtForClientName } from '../../domain/credit';
 import { counterSellable } from '../../domain/stock-reservation';
 import { haptic } from '../../platform/haptics';
@@ -149,7 +151,6 @@ export function SellPage() {
   useEffect(() => {
     let seen = new Set<string>();
     let primed = false;
-    let timer = 0;
     const tick = () => {
       void loadStoreOrders()
         .then((rows) => {
@@ -168,9 +169,14 @@ export function SellPage() {
         })
         .catch(() => {});
     };
-    tick();
-    timer = window.setInterval(tick, 4000);
-    return () => window.clearInterval(timer);
+    return startFeed({
+      connect: () =>
+        connectSupabaseRealtime(
+          `${SUPABASE_URL.replace(/^https:/, 'wss:')}/realtime/v1/websocket?apikey=${SUPABASE_KEY}`,
+        ),
+      refetch: tick,
+      pollMs: 4000,
+    });
   }, []);
 
   async function onPlacePick(place: { label: string; lat: number; lng: number }) {

@@ -28,10 +28,16 @@ function writeJson(key: string, value: unknown) {
   }
 }
 
-function loadInitial(): CartState {
+/** Read a v1-shaped cart (`venus-pos-cart` + `venus-pos-order-meta`). */
+export function readStoredCart(): { lines: CartLine[]; meta: OrderMeta } {
   const lines = readJson<CartLine[]>(KEYS.cart, []);
   const meta = { ...defaultOrderMeta(), ...readJson<Partial<OrderMeta>>(KEYS.orderMeta, {}) };
-  return cartReducer(emptyCart(), { type: 'replace_all', state: { lines, meta } });
+  return { lines: Array.isArray(lines) ? lines : [], meta };
+}
+
+function loadInitial(): CartState {
+  const stored = readStoredCart();
+  return cartReducer(emptyCart(), { type: 'replace_all', state: stored });
 }
 
 export const cartState = signal<CartState>(

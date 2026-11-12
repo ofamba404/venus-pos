@@ -3,6 +3,7 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest';
+import fc from 'fast-check';
 import {
   cookiePartnerBatchesFromUnits,
   expandCookieUnitsFromItem,
@@ -54,5 +55,29 @@ describe('partner dual-run', () => {
       partnerDue: Math.round(u.partnerDue),
     }));
     expect(ours).toEqual(legacy);
+  });
+
+  it('chunks 2000 generated unit lists the same way', () => {
+    const money = fc.integer({ min: 0, max: 100_000 });
+    fc.assert(
+      fc.property(
+        fc.array(fc.record({ revenue: money, ownerSplit: money, partnerDue: money }), { maxLength: 40 }),
+        fc.integer({ min: 1, max: 30 }),
+        (units, every) => {
+          const pick = (b: Record<string, unknown>) => ({
+            index: b.index,
+            cookieCount: b.cookieCount,
+            every: b.every,
+            complete: b.complete,
+            revenue: b.revenue,
+            ownerSplit: b.ownerSplit,
+            partnerDue: b.partnerDue,
+          });
+          const legacy = cookiePartnerBatchesFromUnits(units, every).map(pick);
+          expect(nextBatches(units, every).map(pick)).toEqual(legacy);
+        },
+      ),
+      { numRuns: 2000 },
+    );
   });
 });

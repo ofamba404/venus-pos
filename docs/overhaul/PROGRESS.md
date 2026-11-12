@@ -7,8 +7,8 @@ Update at the end of every session.
 | Current phase | Phase 0 exit still open. Phase 8 locals (walk-in, hold, offline) are in |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | typecheck clean · 98 unit/dual-run (not re-run) · 54 next contract tests (53 in one run; the 405 assertion passed on re-run) · 3 legacy (S02, S05, S07, not re-run) |
-| Next step | Realtime socket, push subscribe, legacy display goldens, and a quiet median under the 2.0 s budget. Lint stays off CI. No deploy. Do not apply `client_sale_id` |
+| Tests passing | typecheck clean · 108 unit/dual-run · 54 next contracts green in one run (405 included) · axe serious/critical clean on /sell and /system · legacy S02, S05, S07 green |
+| Next step | Quiet production median is 2046 ms (budget 2.0 s). Push subscribe, IDB entity hydrate, repository/prefetch/writes, and a legacy display golden are still open. Lint stays off CI. No deploy. Do not apply `client_sale_id` |
 | Open questions for the owner | D11 look, live Maps, and deploy stay blocked until the owner is back |
 
 ## Ready vs open (before a parallel run)
@@ -18,7 +18,7 @@ Update at the end of every session.
 **Open before staff use v2 beside v1.**
 
 - D1–D6 are answered in `08-decisions.md` (2026-11-12). Walk-in, device hold, and the offline outbox are local. `client_sale_id` is a SQL file only. It is not applied.
-- S36 edits `seed-sale-1` (mint 1 → 2, stock −1, sale PATCH). S37 voids `seed-delivery-sale` and the mock drops the linked trip. S42 edits `seed-trip-1`. S49 signs out through `/next/auth.html` (the Vite base; `/auth.html` is the dev hint) and returns to `/next/sell`. S50 checks Today, Insights credit, history day groups, and the debt row against the seed in this app. That is not a legacy golden. A throttled production sell sample was 2094 ms, still over 2.0 s. Legacy on port 4173 was last green for S02, S05, and S07.
+- S36 edits `seed-sale-1` (mint 1 → 2, stock −1, sale PATCH). S37 voids `seed-delivery-sale` and the mock drops the linked trip. S42 edits `seed-trip-1`. S49 signs out through `/next/auth.html` (the Vite base; `/auth.html` is the dev hint) and returns to `/next/sell`. S50 checks Today, Insights credit, history day groups, and the debt row against the seed in this app. That is not a legacy golden. Day totals inside `buildOrderHistoryTree` match `groupSalesByDay` for 2000 generated lists. A quiet throttled production median was 2046 ms (2574, 1884, 1804, 2046, 2108). Legacy S02, S05, and S07 were green in the same run as the 54 next contracts.
 - Phase 9 needs you to say deploy. That is `.\scripts\ship.ps1` from `venus-pos` (v1 stays at `/`, v2 at `/next/`). No test sales on production unless you ask.
 - Phase 10 needs you to say ship, after the parallel run. Same script, after the cutover edits. Rollback stays the previous Netlify deploy.
 
@@ -82,4 +82,5 @@ Phase 8 is in progress from the answers in `docs/overhaul/08-decisions.md`. Phas
 | 2026-11-12 | 0 | Playwright CI job, first-viewport baselines, parity ticks for the tests that passed | `142182b` |
 | 2026-11-12 | 0 | Delivery, line edit, store-order load, credit settle, four-viewport baselines. Throttled sell sample 7.9 s, over the 2.0 s budget | `50b2595` |
 | 2026-11-12 | 0 | Live-order poll, busy hours, stock bulk/fallback/low toast, clients, store users, staff redirect, offline queue. 46 next contracts | `e4b6325` |
-| 2026-11-12 | 0 | History edit/void, trip edit, sign-in, seed display parity, GPS locate, 405 stock fallback. Production sell sample 2094 ms | this commit |
+| 2026-11-12 | 0 | History edit/void, trip edit, sign-in, seed display parity, GPS locate, 405 stock fallback. Production sell sample 2094 ms | `1c5713c` |
+| 2026-11-12 | 0 | 405 wait tied to the delta PATCH. Orders/reviews socket with poll fallback. IDB cache round-trip and v1 session hydrate. Quiet production median 2046 ms. 54 contracts + legacy S02/S05/S07 + axe on /sell and /system | this commit |

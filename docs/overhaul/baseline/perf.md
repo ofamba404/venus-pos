@@ -23,3 +23,5 @@ Ready means the first sell tile, stock quantity, or legacy product row was visib
 The throttled row above was captured against the Vite dev server (one request per module), not a production bundle. That is why 7922 ms is far from the 2.0 s cold-start budget in `04-architecture.md` §9.
 
 A later sample loaded `vite build` output (`dist/next`, static server on port 4174, SPA fallback) at 390×844 with the same 4× CPU and Fast 4G profile. The Scout tile was visible at **2094 ms**. That is one run, taken while the contract suite was also running, so it is a ceiling rather than a quiet median of five. It still misses the 2.0 s budget by about 0.1 s. The residual is font preload plus the throttled main bundle, not the dev-server waterfall. This sample is not a budget pass.
+
+Quiet median of five, same production bundle and throttle, nothing else running: **2574, 1884, 1804, 2046, 2108 ms**, median **2046 ms**. Two samples are under 2.0 s. The median misses the budget by 46 ms. Still not a pass. Residual is the same throttled main bundle and font preload; no further cut was made in this slice.

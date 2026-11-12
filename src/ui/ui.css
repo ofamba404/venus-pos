@@ -398,7 +398,8 @@
   font: var(--t-mono-micro);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--fg-3);
+  /* 11px on paper-50: --fg-3 (#6b7280) is 4.39:1; this step clears 4.5:1 */
+  color: #666d7a;
   margin: var(--s-4) 0 var(--s-2);
 }
 
