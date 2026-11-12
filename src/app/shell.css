@@ -409,6 +409,48 @@
   animation: v-pop var(--d-base) var(--ease-spring);
 }
 
+.slot-meter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--surface-sunk);
+}
+
+.slot-meter__count {
+  font: var(--t-money);
+  line-height: 1;
+}
+
+.slot-meter__of {
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.slot-meter__slots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.slot-meter__slots i {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+  transition: background var(--d-fast) var(--ease-out), transform var(--d-fast) var(--ease-out);
+}
+
+.slot-meter__slots i.is-filled {
+  background: var(--flavor);
+  box-shadow: inset 0 0 0 1px rgb(33 33 33 / 0.18);
+  animation: v-pop var(--d-base) var(--ease-spring);
+}
+
 .config-flavor__label {
   display: inline-flex;
   align-items: center;

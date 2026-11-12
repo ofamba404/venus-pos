@@ -115,6 +115,36 @@ export function configTotalSelected(configSelection: ConfigSelection | null | un
   }, 0);
 }
 
+/**
+ * Flavours a pack must hold: its joint count, or one fewer for a variety pack whose
+ * last slot is the fixed flavour. Null for singles and wholesale, which have no count.
+ */
+export function configTarget(product: Product | null | undefined): number | null {
+  if (!product) return null;
+  if (product.rule === 'choose_any') return product.joints || 0;
+  if (product.rule === 'choose_variety') return Math.max(0, (product.joints || 0) - 1);
+  return null;
+}
+
+/** Open slots left in a pack. Null when the product has no count. */
+export function configRemaining(
+  product: Product | null | undefined,
+  configSelection: ConfigSelection | null | undefined,
+): number | null {
+  const target = configTarget(product);
+  return target === null ? null : Math.max(0, target - configTotalSelected(configSelection));
+}
+
+/** A pack is ready on its exact count. Everything else needs at least one. */
+export function configReady(
+  product: Product | null | undefined,
+  configSelection: ConfigSelection | null | undefined,
+): boolean {
+  const target = configTarget(product);
+  const picked = configTotalSelected(configSelection);
+  return target === null ? picked > 0 : picked === target;
+}
+
 /** Restore flavor qty (+ wholesale unit price) when editing a cart/sale line. */
 export function itemToConfigSelection(
   product: Product | null | undefined,

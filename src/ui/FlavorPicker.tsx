@@ -1,5 +1,11 @@
 import { CAT_MAP, type Product } from '../domain/catalog';
-import { configFlavorPool } from '../domain/pricing/pack-config';
+import {
+  configFlavorPool,
+  configRemaining,
+  configTarget,
+  configTotalSelected,
+  varietyFixedFlavor,
+} from '../domain/pricing/pack-config';
 import { Field } from './Field';
 import { FlavorDot } from './FlavorDot';
 import { IconMinus, IconPlus } from './icons';
@@ -80,22 +86,86 @@ export function FlavorPicker({
   }
 
   const pool = configFlavorPool(product);
+  const target = configTarget(product);
+  const full = configRemaining(product, selection) === 0;
+  const fixedId = product.rule === 'choose_variety' ? varietyFixedFlavor(product) : '';
   return (
     <div style={{ display: 'grid', gap: 8 }}>
+      {target !== null ? (
+        <SlotMeter
+          product={product}
+          selection={selection}
+          pool={pool}
+          total={target + (fixedId ? 1 : 0)}
+          fixedId={fixedId}
+        />
+      ) : null}
       {pool.map((id) => (
         <FlavorRow
           key={id}
           id={id}
           count={selection[id] || 0}
           max={sellable ? sellable[id] ?? 0 : null}
+          full={full}
           onBump={onBump}
         />
       ))}
-      {product.rule === 'choose_variety' ? (
+      {fixedId ? (
         <p style={{ font: 'var(--t-meta)', color: 'var(--fg-3)' }}>
-          Includes fixed {product.fixedFlavor || 'classic'}
+          Plus 1 {CAT_MAP[fixedId]?.name || fixedId}, always included
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/** One slot per joint (or cookie) in the pack. They fill with the picked flavours' colours. */
+function SlotMeter({
+  product,
+  selection,
+  pool,
+  total,
+  fixedId,
+}: {
+  product: Product;
+  selection: Record<string, number>;
+  pool: string[];
+  total: number;
+  fixedId: string;
+}) {
+  const picked: string[] = [];
+  for (const id of pool) {
+    for (let i = 0; i < (Number(selection[id]) || 0); i += 1) picked.push(id);
+  }
+  const target = configTarget(product) || 0;
+  const slots = Array.from({ length: total }, (_, i) =>
+    i < target ? picked[i] : fixedId,
+  );
+  const done = Math.min(picked.length, target) + (fixedId ? 1 : 0);
+  const noun = product.slotNoun || (total === 1 ? 'joint' : 'joints');
+  const over = configTotalSelected(selection) > target;
+  return (
+    <div
+      class={`slot-meter${over ? ' is-over' : ''}`}
+      role="status"
+      aria-label={`${done} of ${total} ${noun} selected`}
+      data-testid="slot-meter"
+      data-picked={configTotalSelected(selection)}
+      data-target={target}
+    >
+      <span class="slot-meter__count">
+        {done}
+        <span class="slot-meter__of"> of {total}</span>
+      </span>
+      <span class="slot-meter__slots" aria-hidden="true">
+        {slots.map((id, i) => (
+          <i
+            key={i}
+            class={id ? 'is-filled' : ''}
+            style={id ? ({ '--flavor': CAT_MAP[id]?.color || '#ccc' } as Record<string, string>) : undefined}
+          />
+        ))}
+      </span>
     </div>
   );
 }
@@ -104,17 +174,20 @@ function FlavorRow({
   id,
   count,
   max,
+  full = false,
   onBump,
 }: {
   id: string;
   count: number;
   max: number | null;
+  /** The pack has no open slots, so nothing more can be added. */
+  full?: boolean;
   onBump: (id: string, d: number) => void;
 }) {
   const cat = CAT_MAP[id];
   const label =
     cat?.sub && cat.sub !== 'Cookie' ? `${cat.name} ${cat.sub}` : cat?.name || id;
-  const atCap = max != null && count >= max;
+  const atCap = full || (max != null && count >= max);
   return (
     <div
       class={`config-flavor config-flavor--pick${count > 0 ? ' is-picked' : ''}`}

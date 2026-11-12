@@ -6,10 +6,9 @@ import {
   flavourSelection,
   reflavourLine,
   removeSaleLine,
-  selectionCount,
   setLineQty,
 } from '../../data/sale-edit';
-import type { ConfigSelection } from '../../domain/pricing/pack-config';
+import { configReady, configTarget, type ConfigSelection } from '../../domain/pricing/pack-config';
 import { productImageSrc } from '../../domain/product-art';
 import { Button } from '../../ui/Button';
 import { Field } from '../../ui/Field';
@@ -66,7 +65,7 @@ export function HistoryEditSheet({
   }
 
   if (picking && pickItem && pickProduct) {
-    const canApply = selectionCount(picking.selection) > 0 || pickProduct.rule === 'choose_variety';
+    const canApply = configReady(pickProduct, picking.selection);
     return (
       <Sheet
         open={open}
@@ -87,7 +86,11 @@ export function HistoryEditSheet({
                 setPicking(null);
               }}
             >
-              Use these flavours
+              {canApply
+                ? 'Use these flavours'
+                : configTarget(pickProduct) === null
+                  ? 'Pick at least one'
+                  : `Pick ${configTarget(pickProduct)} to continue`}
             </Button>
           </div>
         }

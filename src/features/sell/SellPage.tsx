@@ -19,7 +19,7 @@ import {
   WALK_IN_NAME,
   type HeldSale,
 } from '../../domain/cart';
-import { configTotalSelected } from '../../domain/pricing/pack-config';
+import { configReady, configTarget } from '../../domain/pricing/pack-config';
 import { getProgress } from '../../domain/pricing/flavored-bulk';
 import { computeTodayStats } from '../../domain/today';
 import {
@@ -256,11 +256,12 @@ export function SellPage() {
 
   function addConfigured() {
     if (!configProduct) return;
-    const line = buildCartLine(configProduct, selection, { otherLines: lines });
-    if (configTotalSelected(selection) <= 0 && configProduct.rule !== 'choose_variety') {
-      showToast('Pick at least one');
+    if (!configReady(configProduct, selection)) {
+      const target = configTarget(configProduct);
+      showToast(target === null ? 'Pick at least one' : `Pick exactly ${target}`);
       return;
     }
+    const line = buildCartLine(configProduct, selection, { otherLines: lines });
     if (editingKey) {
       dispatchCart({ type: 'update_line', key: editingKey, line: { ...line, key: editingKey } });
     } else {
@@ -828,8 +829,15 @@ export function SellPage() {
           setEditingKey(null);
         }}
         footer={
-          <Button size="xl" data-testid="config-add" onClick={addConfigured}>
-            Add to sale
+          <Button
+            size="xl"
+            data-testid="config-add"
+            disabled={!configProduct || !configReady(configProduct, selection)}
+            onClick={addConfigured}
+          >
+            {configProduct && configTarget(configProduct) !== null && !configReady(configProduct, selection)
+              ? `Pick ${configTarget(configProduct)} to add`
+              : 'Add to sale'}
           </Button>
         }
       >
