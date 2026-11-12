@@ -1,9 +1,9 @@
 {
   "phase": "Phase 0 — Safety net. Not cleared. Do not start Phase 1",
   "branch": "overhaul · v1-baseline @ 951a152",
-  "commit": "see git log -1 — quirk 7 + handoff",
-  "next": "Phase 0 task 8: extend tests/e2e/drivers/legacy.ts and record S01–S50 goldens with --repeat-each=3. See HANDOFF.md.",
-  "status": "118 unit/dual-run · typecheck clean. Playwright on 8ed5de7: 65 passed, S32 and S38 failed, preview-perf skipped. Legacy S01–S05, S07, S08, S11, S50. S19 ×3 posts two sales (quirk 7). No legacy goldens committed. D11 approved. No deploy.",
+  "commit": "see git log -1 — legacy driver 35/50",
+  "next": "Phase 0 task 8: implement settleCredit, editSale, and voidSale on the legacy driver. Then record goldens ×3. See HANDOFF.md.",
+  "status": "Legacy scenarios passing once: S01–S26, S29–S33, S44, S46, S47, S50. Still failing: S27, S28, S34–S43, S45, S48, S49. No legacy goldens. S19 is two sales (quirk 7). Analytics chart snapshot added. D11 approved. No deploy.",
   "ownerGate": {
     "ready": "D1 A · D2 B · D3 B · D4 B · D5 A · D6 A · D11 approved · D16 improve (2026-11-12).",
     "phase8": "Code is on the branch (walk-in, hold, offline outbox). Checkpoints waived. client_sale_id SQL not applied. Phase 0 still blocks calling any later phase cleared.",
@@ -15,8 +15,8 @@
     { "id": "p0-tooling", "label": "Phase 0: Vitest / Playwright / TS tooling", "state": "done" },
     { "id": "p0-mock", "label": "Phase 0: mock backend + fixtures", "state": "done" },
     { "id": "p0-exports", "label": "Phase 0: export legacy helpers", "state": "run" },
-    { "id": "p0-dual", "label": "Phase 0: dual-run for §4.3 except analytics period/heatmap", "state": "run" },
-    { "id": "p0-scenarios", "label": "Phase 0: legacy driver S01–S05, S07, S08, S11, S19 (two sales), S50. Goldens ×3 not recorded", "state": "run" },
+    { "id": "p0-dual", "label": "Phase 0: dual-run §4.3 including analytics chart bounds and heatmap", "state": "run" },
+    { "id": "p0-scenarios", "label": "Phase 0: legacy driver 35/50 once. Goldens ×3 not recorded. S19 posts two sales", "state": "run" },
     { "id": "p0-baseline", "label": "Phase 0: legacy home screenshots + perf.md. Not every screen. Quiet sell median 1963ms", "state": "run" },
     { "id": "p1", "label": "Phase 1: Vite + legacy/ strangler — code present, exit not claimed", "state": "wait" },
     { "id": "p2", "label": "Phase 2: domain port — dual-run mostly in, coverage gate not claimed", "state": "wait" },

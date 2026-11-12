@@ -139,7 +139,8 @@ export class MemoryDb {
         inserted.push(row);
       }
       if (prefer?.includes('return=minimal')) return { status: 201, body: null };
-      return { status: 201, body: Array.isArray(body) ? inserted : inserted[0] };
+      // PostgREST returns an array for return=representation. v1 reads rows[0].
+      return { status: 201, body: inserted };
     }
 
     if (method === 'PATCH') {

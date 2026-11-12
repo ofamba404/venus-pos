@@ -2,86 +2,75 @@
 
 **Date:** 2026-11-12
 **Repo:** https://github.com/ofamba404/venus-pos (public)
-**Branch:** `overhaul` (push here, fast-forward only)
-**Phase in progress:** Phase 0 — Safety net. Not cleared. Do not start Phase 1.
-
-No phase has cleared its exit criteria. Later phases have code on this branch, but `05-implementation-plan.md` says stay here until Phase 0 exits.
+**Branch:** `overhaul` (fast-forward only)
+**Phase in progress:** Phase 0 — Safety net, task 8 (legacy driver). Not cleared. Do not start Phase 1.
 
 ## Cleared phases
 
-None. Phase 0 exit is still open (see below).
+None. Phase 0 exit criteria are not all met.
 
 ## In progress
 
 **Phase 0, task 8 — legacy driver and goldens.**
 
-The legacy driver (`tests/e2e/drivers/legacy.ts`) can run: `addProduct`, `setClient`, `setCredit`, `charge`, `doubleTapCharge`, `go`, and expects `saleRecorded`, `noWrites`, `toast`.
+`tests/e2e/legacy.spec.ts` runs all 50 scenarios through `tests/e2e/drivers/legacy.ts`.
 
-Green on that driver (one run in the full Playwright job, except S19 which was re-run three times after the guard was put back):
+Passed on this machine (one run each, unless noted):
 
-| Scenario | Result |
-|----------|--------|
-| S01, S02, S03, S04, S05, S07, S08 | Sale total matches the scenario |
-| S11 | Credit sale, `is_credit: true`, total 8000 |
-| S19 | **Two** sale POSTs of 8000. Stable across `--repeat-each=3` on 2026-11-12. Quirk 7 |
-| S50 | Today revenue, joints, and cookies match `computeTodayStats` on the seed |
+S01–S26, S29–S33, S44, S46, S47, S50.
 
-No `tests/e2e/goldens/Sxx.json` legacy goldens are committed yet. `S01.next.json` is a v2 sample only. `--repeat-each=3` identical goldens for S01–S50 are not done.
+S19 posts **two** sales (quirk 7) and was checked again after the mock change. S01 was checked again too.
 
-Driver steps still missing: `editLine`, `removeLine`, `undo`, `confirmStackedDebt`, `setDelivery`, `chargeRetry`, `loadStoreOrder`, `confirmStoreOrder`, `cancelStoreOrder`, `dismissStoreOrder`, `parkCounterCart`, `restoreCounterCart`, `setStoreBusy`, `arriveStoreOrder`, `adjustStock`, `setStockCount`, `settleCredit`, `editSale`, `voidSale`, `partnerSettleBatch`, `clientsCrud`, `storeUsers`, `setStoreHours`, `editDeliveryTrip`, `quoteLabPreset`, `refreshReviews`, `enableNotifications`, `signOut`, `signIn`, `goOffline`, and expects `stock`, `display`, `reachable`, `clipboard`, `redirect`.
+Still failing:
 
-## Phase 0 exit — what is still open
+| ID | Why |
+|----|-----|
+| S27 | Deep link `#load-store-order=` does not open the cart in the driver |
+| S28 | Busy 30 min / clear on the admin hours tab |
+| S34, S35 | `settleCredit` is not implemented |
+| S36, S37 | `editSale` / `voidSale` are not implemented |
+| S38 | `partnerSettleBatch` is not implemented |
+| S39 | Client rename/delete on `/pages/clients.html` did not finish |
+| S40 | `storeUsers` is not implemented |
+| S41 | Hours inputs did not finish in 20s |
+| S42 | Delivery trip edit did not finish in 20s |
+| S43 | `quoteLabPreset` is not implemented |
+| S45 | `enableNotifications` is not implemented |
+| S48 | Offline charge did not show the offline toast |
+| S49 | Sign-out button click is not visible (menu is closed) |
 
-1. **All 50 scenarios on legacy, three identical goldens.** Not started as files. Only the rows in the table above have been driven.
-2. **Dual-run snapshots for every `06-testing.md` §4.3 module.** Present with 2,000 fast-check runs for flavored-bulk, pack-config, catalog, format, revenue, partner, credit, delivery-fee, sale-payload, inventory-delta, store-order-map, history-groups, hours, stock-state. Analytics is only top-product and revenue-delta (`tests/dual-run/analytics-rank.test.ts`), using inlined oracles because `legacy/js/analytics.js` is not a pure import. Period bucketing and heatmap are not snapshotted.
-3. **QUIRKS.md.** Quirks 1–7 are logged. S19 is quirk 7. Add a row when a new odd legacy behaviour shows up. Do not fix v1 to make a scenario “nicer”.
-4. **Baselines.** Legacy **home** only, four viewports, in `docs/overhaul/baseline/`. Not every legacy screen (`pages/inventory.html`, clients, history, analytics, delivery, reviews, admin, auth). `perf.md` has the kept numbers (dev-server throttled sell 7922 ms; production-bundle quiet median **1963 ms** on samples 3192, 2448, 1963, 1908, 1766). `baseline.spec.ts` now writes `perf-latest.md` so it does not erase `perf.md`.
+No `tests/e2e/goldens/Sxx.json` legacy files yet. Do not record them until a scenario is stable, then `npx playwright test tests/e2e/legacy.spec.ts -g "S01 " --repeat-each=3`.
 
-## Evidence from this machine (2026-11-12)
+## Phase 0 exit — still open
 
-- `npm test` — 34 files, **118 passed**. Typecheck clean (`tsc --noEmit`).
-- `npx playwright test` on `8ed5de7` (before the auth-guard change) — **65 passed, 2 failed, 1 skipped** (13.8 min). Failures are v2, not Phase 0:
-  - S32: no `PATCH /rest/v1/inventory` (the 502 injection is not limited to `op: delta`, so boot `ensure` can consume it). A separate test, “inventory 405 falls back to a patch”, passed.
-  - S38: clipboard read back empty after partner settle.
-- After the guard change: S49, “signed-out /next/sell opens the v2 sign-in”, and “a corrupt session opens v2 sign-in on sell” passed. The full 68 was **not** re-run after that change.
-- Legacy S19 ×3 passed with two sale posts.
+1. **All 50 scenarios × 3 identical goldens.** 35 scenarios pass once. 15 do not. No golden files.
+2. **Dual-run snapshots for `06-testing.md` §4.3.** Present, including `tests/dual-run/analytics-chart.test.ts` (Monday bounds, 2,000 runs, heatmap sum). `npm test` must be re-run after this commit; the new file passed on its own (4 tests).
+3. **QUIRKS.md.** Quirks 1–8. Quirk 7 is the double-tap. Quirk 8 is no cart undo. Do not fix either in `legacy/`.
+4. **Baselines.** Legacy home only, four viewports, plus `docs/overhaul/baseline/perf.md`. Not every legacy screen. `baseline.spec.ts` writes `perf-latest.md` and must not overwrite `perf.md`.
 
 ## Next concrete step
 
-Extend `tests/e2e/drivers/legacy.ts` one scenario at a time, starting with S06, S09, S10, S12, and S13 (still on the sell screen). Record `tests/e2e/goldens/Sxx.json` from the legacy driver. Accept a file only after `npx playwright test tests/e2e/legacy.spec.ts --repeat-each=3` writes the same bytes three times. Then do the missing screenshots and the analytics period/heatmap snapshot. Do not open Phase 1.
+Implement `settleCredit` on `/pages/clients.html`, then `editSale` / `voidSale` on history. Re-run `npx playwright test tests/e2e/legacy.spec.ts -g "S34 |S35 |S36 |S37 "`. Leave Phase 1 closed until all 50 pass three times and the goldens match.
 
 ## How to run tests
-
-From the repo root (Node 22):
 
 ```bash
 npm ci
 npm test
 npm run typecheck
 npx playwright test
+npx playwright test tests/e2e/legacy.spec.ts
 ```
 
-Playwright starts Vite on `http://127.0.0.1:5173` and the legacy server on `http://127.0.0.1:4173`. First time: `npx playwright install chromium`.
-
-Use `tests/mock/` only. Never point tests at production Supabase.
-
-## Commits on this handoff
-
-| Commit | What |
-|--------|------|
-| `21291d3` | Boot guard sends signed-out `/next` visits to `/next/auth.html` (keeps `next`; corrupt session uses `next=/next/sell`) |
-| `cb3129a` | D11 recorded: current look approved. Phase 4, 5, and 8 checkpoints waived |
-| see `git log -1` | Quirk 7 restored (legacy double-tap is two sales) and this handoff |
+Vite is `http://127.0.0.1:5173`. Legacy is `http://127.0.0.1:4173`. Use `tests/mock/` only.
 
 ## Standing rules
 
 - Do not deploy. No `ship.ps1`, no Netlify. Wait for `push deploy netlify` or `ship`.
 - Do not apply any Supabase migration, including `supabase/migrations/20261112030000_sales_client_sale_id.sql`.
-- Do not point tests at production Supabase. The repo is public: no real customer names, phones, or sales in fixtures.
+- Do not point tests at production Supabase. No real customer PII in fixtures.
 - Do not touch or force-push `master`. Do not merge `overhaul` into `master`.
-- Push this branch fast-forward only: `git push origin overhaul`.
-- v1 write contracts stay identical unless an approved decision says otherwise.
-- Odd v1 behaviour: replicate it, log `QUIRKS.md`, ask the owner. Do not fix it in `legacy/`.
-- Currency UGX. Brand: Venus. Register-first.
-- D11 is approved (2026-11-12). Live Maps for production is still blocked. Phases 9 and 10 stay blocked on deploy/ship.
-- `client_sale_id` SQL is a file only. It is not applied.
+- Push with `git push origin overhaul` (fast-forward only).
+- v1 write contracts stay as v1. Odd behaviour goes in `QUIRKS.md`. Do not “fix” it in `legacy/`.
+- D11 look is approved (2026-11-12). Phase 4, 5, and 8 checkpoints are waived. Live Maps and deploy/ship stay blocked.
+- Currency UGX. Brand: Venus.

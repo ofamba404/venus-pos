@@ -4,11 +4,11 @@ Update at the end of every session. Phase 0 is the open phase. Do not start Phas
 
 | Field | Value |
 |-------|-------|
-| Current phase | Phase 0 — Safety net. Not cleared |
+| Current phase | Phase 0 — Safety net, task 8. Not cleared |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | 118 unit/dual-run · typecheck clean. Full Playwright on `8ed5de7`: 65 passed, 2 failed (S32, S38), 1 skipped. Legacy S01–S05, S07, S08, S11, S50 one run; S19 ×3 posts two sales |
-| Next step | Phase 0 task 8: extend the legacy driver and record S01–S50 goldens ×3. See `HANDOFF.md` |
+| Tests passing | Analytics-chart snapshot 4 passed. Legacy driver: S01–S26, S29–S33, S44, S46, S47, S50 once. S19 still two sales. 15 scenarios still fail. Goldens not recorded |
+| Next step | Phase 0 task 8: implement settleCredit, editSale, voidSale. See `HANDOFF.md` |
 | Open questions for the owner | Live Maps for production, and deploy/ship. D11 look is approved (2026-11-12). Checkpoints for Phases 4, 5, and 8 are waived. Do not apply `client_sale_id` |
 
 ## Ready vs open
@@ -45,4 +45,5 @@ Update at the end of every session. Phase 0 is the open phase. Do not start Phas
 | 2026-11-12 | — | Handoff at `8ed5de7`. Writes WIP. Full Playwright later: 65 pass, S32 and S38 fail | `8ed5de7` |
 | 2026-11-12 | — | Signed-out `/next` goes to `/next/auth.html` | `21291d3` |
 | 2026-11-12 | — | D11 look approved. Phase 4/5/8 checkpoints waived | `cb3129a` |
-| 2026-11-12 | 0 | Quirk 7: legacy double-tap posts two sales (×3). Handoff rewritten. Phase 0 still open | this commit |
+| 2026-11-12 | 0 | Quirk 7: legacy double-tap posts two sales (×3). Handoff rewritten. Phase 0 still open | `ee6bd31` |
+| 2026-11-12 | 0 | Legacy driver covers 35 of 50 scenarios once. Mock POST returns an array. Analytics chart snapshot. Phase 0 still open | this commit |

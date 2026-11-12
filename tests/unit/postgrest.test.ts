@@ -40,7 +40,8 @@ describe('MemoryDb PostgREST subset', () => {
     const db = new MemoryDb({ clients: [] }, '2026-11-10T07:30:00.000Z');
     const res = db.handle('POST', 'clients', { name: 'Test' }, 'return=representation');
     expect(res.status).toBe(201);
-    expect((res.body as { name: string; id: string }).name).toBe('Test');
-    expect((res.body as { id: string }).id).toMatch(/^00000000-0000-4000-8000-/);
+    const row = (res.body as Array<{ name: string; id: string }>)[0]!;
+    expect(row.name).toBe('Test');
+    expect(row.id).toMatch(/^00000000-0000-4000-8000-/);
   });
 });
