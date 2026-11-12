@@ -9,19 +9,19 @@ Legend: **S** = staff and admin, **A** = admin only.
 | ✓ | Capability | Role | v1 source | Proof |
 |---|-----------|:----:|-----------|-------|
 | [ ] | Product catalog and prices (packs 8,000 / 15,000 / 35,000 / 50,000; cookie packs 15,000 / 21,000 / 25,000; Plain and Bangis 5,000; cookies butterscotch 5,000, chocolate/mint/strawberry 8,000; wholesale manual) | S | `js/config.js:18-23`, `182-231` | dual-run catalog, S01–S09 |
-| [ ] | Pack flavour rules: `choose_any`, `choose_variety`, Quartet fixed butterscotch, cookie choice pool excludes butterscotch | S | `js/config.js:118-124`, `js/product-config.js` | dual-run pack-config, S03, S09 |
-| [ ] | Flavoured cookie bulk pricing (≥ 4 → 6,500; packs repriced) | S | `js/flavored-cookie-pricing.js:28-129` | dual-run, S04, S05 |
+| [x] | Pack flavour rules: `choose_any`, `choose_variety`, Quartet fixed butterscotch, cookie choice pool excludes butterscotch | S | `js/config.js:118-124`, `js/product-config.js` | dual-run pack-config, S03, S09 |
+| [x] | Flavoured cookie bulk pricing (≥ 4 → 6,500; packs repriced) | S | `js/flavored-cookie-pricing.js:28-129` | dual-run, S04, S05 |
 | [ ] | Wholesale cookies with custom unit price | S | `js/product-config.js` | S06 |
 | [ ] | Draft stock shown in config; counter lines cap at refreshed on-hand stock (D16). A badge still does not block opening the product | S | `js/orders.js` `draftStock`, `SellPage` | S01, L4 |
 | [ ] | Edit a cart line with preserved config state | S | `js/orders.js:2142-2182` | S16 |
 | [ ] | Client autocomplete with "owes" hint | S | `js/client-autocomplete.js` | S01, S12 |
-| [ ] | Create client inline | S | `js/clients.js:212-216` | S10 |
+| [x] | Create client inline | S | `js/clients.js:212-216` | S10 |
 | [ ] | Client required to check out (unless D2 approved) | S | `js/orders.js:2396-2398` | L4: Charge disabled without a client, and no writes |
-| [ ] | Credit sale (`is_credit`, `amount_paid_ugx = 0`) | S | `js/orders.js:2476-2482` | S11 |
-| [ ] | Stacked-debt confirmation | S | `js/orders.js:2410-2417` | S12, S13 |
+| [x] | Credit sale (`is_credit`, `amount_paid_ugx = 0`) | S | `js/orders.js:2476-2482` | S11 |
+| [x] | Stacked-debt confirmation | S | `js/orders.js:2410-2417` | S12, S13 |
 | [ ] | Delivery: GPS pickup with stale-generation guard, Places drop-off, predicted fee (range high end), manual fee → `fee_was_edited`, deliver-at, phone | S | `js/orders.js:1101-1125`, `1208-1228`, `pickupLocateGen` | S14, S15 |
 | [ ] | `BASE_ORIGIN` pickup for store-order carts | S | `js/orders.js` | S21 (delivery variant) |
-| [ ] | Checkout in-flight guard | S | `js/orders.js` `checkoutInFlight` | S19 |
+| [x] | Checkout in-flight guard | S | `js/orders.js` `checkoutInFlight` | S19 |
 | [ ] | `awaitInventoryReady` before checkout | S | `js/orders.js` | L1 checkout |
 | [ ] | Optimistic stock decrement + rollback on failure | S | `js/orders.js:2567-2575` | S18 |
 | [ ] | Sale POST body identical (§7) | S | `js/orders.js:2454-2485`, `298-334` | all selling goldens |
@@ -65,8 +65,8 @@ Legend: **S** = staff and admin, **A** = admin only.
 | ✓ | Capability | Role | v1 source | Proof |
 |---|-----------|:----:|-----------|-------|
 | [ ] | Boot `ensure` call | S | `js/bootstrap.js:217-218`, `js/inventory.js:471-487` | all goldens (first write) |
-| [ ] | +/− steppers with per-category queue | S | `js/inventory.js:112-209` | S29 |
-| [ ] | Exact count edit | S | `js/inventory.js` | S30 |
+| [x] | +/− steppers with per-category queue | S | `js/inventory.js:112-209` | S29 |
+| [x] | Exact count edit | S | `js/inventory.js` | S30 |
 | [ ] | Bulk adjust | S | `#amountModal` | S31 |
 | [ ] | 405/502 → direct PATCH fallback | S | `js/inventory.js:138-176` | S32 |
 | [ ] | Low (≤ 5) / out; cookie low < 30 % of 100 | S | `js/config.js:139-142` | dual-run stock-state |
