@@ -288,6 +288,23 @@
   background: var(--surface-sunk);
 }
 
+.stock-row__qty--static {
+  padding-inline: 12px;
+}
+
+.stock-lock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin: 0 0 var(--s-3);
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  background: var(--grape-tint);
+  color: var(--fg-2);
+  font: var(--t-meta);
+}
+
 .today-pill {
   display: grid;
   gap: 4px;

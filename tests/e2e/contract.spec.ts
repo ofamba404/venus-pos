@@ -339,12 +339,12 @@ test.describe('write-contract scenarios (next)', () => {
   });
 
   test('S31 bulk add 24 to strawberry', async ({ page }) => {
-    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
     await driver.run(S31);
   });
 
   test('S32 inventory write falls back to a patch', async ({ page }) => {
-    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
     await driver.run(S32);
     const patches = driver.mock.writes.filter(
       (w) => w.method === 'PATCH' && w.url.includes('/rest/v1/inventory'),
@@ -354,7 +354,7 @@ test.describe('write-contract scenarios (next)', () => {
   });
 
   test('S33 low-stock toast after a sale', async ({ page }) => {
-    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
     await driver.run(S33);
   });
 
@@ -431,7 +431,7 @@ test.describe('write-contract scenarios (next)', () => {
   });
 
   test('inventory 405 falls back to a patch', async ({ page }) => {
-    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/stock');
     await page.getByTestId('stock-mint-qty').filter({ hasText: '20' }).waitFor({ timeout: 15000 });
     driver.mock.setFailure({
@@ -555,7 +555,7 @@ test.describe('write-contract scenarios (next)', () => {
   });
 
   test('S29 stock plus and minus returns to the seeded count', async ({ page }) => {
-    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
     await driver.run(S29);
   });
 
@@ -574,7 +574,7 @@ test.describe('write-contract scenarios (next)', () => {
   });
 
   test('S30 set stock count', async ({ page }) => {
-    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
     await driver.run(S30);
     const deltas = driver.mock.writes.filter(
       (w) =>

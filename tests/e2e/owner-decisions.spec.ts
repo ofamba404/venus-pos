@@ -82,4 +82,33 @@ test.describe('owner decisions', () => {
     await expect(page.getByTestId('commission-owed')).toContainText('Payouts unavailable');
     await expect(page.getByTestId('commission-paid')).toHaveCount(0);
   });
+
+  test('staff see stock but cannot change it', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await page.goto('/next/stock');
+    await expect(page.getByTestId('stock-readonly')).toBeVisible();
+    await expect(page.getByTestId('stock-mint-qty')).toHaveText('20');
+    await expect(page.getByTestId('stock-mint-qty')).not.toHaveJSProperty('tagName', 'BUTTON');
+    await expect(page.getByTestId('stock-mint-inc')).toHaveCount(0);
+    await expect(page.getByTestId('stock-mint-dec')).toHaveCount(0);
+    await page.getByTestId('stock-mint-qty').click({ force: true });
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    // The page's own load ensures rows exist. It never sends a delta, a set, or a patch.
+    const changes = driver.mock.writes.filter((w) => {
+      const op = (w.body as { op?: string } | null)?.op;
+      return w.url.includes('/rest/v1/inventory') || op === 'delta' || op === 'set';
+    });
+    expect(changes).toHaveLength(0);
+    // The glance still reads for staff.
+    await expect(page.getByTestId('stock-glance')).toContainText('out');
+  });
+
+  test('the owner can still count and set stock', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    await page.goto('/next/stock');
+    await expect(page.getByTestId('stock-readonly')).toHaveCount(0);
+    await page.getByTestId('stock-mint-inc').click();
+    await expect(page.getByTestId('stock-mint-qty')).toHaveText('21');
+    expect(deltas(driver, 'mint')).toContain(1);
+  });
 });

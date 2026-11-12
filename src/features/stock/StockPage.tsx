@@ -15,12 +15,15 @@ import { Field } from '../../ui/Field';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
 import { haptic } from '../../platform/haptics';
-import { IconMinus, IconPlus } from '../../ui/icons';
+import { authRole } from '../../data/auth';
+import { IconLock, IconMinus, IconPlus } from '../../ui/icons';
 
 export function StockPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [editQty, setEditQty] = useState('');
+  // Counts are the owner's. Staff see them and the low/out flags, and sell against them.
+  const canEdit = authRole.value === 'pos_admin';
 
   useEffect(() => {
     void ensureInventory().catch((e) =>
@@ -63,6 +66,15 @@ export function StockPage() {
   function Row({ id, name, color }: { id: string; name: string; color: string }) {
     const qty = inventory.value[id] || 0;
     const level = stockLevel(id, qty);
+    if (!canEdit) {
+      return (
+        <StockTile name={name} color={color} level={level}>
+          <span class="stock-row__qty stock-row__qty--static" data-testid={`stock-${id}-qty`}>
+            {qty}
+          </span>
+        </StockTile>
+      );
+    }
     return (
       <StockTile name={name} color={color} level={level}>
         <button
@@ -112,6 +124,12 @@ export function StockPage() {
       <p class="v-muted" data-testid="stock-glance">
         {`${glance.out} out · ${glance.low} low · ${glance.ok} ok`}
       </p>
+      {!canEdit ? (
+        <p class="stock-lock" data-testid="stock-readonly">
+          <IconLock size={16} aria-hidden="true" />
+          View only. The owner sets the counts.
+        </p>
+      ) : null}
       {!inventoryReady.value ? <p class="v-muted">Loading…</p> : null}
       <div class="v-section-label">Joints</div>
       <div class="stock-grid">
