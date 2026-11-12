@@ -1,19 +1,21 @@
 # Overhaul progress
 
-Update at the end of every session. Phase 4 is cleared. Next is Phase 5.
+Update at the end of every session. Phase 5 is cleared. Next is Phase 6.
 
 | Field | Value |
 |-------|-------|
-| Current phase | Phase 4 cleared. Phase 5 not started |
+| Current phase | Phase 5 cleared. Phase 6 not started |
 | Branch | `overhaul` · tag `v1-baseline` @ `951a152` |
 | Last commit | see `git log -1` |
-| Tests passing | `npm test` 154 passed. Shell JS 27926 B gzip, CSS 4470 B gzip. Axe /sell and /system: 2 passed |
-| Next step | Phase 5 Sell and Orders. See `HANDOFF.md` |
+| Tests passing | L4 4 passed. Scout recent-client sale is 5 taps. Tile→sheet ≤ 100 ms at 4× CPU. S01–S28 in the 109-pass Playwright run |
+| Next step | Phase 6 Stock, Settings, Auth, PWA. See `HANDOFF.md` |
 | Open questions for the owner | Live Maps for production, and deploy/ship. D11 look is approved (2026-11-12). Checkpoints for Phases 4, 5, and 8 are waived. Do not apply `client_sale_id` |
 
 ## Ready vs open
 
-**Phase 4 is cleared.** The D11 look is approved. The main JS chunk is 27,926 bytes gzip and CSS is 4,470 bytes gzip, inside the shell budgets. Axe reports no serious or critical issues on `/sell` or `/system`. Phase 5 has not been started.
+**Phase 5 is cleared.** A Scout sale for a recent client is 5 taps. L4 covers that sale, a disabled Charge with a reason, Undo, and a config sheet that opens within 100 ms at 4× CPU. S01–S28 are in the 109-pass Playwright run. Phase 6 has not been started.
+
+**Tap count.** Scout, one mint, recent client Test Client A, paid: tile, flavour, Add, client chip, Charge. **5 taps** (target ≤ 6).
 
 **Owner decisions.** D1 A, D2 B, D3 B, D4 B, D5 A, D6 A, D16 improve, D11 approved. Details in `08-decisions.md`.
 
@@ -51,4 +53,5 @@ Update at the end of every session. Phase 4 is cleared. Next is Phase 5.
 | 2026-11-12 | 1 | Phase 1 cleared. dist/ hash check. S01–S50 against dist. ship.ps1 builds first. D15 wording proposed | `2eae8a0` |
 | 2026-11-12 | 2 | Phase 2 cleared. Domain dual-run, 95% branch coverage, catalog sync. Hours-dial quirk 12. S32/S38/S48 driver fixes | `5dd1a59` |
 | 2026-11-12 | 3 | Phase 3 cleared. Data coverage 87.24%. v1 IDB, cart, and auth session. Checkout rollback and queue | `0f8f0c1` |
-| 2026-11-12 | 4 | Phase 4 cleared. D11 look. Shell JS 27926 B gzip, CSS 4470 B gzip. Axe /sell and /system clean | this commit |
+| 2026-11-12 | 4 | Phase 4 cleared. D11 look. Shell JS 27926 B gzip, CSS 4470 B gzip. Axe /sell and /system clean | `95485a5` |
+| 2026-11-12 | 5 | Phase 5 cleared. S01–S28 in the 109-pass run. L4 4 passed. Scout sale is 5 taps. Sheet ≤ 100 ms at 4× CPU | this commit |

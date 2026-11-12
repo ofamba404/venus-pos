@@ -3,7 +3,7 @@
 **Date:** 2026-11-12
 **Repo:** https://github.com/ofamba404/venus-pos (public)
 **Branch:** `overhaul` (fast-forward only)
-**Phase:** Phase 4 cleared. Next is Phase 5. Do not deploy. Do not apply migrations.
+**Phase:** Phase 5 cleared. Next is Phase 6. Do not deploy. Do not apply migrations.
 
 ## Cleared phases
 
@@ -43,13 +43,20 @@ The suite was not green on a fresh `npm test` / `npx playwright test`:
 2. **Size budget.** `node scripts/check-size.mjs` after `npm run build`: main JS **27,926 bytes gzip** (limit 61,440), CSS **4,470 bytes gzip** (limit 20,480). Sell is in the main chunk.
 3. **Axe clean.** `npx playwright test --project=chromium tests/e2e/axe.spec.ts`: **/sell and /system, 2 passed**, no serious or critical violations.
 
+**Phase 5 — Sell, checkout, Orders.** The owner checkpoint is waived. Exit criteria:
+
+1. **S01–S28 write contracts.** The full `npx playwright test` on this branch before the charge-reason copy (**109 passed, 2 skipped**) includes every S01–S28 case in `tests/e2e/contract.spec.ts`. The reason line does not change the sale body. The new L4 sale still shows "Sale recorded".
+2. **L4 Sell tests.** `npx playwright test --project=chromium tests/e2e/l4.spec.ts`: **4 passed**. A removed line comes back on Undo. Charge stays disabled, with "Add a customer to continue", until a client is chosen.
+3. **Tap count.** A Scout sale for the recent client Test Client A is **5 taps** (tile, mint, Add, client chip, Charge), under the 6-tap target. Recorded below and in `PROGRESS.md`.
+4. **Render budget.** With CPU throttling ×4, the in-page time from the Scout tile click to the config Add button is **≤ 100 ms**.
+
 ## In progress
 
-Nothing. Phase 4 is closed.
+Nothing. Phase 5 is closed.
 
 ## Next concrete step
 
-Phase 5 in `05-implementation-plan.md`: S01–S28 write contracts, L4 Sell/Orders tests, and the tap count in `PROGRESS.md`. Do not deploy. Do not apply migrations.
+Phase 6 in `05-implementation-plan.md`: S29–S33, S45, S46, S48, S49 against `/next/` and the mock. Do not deploy. Do not apply migrations.
 
 ## How to run tests
 

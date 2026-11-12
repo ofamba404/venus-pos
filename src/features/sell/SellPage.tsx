@@ -407,6 +407,13 @@ export function SellPage() {
   const recentClients = clients.value.slice(0, 6);
   const credit = payment === 'credit';
   const canCharge = clientReadyForCharge(meta, credit);
+  const chargeReason = !lines.length
+    ? ''
+    : canCharge
+      ? ''
+      : credit && isWalkInCheckout(meta, false)
+        ? 'Credit needs a client name'
+        : 'Add a customer to continue';
 
   const cartBody = (
     <>
@@ -750,6 +757,11 @@ export function SellPage() {
                 ? `Record on credit · ${formatUGX(cartSum.value)}`
                 : `Charge ${formatUGX(cartSum.value)}`}
           </Button>
+          {chargeReason ? (
+            <p class="v-muted" data-testid="charge-reason" style={{ marginTop: 8 }}>
+              {chargeReason}
+            </p>
+          ) : null}
         </div>
       </aside>
 
@@ -793,18 +805,25 @@ export function SellPage() {
         onClose={() => setCartOpen(false)}
         dismissible={false}
         footer={
-          <Button
-            size="xl"
-            data-testid="charge"
-            disabled={!lines.length || !canCharge || paying}
-            onClick={() => void charge()}
-          >
-            {paying
-              ? 'Saving…'
-              : payment === 'credit'
-                ? `Record on credit · ${formatUGX(cartSum.value)}`
-                : `Charge ${formatUGX(cartSum.value)}`}
-          </Button>
+          <div>
+            <Button
+              size="xl"
+              data-testid="charge"
+              disabled={!lines.length || !canCharge || paying}
+              onClick={() => void charge()}
+            >
+              {paying
+                ? 'Saving…'
+                : payment === 'credit'
+                  ? `Record on credit · ${formatUGX(cartSum.value)}`
+                  : `Charge ${formatUGX(cartSum.value)}`}
+            </Button>
+            {chargeReason ? (
+              <p class="v-muted" data-testid="charge-reason" style={{ marginTop: 8 }}>
+                {chargeReason}
+              </p>
+            ) : null}
+          </div>
         }
       >
         {cartBody}
