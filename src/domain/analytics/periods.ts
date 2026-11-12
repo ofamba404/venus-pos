@@ -234,7 +234,7 @@ export function buildTimeSeries(sales: DatedSale[], range: ChartRange, now = new
     }));
 }
 
-function priorBounds(range: ChartRange, now = new Date()) {
+export function priorBounds(range: ChartRange, now = new Date()) {
   if (!range.unit) return null;
 
   if (range.unit === 'week') {

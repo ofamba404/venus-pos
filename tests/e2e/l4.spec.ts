@@ -121,8 +121,8 @@ test('stock glance, install steps, chart range, and debug capture are on the pag
   await page.goto('/next/settings');
   await expect(page.getByTestId('install-steps')).toContainText('Add to Home Screen');
   await page.goto('/next/insights');
-  await expect(page.getByTestId('insights-series')).toBeVisible();
-  await expect(page.getByTestId('insights-heatmap')).toBeVisible();
+  await expect(page.getByTestId('insights-today')).toBeVisible();
+  await expect(page.getByTestId('insights-credit')).toBeVisible();
   await expect(page.getByTestId('insights-rank')).toBeVisible();
   await page.getByTestId('chart-range').getByRole('button', { name: '1M' }).click();
   await page.reload();

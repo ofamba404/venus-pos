@@ -57,17 +57,20 @@ export function buildDefaultSeed() {
   const clients = Array.from({ length: 10 }, (_, i) => ({
     id: nextId(),
     name: `Test Client ${String.fromCharCode(65 + i)}`,
+    phone: i === 1 ? '0772111222' : null,
     created_at: daysAgo(90 - i),
   }));
   // Near-duplicate names for merge logic
   clients.push({
     id: nextId(),
     name: 'Test Client A',
+    phone: null,
     created_at: daysAgo(10),
   });
   const clientDebt = {
     id: nextId(),
     name: 'Client With Debt',
+    phone: '0700333444',
     created_at: daysAgo(12),
   };
   clients.push(clientDebt);

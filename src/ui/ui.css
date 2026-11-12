@@ -1245,6 +1245,67 @@ button.kpi-tile {
   flex: 0 0 auto;
 }
 
+.decision {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 20px;
+}
+
+.decision__q {
+  margin: 8px 0 0;
+  font: var(--t-title-sm);
+}
+
+.decision-lead {
+  margin: 8px 0 16px;
+  font: var(--t-title-sm);
+}
+
+.decision-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.decision-row--urgent {
+  background: var(--berry-tint);
+  margin: 0 -8px;
+  padding: 8px;
+  border-radius: var(--r-md);
+  border-bottom: 0;
+}
+
+.decision-row__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.decision-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.decision__why {
+  margin: 0;
+  color: var(--fg-2);
+  font: var(--t-body);
+}
+
+.chase-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--paper-0);
+  font: var(--t-label);
+}
+
 .stock-meter {
   display: flex;
   height: 10px;
