@@ -13,8 +13,19 @@ import {
   S11,
   S12,
   S13,
+  S14,
+  S15,
+  S16,
   S17,
+  S18,
   S19,
+  S20,
+  S21,
+  S22,
+  S23,
+  S24,
+  S25,
+  S27,
   S29,
   S30,
   SCENARIOS,
@@ -153,6 +164,99 @@ test.describe('write-contract scenarios (next)', () => {
       (w) => w.method === 'POST' && w.url.includes('/rest/v1/sales'),
     );
     expect(salePosts).toHaveLength(0);
+  });
+
+  test('S14 delivery with phone and deliver-at', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S14);
+    const { total, posts } = saleTotal(driver);
+    expect(total).toBe(8000);
+    const body = posts[0]!.body as {
+      client_phone?: string;
+      location_label?: string;
+      delivery?: { deliverAt?: string };
+      delivery_enabled?: boolean;
+    };
+    expect(body.client_phone).toBe('+256700000001');
+    expect(body.delivery?.deliverAt).toBe('2026-11-12T15:00:00+03:00');
+    expect(String(body.location_label || '')).toMatch(/Kololo/i);
+    expect(body.delivery_enabled).toBe(true);
+    const trips = driver.mock.writes.filter(
+      (w) => w.method === 'POST' && w.url.includes('/rest/v1/deliveries'),
+    );
+    expect(trips.length).toBeGreaterThanOrEqual(1);
+    expect((trips[0]!.body as { fee_was_edited?: boolean }).fee_was_edited).toBe(false);
+  });
+
+  test('S15 delivery fee edited by hand', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S15);
+    const { total, posts } = saleTotal(driver);
+    expect(total).toBe(8000);
+    const body = posts[0]!.body as { delivery_fee_ugx?: number; location_label?: string };
+    expect(body.delivery_fee_ugx).toBe(7000);
+    expect(String(body.location_label || '')).toMatch(/Ntinda/i);
+    const trips = driver.mock.writes.filter(
+      (w) => w.method === 'POST' && w.url.includes('/rest/v1/deliveries'),
+    );
+    expect((trips[0]!.body as { fee_was_edited?: boolean }).fee_was_edited).toBe(true);
+  });
+
+  test('S16 edit a line before charge', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S16);
+    const { total, posts } = saleTotal(driver);
+    expect(total).toBe(8000);
+    const items = (posts[0]!.body as { items?: Array<{ breakdown?: Record<string, number> }> }).items || [];
+    expect(items[0]?.breakdown?.strawberry).toBe(1);
+    expect(items[0]?.breakdown?.mint || 0).toBe(0);
+  });
+
+  test('S18 sales post fails once then retry', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S18);
+    const { total, posts } = saleTotal(driver);
+    expect(total).toBe(8000);
+    expect(posts).toHaveLength(1);
+  });
+
+  test('S20 reward line checks out at the paid total', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S20);
+    expect(saleTotal(driver).total).toBe(8000);
+  });
+
+  test('S21 load and confirm a pending order', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S21);
+    expect(saleTotal(driver).total).toBe(8000);
+  });
+
+  test('S22 cancel a pending order', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S22);
+  });
+
+  test('S23 dismiss a cancelled order', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S23);
+  });
+
+  test('S24 check out the second loaded order', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S24);
+    expect(saleTotal(driver).total).toBe(15000);
+  });
+
+  test('S25 restore the parked counter cart', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S25);
+    expect(saleTotal(driver).total).toBe(8000);
+  });
+
+  test('S27 deep link opens the store order', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await driver.run(S27);
   });
 
   test('S17 remove line then undo then remove', async ({ page }) => {

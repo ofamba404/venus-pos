@@ -5,6 +5,7 @@ import { enqueueSale, shouldQueueSale } from './outbox';
 import { applySoldToInventory, mergeSoldBreakdown } from '../domain/inventory-delta';
 import { categoryLabel, soldExcludingHold } from '../domain/stock-reservation';
 import { buildSalePostBody, type CheckoutDeliveryInput } from '../domain/sale-payload';
+import { BASE_ORIGIN } from '../domain/geo';
 import { sbFetch, functionFetch } from './api';
 import { clients, ensureInventory, inventory, loadSales, syncLabel, type SaleRow } from './entities';
 import { deviceId } from './device-id';
@@ -173,6 +174,13 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
     }
 
     void loadSales().catch(() => {});
+    await recordDelivery({
+      saleId: String(sale.id || ''),
+      clientId,
+      clientName,
+      meta: input.meta,
+      checkout: input.checkout,
+    });
     return { ok: true, sale };
   } catch (e) {
     if (features.offlineQueue && saleBody && shouldQueueSale(e, input.meta.storeOrderId)) {
@@ -222,4 +230,47 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
 
 export function previewTotal(lines: CartLine[]) {
   return cartTotal(lines);
+}
+
+async function recordDelivery(input: {
+  saleId: string;
+  clientId: string | null;
+  clientName: string;
+  meta: OrderMeta;
+  checkout?: CheckoutDeliveryInput;
+}) {
+  const checkout = input.checkout;
+  if (!checkout || input.meta.deliveryEnabled === false) return;
+  const lat = Number(checkout.dest?.lat);
+  const lng = Number(checkout.dest?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  const fee = parseInt(String(checkout.feeValue ?? ''), 10);
+  const draft = checkout as CheckoutDeliveryInput & {
+    feeManuallyEdited?: boolean;
+    predictedFee?: number | null;
+  };
+  try {
+    await sbFetch('deliveries', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        client_id: input.clientId,
+        client_name: input.clientName || null,
+        sale_id: input.saleId || null,
+        origin_lat: BASE_ORIGIN.lat,
+        origin_lng: BASE_ORIGIN.lng,
+        origin_label: BASE_ORIGIN.label,
+        dest_lat: lat,
+        dest_lng: lng,
+        dest_label: draft.destText || input.meta.deliveryLocationLabel || null,
+        distance_km: draft.distanceKm == null ? null : Number(draft.distanceKm),
+        duration_min: draft.durationMin == null ? null : Number(draft.durationMin),
+        fee_ugx: Number.isFinite(fee) ? fee : 0,
+        predicted_fee_ugx: draft.predictedFee == null ? null : Number(draft.predictedFee),
+        fee_was_edited: Boolean(draft.feeManuallyEdited),
+      }),
+    });
+  } catch (e) {
+    console.warn('delivery log failed', e);
+  }
 }

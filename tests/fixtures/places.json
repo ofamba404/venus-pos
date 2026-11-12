@@ -77,6 +77,16 @@
       "approxKm": 6.8
     },
     {
+      "id": "kololo",
+      "label": "Kololo Airstrip, Kampala",
+      "shortLabel": "Kololo",
+      "searchAs": "Kololo",
+      "aliases": ["kololo"],
+      "lat": 0.3328,
+      "lng": 32.5978,
+      "approxKm": 3.4
+    },
+    {
       "id": "ntinda",
       "label": "Capital Shoppers, Ntinda Road, Kampala",
       "shortLabel": "Capital Shoppers Ntinda",

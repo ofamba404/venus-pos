@@ -85,9 +85,32 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
             .catch(() => false);
           if (shown) await opt.click();
         }
-        if (step.feeUgx != null) {
+        if (step.feeUgx != null && step.feeEdited) {
           await scope.getByTestId('delivery-fee').fill(String(step.feeUgx));
         }
+        if (step.phone) await scope.getByTestId('delivery-phone').fill(step.phone);
+        if (step.deliverAt) await scope.getByTestId('delivery-at').fill(step.deliverAt);
+        return;
+      }
+      case 'editLine': {
+        const scope = await saleScope(page);
+        await scope.getByRole('button', { name: new RegExp(`Edit ${productLabel(step.product)}`, 'i') }).click();
+        const decs = page.locator('[data-testid^="config-flavor-"][data-testid$="-dec"]');
+        const count = await decs.count();
+        for (let i = 0; i < count; i += 1) {
+          const btn = decs.nth(i);
+          for (let n = 0; n < 8; n += 1) {
+            if (!(await btn.isEnabled())) break;
+            await btn.click();
+          }
+        }
+        if (step.flavors) {
+          for (const [id, times] of Object.entries(step.flavors)) {
+            const n = Math.max(0, Math.round(Number(times) || 0));
+            for (let i = 0; i < n; i += 1) await page.getByTestId(`config-flavor-${id}-inc`).click();
+          }
+        }
+        await page.getByTestId('config-add').click();
         return;
       }
       case 'removeLine': {
@@ -116,11 +139,42 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         await scope.getByTestId('charge').click();
         return;
       }
+      case 'chargeRetry': {
+        const scope = await saleScope(page);
+        await scope.getByTestId('charge').click();
+        return;
+      }
       case 'doubleTapCharge': {
         const scope = await saleScope(page);
         await scope.getByTestId('charge').dblclick();
         return;
       }
+      case 'loadStoreOrder': {
+        await page.goto('/next/orders');
+        await page.getByTestId(`load-order-${step.id}`).click();
+        await page.waitForURL(/\/next\/sell/, { timeout: 10000 });
+        return;
+      }
+      case 'confirmStoreOrder':
+        await page.getByTestId('confirm-store-order').click();
+        return;
+      case 'cancelStoreOrder':
+        await page.goto('/next/orders');
+        await page.getByTestId(`cancel-order-${step.id}`).click();
+        return;
+      case 'dismissStoreOrder':
+        await page.goto('/next/orders');
+        await page.getByRole('tab', { name: 'Closed' }).click();
+        await page.getByTestId(`dismiss-order-${step.id}`).click();
+        return;
+      case 'parkCounterCart': {
+        const scope = await saleScope(page);
+        await scope.getByTestId('hold-sale').click();
+        return;
+      }
+      case 'restoreCounterCart':
+        await page.getByTestId('held-sales').getByRole('button').first().click();
+        return;
       case 'adjustStock':
         await page.goto(`/next/stock`);
         if (step.delta > 0) {
@@ -176,6 +230,20 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         if (bad.length) throw new Error(`expected no sale or stock writes, saw ${bad.length}`);
         return;
       }
+      case 'display': {
+        if (step.values.cartLines != null) {
+          const n = Number(step.values.cartLines);
+          const lines = page.locator('[data-desktop-cart]').getByRole('button', { name: /^Remove / });
+          const deadline = Date.now() + 8000;
+          let count = await lines.count();
+          while (count !== n && Date.now() < deadline) {
+            await page.waitForTimeout(200);
+            count = await lines.count();
+          }
+          if (count !== n) throw new Error(`expected ${n} cart lines, saw ${count}`);
+        }
+        return;
+      }
       default:
         return;
     }
@@ -191,8 +259,14 @@ export async function createNextDriver(page: Page, opts: { role?: 'pos_admin' | 
   return {
     mock,
     async run(scenario) {
-      await page.goto('/next/sell');
-      await page.getByRole('heading', { name: /packs|sell|today/i }).first().waitFor({ timeout: 15000 }).catch(() => {});
+      if (scenario.steps.some((step) => 'do' in step && step.do === 'chargeRetry')) {
+        mock.setFailure({ method: 'POST', table: 'sales', status: 500, times: 1 });
+      }
+      const first = scenario.steps[0];
+      if (!first || !('do' in first) || first.do !== 'go') {
+        await page.goto('/next/sell');
+        await page.getByRole('heading', { name: /packs|sell|today/i }).first().waitFor({ timeout: 15000 }).catch(() => {});
+      }
       for (const step of scenario.steps) {
         await runStep(page, step, mock);
       }

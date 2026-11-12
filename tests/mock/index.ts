@@ -229,6 +229,18 @@ export async function installMockBackend(
       return;
     }
 
+    if (u.pathname === '/api/store-order/reserve') {
+      let body: unknown = null;
+      try {
+        body = req.postDataJSON();
+      } catch {
+        body = null;
+      }
+      writes.push({ method, url, headers: {}, body });
+      await fulfillJson(route, 200, { ok: true, locked: true, consumed: true, released: true });
+      return;
+    }
+
     // Netlify functions
     if (u.pathname === '/api/inventory/write') {
       let body: Record<string, unknown> = {};

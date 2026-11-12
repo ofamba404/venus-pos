@@ -104,6 +104,19 @@ export function OrdersPage() {
     await Promise.allSettled([loadStoreOrders(), ensureInventory()]);
   }
 
+  async function dismissOrder(order: StoreOrderRow) {
+    const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(order.id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ dismissed_at: new Date().toISOString() }),
+    });
+    if (!res.ok) {
+      showToast('Could not dismiss order');
+      return;
+    }
+    showToast(`Dismissed ${orderTitle(order)}`);
+    await loadStoreOrders().catch(() => {});
+  }
+
   return (
     <section>
       <h1 class="page-title">Orders</h1>
@@ -145,17 +158,32 @@ export function OrdersPage() {
               </Tag>
               {seg === 'waiting' ? (
                 <>
-                  <Button size="md" onClick={() => void loadIntoSale(o)}>
+                  <Button size="md" data-testid={`load-order-${o.id}`} onClick={() => void loadIntoSale(o)}>
                     Load into sale
                   </Button>
-                  <Button size="md" variant="secondary" onClick={() => void cancelOrder(o)}>
+                  <Button
+                    size="md"
+                    variant="secondary"
+                    data-testid={`cancel-order-${o.id}`}
+                    onClick={() => void cancelOrder(o)}
+                  >
                     Cancel
                   </Button>
                 </>
               ) : null}
               {seg === 'in_sale' ? (
-                <Button size="md" variant="secondary" onClick={() => void loadIntoSale(o)}>
+                <Button size="md" variant="secondary" data-testid={`load-order-${o.id}`} onClick={() => void loadIntoSale(o)}>
                   Open cart
+                </Button>
+              ) : null}
+              {seg === 'closed' && !o.dismissed_at ? (
+                <Button
+                  size="md"
+                  variant="secondary"
+                  data-testid={`dismiss-order-${o.id}`}
+                  onClick={() => void dismissOrder(o)}
+                >
+                  Dismiss
                 </Button>
               ) : null}
             </div>

@@ -66,6 +66,8 @@ export function bootRouter() {
   sync();
   window.addEventListener('popstate', sync);
   if (pathToId(location.pathname) === 'sell' && !/\/sell\/?$/.test(location.pathname)) {
+    const hash = location.hash;
     go('/sell', { replace: true });
+    if (hash && location.hash !== hash) history.replaceState({}, '', `${location.pathname}${hash}`);
   }
 }

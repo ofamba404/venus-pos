@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
+import { itemToConfigSelection } from '../../domain/pricing/pack-config';
+import { stockCrossing } from '../../domain/stock-state';
 import { formatUGX } from '../../domain/format';
 import {
   buildCartLine,
@@ -32,8 +34,10 @@ import { features } from '../../data/env';
 import { deviceId } from '../../data/device-id';
 import { deleteHeld, listHeld, saveHeld } from '../../data/held';
 import { flushOutbox, listOutbox, outboxCountLabel } from '../../data/outbox';
+import { mapStoreOrderToCart } from '../../domain/store-order-map';
+import { sbFetch } from '../../data/api';
 import { postStoreReserve } from '../../data/store-reserve';
-import { clients, ensureInventory, inventory, loadClients, loadSales, sales, syncLabel } from '../../data/entities';
+import { clients, ensureInventory, inventory, loadClients, loadSales, loadStoreOrders, sales, storeOrders, syncLabel } from '../../data/entities';
 import { openDebtForClientName } from '../../domain/credit';
 import { counterSellable } from '../../domain/stock-reservation';
 import { haptic } from '../../platform/haptics';
@@ -73,6 +77,7 @@ export function SellPage() {
   const [queuedNote, setQueuedNote] = useState(false);
   const [debtAsk, setDebtAsk] = useState<{ name: string; owed: number } | null>(null);
   const debtClearedRef = useRef(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
 
   const lines = cartLines.value;
   const meta = orderMeta.value;
@@ -96,6 +101,26 @@ export function SellPage() {
     refreshQueue();
     void ensureDeliveryModel().catch(() => {});
     void ensureInventory().catch(() => {});
+    const openLinkedOrder = () => {
+      const hash = window.location.hash.replace(/^#/, '');
+      const deepId = new URLSearchParams(hash).get('load-store-order');
+      if (!deepId) return;
+      void loadStoreOrders()
+        .then((rows) => {
+          const order = rows.find((row) => row.id === deepId);
+          if (!order) return;
+          const mapped = mapStoreOrderToCart(
+            { ...order, items: (order.items || []) as never },
+            { customerName: String(order.customer_name || 'Store order') },
+          );
+          replaceCart(mapped.lines, mapped.meta);
+          setOrderMetaPatch(mapped.meta);
+          setCartOpen(true);
+        })
+        .catch(() => {});
+    };
+    openLinkedOrder();
+    window.addEventListener('hashchange', openLinkedOrder);
     const timer = window.setInterval(() => {
       void ensureInventory().catch(() => {});
     }, 15000);
@@ -112,6 +137,7 @@ export function SellPage() {
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       window.clearInterval(timer);
+      window.removeEventListener('hashchange', openLinkedOrder);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('online', onOnline);
       document.removeEventListener('visibilitychange', onVisible);
@@ -138,10 +164,21 @@ export function SellPage() {
 
   function openConfig(p: Product) {
     void ensureInventory().catch(() => {});
+    setEditingKey(null);
     setConfigProduct(p);
     if (p.rule === 'single_qty') setSelection({ qty: 1 });
     else if (p.rule === 'cookie_wholesale') setSelection({ _unitPrice: 2500 });
     else setSelection({});
+  }
+
+  function openLine(line: { key: string; productId: string; breakdown: Record<string, number>; wholesaleUnitPrice?: number; lineTotal: number }) {
+    const product = PRODUCTS.find((p) => p.id === line.productId);
+    if (!product) return;
+    void ensureInventory().catch(() => {});
+    setEditingKey(line.key);
+    setConfigProduct(product);
+    setSelection(itemToConfigSelection(product, line));
+    setCartOpen(false);
   }
 
   function sellableNow() {
@@ -161,8 +198,13 @@ export function SellPage() {
       showToast('Pick at least one');
       return;
     }
-    dispatchCart({ type: 'add_line', line });
+    if (editingKey) {
+      dispatchCart({ type: 'update_line', key: editingKey, line: { ...line, key: editingKey } });
+    } else {
+      dispatchCart({ type: 'add_line', line });
+    }
     haptic(10);
+    setEditingKey(null);
     setConfigProduct(null);
     setCartOpen(true);
   }
@@ -187,6 +229,7 @@ export function SellPage() {
     }
     setDebtAsk(null);
     setPaying(true);
+    const beforeStock = { ...inventory.value };
     const result = await runCheckout({
       lines,
       meta: { ...meta, isCredit: payment === 'credit' },
@@ -198,6 +241,16 @@ export function SellPage() {
     if (!result.ok) {
       showToast(result.error);
       return;
+    }
+    if (!result.queued) {
+      for (const [id, prev] of Object.entries(beforeStock)) {
+        const next = inventory.value[id] ?? 0;
+        if (next === prev) continue;
+        const cross = stockCrossing(id, prev, next);
+        const label = CAT_MAP[id]?.name || id;
+        if (cross.crossedOut) showToast(`${label} is out of stock`);
+        else if (cross.crossedLow) showToast(`${label} is running low`);
+      }
     }
     haptic(15);
     setQueuedNote(Boolean(result.queued));
@@ -237,14 +290,26 @@ export function SellPage() {
     showToast('Held on this phone');
   }
 
+  async function confirmLoadedOrder() {
+    const id = meta.storeOrderId;
+    if (!id) return;
+    const res = await sbFetch(`store_orders?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'confirmed', confirmed_at: new Date().toISOString() }),
+    });
+    if (!res.ok) {
+      showToast('Could not confirm order');
+      return;
+    }
+    showToast('Order confirmed');
+  }
+
   async function resumeSale(id: string) {
     const row = (await listHeld()).find((item) => item.id === id);
     if (!row) return;
-    if (lines.length && meta.storeOrderId) {
-      showToast('Finish the store order before resuming a hold');
-      return;
-    }
-    if (lines.length) {
+    if (meta.storeOrderId) {
+      void postStoreReserve({ op: 'unclaim', id: meta.storeOrderId, device_id: deviceId() });
+    } else if (lines.length) {
       const current = toHeldSale(cartState.value);
       if (current) await saveHeld(current);
     }
@@ -289,6 +354,9 @@ export function SellPage() {
                 <div class="v-list-row__meta">{line.detail}</div>
               </div>
               <Money value={line.isReward ? 0 : line.lineTotal} />
+              <IconButton size="sm" label={`Edit ${line.name}`} onClick={() => openLine(line)}>
+                <IconPlus size={18} />
+              </IconButton>
               <IconButton
                 size="sm"
                 label={`Remove ${line.name}`}
@@ -420,6 +488,22 @@ export function SellPage() {
                 setCheckoutDraft({ feeValue, feeManuallyEdited: true });
               }}
             />
+            <Field
+              label="Phone"
+              data-testid="delivery-phone"
+              value={meta.clientPhone}
+              placeholder="+256…"
+              onInput={(e) => setOrderMetaPatch({ clientPhone: (e.target as HTMLInputElement).value })}
+            />
+            <Field
+              label="Deliver at"
+              data-testid="delivery-at"
+              value={meta.deliveryDeliverAt}
+              placeholder="2026-11-12T15:00:00+03:00"
+              onInput={(e) =>
+                setOrderMetaPatch({ deliveryDeliverAt: (e.target as HTMLInputElement).value })
+              }
+            />
             {draft.distanceKm != null ? (
               <p class="v-muted">
                 {Number(draft.distanceKm).toFixed(1)} km
@@ -435,6 +519,11 @@ export function SellPage() {
           <span class="cart-total__label">Total</span>
           <Money value={cartSum.value} size="xl" />
         </div>
+        {meta.storeOrderId ? (
+          <Button size="md" variant="secondary" data-testid="confirm-store-order" onClick={() => void confirmLoadedOrder()}>
+            Confirm order
+          </Button>
+        ) : null}
         {features.holdSale && lines.length && !meta.storeOrderId ? (
           <Button size="md" variant="secondary" data-testid="hold-sale" onClick={() => void parkSale()}>
             Hold on this phone
@@ -579,7 +668,10 @@ export function SellPage() {
       <Sheet
         open={Boolean(configProduct)}
         title={configProduct?.name || 'Configure'}
-        onClose={() => setConfigProduct(null)}
+        onClose={() => {
+          setConfigProduct(null);
+          setEditingKey(null);
+        }}
         footer={
           <Button size="xl" data-testid="config-add" onClick={addConfigured}>
             Add to sale
