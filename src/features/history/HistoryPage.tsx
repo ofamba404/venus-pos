@@ -13,6 +13,7 @@ import { Segmented } from '../../ui/Segmented';
 import { Sheet } from '../../ui/Sheet';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
+import { CopyButton } from '../../ui/CopyButton';
 import { HistoryEditSheet } from './HistoryEditSheet';
 
 type Filter = 'all' | 'week' | 'credit';
@@ -176,37 +177,27 @@ export function HistoryPage() {
                 {item.product_name || 'Item'} · {item.detail || ''}
               </div>
             ))}
-            {String(open.client_phone || '') ? (
-              <Button
-                size="md"
-                variant="secondary"
-                data-testid="history-copy-phone"
-                onClick={() => {
-                  const digits = localPhoneDigits(String(open.client_phone || ''));
-                  void navigator.clipboard?.writeText(digits).then(
-                    () => showToast('Phone copied'),
-                    () => showToast(digits),
-                  );
-                }}
-              >
-                Copy phone
-              </Button>
-            ) : null}
-            {String(open.location_label || '') ? (
-              <Button
-                size="md"
-                variant="secondary"
-                data-testid="history-copy-location"
-                onClick={() => {
-                  const text = String(open.location_label || '');
-                  void navigator.clipboard?.writeText(text).then(
-                    () => showToast('Location copied'),
-                    () => showToast(text),
-                  );
-                }}
-              >
-                Copy location
-              </Button>
+            {String(open.client_phone || '') || String(open.location_label || '') ? (
+              <div class="sale-copy-row">
+                {String(open.client_phone || '') ? (
+                  <CopyButton
+                    kind="phone"
+                    label="Copy phone"
+                    ariaLabel="Copy phone"
+                    testId="history-copy-phone"
+                    value={() => localPhoneDigits(String(open.client_phone || ''))}
+                  />
+                ) : null}
+                {String(open.location_label || '') ? (
+                  <CopyButton
+                    kind="place"
+                    label="Copy location"
+                    ariaLabel="Copy location"
+                    testId="history-copy-location"
+                    value={() => String(open.location_label || '')}
+                  />
+                ) : null}
+              </div>
             ) : null}
             <Button
               data-testid="sale-edit"

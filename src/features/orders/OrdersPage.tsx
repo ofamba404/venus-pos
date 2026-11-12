@@ -16,6 +16,7 @@ import { localPhoneDigits } from '../../domain/phone';
 import { EmptyState } from '../../ui/EmptyState';
 import { IconButton } from '../../ui/IconButton';
 import { OrderCard } from '../../ui/OrderCard';
+import { CopyButton } from '../../ui/CopyButton';
 import { KEYS } from '../../data/keys';
 import { writePaint } from '../../domain/parity';
 import { SUPABASE_ANON_JWT, SUPABASE_URL } from '../../data/env';
@@ -232,41 +233,15 @@ export function OrdersPage() {
             tools={
               <>
                 {phone ? (
-                  <IconButton
-                    size="sm"
-                    label="Copy phone"
-                    data-testid={`copy-phone-${o.id}`}
-                    onClick={() => {
-                      const digits = localPhoneDigits(phone);
-                      void navigator.clipboard?.writeText(digits).then(
-                        () => showToast('Phone copied'),
-                        () => showToast(digits),
-                      );
-                    }}
-                  >
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-                      <path d="M8 4h8v16H8z" />
-                      <path d="M11 18h2" />
-                    </svg>
-                  </IconButton>
+                  <CopyButton
+                    kind="phone"
+                    ariaLabel="Copy phone"
+                    testId={`copy-phone-${o.id}`}
+                    value={() => localPhoneDigits(phone)}
+                  />
                 ) : null}
                 {place ? (
-                  <IconButton
-                    size="sm"
-                    label="Copy location"
-                    data-testid={`copy-location-${o.id}`}
-                    onClick={() => {
-                      void navigator.clipboard?.writeText(place).then(
-                        () => showToast('Location copied'),
-                        () => showToast(place),
-                      );
-                    }}
-                  >
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-                      <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z" />
-                      <circle cx="12" cy="10" r="2.2" />
-                    </svg>
-                  </IconButton>
+                  <CopyButton kind="place" ariaLabel="Copy location" testId={`copy-location-${o.id}`} value={() => place} />
                 ) : null}
               </>
             }

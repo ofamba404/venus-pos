@@ -54,6 +54,7 @@ import { Field } from '../../ui/Field';
 import { Segmented } from '../../ui/Segmented';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { FlavorPicker } from '../../ui/FlavorPicker';
+import { CopyButton } from '../../ui/CopyButton';
 import { ProductCard } from '../../ui/ProductCard';
 import { DeliveryBlock } from '../../ui/DeliveryBlock';
 import { TimePicker } from '../../ui/TimePicker';
@@ -74,20 +75,6 @@ const WHOLESALE = PRODUCTS.filter((p) => p.rule === 'cookie_wholesale');
 
 function productKind(p: Product) {
   return String(p.id).startsWith('cookie') ? 'cookie' : 'joint';
-}
-
-async function copyValue(text: string, ok: string, empty: string) {
-  const value = text.trim();
-  if (!value) {
-    showToast(empty);
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(value);
-    showToast(ok);
-  } catch {
-    showToast(value);
-  }
 }
 
 function productPriceLabel(p: Product) {
@@ -622,17 +609,12 @@ export function SellPage() {
                 value={draft.destText || meta.deliveryLocationLabel || ''}
                 onPick={onPlacePick}
               />
-              <button
-                type="button"
-                class="v-copy"
-                data-testid="copy-location"
-                aria-label="Copy delivery location"
-                onClick={() =>
-                  void copyValue(draft.destText || meta.deliveryLocationLabel || '', 'Location copied', 'No location')
-                }
-              >
-                Copy
-              </button>
+              <CopyButton
+                kind="place"
+                ariaLabel="Copy delivery location"
+                testId="copy-location"
+                value={() => draft.destText || meta.deliveryLocationLabel || ''}
+              />
             </div>
             <Field
               label="Delivery fee (UGX)"
@@ -653,15 +635,12 @@ export function SellPage() {
                 placeholder="+256…"
                 onInput={(e) => setOrderMetaPatch({ clientPhone: (e.target as HTMLInputElement).value })}
               />
-              <button
-                type="button"
-                class="v-copy"
-                data-testid="copy-phone"
-                aria-label="Copy phone number"
-                onClick={() => void copyValue(localPhoneDigits(meta.clientPhone), 'Phone copied', 'No phone')}
-              >
-                Copy
-              </button>
+              <CopyButton
+                kind="phone"
+                ariaLabel="Copy phone number"
+                testId="copy-phone"
+                value={() => localPhoneDigits(meta.clientPhone)}
+              />
             </div>
             <TimePicker
               value={kampalaLocalInput(meta.deliveryDeliverAt)}

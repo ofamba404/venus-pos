@@ -29,7 +29,6 @@ export function OrderCard({
           <div class="v-list-row__title">{title}</div>
           <div class="v-list-row__meta">{status}</div>
         </div>
-        {tools}
         <Money className="v-money--amber" value={total} />
       </div>
       <div class="order-card__lines">
@@ -40,6 +39,7 @@ export function OrderCard({
           </div>
         ))}
       </div>
+      {tools ? <div class="order-card__tools">{tools}</div> : null}
       {children}
     </article>
   );
