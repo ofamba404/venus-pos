@@ -41,7 +41,7 @@ import {
   getCookiePartnerSettledQty,
   itemFlavorOwnerShares,
   itemOwnerRevenue,
-  markCookiePartnerBatchesSent,
+  sendCookiePartnerBatch,
   salePaidRatio,
   saleRecognizedOwnerRevenue,
   sumOwnerRevenue,
@@ -882,16 +882,44 @@ function wireCookiePartnerSend(root, s, pages) {
     }
     const ok = await showConfirm(message);
     if (!ok) return;
-    const beforeQty = getCookiePartnerSettledQty();
-    await markCookiePartnerBatchesSent(salesCache, kind === 'partial' ? { partial: true } : {});
-    if (getCookiePartnerSettledQty() === beforeQty) {
-      showToast('Could not mark this batch sent', true);
+    if (btn.disabled) return;
+    btn.disabled = true;
+    let result;
+    try {
+      result = await sendCookiePartnerBatch(salesCache, kind === 'partial' ? { partial: true } : {});
+    } catch {
+      result = { ok: false, reason: 'offline' };
+    }
+    if (!result.ok) {
+      btn.disabled = false;
+      showToast(cookiePartnerSendFailureMessage(result), true);
+      // A stale card was refreshed from the server: redraw so it shows the real state.
+      if (result.reason === 'stale') {
+        cookiePartnerPageIndex = null;
+        renderCookiePartnerPanelFresh();
+      }
       return;
     }
     cookiePartnerPageIndex = null;
     showToast('Cookie partner batch marked sent');
     renderCookiePartnerPanelFresh();
   });
+}
+
+function cookiePartnerSendFailureMessage(result) {
+  switch (result?.reason) {
+    case 'auth':
+      return 'Not signed in. Batch NOT marked sent. Sign in again, then retry.';
+    case 'stale':
+      return 'Another device already updated this. Card refreshed. Check it, then retry if needed.';
+    case 'http':
+      return `Server error${result.status ? ` (${result.status})` : ''}. Batch NOT marked sent. Try again.`;
+    case 'nothing':
+    case 'invalid':
+      return 'Nothing to send right now. Batch NOT marked sent.';
+    default:
+      return 'Could not reach the server. Batch NOT marked sent. Try again.';
+  }
 }
 
 function categoryLabel(c, { shortCookie = false } = {}) {

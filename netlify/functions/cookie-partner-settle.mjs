@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import { normalizeSettledBatches } from '../../js/cookie-partner-batches.js';
+import { auditEntry, clampQty, mergeSettleWrite } from './_shared/cookie-settle-merge.mjs';
 import { json } from './_shared/push.mjs';
 import { requireStaffUser, supabaseConfig } from './_shared/supabase-admin.mjs';
 
@@ -8,6 +9,8 @@ const BLOB_STORE = 'venus-cookie-partner';
 const BLOB_KEY = 'settled-qty-v4';
 /** Optional send sizes that sum to settled qty. Ignored when they do not match. */
 const BATCHES_KEY = 'settled-batches-v1';
+/** Append-only list of sends: [{ at, qty_before, qty_after, batch_size, by }]. */
+const AUDIT_KEY = 'send-audit-v1';
 /**
  * First 25-cookie batch (~136k) already paid. Seed when this key is empty.
  */
@@ -15,10 +18,6 @@ const BOOTSTRAP_SETTLED_QTY = 25;
 
 function settleStore() {
   return getStore({ name: BLOB_STORE, consistency: 'strong' });
-}
-
-function clampQty(n) {
-  return Math.max(0, Math.floor(Number(n) || 0));
 }
 
 async function readSettledQty() {
@@ -41,18 +40,38 @@ async function writeSettledQty(qty) {
   return n;
 }
 
-async function readBatches() {
+/** `strict`: let a storage error throw so a write never merges against "no cuts" by mistake. */
+async function readBatches({ strict = false } = {}) {
   try {
     const raw = await settleStore().get(BATCHES_KEY, { type: 'text' });
     if (raw == null || raw === '') return null;
     return JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    if (strict) throw err;
     return null;
   }
 }
 
 async function writeBatches(batches) {
   await settleStore().set(BATCHES_KEY, JSON.stringify(batches));
+}
+
+async function appendAudit(entry) {
+  try {
+    const store = settleStore();
+    let list = [];
+    try {
+      const raw = await store.get(AUDIT_KEY, { type: 'text' });
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) list = parsed;
+    } catch {
+      /* start a fresh list rather than lose the entry */
+    }
+    list.push(entry);
+    await store.set(AUDIT_KEY, JSON.stringify(list));
+  } catch (err) {
+    console.error('cookie-partner-settle audit', err);
+  }
 }
 
 function batchesForQty(raw, qty) {
@@ -106,16 +125,41 @@ export default async (req) => {
     if (body?.settled_qty == null && body?.qty == null) {
       return json({ error: 'Missing settled_qty' }, 400);
     }
-    const next = clampQty(body.settled_qty ?? body.qty);
-    let batches = null;
-    if (body.batches != null) {
-      batches = normalizeSettledBatches(body.batches, next);
-      if (!batches) return json({ error: 'Invalid batches' }, 400);
-      await writeBatches(batches);
+    // Read the stored state directly (a failed read must not look like qty 0).
+    const current = await readSettledQty();
+    if (current == null) return json({ error: 'Settle state unavailable' }, 503);
+    const merged = mergeSettleWrite({
+      currentQty: current,
+      currentBatches: await readBatches({ strict: true }),
+      bodyQty: body.settled_qty ?? body.qty,
+      bodyBatches: body.batches,
+    });
+    if (!merged.ok) return json({ error: merged.error || 'Invalid batches' }, 400);
+    if (merged.writeBatches && merged.batches) await writeBatches(merged.batches);
+    if (merged.applied) {
+      await writeSettledQty(merged.qty);
+      await appendAudit(
+        auditEntry({
+          qtyBefore: merged.qtyBefore,
+          qtyAfter: merged.qty,
+          batchSize: merged.batchSize,
+          by: user.id || null,
+        }),
+      );
+    } else if (clampQty(body.settled_qty ?? body.qty) < current) {
+      console.warn('cookie-partner-settle: refused to lower settled qty', {
+        stored: current,
+        attempted: clampQty(body.settled_qty ?? body.qty),
+        by: user.id || null,
+      });
     }
-    const settled_qty = await writeSettledQty(next);
-    if (!batches) batches = batchesForQty(await readBatches(), settled_qty);
-    return json({ ok: true, settled_qty, batches, updated_by: user.id || null });
+    return json({
+      ok: true,
+      applied: merged.applied,
+      settled_qty: merged.qty,
+      batches: batchesForQty(merged.batches, merged.qty),
+      updated_by: user.id || null,
+    });
   } catch (err) {
     console.error('cookie-partner-settle', err);
     return json({ error: err?.message || 'Settle sync failed' }, 500);
