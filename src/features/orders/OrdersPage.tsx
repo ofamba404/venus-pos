@@ -9,13 +9,13 @@ import { patchStoreOrder } from '../../data/writes/store-orders';
 import { go } from '../../app/router';
 import { Button } from '../../ui/Button';
 import { Tag } from '../../ui/Tag';
-import { Money } from '../../ui/Money';
 import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
 import { formatUGX } from '../../domain/format';
 import { productImageSrc } from '../../domain/product-art';
 import { localPhoneDigits } from '../../domain/phone';
-import { FlavorSwatches } from '../../ui/FlavorSwatches';
+import { EmptyState } from '../../ui/EmptyState';
+import { OrderCard } from '../../ui/OrderCard';
 import { KEYS } from '../../data/keys';
 import { writePaint } from '../../domain/parity';
 import { SUPABASE_ANON_JWT, SUPABASE_URL } from '../../data/env';
@@ -179,10 +179,7 @@ export function OrdersPage() {
 
       {loading ? <div class="v-skeleton" data-testid="orders-loading" /> : null}
       {!loading && !list.length ? (
-        <div class="v-empty">
-          <p class="v-empty__title">No orders here</p>
-          <p>New storefront orders will show up in Waiting</p>
-        </div>
+        <EmptyState title="No orders here" body="New storefront orders will show up in Waiting" />
       ) : null}
 
       <div class="v-stagger">
@@ -194,29 +191,25 @@ export function OrdersPage() {
           } | undefined;
           const thumb = first?.product_id ? productImageSrc(first.product_id, first.breakdown) : '';
           return (
-          <article key={o.id} class="v-order-card">
-            <div class="v-order-card__top">
-              {thumb ? <img class="v-thumb" src={thumb} alt="" /> : null}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div class="v-list-row__title">{orderTitle(o, labels)}</div>
-                <div>
-                  {items.slice(0, 3).map((raw, index) => {
-                    const item = raw as {
-                      product_id?: string;
-                      product_name?: string;
-                      breakdown?: Record<string, number>;
-                    };
-                    return (
-                      <div key={`${item.product_name}-${index}`}>
-                        <div class="v-list-row__meta">{item.product_name || 'Item'}</div>
-                        <FlavorSwatches breakdown={item.breakdown} productId={item.product_id} />
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <Money className="v-money--amber" value={orderTotal(o)} />
-            </div>
+          <OrderCard
+            key={o.id}
+            title={orderTitle(o, labels)}
+            status={String(o.status || 'open')}
+            total={orderTotal(o)}
+            image={thumb}
+            lines={items.slice(0, 3).map((raw) => {
+              const item = raw as {
+                product_id?: string;
+                product_name?: string;
+                breakdown?: Record<string, unknown>;
+              };
+              return {
+                name: item.product_name || 'Item',
+                productId: item.product_id,
+                breakdown: item.breakdown,
+              };
+            })}
+          >
             <div class="v-order-card__actions">
               <Tag tone={o.delivery_enabled === false ? 'default' : 'paid'}>
                 {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
@@ -302,7 +295,7 @@ export function OrdersPage() {
                 Copy phone
               </Button>
             ) : null}
-          </article>
+          </OrderCard>
           );
         })}
       </div>

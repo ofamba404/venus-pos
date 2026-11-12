@@ -9,8 +9,7 @@ import {
   inventoryReady,
   setInventoryCount,
 } from '../../data/entities';
-import { FlavorDot } from '../../ui/FlavorDot';
-import { Tag } from '../../ui/Tag';
+import { StockTile } from '../../ui/StockTile';
 import { Sheet } from '../../ui/Sheet';
 import { Field } from '../../ui/Field';
 import { Button } from '../../ui/Button';
@@ -64,12 +63,7 @@ export function StockPage() {
     const qty = inventory.value[id] || 0;
     const level = stockLevel(id, qty);
     return (
-      <div class="stock-row">
-        <FlavorDot color={color} hollow={level === 'out'} size="lg" />
-        <div class="stock-row__label">
-          <div class="stock-row__name">{name}</div>
-          {level !== 'ok' ? <Tag tone={level === 'low' ? 'low' : 'out'}>{level}</Tag> : null}
-        </div>
+      <StockTile name={name} color={color} level={level}>
         <button
           type="button"
           class="stock-row__qty"
@@ -102,7 +96,7 @@ export function StockPage() {
             <IconPlus size={18} aria-hidden="true" />
           </button>
         </div>
-      </div>
+      </StockTile>
     );
   }
 

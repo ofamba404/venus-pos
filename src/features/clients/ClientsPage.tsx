@@ -14,6 +14,7 @@ import { Field } from '../../ui/Field';
 import { Button } from '../../ui/Button';
 import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
+import { ClientCard } from '../../ui/ClientCard';
 import { clientNamesText, virtualWindow } from '../../domain/parity';
 
 export function ClientsPage() {
@@ -167,35 +168,30 @@ export function ClientsPage() {
           : 'No orders yet';
         const initial = String(c.name || '?').trim().charAt(0).toUpperCase() || '?';
         return (
-          <div class="v-list-row" key={c.id}>
-            <button
-              type="button"
-              class="v-client"
-              onClick={() => {
-                if (clientOwed > 0) {
-                  setSettleId(c.id);
-                  setAmount(String(clientOwed));
-                  return;
-                }
-                setEditId(c.id);
-                setEditName(c.name || '');
-              }}
-            >
-              <span class="v-avatar" aria-hidden="true">{initial}</span>
-              <div class="v-list-row__main">
-                <div class="v-list-row__title">{c.name}</div>
-                <div class="v-list-row__meta">
-                  {c.phone ? `${c.phone} · ` : ''}Last order {lastLabel}
-                </div>
-              </div>
-              {clientOwed > 0 ? (
+          <ClientCard
+            key={c.id}
+            name={c.name || 'Client'}
+            initial={initial}
+            meta={`${c.phone ? `${c.phone} · ` : ''}Last order ${lastLabel}`}
+            owed={
+              clientOwed > 0 ? (
                 <span class="v-tag v-tag--credit">
                   <Money value={clientOwed} />
                 </span>
               ) : (
                 <span class="v-tag">Clear</span>
-              )}
-            </button>
+              )
+            }
+            onOpen={() => {
+              if (clientOwed > 0) {
+                setSettleId(c.id);
+                setAmount(String(clientOwed));
+                return;
+              }
+              setEditId(c.id);
+              setEditName(c.name || '');
+            }}
+            edit={
             <Button
               size="md"
               variant="ghost"
@@ -207,7 +203,8 @@ export function ClientsPage() {
             >
               Edit
             </Button>
-          </div>
+            }
+          />
         );
       })}
       </div>

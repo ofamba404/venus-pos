@@ -3,6 +3,8 @@ import { sbFetch } from '../../data/api';
 import { SUPABASE_KEY, SUPABASE_URL } from '../../data/env';
 import { connectSupabaseRealtime, startFeed } from '../../data/realtime';
 import { Button } from '../../ui/Button';
+import { EmptyState } from '../../ui/EmptyState';
+import { ReviewCard } from '../../ui/ReviewCard';
 import { showToast } from '../../ui/ToastHost';
 
 type Review = {
@@ -15,11 +17,6 @@ type Review = {
   display_name?: string | null;
   status?: string | null;
 };
-
-function stars(rating: number) {
-  const n = Math.max(0, Math.min(5, Math.round(rating || 0)));
-  return `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
-}
 
 export function ReviewsPage() {
   const [rows, setRows] = useState<Review[]>([]);
@@ -129,11 +126,14 @@ export function ReviewsPage() {
         const name = r.display_name || r.customer_name || 'Guest';
         const status = r.status || 'approved';
         return (
-          <article class="v-review" key={r.id} data-testid={`review-${r.id}`}>
-            <div class="v-review__stars" aria-label={`${r.rating || 0} stars`}>{stars(r.rating || 0)}</div>
-            <div class="v-list-row__title">{name}</div>
-            <p style={{ margin: 0 }}>{r.body || r.comment || 'No comment'}</p>
-            <div class="v-muted">{status}</div>
+          <ReviewCard
+            key={r.id}
+            id={r.id}
+            name={name}
+            rating={r.rating || 0}
+            body={r.body || r.comment || 'No comment'}
+            status={status}
+          >
             {editId === r.id ? (
               <div class="v-add-row">
                 <label class="v-field" style={{ flex: 1 }}>
@@ -169,14 +169,12 @@ export function ReviewsPage() {
                 </Button>
               </div>
             )}
-          </article>
+          </ReviewCard>
         );
       })}
       </div>
       {!visible.length ? (
-        <div class="v-empty">
-          <p class="v-empty__title">No reviews yet</p>
-        </div>
+        <EmptyState title="No reviews yet" body="New shop reviews show up here." />
       ) : null}
     </section>
   );

@@ -54,10 +54,15 @@ import { Field } from '../../ui/Field';
 import { Segmented } from '../../ui/Segmented';
 import { FlavorDot } from '../../ui/FlavorDot';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
+import { ProductCard } from '../../ui/ProductCard';
+import { DeliveryBlock } from '../../ui/DeliveryBlock';
+import { TimePicker } from '../../ui/TimePicker';
+import { Celebration } from '../../ui/Celebration';
+import { EmptyState } from '../../ui/EmptyState';
 import { PlaceSearch } from '../../ui/PlaceSearch';
 import { showToast } from '../../ui/ToastHost';
 import { IconButton } from '../../ui/IconButton';
-import { IconCheck, IconClose, IconMinus, IconPlus } from '../../ui/icons';
+import { IconClose, IconMinus, IconPlus } from '../../ui/icons';
 
 const PACKS = PRODUCTS.filter((p) => p.rule === 'choose_any' || p.rule === 'choose_variety');
 const SINGLES = PRODUCTS.filter(
@@ -460,16 +465,15 @@ export function SellPage() {
         </div>
       ) : null}
       {lines.length === 0 ? (
-        <div class="v-empty">
-          <p class="v-empty__title">No items yet</p>
-          <p>Tap a product to start the sale</p>
-        </div>
+        <EmptyState title="No items yet" body="Tap a product to start the sale" />
       ) : (
         <div>
           {lines.map((line) => {
             const qty = Object.values(line.breakdown || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+            const art = productImageSrc(line.productId, line.breakdown);
             return (
             <div class="v-cart-line" key={line.key}>
+              {art ? <img class="v-thumb" src={art} alt="" /> : null}
               {qty > 0 ? (
                 <span class="v-qty" aria-label={`Quantity ${qty}`}>
                   {qty}
@@ -604,7 +608,7 @@ export function SellPage() {
           ]}
         />
         {meta.deliveryEnabled !== false ? (
-          <>
+          <DeliveryBlock>
             <Button size="md" variant="secondary" data-testid="pickup-locate" onClick={locatePickup}>
               Use GPS
             </Button>
@@ -657,16 +661,9 @@ export function SellPage() {
                 Copy
               </button>
             </div>
-            <Field
-              label="Deliver at"
-              data-testid="delivery-at"
-              type="datetime-local"
+            <TimePicker
               value={kampalaLocalInput(meta.deliveryDeliverAt)}
-              onInput={(e) =>
-                setOrderMetaPatch({
-                  deliveryDeliverAt: kampalaInputToIso((e.target as HTMLInputElement).value),
-                })
-              }
+              onChange={(value) => setOrderMetaPatch({ deliveryDeliverAt: kampalaInputToIso(value) })}
             />
             {draft.distanceKm != null ? (
               <p class="v-muted">
@@ -677,7 +674,7 @@ export function SellPage() {
                   : ''}
               </p>
             ) : null}
-          </>
+          </DeliveryBlock>
         ) : null}
         <div class="cart-total">
           <span class="cart-total__label">Total</span>
@@ -716,26 +713,16 @@ export function SellPage() {
 
   if (successTotal != null) {
     return (
-      <section>
-        <div class="success-check" aria-hidden="true">
-          <IconCheck />
-        </div>
-        <p class="success-total">{formatUGX(successTotal)}</p>
-        <p style={{ textAlign: 'center', color: 'var(--fg-2)', marginBottom: 24 }}>
-          {successCopy({ queued: queuedNote, credit: payment === 'credit', savingDelivery: deliveryPending })}
-        </p>
-        <Button
-          size="xl"
-          onClick={() => {
-            setSuccessTotal(null);
-            setQueuedNote(false);
-            setDeliveryPending(false);
-            setPayment('paid');
-          }}
-        >
-          New sale
-        </Button>
-      </section>
+      <Celebration
+        total={formatUGX(successTotal)}
+        message={successCopy({ queued: queuedNote, credit: payment === 'credit', savingDelivery: deliveryPending })}
+        onNext={() => {
+          setSuccessTotal(null);
+          setQueuedNote(false);
+          setDeliveryPending(false);
+          setPayment('paid');
+        }}
+      />
     );
   }
 
@@ -768,39 +755,31 @@ export function SellPage() {
         <div class="v-section-label">Packs</div>
         <div class="tile-grid">
           {PACKS.map((p) => (
-            <button
+            <ProductCard
               key={p.id}
-              type="button"
-              class="v-tile"
-              data-kind={productKind(p)}
-              data-testid={`product-${p.id}`}
+              id={p.id}
+              name={p.name}
+              kind={productKind(p)}
+              image={productImageSrc(p.id)}
+              meta={`${p.joints} ${p.slotNoun || (Number(p.joints) === 1 ? 'joint' : 'joints')}`}
+              price={productPriceLabel(p)}
               onClick={() => openConfig(p)}
-            >
-              {productImageSrc(p.id) ? <img class="v-tile__img" src={productImageSrc(p.id)} alt="" /> : null}
-              <span class="v-tile__name">{p.name}</span>
-              <span class="v-tile__meta">
-                {p.joints} {p.slotNoun || (Number(p.joints) === 1 ? 'joint' : 'joints')}
-              </span>
-              <span class="v-tile__price">{productPriceLabel(p)}</span>
-            </button>
+            />
           ))}
         </div>
         <div class="v-section-label">Singles</div>
         <div class="tile-grid">
           {SINGLES.map((p) => (
-            <button
+            <ProductCard
               key={p.id}
-              type="button"
-              class="v-tile"
-              data-kind={productKind(p)}
-              data-testid={`product-${p.id}`}
+              id={p.id}
+              name={p.name}
+              kind={productKind(p)}
+              image={productImageSrc(p.id)}
+              meta={p.unitLabel || 'per joint'}
+              price={productPriceLabel(p)}
               onClick={() => openConfig(p)}
-            >
-              {productImageSrc(p.id) ? <img class="v-tile__img" src={productImageSrc(p.id)} alt="" /> : null}
-              <span class="v-tile__name">{p.name}</span>
-              <span class="v-tile__meta">{p.unitLabel || 'per joint'}</span>
-              <span class="v-tile__price">{productPriceLabel(p)}</span>
-            </button>
+            />
           ))}
         </div>
         {WHOLESALE.length ? (
@@ -808,18 +787,15 @@ export function SellPage() {
             <div class="v-section-label">Wholesale</div>
             <div class="tile-grid">
               {WHOLESALE.map((p) => (
-                <button
+                <ProductCard
                   key={p.id}
-                  type="button"
-                  class="v-tile"
-                  data-kind={productKind(p)}
-                  data-testid={`product-${p.id}`}
+                  id={p.id}
+                  name={p.name}
+                  kind={productKind(p)}
+                  image={productImageSrc(p.id)}
+                  price={productPriceLabel(p)}
                   onClick={() => openConfig(p)}
-                >
-                  {productImageSrc(p.id) ? <img class="v-tile__img" src={productImageSrc(p.id)} alt="" /> : null}
-                  <span class="v-tile__name">{p.name}</span>
-                  <span class="v-tile__price">{productPriceLabel(p)}</span>
-                </button>
+                />
               ))}
             </div>
           </>

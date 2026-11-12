@@ -11,7 +11,8 @@ import { cookieBatchShareText, expandPartnerUnitsFromSales, partnerBoard, propos
 import { fetchCookiePartnerSettle, postCookiePartnerSettle } from '../../data/writes/partner';
 import { buildTimeSeries, CHART_RANGES } from '../../domain/analytics/periods';
 import { computeSalesPatterns } from '../../domain/analytics/patterns';
-import { topProductForSales } from '../../domain/analytics/rank';
+import { revenueDelta, topProductForSales } from '../../domain/analytics/rank';
+import { KpiTile } from '../../ui/KpiTile';
 import { readStoredId } from '../../domain/parity';
 import {
   creditAging,
@@ -102,6 +103,18 @@ export function InsightsPage() {
     () => jointCommission(sales.value as Parameters<typeof jointCommission>[0], historyOrDefault(costHistory)),
     [sales.value, costHistory],
   );
+  const yesterdayRevenue = useMemo(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const previous = new Date(start);
+    previous.setDate(previous.getDate() - 1);
+    const list = sales.value.filter((sale) => {
+      const at = new Date(sale.created_at || 0);
+      return at >= previous && at < start;
+    });
+    return Math.round(sumOwnerRevenue(list as Parameters<typeof sumOwnerRevenue>[0]));
+  }, [sales.value]);
+  const todayTrend = revenueDelta(today.revenue, yesterdayRevenue);
   const seriesMax = Math.max(1, ...series.map((bucket) => bucket.revenue));
   const settledCuts = serverSettle?.batches ?? [];
 
@@ -182,28 +195,24 @@ export function InsightsPage() {
         ))}
       </div>
       <div class="v-stat-grid">
-        <div class="v-stat" data-testid="insights-today" data-revenue={today.revenue} data-joints={today.joints}>
-          <div class="v-stat__label">Today</div>
-          <div class="v-stat__value">
-            <Money value={today.revenue} />
-          </div>
-        </div>
-        <div class="v-stat">
-          <div class="v-stat__label">Sales today</div>
-          <div class="v-stat__value">{today.salesCount}</div>
-        </div>
-        <div class="v-stat">
-          <div class="v-stat__label">Month</div>
-          <div class="v-stat__value">
-            <Money value={monthRevenue} />
-          </div>
-        </div>
-        <div class="v-stat" data-testid="insights-credit" data-owed={credit.total}>
-          <div class="v-stat__label">Credit owed</div>
-          <div class="v-stat__value">
-            <Money value={credit.total} />
-          </div>
-        </div>
+        <KpiTile
+          label="Today"
+          testId="insights-today"
+          revenue={today.revenue}
+          joints={today.joints}
+          trend={{ text: todayTrend.text, tone: todayTrend.cls }}
+        >
+          <Money value={today.revenue} />
+        </KpiTile>
+        <KpiTile label="Sales today">
+          <span>{today.salesCount}</span>
+        </KpiTile>
+        <KpiTile label="Month">
+          <Money value={monthRevenue} />
+        </KpiTile>
+        <KpiTile label="Credit owed" testId="insights-credit" owed={credit.total}>
+          <Money value={credit.total} />
+        </KpiTile>
       </div>
 
       <InsightsBoards

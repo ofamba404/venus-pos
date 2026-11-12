@@ -42,15 +42,28 @@ Durations live on `--d-instant` through `--d-slow`. `prefers-reduced-motion: red
 - A completed sale pops the check.
 - Chart bars ease their height. Skeleton bars shimmer while orders load.
 
-## Components touched
+## Is this the right component?
 
-Pills and tints: `Button`, `Segmented`, chips, tags, stat cards, product tiles, cart bar.
+Each flow was a restyled list row or a bare field. The question for this pass is whether that object is the right one. Where it is not, the page now uses a component built for the job.
 
-New or extended: flavour dots on history and order lines, storefront photos on Sell tiles and order/history thumbs, client avatar rows, review cards, insight bars and heatmap, copy actions for phone and location.
+| Flow | Was | Decision | Why |
+| --- | --- | --- | --- |
+| Sell | Text button with a price | `ProductCard` | A pack is a photo, a name, and a price. A label cannot tell Scout from Pilot. |
+| Review / checkout | Separate fields | `DeliveryBlock` plus `TimePicker` | Drop-off, phone, fee, and time are one decision. The time control is a clock, not a text field. |
+| After charge | Inline check markup | `Celebration` | The sale is finished. One amount, one sentence, one way back to the next customer. |
+| Incoming order | Article of divs | `OrderCard` | Who, flavour swatches, amber total, and copy actions are the scan. Load and cancel stay as actions on the card. |
+| History row | Generic list row | `HistoryRow` | A past sale is recognisable closed: person, thumb, swatches, paid or credit. |
+| Edit sale | Sheet of steppers | Kept the sheet | Qty, add Plain, remove, payment, and customer are the edit. Reopening the flavour picker is still an owner question in `PARITY.md`. |
+| Client | Spreadsheet row | `ClientCard` | Initial, last order, and what they owe. Edit is its own control so settling credit does not rename them. |
+| Insights numbers | Four identical stats | `KpiTile` | Today carries a trend against yesterday (`revenueDelta`). The other three stay numbers because a trend there would be noise. Bars and the heatmap stay; they already are the right charts. |
+| Reviews | Text block | `ReviewCard` | A quote, stars, and a verdict. Approve, hide, delete, and rename sit on the card. |
+| Stock | Colour plus a number | `StockTile` | The flavour dot is the name. Low and out are tags on that tile, with the count and steppers beside it. |
+| Empty lists | A blank title | `EmptyState` | Sell, orders, and reviews say what to do next when there is nothing to show. |
+| Login | A centred form | Kept the auth card | Email, password, show/hide, and the reset link are already one card. It did not need a second component. |
 
 ## Product images
 
-Photos are the shop-venus.com storefront assets, saved under `public/assets/products/` so the register does not depend on the shop being online. Scout uses the mint joint photo. Cookie packs use the duet, trio, and cookie photos. Plain and Bangis use their shop photos.
+The twelve catalog files in `public/assets/products/` are verified byte-identical to `venus-store` `assets/images` at `0e629f9`. Sell tiles, before a flavour is chosen, use those pack photos. A Scout, Pilot, or Commander line that is one flavour uses the matching file from `assets/images/packs/` at the same commit (`scout-mint.webp`, `pilot-grape.webp`, `commanders-strawberry.webp`). Those 21 files are resized to 512px (about 111 KB together) so a 44px thumb does not decode a 3072px image. A mixed pack keeps the generic photo. Cookie duet, trio, and single flavours use the cookie photos. Plain and Bangis use their shop photos. Cookie quartet and wholesale have no catalog file, so the card shows a blank panel instead of a fake photo.
 
 ## Gap list this pass closes
 

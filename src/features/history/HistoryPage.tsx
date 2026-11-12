@@ -3,7 +3,8 @@ import { clients, loadClients, loadSales, sales, type SaleRow } from '../../data
 import { saleItems, saveSaleEdit, voidSaleRecord } from '../../data/sale-edit';
 import { postClient } from '../../data/writes/clients';
 import { localPhoneDigits } from '../../domain/phone';
-import { FlavorSwatches } from '../../ui/FlavorSwatches';
+import { EmptyState } from '../../ui/EmptyState';
+import { HistoryRow } from '../../ui/HistoryRow';
 import { productImageSrc } from '../../domain/product-art';
 import { groupSalesByDay, partitionThisWeek } from '../../domain/history-groups';
 import { Money } from '../../ui/Money';
@@ -109,9 +110,7 @@ export function HistoryPage() {
         />
       </div>
       {!groups.length ? (
-        <div class="v-empty">
-          <p class="v-empty__title">No sales yet</p>
-        </div>
+        <EmptyState title="No sales yet" body="Completed sales land here." />
       ) : null}
       {groups.map((g) => (
         <div key={g.key} data-testid="history-day">
@@ -131,50 +130,32 @@ export function HistoryPage() {
             const items = saleItems(full);
             const first = items[0];
             return (
-              <button
-                type="button"
-                class="v-list-row"
+              <HistoryRow
                 key={s.id}
-                data-testid={`history-sale-${s.id}`}
-                onClick={() => {
+                testId={`history-sale-${s.id}`}
+                name={person || (full.store_order_id ? 'Store customer' : 'Counter')}
+                when={`${new Date(s.created_at || '').toLocaleString('en-GB', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}${delivery ? ' · Delivery' : ''}`}
+                image={
+                  first?.product_id
+                    ? productImageSrc(String(first.product_id), first.breakdown as Record<string, unknown>)
+                    : ''
+                }
+                lines={items.slice(0, 2).map((item) => ({
+                  name: String(item.product_name || 'Item'),
+                  productId: String(item.product_id || ''),
+                  breakdown: item.breakdown as Record<string, unknown>,
+                }))}
+                tags={<Tag tone={credit ? 'credit' : 'paid'}>{credit ? 'Credit' : 'Paid'}</Tag>}
+                amount={<Money className="v-money--amber" value={Number(s.total_ugx) || 0} />}
+                onOpen={() => {
                   setOpenId(String(s.id || ''));
                   setEditing(false);
                   setVoiding(false);
                 }}
-              >
-                {first?.product_id && productImageSrc(String(first.product_id), first.breakdown as Record<string, unknown>) ? (
-                  <img
-                    class="v-thumb"
-                    src={productImageSrc(String(first.product_id), first.breakdown as Record<string, unknown>)}
-                    alt=""
-                  />
-                ) : null}
-                <div class="v-list-row__main">
-                  <div class="v-list-row__title">
-                    {person || (full.store_order_id ? 'Store customer' : 'Counter')}
-                  </div>
-                  <div class="v-list-row__meta">
-                    {items.slice(0, 3).map((item, index) => (
-                      <div key={`${item.product_id}-${index}`}>
-                        <div>{item.product_name || 'Item'}</div>
-                        <FlavorSwatches
-                          breakdown={item.breakdown as Record<string, unknown>}
-                          productId={String(item.product_id || '')}
-                        />
-                      </div>
-                    ))}
-                    <span>
-                      {new Date(s.created_at || '').toLocaleString('en-GB', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                      {delivery ? ' · Delivery' : ''}
-                    </span>
-                  </div>
-                </div>
-                <Tag tone={credit ? 'credit' : 'paid'}>{credit ? 'Credit' : 'Paid'}</Tag>
-                <Money className="v-money--amber" value={Number(s.total_ugx) || 0} />
-              </button>
+              />
             );
           })}
         </div>

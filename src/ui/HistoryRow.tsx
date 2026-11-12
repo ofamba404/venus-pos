@@ -1,0 +1,41 @@
+import type { ComponentChildren } from 'preact';
+import { FlavorSwatches } from './FlavorSwatches';
+
+/** A past sale you can recognise without opening it: person, product, flavours. */
+export function HistoryRow({
+  testId,
+  name,
+  when,
+  image,
+  lines,
+  tags,
+  amount,
+  onOpen,
+}: {
+  testId: string;
+  name: string;
+  when: string;
+  image?: string;
+  lines: Array<{ name: string; productId?: string; breakdown?: Record<string, unknown> }>;
+  tags: ComponentChildren;
+  amount: ComponentChildren;
+  onOpen: () => void;
+}) {
+  return (
+    <button type="button" class="history-row" data-testid={testId} onClick={onOpen}>
+      {image ? <img class="v-thumb" src={image} alt="" /> : null}
+      <span class="history-row__main">
+        <span class="v-list-row__title">{name}</span>
+        {lines.slice(0, 2).map((line, index) => (
+          <span key={`${line.name}-${index}`} class="history-row__line">
+            <span class="v-list-row__meta">{line.name}</span>
+            <FlavorSwatches breakdown={line.breakdown} productId={line.productId} />
+          </span>
+        ))}
+        <span class="v-list-row__meta">{when}</span>
+      </span>
+      {tags}
+      {amount}
+    </button>
+  );
+}
