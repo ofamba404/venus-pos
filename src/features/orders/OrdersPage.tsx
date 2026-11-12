@@ -188,11 +188,15 @@ export function OrdersPage() {
       <div class="v-stagger">
         {list.map((o) => {
           const items = Array.isArray(o.items) ? o.items : [];
-          const first = items[0] as { product_id?: string } | undefined;
+          const first = items[0] as {
+            product_id?: string;
+            breakdown?: Record<string, unknown>;
+          } | undefined;
+          const thumb = first?.product_id ? productImageSrc(first.product_id, first.breakdown) : '';
           return (
           <article key={o.id} class="v-order-card">
             <div class="v-order-card__top">
-              {first?.product_id ? <img class="v-thumb" src={productImageSrc(first.product_id)} alt="" /> : null}
+              {thumb ? <img class="v-thumb" src={thumb} alt="" /> : null}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div class="v-list-row__title">{orderTitle(o, labels)}</div>
                 <div>

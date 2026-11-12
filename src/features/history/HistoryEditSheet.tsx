@@ -73,7 +73,13 @@ export function HistoryEditSheet({
           const qty = Math.max(1, Math.round(Number(Object.values(item.breakdown || {})[0]) || 1));
           return (
             <div class="v-list-row" key={`${item.product_id}-${index}`}>
-              <img class="v-thumb" src={productImageSrc(String(item.product_id || ''))} alt="" />
+              {productImageSrc(String(item.product_id || ''), item.breakdown as Record<string, unknown>) ? (
+                <img
+                  class="v-thumb"
+                  src={productImageSrc(String(item.product_id || ''), item.breakdown as Record<string, unknown>)}
+                  alt=""
+                />
+              ) : null}
               <div class="v-list-row__main">
                 <div class="v-list-row__title">{item.product_name || 'Item'}</div>
                   <FlavorSwatches

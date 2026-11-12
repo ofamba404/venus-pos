@@ -809,7 +809,7 @@ export function SellPage() {
               data-testid={`product-${p.id}`}
               onClick={() => openConfig(p)}
             >
-              <img class="v-tile__img" src={productImageSrc(p.id)} alt="" />
+              {productImageSrc(p.id) ? <img class="v-tile__img" src={productImageSrc(p.id)} alt="" /> : null}
               <span class="v-tile__name">{p.name}</span>
               <span class="v-tile__meta">
                 {p.joints} {p.slotNoun || (Number(p.joints) === 1 ? 'joint' : 'joints')}
@@ -829,7 +829,7 @@ export function SellPage() {
               data-testid={`product-${p.id}`}
               onClick={() => openConfig(p)}
             >
-              <img class="v-tile__img" src={productImageSrc(p.id)} alt="" />
+              {productImageSrc(p.id) ? <img class="v-tile__img" src={productImageSrc(p.id)} alt="" /> : null}
               <span class="v-tile__name">{p.name}</span>
               <span class="v-tile__meta">{p.unitLabel || 'per joint'}</span>
               <span class="v-tile__price">{productPriceLabel(p)}</span>
@@ -849,7 +849,7 @@ export function SellPage() {
                   data-testid={`product-${p.id}`}
                   onClick={() => openConfig(p)}
                 >
-                  <img class="v-tile__img" src={productImageSrc(p.id)} alt="" />
+                  {productImageSrc(p.id) ? <img class="v-tile__img" src={productImageSrc(p.id)} alt="" /> : null}
                   <span class="v-tile__name">{p.name}</span>
                   <span class="v-tile__price">{productPriceLabel(p)}</span>
                 </button>

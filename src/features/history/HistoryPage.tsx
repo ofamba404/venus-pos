@@ -142,8 +142,12 @@ export function HistoryPage() {
                   setVoiding(false);
                 }}
               >
-                {first?.product_id ? (
-                  <img class="v-thumb" src={productImageSrc(String(first.product_id))} alt="" />
+                {first?.product_id && productImageSrc(String(first.product_id), first.breakdown as Record<string, unknown>) ? (
+                  <img
+                    class="v-thumb"
+                    src={productImageSrc(String(first.product_id), first.breakdown as Record<string, unknown>)}
+                    alt=""
+                  />
                 ) : null}
                 <div class="v-list-row__main">
                   <div class="v-list-row__title">

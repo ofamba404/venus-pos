@@ -141,12 +141,13 @@ describe('insight boards', () => {
     );
     expect(loss.profit).toBe(0);
     expect(jointCommission(null, null).commission).toBe(0);
-    expect(productImageSrc('pilot')).toContain('assets/products/pilot.webp');
-    expect(productImageSrc(null)).toContain('plain.webp');
+    expect(productImageSrc('pilot')).toContain('assets/products/bestsellers-pilot-pack.webp');
+    expect(productImageSrc('cookie_quartet')).toBe('');
+    expect(productImageSrc('cookie_single', { cookie_mint: 2 })).toContain('mint-cookie.webp');
     vi.stubEnv('BASE_URL', '/next');
-    expect(productImageSrc('scout')).toContain('/next/assets/products/mint.webp');
+    expect(productImageSrc('scout')).toContain('/next/assets/products/scout-pack.webp');
     vi.stubEnv('BASE_URL', '');
-    expect(productImageSrc('scout')).toContain('/assets/products/mint.webp');
+    expect(productImageSrc('scout')).toContain('/assets/products/scout-pack.webp');
   });
 });
 
