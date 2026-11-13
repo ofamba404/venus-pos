@@ -117,19 +117,44 @@ describe('sendPartnerBatch', () => {
 });
 
 describe('loadStoreAccounts', () => {
-  it('pages until a short page, so every account loads', async () => {
+  const isEdge = () => calls.at(-1)!.url.includes('/functions/v1/store-auth');
+
+  it('asks the store-auth admin action first, like v1, and uses every user it returns', async () => {
+    const users = [{ id: 'a1', phone: '0700111111' }, { id: 'a2', phone: '0700222222' }];
+    handler = () => json(200, { users });
+    const rows = await loadStoreAccounts();
+    expect(rows).toEqual(users);
+    expect(storeAccounts.value).toEqual(users);
+    expect(calls).toHaveLength(1);
+    expect(isEdge()).toBe(true);
+    expect(JSON.parse(calls[0]!.body)).toEqual({ action: 'admin_list_users' });
+  });
+
+  it('falls back to the table, paging until a short page, when the action is refused', async () => {
     const full = Array.from({ length: STORE_ACCOUNT_PAGE }, (_, i) => ({ id: `a${i}`, phone: `07${i}` }));
-    handler = () => json(200, calls.length === 1 ? full : [{ id: 'last', phone: '0700000000' }]);
+    handler = () => {
+      if (isEdge()) return json(403, { error: 'forbidden' });
+      return json(200, calls.filter((c) => !c.url.includes('/functions/')).length === 1 ? full : [{ id: 'last', phone: '0700000000' }]);
+    };
     const rows = await loadStoreAccounts();
     expect(rows).toHaveLength(STORE_ACCOUNT_PAGE + 1);
     expect(storeAccounts.value).toHaveLength(STORE_ACCOUNT_PAGE + 1);
-    expect(calls.map((c) => c.url)).toEqual([
+    const tableCalls = calls.filter((c) => !c.url.includes('/functions/')).map((c) => c.url);
+    expect(tableCalls).toEqual([
       expect.stringContaining(`limit=${STORE_ACCOUNT_PAGE}&offset=0`),
       expect.stringContaining(`limit=${STORE_ACCOUNT_PAGE}&offset=${STORE_ACCOUNT_PAGE}`),
     ]);
   });
 
-  it('throws when the list cannot be read', async () => {
+  it('falls back to the table when the action cannot be reached at all', async () => {
+    handler = () => {
+      if (isEdge()) throw new TypeError('Failed to fetch');
+      return json(200, [{ id: 'x', phone: '0700000001' }]);
+    };
+    expect(await loadStoreAccounts()).toEqual([{ id: 'x', phone: '0700000001' }]);
+  });
+
+  it('throws when neither the action nor the table can be read', async () => {
     handler = () => json(500, {});
     await expect(loadStoreAccounts()).rejects.toThrow(/Could not load storefront accounts \(500\)/);
   });

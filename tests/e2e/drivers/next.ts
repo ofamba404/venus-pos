@@ -6,6 +6,7 @@ import { buildDefaultSeed } from '../../fixtures/seed';
 import { computeTodayStats } from '../../../src/domain/today';
 import { getOutstandingCredit, sumCreditOwed } from '../../../src/domain/credit';
 import { groupSalesByDay } from '../../../src/domain/history-groups';
+import { countHistoryDays, openSale } from '../helpers/history';
 
 export type NextDriver = {
   mock: MockHandle;
@@ -253,12 +254,12 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         return;
       case 'setStoreHours': {
         await page.goto('/next/store');
-        await page.getByRole('textbox', { name: 'Open' }).fill(step.open);
-        await page.getByRole('textbox', { name: 'Close' }).fill(step.close);
+        await page.getByTestId('hours-open').fill(step.open);
+        await page.getByTestId('hours-close').fill(step.close);
         const suggest = String(step.suggest || '');
         const parts = suggest.split(/[–-]/);
-        if (parts[0]) await page.getByRole('textbox', { name: 'Suggest start' }).fill(parts[0].trim());
-        if (parts[1]) await page.getByRole('textbox', { name: 'Suggest end' }).fill(parts[1].trim());
+        if (parts[0]) await page.getByTestId('hours-suggest-start').fill(parts[0].trim());
+        if (parts[1]) await page.getByTestId('hours-suggest-end').fill(parts[1].trim());
         await page.getByRole('button', { name: /save hours/i }).click();
         return;
       }
@@ -389,14 +390,14 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         return;
       case 'editSale':
         await page.goto('/next/history');
-        await page.getByTestId(`history-sale-${step.saleId}`).click();
+        await openSale(page, String(step.saleId));
         await page.getByTestId('sale-edit').click();
         await page.getByTestId('sale-edit-inc').click();
         await page.getByTestId('sale-edit-save').click();
         return;
       case 'voidSale':
         await page.goto('/next/history');
-        await page.getByTestId(`history-sale-${step.saleId}`).click();
+        await openSale(page, String(step.saleId));
         await page.getByTestId('sale-void').click();
         await page.getByTestId('void-confirm').click();
         return;
@@ -513,8 +514,7 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
           }
           if (shown !== expectedOwed) throw new Error(`credit ${shown}, expected ${expectedOwed}`);
           await page.goto('/next/history');
-          await page.getByTestId('history-day').first().waitFor({ timeout: 8000 });
-          const groups = await page.getByTestId('history-day').count();
+          const groups = await countHistoryDays(page);
           if (groups !== expectedGroups) throw new Error(`history groups ${groups}, expected ${expectedGroups}`);
           await page.goto('/next/clients');
           const row = page.getByRole('button', { name: /client with debt/i }).first();

@@ -4,18 +4,18 @@ Local Playwright, mock backend. Unthrottled rows are not the budget in `04-archi
 
 | Capture | Viewport | Ready (ms) |
 | --- | --- | ---: |
-| next-sell-360x740 | 360×740 | 229 |
-| next-sell-390x844 | 390×844 | 173 |
-| next-sell-768x1024 | 768×1024 | 164 |
-| next-sell-1280x800 | 1280×800 | 166 |
-| next-stock-360x740 | 360×740 | 182 |
-| next-stock-390x844 | 390×844 | 162 |
-| next-stock-768x1024 | 768×1024 | 183 |
-| next-stock-1280x800 | 1280×800 | 174 |
-| legacy-home-360x740 | 360×740 | 168 |
-| legacy-home-390x844 | 390×844 | 121 |
-| legacy-home-768x1024 | 768×1024 | 121 |
-| legacy-home-1280x800 | 1280×800 | 117 |
-| next-sell-390x844-throttled | 390×844 | 11399 |
+| next-sell-360x740 | 360×740 | 207 |
+| next-sell-390x844 | 390×844 | 157 |
+| next-sell-768x1024 | 768×1024 | 152 |
+| next-sell-1280x800 | 1280×800 | 156 |
+| next-stock-360x740 | 360×740 | 181 |
+| next-stock-390x844 | 390×844 | 168 |
+| next-stock-768x1024 | 768×1024 | 158 |
+| next-stock-1280x800 | 1280×800 | 156 |
+| legacy-home-360x740 | 360×740 | 164 |
+| legacy-home-390x844 | 390×844 | 108 |
+| legacy-home-768x1024 | 768×1024 | 103 |
+| legacy-home-1280x800 | 1280×800 | 108 |
+| next-sell-390x844-throttled | 390×844 | 11577 |
 
 Ready means the first sell tile, stock quantity, or legacy product row was visible after navigation.

@@ -172,7 +172,6 @@ export function OrdersPage() {
     if (order.status === 'pending' || order.status === 'confirmed') {
       void patchStoreOrder(order.id, { status: 'accepted' }).catch(() => {});
     }
-    showToast(`Loaded ${orderTitle(order, labels)}`);
     go('/sell');
   }
 
@@ -201,7 +200,6 @@ export function OrdersPage() {
       showToast('Could not dismiss order');
       return;
     }
-    showToast(`Dismissed ${orderTitle(order, labels)}`);
     await loadStoreOrders().catch(() => {});
   }
 

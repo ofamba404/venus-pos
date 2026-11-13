@@ -26,7 +26,8 @@ test.describe('SafeBoda copy pills', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
 
     await all.click();
-    await expect(page.getByRole('status').filter({ hasText: 'Delivery details copied' })).toBeVisible();
+    // The tick is the confirmation. No toast on top of it.
+    await expect(page.getByRole('status')).toHaveCount(0);
     await expect(all).toHaveClass(/is-done/);
     // Store orders carry no paid / unpaid field, so there is never a Collect line here.
     expect(await clip(page)).toBe(['Name: Test Buyer Two', 'Phone: 700654321', 'Drop-off: Kololo Test', `Map: ${MAP}`].join('\n'));

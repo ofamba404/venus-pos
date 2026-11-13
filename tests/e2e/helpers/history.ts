@@ -21,3 +21,15 @@ export async function openSale(page: Page, id: string) {
   const row = await revealSale(page, id);
   await row.click();
 }
+
+/** Open every week, then count the day headings. Days inside a closed week are not mounted. */
+export async function countHistoryDays(page: Page): Promise<number> {
+  await page.locator('[data-testid^="history-day-toggle-"], [data-testid^="history-week-toggle-"]').first().waitFor({ timeout: 8000 });
+  for (let i = 0; i < 60; i += 1) {
+    const closed = page.locator('[data-testid^="history-week-toggle-"][aria-expanded="false"]');
+    if (!(await closed.count())) break;
+    await closed.first().click();
+    await page.waitForTimeout(60);
+  }
+  return page.locator('[data-testid^="history-day-toggle-"]').count();
+}

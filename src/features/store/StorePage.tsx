@@ -105,7 +105,6 @@ export function StorePage() {
         }
         return next;
       });
-      showToast(minutes === null ? 'Busy cleared' : `Busy for ${minutes} min`);
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Could not update busy');
     } finally {

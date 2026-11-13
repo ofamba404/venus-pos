@@ -10,8 +10,7 @@ const KINDS = {
 
 /**
  * A labelled 44px pill that copies one thing: the phone (9 digits), the drop-off, or the whole
- * delivery block. There is no icon-only version. On compact cards the icon is left out to keep one row, and a tick appears on copy. The icon turns into a tick and a toast says what
- * was copied. Phone and location share the bronze style. Copy all is solid ink.
+ * delivery block. There is no icon-only version. On compact cards the icon is left out to keep one row, and a tick appears on copy. The icon turns into a tick. No toast on success, the tick is the answer. Phone and location share the bronze style. Copy all is solid ink.
  */
 export function CopyButton({
   kind,
@@ -42,7 +41,7 @@ export function CopyButton({
       class={`v-copy-btn v-copy-btn--${kind}${compact ? ' v-copy-btn--compact' : ''}${done ? ' is-done' : ''}`}
       aria-label={ariaLabel || label}
       data-testid={testId}
-      onClick={() => void copyText(value(), ok, empty).then((copied) => setDone(copied))}
+      onClick={() => void copyText(value(), ok, empty, true).then((copied) => setDone(copied))}
     >
       {!compact || done ? (
         <span class="v-copy-btn__icon" key={done ? 'done' : 'idle'}>
