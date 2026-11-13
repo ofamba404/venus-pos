@@ -84,9 +84,12 @@ export interface ImageSlide {
 }
 
 /**
- * One slide per flavour in the line, each with that flavour's own photo, the way the
- * storefront cart drawer builds its swipe gallery. A line with no breakdown, or no
- * flavour photos to show, is one slide with the generic photo.
+ * What the storefront shows for a pack that is in an order. Each picked flavour is its own
+ * single-joint photo in that flavour's colour (assets/images/packs/scout-{flavour}.webp, used
+ * for every joint pack, not tinted at run time), one slide per flavour with a ×N badge for
+ * repeats, swiped and auto-advanced as a gallery. Cookie packs use the cookie flavour photos and
+ * Plain its own photo. A line with no flavour photo to show is one slide with the generic photo.
+ * (venus-store js/shared/product-config.js buildAtcImages, grouped by product-image-gallery.js.)
  */
 export function productImageSlides(
   productId: string | null | undefined,
@@ -94,7 +97,6 @@ export function productImageSlides(
 ): ImageSlide[] {
   const id = String(productId || '');
   const cookie = id.startsWith('cookie');
-  const prefix = PACK_FILE_PREFIX[id] || (id === 'choose_variety' || id === 'variety' ? 'scout' : '');
   const slides: ImageSlide[] = [];
   for (const [flavour, qty] of Object.entries(breakdown || {})) {
     const count = Math.round(Number(qty) || 0);
@@ -102,7 +104,7 @@ export function productImageSlides(
     let file = '';
     if (cookie) file = COOKIE_FLAVOR_FILE[flavour] || '';
     else if (flavour === 'classic') file = FILE.plain_single!;
-    else if (prefix && PACK_FLAVOUR.has(flavour)) file = `${prefix}-${flavour}.webp`;
+    else if (PACK_FLAVOUR.has(flavour)) file = `scout-${flavour}.webp`;
     if (!file) continue;
     const src = assetUrl(file);
     const existing = slides.find((s) => s.src === src);
@@ -114,17 +116,19 @@ export function productImageSlides(
   return generic ? [{ src: generic, count: 1 }] : [];
 }
 
-/** Sum the flavours of every cart line per product, so a pack tile can show what is in the cart. */
-export function selectedByProduct(
-  lines: Array<{ productId: string; breakdown?: Record<string, unknown> | null }>,
-): Record<string, Record<string, number>> {
-  const out: Record<string, Record<string, number>> = {};
-  for (const line of lines) {
-    for (const [flavour, qty] of Object.entries(line.breakdown || {})) {
-      const n = Number(qty) || 0;
-      if (n <= 0 || flavour.startsWith('_')) continue;
-      const bucket = (out[line.productId] ||= {});
-      bucket[flavour] = (bucket[flavour] || 0) + n;
+/** Slides for a whole order or sale: every line's flavours, repeats merged into one slide with a count. */
+export function itemsImageSlides(
+  items: Array<{ product_id?: unknown; productId?: unknown; breakdown?: unknown } | null | undefined>,
+): ImageSlide[] {
+  const out: ImageSlide[] = [];
+  for (const item of items) {
+    if (!item) continue;
+    const pid = String(item.product_id ?? item.productId ?? '');
+    const bd = (item.breakdown && typeof item.breakdown === 'object' ? item.breakdown : null) as Record<string, unknown> | null;
+    for (const slide of productImageSlides(pid, bd)) {
+      const same = out.find((s) => s.src === slide.src);
+      if (same) same.count += slide.count;
+      else out.push({ ...slide });
     }
   }
   return out;

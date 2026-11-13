@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { productImageSlides, productImageSrc, selectedByProduct } from '../../src/domain/product-art';
+import { itemsImageSlides, productImageSlides, productImageSrc } from '../../src/domain/product-art';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -40,14 +40,13 @@ describe('product photos', () => {
 describe('flavour photo slides', () => {
   const names = (list: Array<{ src: string }>) => list.map((s) => s.src.split('/').pop());
 
-  it('gives a pack one slide per flavour, in the order they were picked, with counts', () => {
+  it('gives every joint pack one single-joint scout-{flavour} photo per flavour, in pick order, with counts', () => {
     const slides = productImageSlides('pilot', { mint: 2, grape: 1, strawberry: 3 });
-    expect(names(slides)).toEqual(['pilot-mint.webp', 'pilot-grape.webp', 'pilot-strawberry.webp']);
+    expect(names(slides)).toEqual(['scout-mint.webp', 'scout-grape.webp', 'scout-strawberry.webp']);
     expect(slides.map((s) => s.count)).toEqual([2, 1, 3]);
-    expect(names(productImageSlides('commander', { mint: 1, coconut: 1 }))).toEqual([
-      'commanders-mint.webp',
-      'commanders-coconut.webp',
-    ]);
+    // The storefront uses the scout photos for pilot, commander and variety too.
+    expect(names(productImageSlides('commander', { mint: 1, coconut: 1 }))).toEqual(['scout-mint.webp', 'scout-coconut.webp']);
+    expect(names(productImageSlides('scout', { melon: 1 }))).toEqual(['scout-melon.webp']);
   });
 
   it('keeps a variety pack on scout flavour photos and its plain joint on the plain photo', () => {
@@ -82,16 +81,19 @@ describe('flavour photo slides', () => {
   });
 });
 
-describe('selectedByProduct', () => {
-  it('sums the flavours of each product across cart lines and skips zeros and internal keys', () => {
-    expect(
-      selectedByProduct([
-        { productId: 'pilot', breakdown: { mint: 1, grape: 1 } },
-        { productId: 'pilot', breakdown: { mint: 1, _unitPrice: 9, strawberry: 0 } },
-        { productId: 'scout', breakdown: { mint: 1 } },
-        { productId: 'scout', breakdown: null },
-        { productId: 'cookie_trio' },
-      ]),
-    ).toEqual({ pilot: { mint: 2, grape: 1 }, scout: { mint: 1 } });
+describe('itemsImageSlides', () => {
+  const names = (list: Array<{ src: string }>) => list.map((s) => s.src.split('/').pop());
+
+  it('joins every line of an order, merging repeated flavours into one counted slide', () => {
+    const slides = itemsImageSlides([
+      { product_id: 'pilot', breakdown: { mint: 1, grape: 1 } },
+      { product_id: 'scout', breakdown: { mint: 1 } },
+      { productId: 'cookie_duet', breakdown: { cookie_mint: 2 } },
+      null,
+      { product_id: 'cookie_quartet' },
+      { product_id: 'pilot', breakdown: 'oops' },
+    ]);
+    expect(names(slides)).toEqual(['scout-mint.webp', 'scout-grape.webp', 'mint-cookie.webp', 'bestsellers-pilot-pack.webp']);
+    expect(slides.map((s) => s.count)).toEqual([2, 1, 2, 1]);
   });
 });

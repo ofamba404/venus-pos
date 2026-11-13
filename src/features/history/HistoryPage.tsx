@@ -4,7 +4,7 @@ import { saleItems, saveSaleEdit, voidSaleRecord } from '../../data/sale-edit';
 import { postClient } from '../../data/writes/clients';
 import { EmptyState } from '../../ui/EmptyState';
 import { HistoryRow } from '../../ui/HistoryRow';
-import { productImageSrc } from '../../domain/product-art';
+import { itemsImageSlides } from '../../domain/product-art';
 import {
   dayLabel,
   defaultOpenDay,
@@ -112,7 +112,6 @@ export function HistoryPage() {
     const delivery = Boolean(full.delivery_enabled);
     const person = clients.value.find((c) => c.id === full.client_id)?.name;
     const items = saleItems(full);
-    const first = items[0];
     return (
       <HistoryRow
         key={s.id}
@@ -122,11 +121,7 @@ export function HistoryPage() {
           hour: '2-digit',
           minute: '2-digit',
         })}${delivery ? ' · Delivery' : ''}`}
-        image={
-          first?.product_id
-            ? productImageSrc(String(first.product_id), first.breakdown as Record<string, unknown>)
-            : ''
-        }
+        photos={itemsImageSlides(items as never)}
         lines={items.slice(0, 2).map((item) => ({
           name: String(item.product_name || 'Item'),
           productId: String(item.product_id || ''),

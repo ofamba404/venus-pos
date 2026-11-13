@@ -57,7 +57,6 @@ import { lineCount } from '../../domain/line-count';
 import { LoadedOrderCard } from '../../ui/LoadedOrderCard';
 import { confirmStoreOrder, isOrderConfirmed } from '../orders/confirm-order';
 import { ProductGrid } from '../../ui/ProductGrid';
-import { selectedByProduct } from '../../domain/product-art';
 import { DeliveryBlock } from '../../ui/DeliveryBlock';
 import { CopyButton } from '../../ui/CopyButton';
 import { copyAllText, copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
@@ -725,7 +724,7 @@ export function SellPage() {
             {today.cookies ? ` · ${today.cookies} cookies` : ''}
           </span>
         </button>
-        <ProductGrid onPick={openConfig} selected={selectedByProduct(lines)} />
+        <ProductGrid onPick={openConfig} />
       </div>
 
       <aside class="sell-cart-pane" data-desktop-cart>

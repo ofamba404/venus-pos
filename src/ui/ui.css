@@ -2584,40 +2584,40 @@ button.kpi-tile {
   }
 }
 
-/* Gallery inside a Sell product tile: fills the photo area, dots sit on the photo. Neutral white like the tile. */
-.v-gallery--tile {
+/* Mini gallery: the photo on an order card or History row. Same size as the old round thumb; dots sit on the photo. */
+.v-gallery--mini {
   position: relative;
   display: block;
-  width: 100%;
   gap: 0;
 }
 
-.v-gallery--tile .v-gallery__viewport {
-  width: 100%;
-  height: 104px;
-  border-radius: 0;
-  background: var(--surface);
+.v-gallery--mini .v-gallery__viewport {
+  border-radius: var(--r-pill);
 }
 
-.v-gallery--tile .v-gallery__track {
-  /* A tile sits in a scrolling page: vertical drags must still scroll it. */
-  touch-action: pan-x pan-y;
+.v-gallery--mini .v-gallery__qty {
+  right: 0;
+  bottom: 0;
+  padding: 0 4px;
+  font-size: 9px;
 }
 
-.v-gallery--tile .v-gallery__img {
-  object-fit: contain;
-  filter: brightness(1.04);
-}
-
-.v-gallery--tile .v-gallery__qty {
-  right: var(--s-2);
-  bottom: var(--s-2);
-}
-
-.v-gallery--tile .v-gallery__dots {
+.v-gallery--mini .v-gallery__dots {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 6px;
+  bottom: 3px;
+  gap: 3px;
+  min-height: 0;
   pointer-events: none;
+}
+
+.v-gallery--mini .v-gallery__dot {
+  width: 4px;
+  height: 4px;
+}
+
+.v-gallery--mini .v-gallery__track {
+  /* Inside a scrolling list: vertical drags must still scroll the page. */
+  touch-action: pan-x pan-y;
 }

@@ -1,4 +1,6 @@
 import type { ComponentChildren } from 'preact';
+import type { ImageSlide } from '../domain/product-art';
+import { ProductGallery } from './ProductGallery';
 import { FlavorSwatches } from './FlavorSwatches';
 import { Money } from './Money';
 
@@ -6,7 +8,7 @@ import { Money } from './Money';
 export function OrderCard({
   title,
   total,
-  image,
+  photos,
   lines,
   copies,
   tags,
@@ -14,7 +16,8 @@ export function OrderCard({
 }: {
   title: string;
   total: number;
-  image?: string;
+  /** Photos for the whole order: one per flavour, like the storefront. */
+  photos?: ImageSlide[];
   lines: Array<{ name: string; productId?: string; breakdown?: Record<string, unknown> }>;
   /** Labelled copy pills, one compact row under the lines. */
   copies?: ComponentChildren;
@@ -26,7 +29,7 @@ export function OrderCard({
   return (
     <article class="v-order-card order-card">
       <div class="order-card__top">
-        {image ? <img class="v-thumb" src={image} alt="" /> : null}
+        {photos && photos.length ? <ProductGallery slides={photos} size={44} variant="mini" testId="order-gallery" /> : null}
         <div class="order-card__who">
           <div class="v-list-row__title">{title}</div>
           {tags ? <div class="order-card__tags">{tags}</div> : null}

@@ -12,7 +12,7 @@ import { Button } from '../../ui/Button';
 import { Tag } from '../../ui/Tag';
 import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
-import { productImageSrc } from '../../domain/product-art';
+import { itemsImageSlides } from '../../domain/product-art';
 import { EmptyState } from '../../ui/EmptyState';
 import { OrderCard } from '../../ui/OrderCard';
 import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
@@ -226,12 +226,7 @@ export function OrdersPage() {
       <div class="v-stagger">
         {list.map((o) => {
           const items = Array.isArray(o.items) ? o.items : [];
-          const first = items[0] as {
-            product_id?: string;
-            breakdown?: Record<string, unknown>;
-          } | undefined;
-          const summary = orderLine(first);
-          const thumb = summary.productId ? productImageSrc(summary.productId, summary.breakdown) : '';
+          const photos = itemsImageSlides(items as never);
           const phone = String(o.phone_e164 || o.phone || '');
           const place = String(o.location_label || '');
           return (
@@ -239,7 +234,7 @@ export function OrdersPage() {
             key={o.id}
             title={orderTitle(o, labels)}
             total={orderTotal(o)}
-            image={thumb}
+            photos={photos}
             lines={items.slice(0, 3).map(orderLine)}
             tags={
               <>

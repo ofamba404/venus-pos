@@ -22,8 +22,8 @@ test.describe('flavour photo gallery on cart lines', () => {
     await expect(gallery).toHaveAttribute('data-slides', '2');
     const imgs = gallery.locator('img');
     await expect(imgs).toHaveCount(2);
-    await expect(imgs.nth(0)).toHaveAttribute('src', /pilot-mint\.webp/);
-    await expect(imgs.nth(1)).toHaveAttribute('src', /pilot-grape\.webp/);
+    await expect(imgs.nth(0)).toHaveAttribute('src', /scout-mint\.webp/);
+    await expect(imgs.nth(1)).toHaveAttribute('src', /scout-grape\.webp/);
     const track = gallery.getByTestId('gallery-track');
     await expect(gallery.locator('.v-gallery__dot.is-active')).toHaveAttribute('data-dot', '0');
     await gallery.locator('[data-dot="1"]').click({ force: true });
@@ -48,7 +48,7 @@ test.describe('flavour photo gallery on cart lines', () => {
     const gallery = page.getByRole('dialog', { name: 'Review sale' }).getByTestId('line-gallery');
     await expect(gallery).toHaveAttribute('data-slides', '1');
     await expect(gallery.locator('.v-gallery__dot')).toHaveCount(0);
-    await expect(gallery.locator('img')).toHaveAttribute('src', /pilot-mint\.webp/);
+    await expect(gallery.locator('img')).toHaveAttribute('src', /scout-mint\.webp/);
     await expect(gallery.locator('.v-gallery__qty')).toHaveText('×2');
   });
 });

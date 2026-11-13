@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { productImageSlides } from '../domain/product-art';
+import { productImageSlides, type ImageSlide } from '../domain/product-art';
 
 const AUTOPLAY_MS = 2800;
 const RESUME_MS = 4500;
@@ -19,19 +19,24 @@ export function ProductGallery({
   size = 64,
   testId,
   variant = 'thumb',
+  slides: given,
+  autoplay = true,
 }: {
-  productId: string | null | undefined;
+  productId?: string | null;
   breakdown?: Record<string, unknown> | null;
+  /** Ready-made slides, for a whole order or sale, instead of one line's product and breakdown. */
+  slides?: ImageSlide[];
   size?: number;
   testId?: string;
   /**
-   * `tile` fills a Sell product tile (a button, so the dots are pictures, not buttons) and is
-   * swiped with a thumb. Tapping the tile still opens the picker. `thumb` is the small cart photo.
+   * `thumb` is the cart and sale-edit photo, with tappable dots under it. `mini` is the small photo on an
+   * order card or History row: the dots sit on the photo and are only pictures (the row is one button).
    */
-  variant?: 'thumb' | 'tile';
+  variant?: 'thumb' | 'mini';
+  autoplay?: boolean;
 }) {
-  const tile = variant === 'tile';
-  const slides = productImageSlides(productId, breakdown);
+  const tile = variant === 'mini';
+  const slides = given || productImageSlides(productId, breakdown);
   const key = slides.map((s) => `${s.src}:${s.count}`).join('|');
   const trackRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -67,7 +72,7 @@ export function ProductGallery({
     };
     const start = () => {
       stop();
-      if (reducedMotion() || !inView) return;
+      if (!autoplay || reducedMotion() || !inView) return;
       timer = window.setInterval(() => {
         const next = index() + 1;
         go(next >= count ? 0 : next);
@@ -121,11 +126,11 @@ export function ProductGallery({
       track.removeEventListener('keydown', onKey);
       root.removeEventListener('click', dotClick);
     };
-  }, [key, count]);
+  }, [key, count, autoplay]);
 
   if (!count) return null;
-  const style = tile ? undefined : ({ '--gallery-size': `${size}px` } as Record<string, string>);
-  const cls = `v-gallery${tile ? ' v-gallery--tile' : ''}`;
+  const style = ({ '--gallery-size': `${size}px` } as Record<string, string>);
+  const cls = `v-gallery${tile ? ' v-gallery--mini' : ''}`;
   if (count === 1) {
     return (
       <div class={cls} style={style} data-testid={testId} data-slides="1">
