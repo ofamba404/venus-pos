@@ -3,7 +3,7 @@ import { loadStoreOrders, storeOrders, ensureInventory, type StoreOrderRow } fro
 import { deviceId } from '../../data/device-id';
 import { postStoreReserve } from '../../data/store-reserve';
 import { mapStoreOrderToCart } from '../../domain/store-order-map';
-import { orderMeta, replaceCart, setOrderMetaPatch } from '../../data/session-cart';
+import { cartLines, orderMeta, replaceCart, setOrderMetaPatch } from '../../data/session-cart';
 import { replaceCheckoutDraft } from '../../data/checkout-draft';
 import { patchStoreOrder } from '../../data/writes/store-orders';
 import { requestCartOpen } from '../../data/cart-request';
@@ -144,7 +144,17 @@ export function OrdersPage() {
     go('/sell');
   }
 
-  async function loadIntoSale(order: StoreOrderRow) {
+  /**
+   * An accepted order sits in In sale on the server, but the cart that holds its items lives on this phone only
+   * (session storage). After a reload, a new tab, or an order accepted on another device, the cart is empty, so Review sale
+   * would open blank. Only an order that is really in this phone's cart opens Review sale. Any other opens it after
+   * rebuilding the cart from the order's own items.
+   */
+  function isInCart(order: StoreOrderRow): boolean {
+    return orderMeta.value.storeOrderId === order.id && cartLines.value.length > 0;
+  }
+
+  async function loadIntoSale(order: StoreOrderRow, openReview = false) {
     const device_id = deviceId();
     const previous = orderMeta.value.storeOrderId;
     const claim = await postStoreReserve({ op: 'claim', id: order.id, device_id });
@@ -172,6 +182,7 @@ export function OrdersPage() {
     if (order.status === 'pending' || order.status === 'confirmed') {
       void patchStoreOrder(order.id, { status: 'accepted' }).catch(() => {});
     }
+    if (openReview) requestCartOpen();
     go('/sell');
   }
 
@@ -289,7 +300,11 @@ export function OrdersPage() {
               ) : null}
               {seg === 'in_sale' ? (
                 <>
-                  <Button size="md" data-testid={`load-order-${o.id}`} onClick={() => openLoadedCart()}>
+                  <Button
+                    size="md"
+                    data-testid={`load-order-${o.id}`}
+                    onClick={() => (isInCart(o) ? openLoadedCart() : void loadIntoSale(o, true))}
+                  >
                     Review sale
                   </Button>
                   <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => void cancelOrder(o)}>

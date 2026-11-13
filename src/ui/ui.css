@@ -2398,6 +2398,7 @@ button.kpi-tile {
 /* Product photo gallery: one photo per flavour, swipe + dots + slow auto-advance */
 .v-gallery {
   --gallery-size: 64px;
+  position: relative;
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
@@ -2411,8 +2412,10 @@ button.kpi-tile {
   width: var(--gallery-size);
   height: var(--gallery-size);
   overflow: hidden;
-  border-radius: var(--r-md);
-  background: var(--paper-100);
+  /* A rounded square on a neutral white tile, so the whole joint shows. A circle cropped it. */
+  border-radius: 12px;
+  background: var(--paper-0);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .v-gallery__track {
@@ -2444,22 +2447,28 @@ button.kpi-tile {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   user-select: none;
   pointer-events: none;
 }
 
 .v-gallery__qty {
+  /* On the tile's top corner, outside the photo, with a white ring: the number is never covered or clipped by the picture. */
   position: absolute;
-  right: 3px;
-  bottom: 3px;
-  padding: 1px 6px;
+  top: -5px;
+  right: -5px;
+  z-index: 1;
+  min-width: 20px;
+  padding: 2px 6px;
   border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--ink-900) 78%, transparent);
+  background: var(--ink-900);
+  box-shadow: 0 0 0 2px var(--paper-0);
   color: var(--on-action);
   font-size: 10px;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
   pointer-events: none;
 }
 
@@ -2577,10 +2586,9 @@ button.kpi-tile {
   }
 }
 
-/* In a cart line or sale-edit line the subject is the middle half of a square photo, so zoom it to fill the frame. */
-.v-gallery:not(.v-gallery--mini) .v-gallery__img,
-.v-gallery--mini .v-gallery__img {
-  transform: scale(1.5);
+/* The scout joint photos are a small joint on a big white square. A light zoom keeps the whole joint in frame and a little larger. */
+.v-gallery__img--joint {
+  transform: scale(1.25);
 }
 
 /* Mini gallery: the photo on an order card or History row. Same size as the old round thumb; dots sit on the photo. */
@@ -2591,13 +2599,14 @@ button.kpi-tile {
 }
 
 .v-gallery--mini .v-gallery__viewport {
-  border-radius: var(--r-pill);
+  border-radius: 10px;
 }
 
 .v-gallery--mini .v-gallery__qty {
-  right: 0;
-  bottom: 0;
-  padding: 0 4px;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  padding: 1px 5px;
   font-size: 9px;
 }
 
