@@ -5,7 +5,19 @@ import { postClient } from '../../data/writes/clients';
 import { EmptyState } from '../../ui/EmptyState';
 import { HistoryRow } from '../../ui/HistoryRow';
 import { productImageSrc } from '../../domain/product-art';
-import { groupSalesByDay, partitionThisWeek } from '../../domain/history-groups';
+import {
+  dayLabel,
+  defaultOpenDay,
+  groupDaysByWeek,
+  groupSalesByDay,
+  mondayOfWeek,
+  partitionThisWeek,
+  salesCount,
+  type DayGroup,
+  type WeekGroup,
+} from '../../domain/history-groups';
+import { Collapse } from '../../ui/Collapse';
+import { IconChevronRight } from '../../ui/icons';
 import { Money } from '../../ui/Money';
 import { Tag } from '../../ui/Tag';
 import { Segmented } from '../../ui/Segmented';
@@ -28,6 +40,8 @@ export function HistoryPage() {
   const [editName, setEditName] = useState('');
   const [editCredit, setEditCredit] = useState(false);
   const [editCleared, setEditCleared] = useState(false);
+  // Day and week headings the user opened or closed, over the defaults.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     void Promise.all([loadSales(), loadClients()]).catch((e) =>
@@ -43,6 +57,100 @@ export function HistoryPage() {
         : sales.value;
 
   const groups = groupSalesByDay(base);
+  // This week's days are listed (newest first, only the first one open). Older days fold into one heading per week.
+  const sections = (() => {
+    if (filter === 'credit') return { recent: groups, weeks: [] as WeekGroup[] };
+    const monday = mondayOfWeek(new Date());
+    return {
+      recent: groups.filter((g) => g.dateObj >= monday),
+      weeks: groupDaysByWeek(groups.filter((g) => g.dateObj < monday)),
+    };
+  })();
+  const startOpen = filter === 'credit' ? null : defaultOpenDay(groups);
+  function isOpenKey(key: string, fallback: boolean) {
+    return key in expanded ? Boolean(expanded[key]) : fallback;
+  }
+  function toggleKey(key: string, fallback: boolean) {
+    setExpanded((prev) => ({ ...prev, [key]: !isOpenKey(key, fallback) }));
+  }
+
+  function renderDay(g: DayGroup) {
+    // Credit view is a short list of what is owed, so its days start open.
+    const isOpen = isOpenKey(`d:${g.key}`, startOpen === null || g.key === startOpen);
+    const owed = g.sales.reduce((sum, s) => {
+      const row = (sales.value.find((r) => r.id === s.id) || s) as SaleRow;
+      return sum + (row.is_credit && !row.credit_cleared ? creditBalance(row) : 0);
+    }, 0);
+    return (
+      <div key={g.key} class="history-day" data-testid="history-day">
+        <button
+          type="button"
+          class="history-head"
+          aria-expanded={isOpen}
+          data-testid={`history-day-toggle-${g.key}`}
+          onClick={() => toggleKey(`d:${g.key}`, startOpen === null || g.key === startOpen)}
+        >
+          <span class="history-head__name">{dayLabel(g.dateObj)}</span>
+          <span class="history-head__sum" data-testid="history-day-sum">
+            {salesCount(g.count)}
+            {' · '}
+            <Money value={g.total} />
+            {owed > 0 ? <span class="history-head__owed"> · owed <Money value={owed} /></span> : null}
+          </span>
+          <span class={`history-head__chev${isOpen ? ' is-open' : ''}`} aria-hidden="true">
+            <IconChevronRight size={18} />
+          </span>
+        </button>
+        <Collapse open={isOpen}>{g.sales.map(renderSale)}</Collapse>
+      </div>
+    );
+  }
+
+  function renderSale(s: (typeof groups)[number]['sales'][number]) {
+    const full = (sales.value.find((row) => row.id === s.id) || s) as SaleRow;
+    const credit = Boolean(full.is_credit && !full.credit_cleared);
+    const delivery = Boolean(full.delivery_enabled);
+    const person = clients.value.find((c) => c.id === full.client_id)?.name;
+    const items = saleItems(full);
+    const first = items[0];
+    return (
+      <HistoryRow
+        key={s.id}
+        testId={`history-sale-${s.id}`}
+        name={person || (full.store_order_id ? 'Store customer' : 'Counter')}
+        when={`${new Date(s.created_at || '').toLocaleString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}${delivery ? ' · Delivery' : ''}`}
+        image={
+          first?.product_id
+            ? productImageSrc(String(first.product_id), first.breakdown as Record<string, unknown>)
+            : ''
+        }
+        lines={items.slice(0, 2).map((item) => ({
+          name: String(item.product_name || 'Item'),
+          productId: String(item.product_id || ''),
+          breakdown: item.breakdown as Record<string, unknown>,
+        }))}
+        tags={<Tag tone={credit ? 'credit' : 'paid'}>{credit ? 'Credit' : 'Paid'}</Tag>}
+        amount={
+          credit ? (
+            <span class="history-owed" data-testid={`history-owed-${s.id}`}>
+              <span class="history-owed__label">owes</span>
+              <Money className="v-money--total" value={creditBalance(full)} />
+            </span>
+          ) : (
+            <Money className="v-money--total" value={Number(s.total_ugx) || 0} />
+          )
+        }
+        onOpen={() => {
+          setOpenId(String(s.id || ''));
+          setEditing(false);
+          setVoiding(false);
+        }}
+      />
+    );
+  }
   const open = sales.value.find((row) => row.id === openId) || null;
 
   function closeAll() {
@@ -113,54 +221,32 @@ export function HistoryPage() {
       {!groups.length ? (
         <EmptyState title="No sales yet" body="Completed sales land here." />
       ) : null}
-      {groups.map((g) => (
-        <div key={g.key} data-testid="history-day">
-          <div class="v-section-label">
-            {g.dateObj.toLocaleDateString('en-GB', {
-              weekday: 'short',
-              day: '2-digit',
-              month: 'short',
-            })}{' '}
-            · {g.count} · <Money value={g.total} />
+      {sections.recent.map(renderDay)}
+      {sections.weeks.map((w) => {
+        const isOpen = isOpenKey(`w:${w.key}`, false);
+        return (
+          <div key={w.key} class="history-week" data-testid="history-week">
+            <button
+              type="button"
+              class="history-head history-head--week"
+              aria-expanded={isOpen}
+              data-testid={`history-week-toggle-${w.key}`}
+              onClick={() => toggleKey(`w:${w.key}`, false)}
+            >
+              <span class="history-head__name">
+                Week of {w.monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+              </span>
+              <span class="history-head__sum">
+                {salesCount(w.count)} · <Money value={w.total} />
+              </span>
+              <span class={`history-head__chev${isOpen ? ' is-open' : ''}`} aria-hidden="true">
+                <IconChevronRight size={18} />
+              </span>
+            </button>
+            <Collapse open={isOpen}>{w.days.map(renderDay)}</Collapse>
           </div>
-          {g.sales.map((s) => {
-            const full = (sales.value.find((row) => row.id === s.id) || s) as SaleRow;
-            const credit = Boolean(full.is_credit && !full.credit_cleared);
-            const delivery = Boolean(full.delivery_enabled);
-            const person = clients.value.find((c) => c.id === full.client_id)?.name;
-            const items = saleItems(full);
-            const first = items[0];
-            return (
-              <HistoryRow
-                key={s.id}
-                testId={`history-sale-${s.id}`}
-                name={person || (full.store_order_id ? 'Store customer' : 'Counter')}
-                when={`${new Date(s.created_at || '').toLocaleString('en-GB', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}${delivery ? ' · Delivery' : ''}`}
-                image={
-                  first?.product_id
-                    ? productImageSrc(String(first.product_id), first.breakdown as Record<string, unknown>)
-                    : ''
-                }
-                lines={items.slice(0, 2).map((item) => ({
-                  name: String(item.product_name || 'Item'),
-                  productId: String(item.product_id || ''),
-                  breakdown: item.breakdown as Record<string, unknown>,
-                }))}
-                tags={<Tag tone={credit ? 'credit' : 'paid'}>{credit ? 'Credit' : 'Paid'}</Tag>}
-                amount={<Money className="v-money--total" value={Number(s.total_ugx) || 0} />}
-                onOpen={() => {
-                  setOpenId(String(s.id || ''));
-                  setEditing(false);
-                  setVoiding(false);
-                }}
-              />
-            );
-          })}
-        </div>
-      ))}
+        );
+      })}
 
       <Sheet
         open={Boolean(open) && !editing && !voiding}

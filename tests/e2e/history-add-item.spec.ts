@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { createNextDriver } from './drivers/next';
+import { openSale } from './helpers/history';
 
 async function openEdit(page: import('@playwright/test').Page) {
   await page.goto('/next/history');
-  await page.getByTestId('history-sale-seed-sale-1').click();
+  await openSale(page, 'seed-sale-1');
   await page.getByTestId('sale-edit').click();
   await page.getByRole('dialog', { name: 'Edit sale' }).waitFor();
 }

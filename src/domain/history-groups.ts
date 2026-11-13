@@ -70,3 +70,52 @@ export function partitionThisWeek(
   }
   return { thisWeek, older };
 }
+
+export type WeekGroup = {
+  key: string;
+  monday: Date;
+  days: DayGroup[];
+  total: number;
+  count: number;
+};
+
+/** "Today", "Yesterday", or "Wed 11 Nov". */
+export function dayLabel(date: Date, now: Date = new Date()): string {
+  const diff = Math.round((startOfLocalDay(now).getTime() - startOfLocalDay(date).getTime()) / 86_400_000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+/** "1 sale" / "5 sales". The bare count was ambiguous next to a date and an amount. */
+export function salesCount(n: number): string {
+  return `${n} sale${n === 1 ? '' : 's'}`;
+}
+
+/** Older days gathered into one group per week (Monday start), newest week first. */
+export function groupDaysByWeek(days: DayGroup[]): WeekGroup[] {
+  const weeks = new Map<string, WeekGroup>();
+  for (const day of days) {
+    const monday = mondayOfWeek(day.dateObj);
+    const key = dayKey(monday);
+    let week = weeks.get(key);
+    if (!week) {
+      week = { key, monday, days: [], total: 0, count: 0 };
+      weeks.set(key, week);
+    }
+    week.days.push(day);
+    week.total += day.total;
+    week.count += day.count;
+  }
+  return [...weeks.values()].sort((a, b) => b.monday.getTime() - a.monday.getTime());
+}
+
+/**
+ * Which groups start open: Today, or the latest day when nothing sold today. Everything older starts closed.
+ * Only one day opens by default, so a long history is a short list of headings.
+ */
+export function defaultOpenDay(days: DayGroup[], now: Date = new Date()): string {
+  if (!days.length) return '';
+  const today = dayKey(startOfLocalDay(now));
+  return days.some((d) => d.key === today) ? today : days[0]!.key;
+}

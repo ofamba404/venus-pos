@@ -2248,3 +2248,93 @@ button.kpi-tile {
   background: color-mix(in srgb, var(--danger) 12%, var(--surface));
   color: var(--danger);
 }
+
+/* Accordion body: grows from 0 to its own height. See Collapse.tsx. */
+.v-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 280ms var(--ease-out),
+    opacity 200ms var(--ease-out);
+}
+
+.v-collapse.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.v-collapse__in {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v-collapse {
+    transition: none;
+  }
+}
+
+/* History: a day (or older week) is one heading row that opens and closes. */
+.history-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.history-head__name {
+  font: var(--t-label);
+  color: var(--fg);
+}
+
+.history-head__sum {
+  margin-left: auto;
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.history-head__owed {
+  color: var(--danger);
+}
+
+.history-head__chev {
+  display: grid;
+  flex: none;
+  color: var(--fg-3);
+  transition: transform var(--d-base) var(--ease-out);
+}
+
+.history-head__chev.is-open {
+  transform: rotate(90deg);
+}
+
+.history-head--week .history-head__name {
+  font: var(--t-title);
+}
+
+.history-week,
+.history-day {
+  margin-top: var(--s-2);
+}
+
+.history-owed {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.history-owed__label {
+  font: var(--t-meta);
+  color: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .history-head__chev {
+    transition: none;
+  }
+}

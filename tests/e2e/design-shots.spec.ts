@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { test } from '@playwright/test';
 import { createNextDriver } from './drivers/next';
+import { openSale } from './helpers/history';
 
 const dir = process.env.SHOT_DIR || 'docs/overhaul/design-shots/after';
 
@@ -57,7 +58,7 @@ test('capture 390px screens', async ({ page, browser, baseURL }) => {
 
   await shot('orders', '/next/orders', 'h1');
   await shot('history', '/next/history', 'h1');
-  await page.getByTestId('history-sale-seed-sale-1').click();
+  await openSale(page, 'seed-sale-1');
   await page.getByRole('dialog', { name: 'Sale' }).waitFor();
   await frame();
   await page.screenshot({ path: `${dir}/sale-sheet.png` });

@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { test } from '@playwright/test';
 import { createNextDriver } from './drivers/next';
+import { openSale } from './helpers/history';
 
 const dir = process.env.V2C_SHOT_DIR || '/workspace/shots3';
 const hideNav = (page: import('@playwright/test').Page) => page.addStyleTag({ content: '.shell__nav{display:none!important}' });
@@ -99,7 +100,7 @@ test('v2c: Clients, person sheets, Orders card, loaded order, History and edit s
   await page.waitForTimeout(700);
   await page.screenshot({ path: `${dir}/v2c-history.png` });
   await page.screenshot({ path: `${dir}/v2c-history-full.png`, fullPage: true });
-  await page.getByTestId('history-sale-seed-sale-1').click();
+  await openSale(page, 'seed-sale-1');
   await page.getByTestId('sale-edit').click();
   await page.getByRole('dialog', { name: 'Edit sale' }).waitFor();
   await page.waitForTimeout(600);

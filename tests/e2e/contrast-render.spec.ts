@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createNextDriver } from './drivers/next';
+import { openSale } from './helpers/history';
 
 async function contrast(page: Page) {
   await page.waitForTimeout(400);
@@ -55,7 +56,7 @@ test.describe('rendered contrast on the screens with tints', () => {
     expect(await contrast(page)).toEqual([]);
 
     await page.goto('/next/history');
-    await page.getByTestId('history-sale-seed-sale-1').click();
+    await openSale(page, 'seed-sale-1');
     await page.getByTestId('sale-edit').click();
     expect(await contrast(page)).toEqual([]);
     await page.getByTestId('sale-edit-add').click();

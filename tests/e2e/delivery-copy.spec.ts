@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { createNextDriver } from './drivers/next';
+import { openSale } from './helpers/history';
 
 const MAP = 'https://www.google.com/maps/search/?api=1&query=0.33,32.59';
 
@@ -61,7 +62,7 @@ test.describe('SafeBoda copy pills', () => {
     sale.location_lat = 0.33;
     sale.location_lng = 32.59;
     await page.goto('/next/history');
-    await page.getByTestId('history-sale-seed-sale-1').click();
+    await openSale(page, 'seed-sale-1');
     const all = page.getByTestId('history-copy-all');
     for (const id of ['history-copy-phone', 'history-copy-location', 'history-copy-all']) {
       expect(Math.round((await page.getByTestId(id).boundingBox())!.height)).toBe(44);
@@ -79,7 +80,7 @@ test.describe('SafeBoda copy pills', () => {
     const collect = async () => {
       await page.keyboard.press('Escape');
       await page.reload();
-      await page.getByTestId('history-sale-seed-sale-1').click();
+      await openSale(page, 'seed-sale-1');
       await page.getByTestId('history-copy-all').click();
       return clip(page);
     };
@@ -104,7 +105,7 @@ test.describe('SafeBoda copy pills', () => {
     const sale = driver.mock.db.table('sales').find((r) => r.id === 'seed-sale-1')!;
     sale.client_phone = '0700333444';
     await page.goto('/next/history');
-    await page.getByTestId('history-sale-seed-sale-1').click();
+    await openSale(page, 'seed-sale-1');
     await expect(page.getByTestId('history-copy-phone')).toBeVisible();
     await expect(page.getByTestId('history-copy-location')).toHaveCount(0);
     await expect(page.getByTestId('history-copy-all')).toHaveCount(0);

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { createNextDriver } from './drivers/next';
 import { buildDefaultSeed } from '../fixtures/seed';
 import { commissionLedger } from '../../src/domain/commission';
+import { openSale } from './helpers/history';
 
 function deltas(driver: Awaited<ReturnType<typeof createNextDriver>>, categoryId: string) {
   return driver.mock.writes
@@ -17,7 +18,7 @@ test.describe('owner decisions', () => {
   test('editing a sale reopens the flavour picker on its current flavours', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/history');
-    await page.getByTestId('history-sale-seed-sale-1').click();
+    await openSale(page, 'seed-sale-1');
     await page.getByTestId('sale-edit').click();
     await page.getByTestId('sale-edit-flavours-0').click();
 
@@ -45,7 +46,7 @@ test.describe('owner decisions', () => {
   test('backing out of the picker keeps the sale as it was', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/history');
-    await page.getByTestId('history-sale-seed-sale-1').click();
+    await openSale(page, 'seed-sale-1');
     await page.getByTestId('sale-edit').click();
     await page.getByTestId('sale-edit-flavours-0').click();
     await page.getByTestId('config-flavor-mint-dec').click();
@@ -161,7 +162,7 @@ test.describe('owner decisions', () => {
   test('the edit-sale picker holds a pack to its joint count', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/history');
-    await page.getByTestId('history-sale-seed-sale-1').click();
+    await openSale(page, 'seed-sale-1');
     await page.getByTestId('sale-edit').click();
     await page.getByTestId('sale-edit-flavours-0').click();
     const picker = page.getByRole('dialog', { name: /Flavours/ });
