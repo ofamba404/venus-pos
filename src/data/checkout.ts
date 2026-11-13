@@ -12,7 +12,7 @@ import { postDelivery } from './writes/deliveries';
 import { inventoryDeltaBody } from './writes/inventory';
 import { postSale } from './writes/sales';
 import { patchStoreOrder, storeOrderCheckedOutBody } from './writes/store-orders';
-import { clients, ensureInventory, inventory, loadSales, syncLabel, type SaleRow } from './entities';
+import { clients, ensureInventory, inventory, inventoryFresh, loadSales, storeOrders, syncLabel, type SaleRow } from './entities';
 import { deviceId } from './device-id';
 import { postStoreReserve } from './store-reserve';
 
@@ -34,7 +34,15 @@ export type CheckoutInput = {
 };
 
 export type CheckoutResult =
-  | { ok: true; sale: SaleRow; queued?: boolean; delivery?: Promise<void> }
+  | {
+      ok: true;
+      sale: SaleRow;
+      queued?: boolean;
+      /** The delivery trip write. Runs after the sale is shown as recorded. */
+      delivery?: Promise<void>;
+      /** Resolves false when the store order could not be marked checked out (after retries). */
+      orderMarked?: Promise<boolean>;
+    }
   | { ok: false; error: string; restored: boolean };
 
 let inFlight = false;
@@ -80,19 +88,28 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
   let holdOrderId = '';
   let holdClaimed: Record<string, number> | null = null;
   let stockKnown = false;
-  try {
-    await ensureInventory();
-    stockKnown = syncLabel.value === 'live';
-  } catch (e) {
-    console.warn('inventory refresh before charge failed', e);
-  }
 
-  if (input.meta.storeOrderId) {
-    const hold = await postStoreReserve({
-      op: 'consume',
-      id: input.meta.storeOrderId,
-      device_id: deviceId(),
-    });
+  // Independent reads and writes go out together: the stock read (skipped while the last one is fresh), the
+  // stock hold for a store order, and the client lookup or create. Each used to wait for the one before it.
+  const storeOrderId = input.meta.storeOrderId;
+  const stockRead = inventoryFresh()
+    ? Promise.resolve()
+    : ensureInventory()
+        .then(() => undefined)
+        .catch((e) => {
+          console.warn('inventory refresh before charge failed', e);
+        });
+  const holdCall = storeOrderId
+    ? postStoreReserve({ op: 'consume', id: storeOrderId, device_id: deviceId() })
+    : null;
+  const clientCall = (walkIn ? Promise.resolve(null) : resolveClientId(clientName, input.clientId || input.meta.clientId)).then(
+    (id) => ({ ok: true as const, id }),
+    (error: unknown) => ({ ok: false as const, error }),
+  );
+  const [, hold, clientResult] = await Promise.all([stockRead, holdCall, clientCall]);
+  stockKnown = syncLabel.value === 'live';
+
+  if (hold) {
     if (hold.unsupported) {
       /* Function not deployed: deduct at charge, including store lines. */
     } else if (hold.network || !hold.ok) {
@@ -105,9 +122,20 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
         restored: false,
       };
     } else if (hold.consumed || hold.reason === 'already_consumed') {
-      holdOrderId = input.meta.storeOrderId;
+      holdOrderId = storeOrderId;
       holdClaimed = hold.claimed && typeof hold.claimed === 'object' ? hold.claimed : {};
     }
+  }
+  if (!clientResult.ok) {
+    if (holdOrderId) {
+      await postStoreReserve({ op: 'revert', id: holdOrderId, device_id: deviceId() }).catch(() => {});
+    }
+    inFlight = false;
+    return {
+      ok: false,
+      error: clientResult.error instanceof Error ? clientResult.error.message : 'Could not save the sale',
+      restored: true,
+    };
   }
 
   const gross = mergeSoldBreakdown(
@@ -138,9 +166,7 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
   let saleBody: Record<string, unknown> | null = null;
 
   try {
-    const clientId = walkIn
-      ? null
-      : await resolveClientId(clientName, input.clientId || input.meta.clientId);
+    const clientId = clientResult.id;
     const body = buildSalePostBody({
       lines: input.lines,
       meta: input.meta,
@@ -171,18 +197,15 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
       ),
     ).catch((e) => console.warn('persist sold failed', e));
 
-    if (input.meta.storeOrderId) {
-      try {
-        const marked = await patchStoreOrder(
-          input.meta.storeOrderId,
-          storeOrderCheckedOutBody(String(sale.id || '')),
-        );
-        if (!marked.ok) console.warn('store order checkout patch failed', marked.status);
-      } catch (e) {
-        console.warn('store order checkout patch failed', e);
-      }
+    // The sale is saved. Marking the order, refreshing the sale list and logging the trip carry on behind the success.
+    const saleId = String(sale.id || '');
+    let orderMarked: Promise<boolean> | undefined;
+    if (storeOrderId) {
+      storeOrders.value = storeOrders.value.map((row) =>
+        row.id === storeOrderId ? { ...row, status: 'checked_out', sale_id: saleId } : row,
+      );
+      orderMarked = markOrderCheckedOut(storeOrderId, saleId);
     }
-
     void loadSales({ force: true }).catch(() => {});
     const delivery = recordDelivery({
       saleId: String(sale.id || ''),
@@ -191,7 +214,7 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
       meta: input.meta,
       checkout: input.checkout,
     });
-    return { ok: true, sale, delivery };
+    return { ok: true, sale, delivery, orderMarked };
   } catch (e) {
     if (features.offlineQueue && saleBody && shouldQueueSale(e, input.meta.storeOrderId)) {
       const clientSaleId =
@@ -236,6 +259,21 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
   } finally {
     inFlight = false;
   }
+}
+
+/** Marks the order checked out with its sale. Retried, because the sale already exists and the order must leave Waiting. */
+async function markOrderCheckedOut(orderId: string, saleId: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const res = await patchStoreOrder(orderId, storeOrderCheckedOutBody(saleId));
+      if (res.ok) return true;
+      console.warn('store order checkout patch failed', res.status);
+    } catch (e) {
+      console.warn('store order checkout patch failed', e);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)));
+  }
+  return false;
 }
 
 export function previewTotal(lines: CartLine[]) {

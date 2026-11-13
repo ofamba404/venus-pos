@@ -4,7 +4,7 @@ import { kampalaInputToIso, kampalaLocalInput } from '../../domain/kampala-time'
 import { itemToConfigSelection } from '../../domain/pricing/pack-config';
 import { stockNotifyDecision } from '../../domain/stock-notify';
 import { KEYS } from '../../data/keys';
-import { clientOwesLabel, successCopy } from '../../domain/parity';
+import { clientOwesLabel } from '../../domain/parity';
 import { cartStockShortfalls, sellAnywayMessage } from '../../domain/stock-shortfall';
 import { formatUGX } from '../../domain/format';
 import {
@@ -55,7 +55,7 @@ import { DeliveryBlock } from '../../ui/DeliveryBlock';
 import { CopyButton } from '../../ui/CopyButton';
 import { copyAllText, copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
 import { TimePicker } from '../../ui/TimePicker';
-import { Celebration } from '../../ui/Celebration';
+import { showSaleSuccess } from '../../ui/sale-success';
 import { EmptyState } from '../../ui/EmptyState';
 import { PlaceSearch } from '../../ui/PlaceSearch';
 import { showToast } from '../../ui/ToastHost';
@@ -67,12 +67,9 @@ export function SellPage() {
   const [selection, setSelection] = useState<Record<string, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
   const [paying, setPaying] = useState(false);
-  const [successTotal, setSuccessTotal] = useState<number | null>(null);
   const [payment, setPayment] = useState<'paid' | 'credit'>('paid');
   const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
   const [waiting, setWaiting] = useState(0);
-  const [queuedNote, setQueuedNote] = useState(false);
-  const [deliveryPending, setDeliveryPending] = useState(false);
   const [debtAsk, setDebtAsk] = useState<{ name: string; owed: number } | null>(null);
   const debtClearedRef = useRef(false);
   const placeGen = useRef(0);
@@ -267,14 +264,13 @@ export function SellPage() {
       }
     }
     haptic(15);
-    setQueuedNote(Boolean(result.queued));
     if (result.queued) {
       setWaiting((n) => n + 1);
       showToast('Queued offline');
     }
-    const delivery = result.delivery;
-    setDeliveryPending(Boolean(delivery));
-    setSuccessTotal(cartTotal(lines));
+    const soldTotal = cartTotal(lines);
+    const soldClient = String(meta.clientName || '').trim() || 'Walk-in';
+    const soldOnCredit = payment === 'credit';
     clearCartKeepMeta();
     clearCheckoutDraft();
     setOrderMetaPatch({
@@ -286,12 +282,13 @@ export function SellPage() {
       deliveryDeliverAt: '',
       clientPhone: '',
     });
-    void loadSales({ force: true }).catch(() => {});
-    if (delivery) {
-      await delivery;
-      setDeliveryPending(false);
-    }
+    setPayment('paid');
+    setCartOpen(false);
     setPaying(false);
+    showSaleSuccess(
+      { total: soldTotal, client: soldClient, credit: soldOnCredit, queued: Boolean(result.queued) },
+      result.delivery,
+    );
   }
 
   async function parkSale() {
@@ -579,21 +576,6 @@ export function SellPage() {
       </div>
     </>
   );
-
-  if (successTotal != null) {
-    return (
-      <Celebration
-        total={formatUGX(successTotal)}
-        message={successCopy({ queued: queuedNote, credit: payment === 'credit', savingDelivery: deliveryPending })}
-        onNext={() => {
-          setSuccessTotal(null);
-          setQueuedNote(false);
-          setDeliveryPending(false);
-          setPayment('paid');
-        }}
-      />
-    );
-  }
 
   return (
     <section class="sell-layout">

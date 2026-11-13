@@ -18,7 +18,8 @@ test('recent-client scout sale is at most 6 taps', async ({ page }) => {
   await tap(review.getByTestId('charge'));
   expect(taps).toBeLessThanOrEqual(6);
   await page.getByText(/Sale recorded/).first().waitFor({ timeout: 10000 });
-  await expect(page.getByRole('button', { name: 'New sale' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Done' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Log another sale' })).toBeVisible();
 });
 
 test('charge stays disabled until a client is chosen', async ({ page }) => {

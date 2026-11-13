@@ -91,8 +91,18 @@ test.describe('store order sheet', () => {
     await expect(sheet.getByTestId('so-place-value')).toContainText('Acacia Avenue');
     await expect(sheet.getByTestId('so-phone-value')).toHaveText('+256700333444');
     await expect(sheet.getByTestId('so-when-value')).toHaveText('Tomorrow, 5:30 PM');
-    await expect(sheet.getByTestId('so-distance')).toHaveText('6.4 km · ~22 min');
+    await expect(sheet.getByTestId('so-distance-value')).toHaveText('6.4 km · ~22 min');
     await expect(sheet.getByTestId('store-order-confirmed')).toBeVisible();
+    // Details are labelled read-only boxes. Copy is only on Drop-off and Phone, and it is as tall as its box.
+    await expect(sheet.getByRole('button', { name: /Copy/ })).toHaveCount(2);
+    await expect(sheet.getByTestId('so-copy-when')).toHaveCount(0);
+    await expect(sheet.getByTestId('so-copy-all')).toHaveCount(0);
+    for (const id of ['place', 'phone']) {
+      const box = (await sheet.getByTestId(`so-${id}-value`).boundingBox())!;
+      const btn = (await sheet.getByTestId(`so-copy-${id}`).boundingBox())!;
+      expect(Math.abs(box.height - btn.height)).toBeLessThanOrEqual(1);
+      expect(Math.abs(box.y - btn.y)).toBeLessThanOrEqual(1);
+    }
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${dir}/v2j-store-order-sheet-delivery-top.png` });
     await page.getByTestId('store-order-sheet').evaluate((el) => el.closest('.v-sheet__body')!.scrollTo({ top: 9999 }));
@@ -112,8 +122,13 @@ test.describe('store order sheet', () => {
     await expect(page.getByTestId('store-order-checkout')).toContainText('39,000');
 
     await page.getByTestId('store-order-checkout').click();
+    await expect(page.getByTestId('sale-success')).toBeVisible();
+    await expect(page.getByTestId('success-total')).toHaveText(/30,000/);
+    await expect(page.getByTestId('success-client')).toHaveText('Muza Nakimuli');
     await expect(page.getByText(/Sale recorded/)).toBeVisible();
     await expect(page.getByTestId('store-order-sheet')).toHaveCount(0);
+    // The order is marked in the background; wait for it.
+    await expect.poll(() => driver.mock.writes.some((w) => w.method === 'PATCH' && w.url.includes('store_orders'))).toBe(true);
 
     const sale = driver.mock.writes.find((w) => w.method === 'POST' && w.url.includes('/rest/v1/sales'))!;
     const body = sale.body as { store_order_id: string; total_ugx: number; delivery_fee_ugx: number; is_credit: boolean; items: unknown[] };
@@ -128,9 +143,10 @@ test.describe('store order sheet', () => {
     expect((done.body as { sale_id?: string }).sale_id).toBeTruthy();
     expect(patches.some((w) => (w.body as { status?: string }).status === 'accepted')).toBe(false);
     const reserve = driver.mock.writes.filter((w) => w.url.includes('/api/store-order/reserve')).map((w) => (w.body as { op: string }).op);
-    expect(reserve).toEqual(['claim', 'consume']);
+    expect(reserve).toEqual(['consume']);
 
-    // The order left Waiting for Closed.
+    // The order left Waiting for Closed. Done first: the success sheet sits over the page.
+    await page.getByTestId('success-done').click();
     await expect(page.getByTestId('view-order-so-delivery')).toHaveCount(0);
     await page.getByRole('tab', { name: /Closed/ }).click();
     await expect(page.getByTestId('status-so-delivery')).toHaveText('Completed');

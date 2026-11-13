@@ -37,6 +37,8 @@ export type MockHandle = {
   realtimeClients: number;
   /** Push one frame so the page refetches. Poll stays the fallback if this never fires. */
   notifyRealtime: () => void;
+  /** Delay every API response (not app assets) by this many ms, to measure serial round trips. */
+  setLatency: (ms: number) => void;
 };
 
 const SUPABASE = 'https://xiangrykfxlnacthjcad.supabase.co';
@@ -89,6 +91,7 @@ export async function installMockBackend(
   const requests: Array<{ method: string; url: string }> = [];
   const failures = [...(opts.failures || [])];
   let networkOff = false;
+  let latency = 0;
   const partnerSettle = {
     qty: opts.partnerSettle?.qty ?? 25,
     batches: opts.partnerSettle?.batches ? [...opts.partnerSettle.batches] : [25],
@@ -106,6 +109,9 @@ export async function installMockBackend(
     },
     realtimeClients: 0,
     notifyRealtime() {},
+    setLatency(ms) {
+      latency = Math.max(0, Math.round(ms));
+    },
   };
 
   const token = makeJwt(role);
@@ -187,6 +193,7 @@ export async function installMockBackend(
       return;
     }
 
+    if (latency) await new Promise((resolve) => setTimeout(resolve, latency));
     const failStatus = consumeFailure(method, url, req.postData());
     if (failStatus != null) {
       await fulfillJson(route, failStatus, { error: 'injected failure' });

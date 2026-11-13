@@ -135,7 +135,7 @@ test.describe('SafeBoda copy pills', () => {
     expect(await clip(page)).toBe('755000111');
   });
 
-  test('an order sheet copies each line and Copy all, with no Collect for a paid order', async ({ page }) => {
+  test('an order sheet copies the drop-off and the phone, and has no Copy all or time copy', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     const order = driver.mock.db.table('store_orders').find((r) => r.id === 'so-confirmed-1')!;
@@ -146,19 +146,19 @@ test.describe('SafeBoda copy pills', () => {
     await page.getByTestId('view-order-so-confirmed-1').click();
     const sheet = page.getByTestId('store-order-sheet');
     await sheet.waitFor();
-    const base = ['Name: Test Buyer Two', 'Phone: 700654321', 'Drop-off: Kololo Test', `Map: ${MAP}`];
     await expect(sheet.getByTestId('so-phone-value')).toHaveText('+256700654321');
     await expect(sheet.getByTestId('so-place-value')).toHaveText('Kololo Test');
     await sheet.getByTestId('so-copy-phone').click();
     expect(await clip(page)).toBe('700654321');
     await sheet.getByTestId('so-copy-place').click();
     expect(await clip(page)).toBe(`Kololo Test\n${MAP}`);
-    // A store order records no paid flag, so Copy all never asks the rider to collect.
-    await sheet.getByTestId('so-copy-all').click();
-    expect(await clip(page)).toBe(base.join('\n'));
+    // Only Drop-off and Phone have Copy. The time and the whole block do not.
+    await expect(sheet.getByRole('button', { name: /Copy/ })).toHaveCount(2);
+    await expect(sheet.getByTestId('so-copy-all')).toHaveCount(0);
+    await expect(sheet.getByTestId('so-copy-when')).toHaveCount(0);
   });
 
-  test('a pickup order sheet has a phone, no drop-off, and Copy all without a location', async ({ page }) => {
+  test('a pickup order sheet has a phone and no drop-off', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/next/orders');
@@ -169,8 +169,7 @@ test.describe('SafeBoda copy pills', () => {
     await expect(sheet.getByTestId('so-place')).toHaveCount(0);
     await sheet.getByTestId('so-copy-phone').click();
     expect(await clip(page)).toBe('700000099');
-    await sheet.getByTestId('so-copy-all').click();
-    expect(await clip(page)).not.toContain('Drop-off');
+    await expect(sheet.getByRole('button', { name: /Copy/ })).toHaveCount(1);
   });
 });
 

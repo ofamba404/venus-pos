@@ -1,10 +1,10 @@
-import { useRef, useState } from 'preact/hooks';
-import type { StoreOrderRow } from '../../data/entities';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { ensureInventory, inventoryFresh, type StoreOrderRow } from '../../data/entities';
 import { checkoutStoreOrder } from '../../data/store-order-checkout';
 import { mapStoreOrderToCart } from '../../domain/store-order-map';
 import { cartTotal } from '../../domain/cart';
 import { lineCount } from '../../domain/line-count';
-import { copyAllText, copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
+import { copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
 import { itemsImageSlides } from '../../domain/product-art';
 import { formatUGX } from '../../domain/format';
 import { Button } from '../../ui/Button';
@@ -16,6 +16,7 @@ import { ProductGallery } from '../../ui/ProductGallery';
 import { Sheet } from '../../ui/Sheet';
 import { Tag } from '../../ui/Tag';
 import { showToast } from '../../ui/ToastHost';
+import { showSaleSuccess } from '../../ui/sale-success';
 import { confirmStoreOrder, isOrderConfirmed } from './confirm-order';
 import { orderLine } from './order-view';
 
@@ -38,16 +39,17 @@ function deliverAtText(order: StoreOrderRow): string {
   });
 }
 
-function DetailRow({ label, value, testId, copy }: { label: string; value: string; testId: string; copy: preact.ComponentChildren }) {
+/** A labelled box like the cart's fields, but read only. Copy, when there is one, sits beside the box at the same height. */
+function ReadField({ label, value, testId, copy }: { label: string; value: string; testId: string; copy?: preact.ComponentChildren }) {
   return (
-    <div class="v-so-detail" data-testid={testId}>
-      <div class="v-so-detail__text">
-        <span class="v-so-detail__label">{label}</span>
-        <span class="v-so-detail__value" data-testid={`${testId}-value`}>
+    <div class="v-field v-so-field" data-testid={testId}>
+      <span class="v-field__label">{label}</span>
+      <div class="v-so-field__row">
+        <div class="v-field__input v-field__input--ro" data-testid={`${testId}-value`} aria-readonly="true">
           {value}
-        </span>
+        </div>
+        {copy}
       </div>
-      {copy}
     </div>
   );
 }
@@ -77,6 +79,10 @@ function StoreOrderBody({
   const [fee, setFee] = useState(order.delivery_fee_ugx != null ? String(Math.round(Number(order.delivery_fee_ugx) || 0)) : '');
   const [paying, setPaying] = useState(false);
   const [armed, setArmed] = useState(false);
+  // Warm the stock read while the sheet is being read, so Checkout does not wait on it.
+  useEffect(() => {
+    if (open && !inventoryFresh()) void ensureInventory().catch(() => {});
+  }, []);
 
   const items = cartTotal(mapped.lines);
   const feeUgx = delivery && fee.trim() !== '' ? Math.max(0, parseInt(fee, 10) || 0) : 0;
@@ -103,8 +109,16 @@ function StoreOrderBody({
       if (!('cancelled' in result && result.cancelled)) showToast(result.error);
       return;
     }
-    showToast(result.queued ? 'Queued offline' : `Sale recorded · ${formatUGX(items)}`);
     onClose();
+    showSaleSuccess(
+      { total: items, client: title, credit, queued: Boolean(result.queued) },
+      result.delivery,
+    );
+    if (result.orderMarked) {
+      void result.orderMarked.then((ok) => {
+        if (!ok) showToast('Sale saved, but this order still shows as waiting. Check Orders.');
+      });
+    }
   }
 
   const footer = open ? (
@@ -142,110 +156,109 @@ function StoreOrderBody({
             {order.status === 'cancelled' ? <Tag tone="danger">Cancelled</Tag> : null}
             {order.status === 'checked_out' ? <Tag tone="paid">Paid</Tag> : null}
           </div>
+          {open && !confirmed ? <ConfirmButton testId="store-order-confirm" onConfirm={() => confirmStoreOrder(order.id)} /> : null}
         </div>
 
-        <div class="v-so__items" data-testid="store-order-items">
-          {mapped.lines.map((line, index) => {
-            const view = orderLine(raw[index]);
-            const { qty, contents } = lineCount(line);
-            return (
-              <div class="v-cart-line" key={line.key}>
-                <ProductGallery slides={itemsImageSlides([view])} size={64} testId="so-gallery" />
-                <div class="v-cart-line__main">
-                  <div class="v-cart-line__head">
-                    <div class="v-list-row__title">
-                      {line.name}
-                      {qty > 1 ? <span class="v-qty-inline">×{qty}</span> : null}
+        <section class="v-so-sec" aria-label="Items">
+          <h3 class="v-so-sec__label">Items</h3>
+          <div class="v-so__items" data-testid="store-order-items">
+            {mapped.lines.map((line, index) => {
+              const view = orderLine(raw[index]);
+              const { qty, contents } = lineCount(line);
+              return (
+                <div class="v-cart-line" key={line.key}>
+                  <ProductGallery slides={itemsImageSlides([view])} size={64} testId="so-gallery" />
+                  <div class="v-cart-line__main">
+                    <div class="v-cart-line__head">
+                      <div class="v-list-row__title">
+                        {line.name}
+                        {qty > 1 ? <span class="v-qty-inline">×{qty}</span> : null}
+                      </div>
+                      <Money className="v-money--total" value={line.isReward ? 0 : line.lineTotal} />
                     </div>
-                    <Money className="v-money--total" value={line.isReward ? 0 : line.lineTotal} />
+                    {contents ? <div class="v-cart-line__contents">{contents}</div> : null}
+                    <FlavorSwatches breakdown={view.breakdown} productId={view.productId} />
                   </div>
-                  {contents ? <div class="v-cart-line__contents">{contents}</div> : null}
-                  <FlavorSwatches breakdown={view.breakdown} productId={view.productId} />
                 </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div class="v-so-details">
-          {place ? (
-            <DetailRow
-              label="Drop-off"
-              value={place}
-              testId="so-place"
-              copy={
-                <CopyButton kind="place" label="Copy" ariaLabel="Copy drop-off" compact testId="so-copy-place" value={() => copyLocationText({ place, lat, lng })} />
-              }
-            />
-          ) : null}
-          {phone ? (
-            <DetailRow
-              label="Phone"
-              value={phone}
-              testId="so-phone"
-              copy={<CopyButton kind="phone" label="Copy" ariaLabel="Copy phone" compact testId="so-copy-phone" value={() => copyPhoneText(phone)} />}
-            />
-          ) : null}
-          {when ? (
-            <DetailRow
-              label={delivery ? 'Deliver at' : 'Pick up at'}
-              value={when}
-              testId="so-when"
-              copy={<CopyButton kind="text" label="Copy" ariaLabel="Copy time" compact testId="so-copy-when" value={() => when} />}
-            />
-          ) : null}
-          <div class="v-so-detail__all">
-            <CopyButton
-              kind="all"
-              label="Copy all"
-              compact
-              testId="so-copy-all"
-              // A store order records no paid flag, so Collect is left out unless the order itself is on credit.
-              value={() => copyAllText({ name: title, phone, place, lat, lng, collect: credit ? total : 0 })}
-            />
+              );
+            })}
           </div>
-          {delivery && km != null ? (
-            <p class="v-muted" data-testid="so-distance">
-              {km.toFixed(1)} km{mins != null ? ` · ~${Math.round(mins)} min` : ''}
-            </p>
-          ) : null}
-        </div>
+        </section>
 
-        <div class="v-so-totals">
+        {place || phone || when ? (
+          <section class="v-so-sec" aria-label={delivery ? 'Delivery details' : 'Pickup details'}>
+            <h3 class="v-so-sec__label">{delivery ? 'Delivery details' : 'Pickup details'}</h3>
+            <div class="v-so-details">
+              {place ? (
+                <ReadField
+                  label="Drop-off"
+                  value={place}
+                  testId="so-place"
+                  copy={
+                    <CopyButton kind="place" label="Copy" ariaLabel="Copy drop-off" compact testId="so-copy-place" value={() => copyLocationText({ place, lat, lng })} />
+                  }
+                />
+              ) : null}
+              {phone ? (
+                <ReadField
+                  label="Phone"
+                  value={phone}
+                  testId="so-phone"
+                  copy={<CopyButton kind="phone" label="Copy" ariaLabel="Copy phone" compact testId="so-copy-phone" value={() => copyPhoneText(phone)} />}
+                />
+              ) : null}
+              {when || (delivery && km != null) ? (
+                <div class="v-so-pair">
+                  {when ? <ReadField label={delivery ? 'Deliver at' : 'Pick up at'} value={when} testId="so-when" /> : null}
+                  {delivery && km != null ? (
+                    <ReadField
+                      label="Distance"
+                      value={`${km.toFixed(1)} km${mins != null ? ` · ~${Math.round(mins)} min` : ''}`}
+                      testId="so-distance"
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        <section class="v-so-sec v-so-totals" aria-label="Total">
+          <h3 class="v-so-sec__label">Total</h3>
           <div class="v-so-totals__row">
             <span>Items</span>
             <Money value={items} />
           </div>
           {delivery ? (
-            <label class="v-so-totals__row">
-              <span>Delivery fee</span>
-              {open ? (
+            open ? (
+              <label class="v-field">
+                <span class="v-field__label">Delivery fee (UGX)</span>
                 <input
-                  class="v-so-fee"
+                  class="v-field__input"
                   inputMode="numeric"
                   data-testid="store-order-fee"
-                  aria-label="Delivery fee (UGX)"
                   value={fee}
                   placeholder="0"
                   onInput={(e) => setFee((e.target as HTMLInputElement).value.replace(/[^0-9]/g, ''))}
                 />
-              ) : (
+              </label>
+            ) : (
+              <div class="v-so-totals__row">
+                <span>Delivery fee</span>
                 <Money value={feeUgx} />
-              )}
-            </label>
+              </div>
+            )
           ) : null}
           <div class="v-so-totals__row v-so-totals__row--total" data-testid="store-order-total" data-total={total}>
             <span>Total</span>
             <Money className="v-money--total" value={total} size="xl" />
           </div>
-          <div class="v-so-pay" data-testid="store-order-pay">
-            {credit ? <Tag tone="credit">On credit</Tag> : open ? <span class="v-muted">Recorded as paid at checkout</span> : null}
-          </div>
-        </div>
-
-        {open && !confirmed ? (
-          <ConfirmButton testId="store-order-confirm" onConfirm={() => confirmStoreOrder(order.id)} />
-        ) : null}
+          {credit || open ? (
+            <div class="v-so-pay" data-testid="store-order-pay">
+              {credit ? <Tag tone="credit">On credit</Tag> : <span class="v-muted">Recorded as paid at checkout</span>}
+            </div>
+          ) : null}
+        </section>
       </div>
     </Sheet>
   );

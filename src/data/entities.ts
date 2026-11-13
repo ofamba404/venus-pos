@@ -111,6 +111,11 @@ async function persistSnapshot(entity: EntityName, data: unknown, opts?: { bump?
   if (opts?.bump !== false) markFetched(entity, Date.now());
 }
 
+/** The stock read is recent enough to trust at checkout (Sell also refreshes it every 15 seconds). */
+export function inventoryFresh(): boolean {
+  return syncLabel.value === 'live' && isFresh('inventory');
+}
+
 export function ensureInventory(): Promise<InventoryMap> {
   return shareLoad('inventory', ensureInventoryNow);
 }

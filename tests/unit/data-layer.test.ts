@@ -248,6 +248,7 @@ describe('data layer', () => {
 
     mode.saleStatus = 500;
     mode.saleBody = { message: 'no' };
+    resetFreshnessForTests();
     const failed = await runCheckout({ lines: [line()], meta: meta(), isCredit: false, clientId: 'client-a' });
     expect(failed.ok).toBe(false);
     if (!failed.ok) expect(failed.restored).toBe(true);
@@ -335,7 +336,7 @@ describe('data layer', () => {
     // Fee edited: the sale carries the new fee and the order id; the sale total stays the items.
     const done = await checkoutStoreOrder(order, { customerName: 'Test Client A', feeUgx: 9000 });
     expect(done.ok).toBe(true);
-    expect(ops).toEqual(['claim', 'consume']);
+    expect(ops).toEqual(['consume']);
     expect(sales[0]).toMatchObject({ store_order_id: 'ord-1', delivery_fee_ugx: 9000, total_ugx: 8000, is_credit: false });
 
     // No edit keeps the order's own fee.
@@ -352,23 +353,24 @@ describe('data layer', () => {
     const failed = await checkoutStoreOrder(order, { customerName: 'Test Client A', feeUgx: null });
     expect(failed.ok).toBe(false);
     await new Promise((r) => setTimeout(r, 5)); // the hand-back is fire and forget
-    expect(ops).toEqual(['claim', 'consume', 'revert', 'unclaim']);
+    expect(ops).toEqual(['consume', 'revert', 'unclaim']);
     mode.saleStatus = 201;
 
-    // Stock short: declining leaves nothing sold and gives the claim back. Accepting sells with an override.
+    // Stock short: declining leaves nothing sold and nothing held. Accepting sells with an override.
     mode.ensureRows = [{ category_id: 'mint', stock: 0 }];
     ops.length = 0;
     resetFreshnessForTests();
     const declined = await checkoutStoreOrder(order, { customerName: 'Test Client A', feeUgx: null, confirmShort: () => false });
     expect(declined).toMatchObject({ ok: false, cancelled: true });
     await new Promise((r) => setTimeout(r, 5));
-    expect(ops).toEqual(['claim', 'unclaim']);
+    expect(ops).toEqual([]);
     resetFreshnessForTests();
     const forced = await checkoutStoreOrder(order, { customerName: 'Test Client A', feeUgx: null, confirmShort: () => true, isCredit: false });
     expect(forced.ok).toBe(true);
 
     // Another phone holds it, or there is no signal: nothing is written.
     mode.ensureRows = [{ category_id: 'mint', stock: 20 }];
+    resetFreshnessForTests();
     mode.reserve = { status: 409, body: { ok: false, error: 'claimed', message: 'Another phone is ringing this order up.' } };
     const taken = await checkoutStoreOrder(order, { customerName: 'Test Client A', feeUgx: null });
     expect(taken).toMatchObject({ ok: false, error: 'Another phone is ringing this order up.' });

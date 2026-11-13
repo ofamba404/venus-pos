@@ -12,6 +12,7 @@ import { readConnection, scheduleIdlePrefetch, shouldSkipPrefetch, staleEntities
 import { KEYS } from '../data/keys';
 import { SCHEDULE_POLL_MS, tickLocalSchedules } from '../domain/schedule-notify';
 import { ToastHost, showToast } from '../ui/ToastHost';
+import { SaleSuccessSheet } from '../ui/SaleSuccessSheet';
 import { IconSell, IconOrders, IconStock, IconMore } from '../ui/icons';
 import { SellPage } from '../features/sell/SellPage';
 
@@ -171,6 +172,7 @@ export function App() {
         })}
       </nav>
 
+      <SaleSuccessSheet />
       <ToastHost />
     </div>
   );
