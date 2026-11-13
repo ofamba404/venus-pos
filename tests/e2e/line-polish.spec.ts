@@ -75,7 +75,7 @@ test('every order card with items has a photo gallery, including storefront-shap
   expect(total).toBeGreaterThan(1);
   await expect(page.locator('article.order-card .v-gallery')).toHaveCount(total);
   // so-pending-1 is a storefront order: product_id "cookie-duet", flavors ["mint", "chocolate"], no breakdown.
-  const buyer = page.locator('article.order-card', { has: page.getByTestId('load-order-so-pending-1') });
+  const buyer = page.locator('article.order-card', { has: page.getByTestId('view-order-so-pending-1') });
   await expect(buyer).toHaveCount(1);
   const srcs = await buyer.locator('[data-gallery-index] img').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
   expect(srcs).toEqual(['mint-cookie.webp', 'chocolate-cookie.webp']);

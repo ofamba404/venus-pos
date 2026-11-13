@@ -1,23 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { orderSegment } from '../../src/domain/order-segment';
+import { isOrderConfirmed } from '../../src/features/orders/confirm-order';
 
 describe('orderSegment', () => {
   it('puts pending and confirmed orders in Waiting', () => {
-    expect(orderSegment({ id: 'a', status: 'pending' })).toBe('waiting');
-    expect(orderSegment({ id: 'a', status: 'confirmed' })).toBe('waiting');
+    expect(orderSegment({ status: 'pending' })).toBe('waiting');
+    expect(orderSegment({ status: 'confirmed' })).toBe('waiting');
   });
-  it('puts accepted orders In sale', () => {
-    expect(orderSegment({ id: 'a', status: 'accepted' })).toBe('in_sale');
+  it('keeps an accepted order with no sale in Waiting (there is no In sale tab)', () => {
+    expect(orderSegment({ status: 'accepted' })).toBe('waiting');
   });
-  it('keeps a confirmed order that is loaded into the sale In sale', () => {
-    expect(orderSegment({ id: 'a', status: 'confirmed' }, 'a')).toBe('in_sale');
-    expect(orderSegment({ id: 'b', status: 'confirmed' }, 'a')).toBe('waiting');
+  it('puts cancelled and checked-out orders in Closed', () => {
+    expect(orderSegment({ status: 'cancelled' })).toBe('closed');
+    expect(orderSegment({ status: 'checked_out' })).toBe('closed');
   });
-  it('unlinking sends it back to Waiting', () => {
-    expect(orderSegment({ id: 'a', status: 'confirmed' }, '')).toBe('waiting');
-  });
-  it('a closed order stays Closed even if it is the loaded one', () => {
-    expect(orderSegment({ id: 'a', status: 'cancelled' }, 'a')).toBe('closed');
-    expect(orderSegment({ id: 'a', status: 'checked_out' }, 'a')).toBe('closed');
+  it('reads an accepted order as Confirmed', () => {
+    expect(isOrderConfirmed({ status: 'accepted' })).toBe(true);
+    expect(isOrderConfirmed({ status: 'pending' })).toBe(false);
+    expect(isOrderConfirmed({ status: 'pending', confirmed_at: '2026-11-13T10:00:00Z' })).toBe(true);
   });
 });

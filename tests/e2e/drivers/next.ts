@@ -14,6 +14,11 @@ export type NextDriver = {
   run: (scenario: Scenario) => Promise<void>;
 };
 
+/** The store order sheet is open. It is not the cart: it has its own Checkout and no client field. */
+async function storeSheetOpen(page: Page) {
+  return page.getByTestId('store-order-sheet').isVisible().catch(() => false);
+}
+
 async function saleScope(page: Page) {
   const dialog = page.getByRole('dialog', { name: 'Review sale' });
   const opened = await dialog
@@ -100,6 +105,8 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         await addProduct(page, step);
         return;
       case 'setClient': {
+        // A store order carries its own client name. The sheet has nothing to type into.
+        if (await storeSheetOpen(page)) return;
         const scope = await saleScope(page);
         await scope.getByTestId('cart-client').fill(step.name);
         return;
@@ -174,32 +181,41 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
       }
       case 'charge': {
         if (await saleAlreadyRecorded(page)) return;
+        if (await storeSheetOpen(page)) {
+          await page.getByTestId('store-order-checkout').click();
+          return;
+        }
         const scope = await saleScope(page);
         await scope.getByTestId('charge').click();
         return;
       }
       case 'chargeRetry': {
+        if (await storeSheetOpen(page)) {
+          await page.getByTestId('store-order-checkout').click();
+          return;
+        }
         const scope = await saleScope(page);
         await scope.getByTestId('charge').click();
         return;
       }
       case 'doubleTapCharge': {
+        if (await storeSheetOpen(page)) {
+          await page.getByTestId('store-order-checkout').dblclick();
+          return;
+        }
         const scope = await saleScope(page);
         await scope.getByTestId('charge').dblclick();
         return;
       }
       case 'loadStoreOrder': {
+        // v1 loaded the order into the cart. v2 opens the read-only order sheet; Checkout there records the sale.
         await page.goto('/next/orders');
-        await page.getByTestId(`load-order-${step.id}`).click();
-        await page.waitForURL(/\/next\/sell/, { timeout: 10000 });
+        await page.getByTestId(`view-order-${step.id}`).click();
+        await page.getByTestId('store-order-sheet').waitFor({ timeout: 10000 });
         return;
       }
       case 'confirmStoreOrder':
-        await page
-          .locator('[data-testid="loaded-order-confirm"], [data-testid="loaded-order-cart-confirm"]')
-          .and(page.locator(':visible'))
-          .first()
-          .click();
+        await page.getByTestId('store-order-confirm').click();
         return;
       case 'cancelStoreOrder':
         await page.goto('/next/orders');
@@ -217,6 +233,7 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         return;
       }
       case 'restoreCounterCart':
+        if (!(await page.getByTestId('held-sales').isVisible().catch(() => false))) await page.goto('/next/sell');
         await page.getByTestId('held-sales').getByRole('button').first().click();
         return;
       case 'arriveStoreOrder': {
@@ -429,9 +446,12 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         await page.getByRole('button', { name: 'Sign in' }).click();
         return;
       }
-      case 'go':
-        await page.goto(`/next${step.path.startsWith('/') ? step.path : `/${step.path}`}`);
+      case 'go': {
+        // v1 deep-linked an order into the cart (/sell#load-store-order=id). v2 opens it on Orders (/orders#order=id).
+        const target = step.path.replace(/^\/sell#load-store-order=/, '/orders#order=');
+        await page.goto(`/next${target.startsWith('/') ? target : `/${target}`}`);
         return;
+      }
       default:
         // Intent reserved for later drivers — no-op for now.
         return;
@@ -530,7 +550,11 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         }
         if (step.values.cartLines != null) {
           const n = Number(step.values.cartLines);
-          const lines = page.locator('[data-desktop-cart]').getByRole('button', { name: /^Remove / });
+          // v1 loaded a deep-linked order into the cart. v2 opens it in the order sheet, so count its items there.
+          const sheetOpen = await page.getByTestId('store-order-sheet').waitFor({ timeout: 3000 }).then(() => true).catch(() => false);
+          const lines = sheetOpen
+            ? page.getByTestId('store-order-items').locator('.v-cart-line')
+            : page.locator('[data-desktop-cart]').getByRole('button', { name: /^Remove / });
           const deadline = Date.now() + 8000;
           let count = await lines.count();
           while (count !== n && Date.now() < deadline) {

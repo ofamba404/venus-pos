@@ -42,6 +42,12 @@ function batchRange(units: Array<{ created_at?: string }>, cuts: number[], index
   return a === b ? a : `${a} – ${b}`;
 }
 
+/** The cookies that made up one sent batch, as far as the sales are loaded. */
+function batchUnits<T>(units: T[], cuts: number[], index: number): T[] {
+  const start = cuts.slice(0, index).reduce((a, b) => a + b, 0);
+  return units.slice(start, start + (cuts[index] || 0));
+}
+
 export function CookiePartnerPage() {
   const [settle, setSettle] = useState<Settle | null>(null);
   const [failed, setFailed] = useState(false);
@@ -82,6 +88,7 @@ export function CookiePartnerPage() {
   );
   const open = board.open;
   const every = COOKIE_PARTNER_SETTLE_EVERY;
+  const openUnits = useMemo(() => units.slice(qty, qty + every), [units, qty, every]);
   // The server's cuts are the record of what was sent. Money comes from the sales when they cover it.
   const history = cuts
     .map((count, i) => ({
@@ -93,6 +100,7 @@ export function CookiePartnerPage() {
       ownerSplit: board.settled[i]?.ownerSplit ?? null,
       lines: board.settled[i]?.lines ?? [],
       range: batchRange(units, cuts, i),
+      units: batchUnits(units, cuts, i),
     }))
     .reverse();
   const shown = showAll ? history : history.slice(0, 4);
@@ -151,7 +159,7 @@ export function CookiePartnerPage() {
               </div>
               <Tag tone={viewed.complete ? 'paid' : 'bronze-soft'}>{viewed.complete ? 'Sent' : 'Part batch sent'}</Tag>
             </div>
-            <PartnerBar count={Math.min(viewed.cookieCount, every)} />
+            <PartnerBar count={Math.min(viewed.cookieCount, every)} units={viewed.units} />
             {viewed.partnerDue === null ? null : (
               <div class="cp-figures">
                 <div class="cp-figure" data-testid="partner-due">
@@ -188,7 +196,7 @@ export function CookiePartnerPage() {
                 <Tag tone="default">{settle ? 'Nothing open' : 'Loading'}</Tag>
               )}
             </div>
-            <PartnerBar count={open ? Math.min(open.cookieCount, every) : 0} />
+            <PartnerBar count={open ? Math.min(open.cookieCount, every) : 0} units={openUnits} />
             {open ? (
               <div class="cp-figures">
                 <div class="cp-figure" data-testid="partner-due">

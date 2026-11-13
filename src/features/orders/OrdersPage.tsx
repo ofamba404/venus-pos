@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { loadStoreOrders, storeOrders, ensureInventory, type StoreOrderRow } from '../../data/entities';
-import { deviceId } from '../../data/device-id';
 import { postStoreReserve } from '../../data/store-reserve';
-import { mapStoreOrderToCart } from '../../domain/store-order-map';
-import { cartLines, orderMeta, replaceCart, setOrderMetaPatch } from '../../data/session-cart';
-import { replaceCheckoutDraft } from '../../data/checkout-draft';
 import { patchStoreOrder } from '../../data/writes/store-orders';
-import { requestCartOpen } from '../../data/cart-request';
-import { go } from '../../app/router';
 import { Button } from '../../ui/Button';
 import { Tag } from '../../ui/Tag';
 import { Segmented } from '../../ui/Segmented';
@@ -19,6 +13,8 @@ import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
 import { KEYS } from '../../data/keys';
 import { ConfirmButton, ConfirmedTag } from '../../ui/ConfirmOrder';
 import { confirmStoreOrder, isOrderConfirmed } from './confirm-order';
+import { StoreOrderSheet } from './StoreOrderSheet';
+import { orderLine, orderTotal } from './order-view';
 import { orderSegment, type OrderSegment } from '../../domain/order-segment';
 import { writePaint } from '../../domain/parity';
 import { SUPABASE_ANON_JWT, SUPABASE_URL } from '../../data/env';
@@ -66,45 +62,8 @@ function orderTitle(o: StoreOrderRow, labels: PosLabelIndex) {
   );
 }
 
-function orderLine(raw: unknown): { name: string; productId?: string; breakdown?: Record<string, unknown> } {
-  if (!raw || typeof raw !== 'object') return { name: '' };
-  const item = raw as {
-    product_id?: string;
-    store_product_id?: string;
-    product_name?: string;
-    name?: string;
-    breakdown?: Record<string, unknown>;
-    flavors?: string[];
-  };
-  const productId = String(item.product_id || item.store_product_id || '')
-    .replace(/-/g, '_')
-    .replace(/_pack$/, '');
-  let breakdown = item.breakdown;
-  if ((!breakdown || !Object.keys(breakdown).length) && Array.isArray(item.flavors)) {
-    breakdown = {};
-    for (const flavor of item.flavors) {
-      const key = String(flavor).replace(/-/g, '_');
-      const id = productId.startsWith('cookie') && !key.startsWith('cookie') ? `cookie_${key}` : key;
-      breakdown[id] = (Number(breakdown[id]) || 0) + 1;
-    }
-  }
-  return { name: String(item.product_name || item.name || '').trim(), productId, breakdown };
-}
-
-function orderTotal(o: StoreOrderRow): number {
-  const items = Array.isArray(o.items) ? o.items : [];
-  return items.reduce<number>((sum, it) => {
-    const row = it as { line_total?: number; unit_price_ugx?: number; quantity?: number; is_reward?: boolean };
-    if (row.is_reward) return sum;
-    const line = Math.round(Number(row.line_total) || 0);
-    if (line) return sum + line;
-    return sum + Math.round((Number(row.unit_price_ugx) || 0) * (Number(row.quantity) || 1));
-  }, 0);
-}
-
-/** Where the order stands, as a tag: In sale (bronze), Cancelled (red), Completed or Closed (neutral). */
+/** Where a closed order ended up: Cancelled (red), Completed or Closed (neutral). Waiting orders carry Delivery/Pickup and Confirmed tags instead. */
 function statusTag(seg: OrderSegment, o: StoreOrderRow) {
-  if (seg === 'in_sale') return <Tag tone="bronze" testId={`status-${o.id}`}>In sale</Tag>;
   if (seg !== 'closed') return null;
   if (o.status === 'cancelled') return <Tag tone="danger" testId={`status-${o.id}`}>Cancelled</Tag>;
   if (o.status === 'checked_out') return <Tag tone="default" testId={`status-${o.id}`}>Completed</Tag>;
@@ -115,6 +74,8 @@ export function OrdersPage() {
   const [seg, setSeg] = useState<Segment>('waiting');
   const [loading, setLoading] = useState(true);
   const [labels, setLabels] = useState<PosLabelIndex>(posLabels);
+  // The order whose sheet is open. A push notification or an old link lands here with #order=<id>.
+  const [viewId, setViewId] = useState('');
 
   useEffect(() => {
     void loadPosLabels()
@@ -133,57 +94,28 @@ export function OrdersPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const loadedId = orderMeta.value.storeOrderId || '';
-  const list = storeOrders.value.filter((o) => orderSegment(o, loadedId) === seg);
-  const counts = { waiting: 0, in_sale: 0, closed: 0 } as Record<OrderSegment, number>;
-  for (const o of storeOrders.value) counts[orderSegment(o, loadedId)] += 1;
+  const list = storeOrders.value.filter((o) => orderSegment(o) === seg);
+  const counts = { waiting: 0, closed: 0 } as Record<OrderSegment, number>;
+  for (const o of storeOrders.value) counts[orderSegment(o)] += 1;
+  const viewing = storeOrders.value.find((o) => o.id === viewId) || null;
 
-  /** The order is already in the cart. Go to Sell and open the Review sale sheet in place, keeping any edits. */
-  function openLoadedCart() {
-    requestCartOpen();
-    go('/sell');
-  }
+  useEffect(() => {
+    const open = () => {
+      const hash = window.location.hash.replace(/^#/, '');
+      const params = new URLSearchParams(hash);
+      const id = params.get('order') || params.get('load-store-order');
+      if (id) setViewId(id);
+    };
+    open();
+    window.addEventListener('hashchange', open);
+    return () => window.removeEventListener('hashchange', open);
+  }, []);
 
-  /**
-   * An accepted order sits in In sale on the server, but the cart that holds its items lives on this phone only
-   * (session storage). After a reload, a new tab, or an order accepted on another device, the cart is empty, so Review sale
-   * would open blank. Only an order that is really in this phone's cart opens Review sale. Any other opens it after
-   * rebuilding the cart from the order's own items.
-   */
-  function isInCart(order: StoreOrderRow): boolean {
-    return orderMeta.value.storeOrderId === order.id && cartLines.value.length > 0;
-  }
-
-  async function loadIntoSale(order: StoreOrderRow, openReview = false) {
-    const device_id = deviceId();
-    const previous = orderMeta.value.storeOrderId;
-    const claim = await postStoreReserve({ op: 'claim', id: order.id, device_id });
-    if (claim.network) {
-      showToast('No signal — open this order when you are back online');
-      return;
+  function closeSheet() {
+    setViewId('');
+    if (/order=|load-store-order=/.test(window.location.hash)) {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
     }
-    if (!claim.ok && !claim.unsupported) {
-      showToast(claim.message || claim.error || 'Another phone is ringing this order up');
-      return;
-    }
-    if (previous && previous !== order.id) {
-      void postStoreReserve({ op: 'unclaim', id: previous, device_id });
-    }
-    const mapped = mapStoreOrderToCart(
-      {
-        ...order,
-        items: (order.items || []) as never,
-      },
-      { customerName: orderTitle(order, labels) },
-    );
-    replaceCart(mapped.lines, mapped.meta);
-    setOrderMetaPatch(mapped.meta);
-    replaceCheckoutDraft(mapped.checkout);
-    if (order.status === 'pending' || order.status === 'confirmed') {
-      void patchStoreOrder(order.id, { status: 'accepted' }).catch(() => {});
-    }
-    if (openReview) requestCartOpen();
-    go('/sell');
   }
 
   async function cancelOrder(order: StoreOrderRow) {
@@ -223,7 +155,6 @@ export function OrdersPage() {
           onChange={setSeg}
           options={[
             { id: 'waiting', label: 'Waiting', count: counts.waiting },
-            { id: 'in_sale', label: 'In sale', count: counts.in_sale },
             { id: 'closed', label: 'Closed', count: counts.closed },
           ]}
         />
@@ -261,6 +192,8 @@ export function OrdersPage() {
           return (
           <OrderCard
             key={o.id}
+            testId={`order-card-${o.id}`}
+            onOpen={() => setViewId(o.id)}
             title={orderTitle(o, labels)}
             total={orderTotal(o)}
             photos={photos}
@@ -278,7 +211,7 @@ export function OrdersPage() {
             <div class="v-order-card__actions">
               {seg === 'waiting' ? (
                 <>
-                  {/* One primary action at a time: Confirm while the order is pending, Load into sale once it is confirmed. */}
+                  {/* One primary action at a time: Confirm while the order is pending, View order once it is confirmed. */}
                   {!isOrderConfirmed(o) ? (
                     <ConfirmButton
                       testId={`confirm-order-${o.id}`}
@@ -288,25 +221,10 @@ export function OrdersPage() {
                   <Button
                     size="md"
                     variant={isOrderConfirmed(o) ? 'primary' : 'secondary'}
-                    data-testid={`load-order-${o.id}`}
-                    onClick={() => void loadIntoSale(o)}
+                    data-testid={`view-order-${o.id}`}
+                    onClick={() => setViewId(o.id)}
                   >
-                    Load into sale
-                  </Button>
-                  {copyRow}
-                  <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => void cancelOrder(o)}>
-                    Cancel
-                  </Button>
-                </>
-              ) : null}
-              {seg === 'in_sale' ? (
-                <>
-                  <Button
-                    size="md"
-                    data-testid={`load-order-${o.id}`}
-                    onClick={() => (isInCart(o) ? openLoadedCart() : void loadIntoSale(o, true))}
-                  >
-                    Review sale
+                    View order
                   </Button>
                   {copyRow}
                   <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => void cancelOrder(o)}>
@@ -330,6 +248,13 @@ export function OrdersPage() {
           );
         })}
       </div>
+
+      <StoreOrderSheet
+        order={viewing}
+        title={viewing ? orderTitle(viewing, labels) : ''}
+        onClose={closeSheet}
+        onCancel={cancelOrder}
+      />
     </section>
   );
 }

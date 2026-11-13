@@ -6,6 +6,7 @@ const KINDS = {
   phone: { Icon: IconPhone, ok: 'Phone copied', empty: 'No phone' },
   place: { Icon: IconPin, ok: 'Location copied', empty: 'No location' },
   all: { Icon: IconCopy, ok: 'Delivery details copied', empty: 'Nothing to copy' },
+  text: { Icon: IconCopy, ok: 'Copied', empty: 'Nothing to copy' },
 } as const;
 
 /**

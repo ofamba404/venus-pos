@@ -90,30 +90,6 @@ test('the cart is still there after reload', async ({ page }) => {
   await expect(page.locator('[data-desktop-cart]').getByText('Plain').first()).toBeVisible();
 });
 
-test('releasing a loaded store order clears it from the cart', async ({ page }) => {
-  await createNextDriver(page, { role: 'pos_staff' });
-  await page.goto('/next/orders');
-  await page.getByTestId('load-order-seed-pending-order').click();
-  await page.waitForURL(/\/sell/);
-  const cart = page.locator('[data-desktop-cart]');
-  await cart.getByTestId('release-store-order').click();
-  await expect(cart.getByTestId('loaded-order-cart')).toHaveCount(0);
-  await expect(cart.getByTestId('cancelled-banner')).toHaveCount(0);
-});
-
-test('a cancelled store order shows a banner in the cart', async ({ page }) => {
-  await createNextDriver(page, { role: 'pos_staff' });
-  await page.goto('/next/orders');
-  await page.getByTestId('load-order-seed-pending-order').click();
-  await page.waitForURL(/\/sell/);
-  await page.goto('/next/orders');
-  await page.getByRole('tab', { name: 'In sale' }).click();
-  await page.getByTestId('cancel-order-seed-pending-order').click();
-  await page.getByRole('status').filter({ hasText: /cancelled/i }).waitFor();
-  await page.goto('/next/sell');
-  await expect(page.locator('[data-desktop-cart]').getByTestId('cancelled-banner')).toContainText(/cancelled/i);
-});
-
 test('stock glance, install steps, chart range, and debug capture are on the page', async ({ page }) => {
   await createNextDriver(page, { role: 'pos_admin' });
   await page.goto('/next/stock');

@@ -20,7 +20,7 @@ test.describe('SafeBoda copy pills', () => {
     const all = page.getByTestId('copy-all-so-confirmed-1');
     await expect(all).toHaveText('Copy all');
     expect(Math.round((await all.boundingBox())!.height)).toBe(44);
-    // Copy phone and Copy location are gone from every Orders card. They live on the loaded-order card and in checkout.
+    // Copy phone and Copy location are gone from every Orders card. They live in the order sheet and in checkout.
     await expect(page.locator('[data-testid^="copy-phone-"]')).toHaveCount(0);
     await expect(page.locator('[data-testid^="copy-location-"]')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
@@ -135,7 +135,7 @@ test.describe('SafeBoda copy pills', () => {
     expect(await clip(page)).toBe('755000111');
   });
 
-  test('a loaded delivery order: Collect appears only when On credit is chosen, never when Paid', async ({ page }) => {
+  test('an order sheet copies each line and Copy all, with no Collect for a paid order', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     const order = driver.mock.db.table('store_orders').find((r) => r.id === 'so-confirmed-1')!;
@@ -143,43 +143,34 @@ test.describe('SafeBoda copy pills', () => {
     // Store lines carry line_total and breakdown. The older seed shape only has a unit price.
     order.items = [{ product_id: 'scout', product_name: 'Scout Pack', line_total: 8000, breakdown: { strawberry: 1 } }];
     await page.goto('/next/orders');
-    await page.getByTestId('load-order-so-confirmed-1').click();
-    await page.waitForURL(/\/sell/);
+    await page.getByTestId('view-order-so-confirmed-1').click();
+    const sheet = page.getByTestId('store-order-sheet');
+    await sheet.waitFor();
     const base = ['Name: Test Buyer Two', 'Phone: 700654321', 'Drop-off: Kololo Test', `Map: ${MAP}`];
-    const card = page.getByTestId('loaded-order');
-    await expect(card.getByTestId('loaded-order-copy-phone')).toHaveText('Copy phone');
-    await expect(card.getByTestId('loaded-order-copy-location')).toHaveText('Copy location');
-    // Paid is the default: no Collect line.
-    await card.getByTestId('loaded-order-copy-all').click();
-    expect(await clip(page)).toBe(base.join('\n'));
-    await page.getByTestId('cart-bar').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
-    await sheet.getByTestId('copy-all').click();
-    expect(await clip(page)).toBe(base.join('\n'));
-    await sheet.getByTestId('copy-location').click();
+    await expect(sheet.getByTestId('so-phone-value')).toHaveText('+256700654321');
+    await expect(sheet.getByTestId('so-place-value')).toHaveText('Kololo Test');
+    await sheet.getByTestId('so-copy-phone').click();
+    expect(await clip(page)).toBe('700654321');
+    await sheet.getByTestId('so-copy-place').click();
     expect(await clip(page)).toBe(`Kololo Test\n${MAP}`);
-    // On credit: the rider has money to collect.
-    await sheet.getByRole('tab', { name: 'On credit' }).click();
-    await sheet.getByTestId('copy-all').click();
-    expect(await clip(page)).toBe([...base, 'Collect: UGX 8,000'].join('\n'));
-    // Back to Paid: gone again.
-    await sheet.getByRole('tab', { name: 'Paid' }).click();
-    await sheet.getByTestId('copy-all').click();
+    // A store order records no paid flag, so Copy all never asks the rider to collect.
+    await sheet.getByTestId('so-copy-all').click();
     expect(await clip(page)).toBe(base.join('\n'));
   });
 
-  test('a loaded pickup order offers Copy phone on the card and no delivery copies', async ({ page }) => {
+  test('a pickup order sheet has a phone, no drop-off, and Copy all without a location', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/next/orders');
-    await page.getByTestId('load-order-seed-pending-order').click();
-    await page.waitForURL(/\/sell/);
-    const card = page.getByTestId('loaded-order');
-    await expect(card.getByTestId('loaded-order-copy-phone')).toBeVisible();
-    await expect(card.getByTestId('loaded-order-copy-location')).toHaveCount(0);
-    await expect(card.getByTestId('loaded-order-copy-all')).toHaveCount(0);
-    await card.getByTestId('loaded-order-copy-phone').click();
+    await page.getByTestId('view-order-seed-pending-order').click();
+    const sheet = page.getByTestId('store-order-sheet');
+    await sheet.waitFor();
+    await expect(sheet).toHaveAttribute('data-mode', 'pickup');
+    await expect(sheet.getByTestId('so-place')).toHaveCount(0);
+    await sheet.getByTestId('so-copy-phone').click();
     expect(await clip(page)).toBe('700000099');
+    await sheet.getByTestId('so-copy-all').click();
+    expect(await clip(page)).not.toContain('Drop-off');
   });
 });
 

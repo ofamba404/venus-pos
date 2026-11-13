@@ -8,7 +8,6 @@ import { partialSendCount } from '../../src/domain/partner';
 import { legacyTarget } from '../../src/domain/legacy-urls';
 import {
   INSTALL_STEPS,
-  cancelledOrderBanner,
   clientNamesText,
   clientOwesLabel,
   debugLogText,
@@ -84,10 +83,7 @@ describe('parity row helpers', () => {
     expect(readStoredId(null, ['1w'], '1w')).toBe('1w');
   });
 
-  it('writes the cancelled banner, install steps, client names, and a short debug log', () => {
-    expect(cancelledOrderBanner('cancelled')).toMatch(/cancelled/);
-    expect(cancelledOrderBanner('pending')).toBe('');
-    expect(cancelledOrderBanner(null)).toBe('');
+  it('writes the install steps, client names, and a short debug log', () => {
     expect(INSTALL_STEPS.join(' ')).toMatch(/Add to Home Screen/);
     expect(INSTALL_STEPS.join(' ')).toMatch(/Install app/);
     expect(clientNamesText([' Ada ', '', null, 'Bo'])).toBe('Ada\nBo');

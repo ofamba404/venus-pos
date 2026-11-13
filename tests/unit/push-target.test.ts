@@ -13,11 +13,11 @@ describe('v2 push targets', () => {
     expect(orderIdFromPushUrl('/#load-store-order=abc%201')).toBe('abc 1');
     expect(
       nextNotificationPath({ url: '/#load-store-order=ord-9', type: 'storefront-order' }),
-    ).toBe('/next/sell#load-store-order=ord-9');
+    ).toBe('/next/orders#order=ord-9');
     expect(nextNotificationPath({ type: 'store-review', url: '/#reviews' })).toBe('/next/reviews');
     expect(nextNotificationPath({ url: '/#store-orders' })).toBe('/next/orders');
     expect(orderIdFromPushUrl('')).toBe('');
-    expect(nextNotificationPath({ orderId: 'plain-id' })).toBe('/next/sell#load-store-order=plain-id');
+    expect(nextNotificationPath({ orderId: 'plain-id' })).toBe('/next/orders#order=plain-id');
     expect(nextNotificationPath({ url: '/pages/reviews.html' })).toBe('/next/reviews');
   });
 

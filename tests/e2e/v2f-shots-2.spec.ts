@@ -5,7 +5,6 @@ import { setClock } from './helpers/clock';
 import { installMockBackend } from '../mock';
 
 const dir = process.env.V2C_SHOT_DIR || '/workspace/shots3';
-const PENDING = 'seed-pending-order';
 
 test.describe('v2f shots at 390px', () => {
   test.beforeEach(async ({ page }) => {
@@ -14,24 +13,10 @@ test.describe('v2f shots at 390px', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
   });
 
-  test('Sell with a loaded order, Review sale opened from Orders, toast, carousel', async ({ page }) => {
+  test('Review sale carousel and toast', async ({ page }) => {
     test.setTimeout(120_000);
     await createNextDriver(page, { role: 'pos_staff' });
-    await page.goto('/next/orders');
-    await page.getByTestId(`load-order-${PENDING}`).click();
-    await page.getByTestId('loaded-order').waitFor();
-    await page.getByRole('dialog', { name: 'Review sale' }).waitFor({ state: 'hidden' }).catch(() => {});
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: `${dir}/v2f-sell-loaded-order.png` });
-
-    await page.goto('/next/orders');
-    await page.getByRole('tab', { name: /In sale/ }).click();
-    await page.getByTestId(`load-order-${PENDING}`).click();
-    await page.getByRole('dialog', { name: 'Review sale' }).waitFor();
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: `${dir}/v2f-cart-sheet-from-orders.png` });
-    await page.getByRole('dialog', { name: 'Review sale' }).getByRole('button', { name: 'Close' }).click();
-    await page.getByRole('dialog').waitFor({ state: 'hidden' });
+    await page.goto('/next/sell');
 
     // Pack carousel: a pack with three flavours.
     await page.getByTestId('product-commander').click();

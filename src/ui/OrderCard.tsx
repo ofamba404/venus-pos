@@ -12,6 +12,8 @@ export function OrderCard({
   lines,
   copies,
   tags,
+  onOpen,
+  testId,
   children,
 }: {
   title: string;
@@ -23,11 +25,26 @@ export function OrderCard({
   copies?: ComponentChildren;
   /** Status tags under the name: Delivery or Pickup, and the green Confirmed tag. */
   tags?: ComponentChildren;
+  /** Tapping the card itself (not a button or the photo swiper) opens the order. */
+  onOpen?: () => void;
+  testId?: string;
   children: ComponentChildren;
 }) {
   const shown = lines.filter((line) => line.name && line.name !== 'Item').slice(0, 3);
   return (
-    <article class="v-order-card order-card">
+    <article
+      class={`v-order-card order-card${onOpen ? ' is-openable' : ''}`}
+      data-testid={testId}
+      onClick={
+        onOpen
+          ? (event) => {
+              const target = event.target as HTMLElement;
+              if (target.closest('button, a, input')) return;
+              onOpen();
+            }
+          : undefined
+      }
+    >
       <div class="order-card__top">
         {photos && photos.length ? <ProductGallery slides={photos} size={56} variant="mini" testId="order-gallery" /> : null}
         <div class="order-card__who">

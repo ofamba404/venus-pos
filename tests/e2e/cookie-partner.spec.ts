@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { installMockBackend } from '../mock';
 import { buildDefaultSeed } from '../fixtures/seed';
-import { expandPartnerUnitsFromSales } from '../../src/domain/partner';
+import { batchBarSquares, expandPartnerUnitsFromSales } from '../../src/domain/partner';
 import { settledCutsFor } from '../../src/domain/partner-send';
 
 // The seed's cookie units, so a test can say "k cookies are open" without hard-coding the seed.
@@ -219,5 +219,30 @@ test.describe('Cookie partner page', () => {
     await page.goto('/next/more');
     await page.getByRole('button', { name: 'Cookie partner' }).click();
     await expect(page.getByTestId('cookie-partner-page')).toBeVisible();
+  });
+
+  test('batch squares wear the cookies sold, for the open batch and a loaded past batch', async ({ page }) => {
+    const { qty } = await open(page, 23);
+    const seedUnits = expandPartnerUnitsFromSales(buildDefaultSeed().sales as Parameters<typeof expandPartnerUnitsFromSales>[0]);
+    const want = batchBarSquares(seedUnits.slice(qty, qty + 25));
+    const bar = page.getByTestId('partner-progress');
+    await expect(bar.locator('.cp-bar__seg.is-flavor')).toHaveCount(23);
+    await expect(bar.locator('.cp-bar__seg:not(.is-on)')).toHaveCount(2);
+    for (const g of want.groups) {
+      await expect(bar.locator(`[data-flavor="${g.flavorId}"]`)).toHaveCount(g.count);
+      await expect(page.getByTestId('partner-legend')).toContainText(`${g.count} ${g.name.toLowerCase()}`);
+    }
+    // Same-flavour squares sit together.
+    const order = await bar.locator('.is-flavor').evaluateAll((els) => els.map((el) => el.getAttribute('data-flavor')));
+    expect(order).toEqual(want.squares.map((s) => s.flavorId));
+    await page.screenshot({ path: '/workspace/shots3/v2j-cookie-partner-colored.png' });
+
+    // A past batch loads into the same card and colours from its own cookies.
+    await page.getByTestId('partner-batch-toggle-1').click();
+    await expect(page.getByTestId('partner-hero')).toHaveAttribute('data-viewing', '1');
+    const cut = settledCutsFor(qty, null)[0]!;
+    const first = batchBarSquares(seedUnits.slice(0, cut));
+    await expect(page.getByTestId('partner-progress').locator('.cp-bar__seg.is-flavor')).toHaveCount(cut);
+    for (const g of first.groups) await expect(page.getByTestId('partner-progress').locator(`[data-flavor="${g.flavorId}"]`)).toHaveCount(g.count);
   });
 });

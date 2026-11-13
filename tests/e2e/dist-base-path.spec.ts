@@ -1,12 +1,18 @@
 import { test, expect } from '@playwright/test';
-import { openCartScenario } from './helpers/open-cart';
 import { createNextDriver } from './drivers/next';
 
 // These run against a production build served under /next/ (the "dist" project), where the base path
 // is real. The Vite dev server can hide routing bugs that only show up there.
 
-test('Orders Review sale opens the Review sale sheet in place under the /next/ base path', async ({ page }) => {
-  await openCartScenario(page);
+test('Orders View order opens the order sheet under the /next/ base path', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await createNextDriver(page, { role: 'pos_staff' });
+  await page.goto('/next/orders');
+  await page.getByTestId('view-order-seed-pending-order').click();
+  await expect(page.getByTestId('store-order-sheet')).toBeVisible();
+  // A notification link lands on the same sheet.
+  await page.goto('/next/orders#order=seed-pending-order');
+  await expect(page.getByTestId('store-order-sheet')).toBeVisible();
 });
 
 test('routes keep the /next/ prefix and unknown deep links land on a real page', async ({ page }) => {

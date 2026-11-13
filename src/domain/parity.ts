@@ -70,11 +70,6 @@ export function readStoredId(raw: string | null, allowed: readonly string[], fal
   return fallback;
 }
 
-export function cancelledOrderBanner(status: string | null | undefined): string {
-  if (status === 'cancelled') return 'This store order was cancelled.';
-  return '';
-}
-
 export const INSTALL_STEPS = [
   'Android: open the browser menu and choose Install app.',
   'iPhone: tap Share, then Add to Home Screen.',

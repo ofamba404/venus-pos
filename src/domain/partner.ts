@@ -2,6 +2,7 @@
  * Cookie partner batching helpers — pure slice of `legacy/js/revenue.js`.
  */
 import {
+  COOKIE_FLAVORS,
   COOKIE_PARTNER_SETTLE_EVERY,
   COOKIE_PARTNER_SETTLED_BASELINE,
   COOKIE_PARTNER_TRACK_FROM_MS,
@@ -217,4 +218,33 @@ export function openPartnerBatches(
   const settled = Math.max(0, Math.round(Number(settledQty) || 0));
   const unsettled = units.slice(settled);
   return cookiePartnerBatchesFromUnits(unsettled, COOKIE_PARTNER_SETTLE_EVERY);
+}
+
+/** The order flavours stack in on the progress bar: the same order everywhere, whatever order they sold in. */
+const BAR_FLAVOR_ORDER = ['chocolate', 'mint', 'strawberry', 'butterscotch'];
+
+export type BarSquare = { flavorId: string; color: string; name: string };
+
+/**
+ * One square per cookie in a batch, grouped by flavour (chocolate, mint, strawberry, butterscotch, then anything
+ * else), coloured with the storefront flavour colour. The bar pads with empty slots to `every`.
+ */
+export function batchBarSquares(units: Array<{ flavorId?: string }> | null | undefined, every = COOKIE_PARTNER_SETTLE_EVERY) {
+  const counts = new Map<string, number>();
+  for (const unit of (units || []).slice(0, every)) {
+    const raw = String(unit.flavorId || 'butterscotch').toLowerCase().replace(/^cookie_/, '');
+    const id = raw === 'cookie' || !raw ? 'butterscotch' : raw;
+    counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  const rank = (id: string) => {
+    const at = BAR_FLAVOR_ORDER.indexOf(id);
+    return at < 0 ? BAR_FLAVOR_ORDER.length : at;
+  };
+  const ids = [...counts.keys()].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  const groups = ids.map((flavorId) => {
+    const named = COOKIE_FLAVORS.find((f) => f.id === flavorId);
+    return { flavorId, name: named?.name || flavorId, color: named?.color || '#6b6459', count: counts.get(flavorId) || 0 };
+  });
+  const squares: BarSquare[] = groups.flatMap((g) => Array.from({ length: g.count }, () => ({ flavorId: g.flavorId, color: g.color, name: g.name })));
+  return { squares, groups, empty: Math.max(0, every - squares.length) };
 }

@@ -78,39 +78,33 @@ test.describe('real-shaped data', () => {
     void rows;
   });
 
-  test('Orders: Review sale rebuilds the cart from an accepted order after a reload, with Plain, Pilot and the free reward line', async ({ page }) => {
+  test('Orders: accepted orders wait with a Confirmed tag, and View order shows what the client ordered, reward line included', async ({ page }) => {
     await setup(page);
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     driver.mock.db.table('store_orders').push(...ACCEPTED);
-    // A fresh phone session: no cart at all, but both orders are already Accepted on the server.
+    // A fresh phone session: no cart at all, but both orders are already accepted on the server.
     await page.goto('/next/orders');
-    await page.getByRole('tab', { name: /In sale/ }).click();
-    await expect(page.getByTestId('load-order-real-acc-1')).toHaveText('Review sale');
+    await expect(page.getByRole('tab', { name: /In sale/ })).toHaveCount(0);
+    await expect(page.getByTestId('view-order-real-acc-1')).toHaveText('View order');
+    await expect(page.getByTestId('confirmed-real-acc-1')).toBeVisible();
+    await expect(page.getByTestId('confirm-order-real-acc-1')).toHaveCount(0);
     await page.waitForTimeout(500);
-    await page.screenshot({ path: `${dir}/v2i-order-cards.png` });
     // Tight cards: each is far shorter than the old ~300px.
-    const heights = await page.locator('article.order-card').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    const heights = await page.locator('article.order-card:has([data-testid^="view-order-real-acc-"])').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    expect(heights).toHaveLength(2);
     for (const h of heights) expect(h).toBeLessThan(190);
-    await page.getByTestId('load-order-real-acc-2').click();
-    await page.waitForURL(/\/next\/sell/);
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
-    await expect(sheet).toBeVisible();
-    await expect(sheet.getByText('No items yet')).toHaveCount(0);
+    await page.getByTestId('view-order-real-acc-2').click();
+    const sheet = page.getByTestId('store-order-sheet');
     await expect(sheet.locator('.v-cart-line')).toHaveCount(2);
     await expect(sheet).toContainText('Pilot Pack');
     await expect(sheet).toContainText('Free Coconut Joint');
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: `${dir}/v2i-review-sale-loaded.png` });
-    await sheet.getByRole('button', { name: 'Close' }).click();
-    await sheet.waitFor({ state: 'hidden' });
-    // Switching to the other accepted order rebuilds the cart from that order.
-    await page.goto('/next/orders');
-    await page.getByRole('tab', { name: /In sale/ }).click();
-    await page.getByTestId('load-order-real-acc-1').click();
-    const again = page.getByRole('dialog', { name: 'Review sale' });
-    await expect(again.locator('.v-cart-line')).toHaveCount(1);
-    await expect(again).toContainText('Plain Joint');
-    await expect(again.getByTestId('line-qty')).toHaveText('×2');
+    await expect(sheet.getByTestId('store-order-total')).toHaveAttribute('data-total', String(15000 + 7500));
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.getByRole('dialog', { name: 'Store order' }).getByRole('button', { name: 'Close' }).click();
+    await page.getByTestId('view-order-real-acc-1').click();
+    await expect(sheet.locator('.v-cart-line')).toHaveCount(1);
+    await expect(sheet).toContainText('Plain Joint');
+    await expect(sheet.getByTestId('line-qty').or(sheet.locator('.v-qty-inline'))).toHaveText('×2');
   });
 
   test('Galleries: rounded-square contain tiles, dots below, the ×N badge off the photo, and the loop only moves forward', async ({ page }) => {
@@ -126,7 +120,7 @@ test.describe('real-shaped data', () => {
       ],
     });
     await page.goto('/next/orders');
-    const card = page.locator('article.order-card', { has: page.getByTestId('load-order-real-gallery') });
+    const card = page.locator('article.order-card', { has: page.getByTestId('view-order-real-gallery') });
     const gallery = card.getByTestId('order-gallery');
     await gallery.waitFor();
     const viewport = gallery.locator('.v-gallery__viewport');

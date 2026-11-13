@@ -29,18 +29,16 @@ test.describe('rendered contrast on the screens with tints', () => {
     });
   }
 
-  test('a loaded delivery order: Sell, the card, and the checkout sheet', async ({ page }) => {
+  test('a delivery order: the Orders card and the store order sheet', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     driver.mock.db.table('store_orders').find((r) => r.id === 'so-confirmed-1')!.items = [
       { product_id: 'variety', product_name: 'Variety Pack', line_total: 50000, breakdown: { mint: 1, strawberry: 1, blueberry: 1, watermelon: 1, grape: 1, coconut: 1, melon: 1, classic: 1 } },
     ];
     await page.goto('/next/orders');
-    await page.getByTestId('load-order-so-confirmed-1').click();
-    await page.waitForURL(/\/sell/);
-    await page.getByTestId('loaded-order').waitFor();
+    await page.getByTestId('view-order-so-confirmed-1').waitFor();
     expect(await contrast(page)).toEqual([]);
-    await page.getByTestId('cart-bar').click();
-    await page.getByRole('dialog', { name: 'Review sale' }).waitFor();
+    await page.getByTestId('view-order-so-confirmed-1').click();
+    await page.getByTestId('store-order-sheet').waitFor();
     expect(await contrast(page)).toEqual([]);
   });
 

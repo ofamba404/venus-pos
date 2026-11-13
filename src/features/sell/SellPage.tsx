@@ -4,8 +4,7 @@ import { kampalaInputToIso, kampalaLocalInput } from '../../domain/kampala-time'
 import { itemToConfigSelection } from '../../domain/pricing/pack-config';
 import { stockNotifyDecision } from '../../domain/stock-notify';
 import { KEYS } from '../../data/keys';
-import { cartOpenWanted, takeCartOpenRequest } from '../../data/cart-request';
-import { cancelledOrderBanner, clientOwesLabel, successCopy } from '../../domain/parity';
+import { clientOwesLabel, successCopy } from '../../domain/parity';
 import { cartStockShortfalls, sellAnywayMessage } from '../../domain/stock-shortfall';
 import { formatUGX } from '../../domain/format';
 import {
@@ -36,12 +35,9 @@ import { checkoutDraft, clearCheckoutDraft, setCheckoutDraft } from '../../data/
 import { ensureDeliveryModel, quoteFeeForDest } from '../../data/delivery-model';
 import { runCheckout } from '../../data/checkout';
 import { features } from '../../data/env';
-import { deviceId } from '../../data/device-id';
 import { deleteHeld, listHeld, saveHeld } from '../../data/held';
 import { flushOutbox, listOutbox, outboxCountLabel } from '../../data/outbox';
-import { mapStoreOrderToCart } from '../../domain/store-order-map';
-import { postStoreReserve } from '../../data/store-reserve';
-import { clients, ensureInventory, inventory, loadClients, loadSales, loadStoreOrders, sales, storeOrders, syncLabel } from '../../data/entities';
+import { clients, ensureInventory, inventory, loadClients, loadSales, sales, syncLabel } from '../../data/entities';
 import { openDebtForClientName } from '../../domain/credit';
 import { counterSellable } from '../../domain/stock-reservation';
 import { haptic } from '../../platform/haptics';
@@ -54,8 +50,6 @@ import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { FlavorPicker } from '../../ui/FlavorPicker';
 import { ProductGallery } from '../../ui/ProductGallery';
 import { lineCount } from '../../domain/line-count';
-import { LoadedOrderCard } from '../../ui/LoadedOrderCard';
-import { confirmStoreOrder, isOrderConfirmed } from '../orders/confirm-order';
 import { ProductGrid } from '../../ui/ProductGrid';
 import { DeliveryBlock } from '../../ui/DeliveryBlock';
 import { CopyButton } from '../../ui/CopyButton';
@@ -72,11 +66,6 @@ export function SellPage() {
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const [selection, setSelection] = useState<Record<string, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
-  // Another page (Orders: Review sale) asked for the Review sale sheet. Open it in place.
-  const cartWanted = cartOpenWanted.value;
-  useEffect(() => {
-    if (cartWanted && takeCartOpenRequest()) setCartOpen(true);
-  }, [cartWanted]);
   const [paying, setPaying] = useState(false);
   const [successTotal, setSuccessTotal] = useState<number | null>(null);
   const [payment, setPayment] = useState<'paid' | 'credit'>('paid');
@@ -111,26 +100,6 @@ export function SellPage() {
     refreshQueue();
     void ensureDeliveryModel().catch(() => {});
     void ensureInventory().catch(() => {});
-    const openLinkedOrder = () => {
-      const hash = window.location.hash.replace(/^#/, '');
-      const deepId = new URLSearchParams(hash).get('load-store-order');
-      if (!deepId) return;
-      void loadStoreOrders()
-        .then((rows) => {
-          const order = rows.find((row) => row.id === deepId);
-          if (!order) return;
-          const mapped = mapStoreOrderToCart(
-            { ...order, items: (order.items || []) as never },
-            { customerName: String(order.customer_name || 'Store order') },
-          );
-          replaceCart(mapped.lines, mapped.meta);
-          setOrderMetaPatch(mapped.meta);
-          setCartOpen(true);
-        })
-        .catch(() => {});
-    };
-    openLinkedOrder();
-    window.addEventListener('hashchange', openLinkedOrder);
     const timer = window.setInterval(() => {
       void ensureInventory().catch(() => {});
     }, 15000);
@@ -147,7 +116,6 @@ export function SellPage() {
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener('hashchange', openLinkedOrder);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('online', onOnline);
       document.removeEventListener('visibilitychange', onVisible);
@@ -313,7 +281,6 @@ export function SellPage() {
       clientName: '',
       clientId: '',
       isCredit: false,
-      storeOrderId: '',
       deliveryLocationLabel: '',
       deliveryTimeLabel: '',
       deliveryDeliverAt: '',
@@ -328,10 +295,6 @@ export function SellPage() {
   }
 
   async function parkSale() {
-    if (meta.storeOrderId) {
-      showToast('Store orders stay on the counter');
-      return;
-    }
     const snap = toHeldSale(cartState.value);
     if (!snap) return;
     try {
@@ -341,7 +304,7 @@ export function SellPage() {
       return;
     }
     clearCartKeepMeta();
-    setOrderMetaPatch({ clientName: '', clientId: '', isCredit: false, storeOrderId: '' });
+    setOrderMetaPatch({ clientName: '', clientId: '', isCredit: false });
     setHeldSales(await listHeld());
     showToast('Held on this phone');
   }
@@ -349,9 +312,7 @@ export function SellPage() {
   async function resumeSale(id: string) {
     const row = (await listHeld()).find((item) => item.id === id);
     if (!row) return;
-    if (meta.storeOrderId) {
-      void postStoreReserve({ op: 'unclaim', id: meta.storeOrderId, device_id: deviceId() });
-    } else if (lines.length) {
+    if (lines.length) {
       const current = toHeldSale(cartState.value);
       if (current) await saveHeld(current);
     }
@@ -373,32 +334,10 @@ export function SellPage() {
         ? 'Credit needs a client name'
         : 'Add a client to continue';
 
-  // The rider collects only when this sale is unpaid: On credit. Paid never shows a Collect line, and a
-  // store order carries no paid flag, so it follows the Paid / On credit choice above and nothing else.
+  // The rider collects only when this sale is unpaid: On credit. Paid never shows a Collect line.
   const collectNow = payment === 'credit' ? cartSum.value : 0;
-  const loadedOrderProps = {
-    name: meta.clientName,
-    delivery: meta.deliveryEnabled !== false,
-    timeLabel: meta.deliveryTimeLabel,
-    place: draft.destText || meta.deliveryLocationLabel || '',
-    phone: meta.clientPhone,
-    lat: draft.dest?.lat ?? null,
-    lng: draft.dest?.lng ?? null,
-    collect: collectNow,
-    itemCount: cartCount.value,
-    total: cartSum.value,
-    // Confirm goes through the same write as the Orders card, so the order reads the same on both.
-    confirmed: isOrderConfirmed(storeOrders.value.find((row) => row.id === meta.storeOrderId)),
-    onConfirm: () => confirmStoreOrder(meta.storeOrderId),
-  };
-
   const cartBody = (
     <>
-      {meta.storeOrderId ? (
-        <div style={{ marginBottom: 'var(--s-3)' }}>
-          <LoadedOrderCard {...loadedOrderProps} testId="loaded-order-cart" />
-        </div>
-      ) : null}
       {features.holdSale && heldSales.length ? (
         <div class="v-chip-row" data-testid="held-sales">
           {heldSales.map((sale) => (
@@ -448,26 +387,10 @@ export function SellPage() {
                 size="sm"
                 label={`Remove ${line.name}`}
                 onClick={() => {
-                  const storeId = meta.storeOrderId;
-                  const emptying = lines.length === 1 && Boolean(storeId);
                   dispatchCart({ type: 'remove_line', key: line.key });
-                  if (emptying && storeId) {
-                    void postStoreReserve({ op: 'unclaim', id: storeId, device_id: deviceId() });
-                    setOrderMetaPatch({ storeOrderId: '' });
-                  }
                   showToast('Removed', {
                     actionLabel: 'Undo',
-                    onAction: () => {
-                      dispatchCart({ type: 'add_line', line });
-                      if (emptying && storeId) {
-                        setOrderMetaPatch({ storeOrderId: storeId });
-                        void postStoreReserve({
-                          op: 'claim',
-                          id: storeId,
-                          device_id: deviceId(),
-                        });
-                      }
-                    },
+                    onAction: () => dispatchCart({ type: 'add_line', line }),
                   });
                 }}
               >
@@ -496,7 +419,7 @@ export function SellPage() {
             });
           }}
         />
-        {!meta.storeOrderId && (features.walkInClient || recentClients.length) ? (
+        {(features.walkInClient || recentClients.length) ? (
           <div class="v-chip-row">
             {features.walkInClient && !credit ? (
               <button
@@ -648,28 +571,7 @@ export function SellPage() {
           <span class="cart-total__label">Total</span>
           <Money className="v-money--total" value={cartSum.value} size="xl" />
         </div>
-        {meta.storeOrderId ? (
-          <div class="v-action-stack">
-            <div class="v-section-label">Store order</div>
-            {cancelledOrderBanner(storeOrders.value.find((row) => row.id === meta.storeOrderId)?.status) ? (
-              <p data-testid="cancelled-banner">
-                {cancelledOrderBanner(storeOrders.value.find((row) => row.id === meta.storeOrderId)?.status)}
-              </p>
-            ) : null}
-            <Button
-              size="md"
-              variant="secondary"
-              data-testid="release-store-order"
-              onClick={() => setOrderMetaPatch({ storeOrderId: '' })}
-            >
-              Unlink
-            </Button>
-            <p class="v-muted" data-testid="unlink-hint">
-              Unlink keeps these items. The order stays in Orders, not cancelled.
-            </p>
-          </div>
-        ) : null}
-        {features.holdSale && lines.length && !meta.storeOrderId ? (
+        {features.holdSale && lines.length ? (
           <Button size="md" variant="ghost" data-testid="hold-sale" onClick={() => void parkSale()}>
             Hold on this phone
           </Button>
@@ -700,15 +602,6 @@ export function SellPage() {
           <p class="v-muted" data-testid="sync-chip">
             {outboxCountLabel(waiting)}
           </p>
-        ) : null}
-        {meta.storeOrderId ? (
-          <div class="v-loaded-order--page">
-            <LoadedOrderCard
-              {...loadedOrderProps}
-              page
-              onUnlink={() => setOrderMetaPatch({ storeOrderId: '' })}
-            />
-          </div>
         ) : null}
         <button
           type="button"

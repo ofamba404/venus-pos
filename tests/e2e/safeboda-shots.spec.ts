@@ -46,23 +46,10 @@ test('capture the SafeBoda copy screens at 390px', async ({ page }) => {
   await page.locator('article.v-order-card').first().screenshot({ path: `${dir}/safeboda-order-card.png` });
   await page.screenshot({ path: `${dir}/safeboda-orders-list.png` });
 
-  await page.getByTestId('load-order-sb-delivery').click();
-  await page.waitForURL(/\/sell/);
-  await page.getByTestId('loaded-order').waitFor();
-  await page.waitForTimeout(4500);
-  await hideNav();
-  await page.getByTestId('loaded-order-copy-all').click();
+  await page.getByTestId('view-order-sb-delivery').click();
+  await page.getByTestId('store-order-sheet').waitFor();
+  await page.waitForTimeout(600);
+  await page.getByTestId('so-copy-all').click();
   await page.waitForTimeout(250);
-  await page.screenshot({ path: `${dir}/safeboda-loaded-order-card.png` });
-
-  await page.getByTestId('cart-bar').click();
-  const review = page.getByRole('dialog', { name: 'Review sale' });
-  await review.waitFor();
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: `${dir}/safeboda-checkout-lines-joints-vs-qty.png` });
-  await review.getByTestId('copy-all').evaluate((el) => el.scrollIntoView({ block: 'center' }));
-  await page.waitForTimeout(300);
-  await review.getByTestId('copy-all').click();
-  await page.waitForTimeout(250);
-  await page.screenshot({ path: `${dir}/safeboda-checkout-delivery-block.png` });
+  await page.screenshot({ path: `${dir}/safeboda-order-sheet.png` });
 });

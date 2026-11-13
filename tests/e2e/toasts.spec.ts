@@ -41,12 +41,11 @@ test.describe('toast audit', () => {
     await expect(page.locator('.v-toast')).toHaveCount(0);
   });
 
-  test('loading an order lands on Sell with the order card and no Loaded toast', async ({ page }) => {
+  test('viewing an order opens the order sheet on Orders, with no toast', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/orders');
-    await page.getByTestId('load-order-seed-pending-order').click();
-    await page.waitForURL(/\/next\/sell/);
-    await expect(page.getByTestId('loaded-order')).toBeVisible();
-    await expect(page.locator('.v-toast').filter({ hasText: /^Loaded/ })).toHaveCount(0);
+    await page.getByTestId('view-order-seed-pending-order').click();
+    await expect(page.getByTestId('store-order-sheet')).toBeVisible();
+    await expect(page.locator('.v-toast')).toHaveCount(0);
   });
 });

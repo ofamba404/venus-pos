@@ -19,7 +19,7 @@ for (const width of [390, 360]) {
     const hideNav = () => page.addStyleTag({ content: '.shell__nav{display:none!important}' });
 
     await page.goto('/next/orders');
-    await page.getByTestId('load-order-so-confirmed-1').waitFor({ timeout: 20_000 });
+    await page.getByTestId('view-order-so-confirmed-1').waitFor({ timeout: 20_000 });
     await page.waitForTimeout(500);
     await hideNav();
     await page.locator('article.v-order-card', { hasText: 'Wolfeschlegelstein' }).first().screenshot({ path: `${dir}/namewrap-orders-card-${width}.png` });
@@ -44,11 +44,9 @@ for (const width of [390, 360]) {
     await page.screenshot({ path: `${dir}/namewrap-clients-${width}.png` });
 
     await page.goto('/next/orders');
-    await page.getByTestId('load-order-so-confirmed-1').click();
-    await page.waitForURL(/\/sell/);
-    await page.getByTestId('loaded-order').waitFor();
-    await page.waitForTimeout(4500);
-    await hideNav();
-    await page.screenshot({ path: `${dir}/namewrap-loaded-order-card-${width}.png` });
+    await page.getByTestId('view-order-so-confirmed-1').click();
+    await page.getByTestId('store-order-sheet').waitFor();
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${dir}/namewrap-order-sheet-${width}.png` });
   });
 }

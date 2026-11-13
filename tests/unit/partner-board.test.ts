@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  batchBarSquares,
   openPartnerBatches,
   partnerBoard,
   proposeSettle,
@@ -53,5 +54,36 @@ describe('cookie partner server state', () => {
       qty: 285,
       batches: [...REAL_CUTS, 23],
     });
+  });
+});
+
+describe('batch progress squares', () => {
+  const of = (flavorId: string, n: number): PartnerUnit[] => Array.from({ length: n }, () => ({ flavorId }));
+
+  it('batch 12: 21 chocolate, 2 mint, 2 empty, in storefront colours', () => {
+    // Sold mint first, then chocolate: the bar still stacks chocolate before mint.
+    const bar = batchBarSquares([...of('mint', 1), ...of('chocolate', 21), ...of('mint', 1)]);
+    expect(bar.squares).toHaveLength(23);
+    expect(bar.empty).toBe(2);
+    expect(bar.squares.slice(0, 21).every((s) => s.flavorId === 'chocolate' && s.color === '#5c2e1f')).toBe(true);
+    expect(bar.squares.slice(21).map((s) => [s.flavorId, s.color])).toEqual([
+      ['mint', '#3CB043'],
+      ['mint', '#3CB043'],
+    ]);
+    expect(bar.groups.map((g) => `${g.count} ${g.name}`)).toEqual(['21 Chocolate', '2 Mint']);
+  });
+
+  it('keeps a stable flavour order, maps the bare cookie to butterscotch and caps at the batch size', () => {
+    const bar = batchBarSquares([...of('butterscotch', 1), ...of('strawberry', 1), ...of('cookie_mint', 1), ...of('', 1), ...of('chocolate', 1)]);
+    expect(bar.groups.map((g) => [g.flavorId, g.color])).toEqual([
+      ['chocolate', '#5c2e1f'],
+      ['mint', '#3CB043'],
+      ['strawberry', '#d81e2c'],
+      ['butterscotch', '#D4A355'],
+    ]);
+    expect(bar.groups[3]!.count).toBe(2);
+    expect(batchBarSquares(of('mint', 40)).squares).toHaveLength(25);
+    expect(batchBarSquares(null)).toMatchObject({ squares: [], empty: 25 });
+    expect(batchBarSquares(of('lavender', 2)).groups[0]).toMatchObject({ flavorId: 'lavender', name: 'lavender' });
   });
 });

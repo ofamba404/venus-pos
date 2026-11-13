@@ -37,6 +37,11 @@ export function readStoredCart(): { lines: CartLine[]; meta: OrderMeta } {
 
 function loadInitial(): CartState {
   const stored = readStoredCart();
+  // Store orders never live in the cart now. A link left in session storage by an older build would tie a walk-in sale to that order.
+  if (stored.meta.storeOrderId) {
+    stored.meta = { ...stored.meta, storeOrderId: '' };
+    writeJson(KEYS.orderMeta, stored.meta);
+  }
   return cartReducer(emptyCart(), { type: 'replace_all', state: stored });
 }
 

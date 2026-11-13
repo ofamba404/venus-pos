@@ -60,18 +60,15 @@ for (const width of [360, 390]) {
       expect(money!.x + money!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
     });
 
-    test('loaded-order card and the checkout header', async ({ page }) => {
+    test('the order sheet name', async ({ page }) => {
       const driver = await createNextDriver(page, { role: 'pos_admin' });
       driver.mock.db.table('store_orders').find((r) => r.id === 'so-confirmed-1')!.customer_name = LONG;
       driver.mock.db.table('store_orders').find((r) => r.id === 'so-confirmed-1')!.items = [
         { product_id: 'scout', product_name: 'Scout Pack', line_total: 8000, breakdown: { strawberry: 1 } },
       ];
       await page.goto('/next/orders');
-      await page.getByTestId('load-order-so-confirmed-1').click();
-      await page.waitForURL(/\/sell/);
-      await expectWhole(page, page.getByTestId('loaded-order-name'));
-      await page.getByTestId('cart-bar').click();
-      await expectWhole(page, page.getByRole('dialog', { name: 'Review sale' }).getByTestId('loaded-order-cart-name'));
+      await page.getByTestId('view-order-so-confirmed-1').click();
+      await expectWhole(page, page.getByTestId('store-order-name'));
     });
 
     test('chase list: the name keeps the row and the buttons drop below', async ({ page }) => {

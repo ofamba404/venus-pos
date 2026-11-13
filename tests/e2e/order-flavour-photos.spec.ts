@@ -74,7 +74,7 @@ test.describe('flavour photos once a pack is in an order', () => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     driver.mock.db.table('store_orders').push(ORDER);
     await page.goto('/next/orders');
-    const card = page.locator('article', { has: page.getByTestId('load-order-photo-order') });
+    const card = page.locator('article', { has: page.getByTestId('view-order-photo-order') });
     const gallery = card.getByTestId('order-gallery');
     await expect(gallery).toHaveAttribute('data-slides', '4');
     const srcs = await gallery.locator('[data-gallery-index] img').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
@@ -136,14 +136,14 @@ test('v2h shots at 390px: plain Sell tiles, a multi-flavour Review sale line, an
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${dir}/v2h-sell-grid-with-pack-in-cart.png` });
   await page.goto('/next/orders');
-  await page.getByTestId('load-order-photo-order').waitFor();
+  await page.getByTestId('view-order-photo-order').waitFor();
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${dir}/v2h-order-card-1.png` });
-  await page.locator('article', { has: page.getByTestId('load-order-photo-order') }).getByTestId('gallery-track').evaluate((el) => el.scrollTo({ left: el.clientWidth * 2, behavior: 'auto' }));
+  await page.locator('article', { has: page.getByTestId('view-order-photo-order') }).getByTestId('gallery-track').evaluate((el) => el.scrollTo({ left: el.clientWidth * 2, behavior: 'auto' }));
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${dir}/v2h-order-card-2.png` });
   // The storefront-shaped Buyer One order (no breakdown) gets the same gallery.
-  const buyer = page.locator('article.order-card', { has: page.getByTestId('load-order-so-pending-1') });
+  const buyer = page.locator('article.order-card', { has: page.getByTestId('view-order-so-pending-1') });
   await buyer.scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${dir}/v2h-order-card-buyer-one.png` });

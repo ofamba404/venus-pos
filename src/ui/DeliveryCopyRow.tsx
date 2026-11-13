@@ -17,7 +17,7 @@ export type DeliveryCopyRowProps = {
   /** Added after the kind, for lists: `copy-phone-${id}`. */
   idSuffix?: string;
   compact?: boolean;
-  /** Orders list cards keep one pill, Copy all, for delivery and pickup alike. Phone and location live on the loaded-order card. */
+  /** Orders list cards keep one pill, Copy all, for delivery and pickup alike. */
   allOnly?: boolean;
 };
 

@@ -21,8 +21,8 @@ Use these on v2 elements. Drivers resolve via `[data-testid="…"]`.
 | Stock qty (opens set count) | `stock-{id}-qty` |
 | Set count keypad confirm | `stock-set-confirm` |
 | Nav | `nav-sell` / `nav-orders` / `nav-stock` / `nav-more` |
-| Orders segment | `orders-waiting` / `orders-in_sale` / `orders-closed` |
-| Load order | `order-load-{id}` |
+| Orders segment | `orders-waiting` / `orders-closed` (no In sale tab) |
+| View order (opens the store order sheet) | `view-order-{id}` |
 | Settle credit amount | `settle-amount` |
 | Settle confirm | `settle-confirm` |
 | Person row / sheet | `person-{clientId or accountId}` / `person-sheet` |
@@ -38,12 +38,12 @@ Use these on v2 elements. Drivers resolve via `[data-testid="…"]`.
 - Money chart: `money-chart`, `money-totals` (hero), `money-profit` and `money-sales` (`data-value`), `money-plot` (`data-unit`), `money-bar` (`data-sales`, `data-profit`), `money-readout` (empty until a bar is tapped), `money-split`, `money-owner`, `money-helper`.
 - Restock: `insights-restock`, `restock-headline`, `restock-row-{id}`, `restock-qty-{id}` (plain text), `restock-key`, `restock-fine-toggle`, `restock-fine-line`, `restock-fine-list`, `copy-restock`.
 - Credit: `insights-credit`, `credit-headline`, `credit-toggle`, `credit-settled`, `credit-age-bar`, `credit-legend`, `credit-person-{key}`, `credit-whatsapp-{key}`, `credit-phone-{key}`, `credit-orders-{key}`, `credit-settle-order-{id}`, `credit-settle-all-{key}`, `credit-settle-sheet`, `credit-settle-amount`, `credit-settle-confirm`.
-- Loaded order: `loaded-order-unlink` (label "Unlink") and `loaded-order-unlink-hint`; in checkout `release-store-order` and `unlink-hint`.
+- Store orders never enter the cart. The old loaded-order card, Unlink, `release-store-order` and Load into sale are gone (see v2j).
 
 ## v2f (sheets, history, hours, gallery)
 
 - Sheets: `v-sheet` gains `is-closing` for 480ms while closing; scrim likewise. Reduced motion unmounts at once.
-- Orders: `status-{id}` tags (In sale, Closed), `orders-{waiting,in_sale,closed}` carry counts.
+- Orders: `status-{id}` tags on Closed cards (Cancelled, Completed, Closed), `orders-{waiting,closed}` carry counts.
 - History: week and day accordion toggles (`history-week-toggle-{key}`, `history-day-toggle-{key}`), owed rows (`history-owed*`). Open a day before asserting a sale row (`tests/e2e/helpers/history.ts`).
 - Insights: no helper until a start day is set. `helper-add` (quiet row) with `helper-add-open`, then `helper-since-input` and `helper-add-cancel`. With a start day: `commission-ledger`, `helper-since-input`, `helper-since-clear`. Tests that need the helper call `withHelper(page)` (`tests/e2e/helpers/helper.ts`); restock card verbs Roll N (joints) and Order N (cookies); `copy-restock` has Roll and Order sections.
 - Cookie partner: `partner-batch-toggle-{n}` opens `partner-batch-detail-{n}`, showing the batch lines.
@@ -55,4 +55,12 @@ Use these on v2 elements. Drivers resolve via `[data-testid="…"]`.
 - Busy: `busy-15` / `busy-30` / `busy-60`, `busy-custom` (opens the same wheels as "Busy until"), `busy-active`, `busy-remaining`, `busy-clear`.
 - Cookie partner: tapping a sent batch (`partner-batch-toggle-N`) loads it into `partner-hero` (`data-viewing=N`, `partner-hero-kicker`, `partner-hero-dates`); `partner-back` returns. No accordion.
 - Galleries loop with clones (`data-gallery-clone`); real slides carry `data-gallery-index`. The ×N badge is `gallery-qty`, outside the photo viewport; dots sit below the tile.
-- Orders: an In sale card whose order is not in this phone's cart rebuilds the cart before opening Review sale. Cards are photo | name+price over tags | items inline | one action row (primary, Copy all, Cancel).
+- Orders: cards are photo | name+price over tags | items inline | one action row (primary, Copy all, Cancel).
+
+## v2j (cart and store order sheet are different drawers)
+- Cart ("Review sale", `cart-bar`): walk-in sales only. No store-order card on Sell, no Unlink, no loaded order. A `storeOrderId` left in session storage by an older build is dropped on load.
+- Orders card: `order-card-{id}` (tap opens the sheet), primary `view-order-{id}` ("View order"; Confirm `confirm-order-{id}` takes the primary slot while the order is pending), `confirmed-{id}` tag (also for accepted orders), `cancel-order-{id}`.
+- Store order sheet (dialog "Store order", read only): `store-order-sheet` (`data-mode` delivery or pickup), `store-order-name`, `store-order-items` (rows reuse `.v-cart-line`, gallery `so-gallery`), `so-place` / `so-phone` / `so-when` with `-value` text and `so-copy-place` / `so-copy-phone` / `so-copy-when`, `so-copy-all`, `so-distance`, `store-order-fee` (the only input; delivery only), `store-order-total` (`data-total` = items + fee), `store-order-pay`, `store-order-confirm`, `store-order-confirmed`, `store-order-checkout`, `store-order-cancel` (two taps).
+- Link: `/next/orders#order=<id>` opens the sheet (push notifications use it; `#load-store-order=<id>` still opens it).
+- Contract driver: `loadStoreOrder` opens the sheet; `charge`, `chargeRetry`, `doubleTapCharge` press `store-order-checkout` while it is open; `setClient` is a no-op there; `confirmStoreOrder` presses `store-order-confirm`; the S27 deep link and its `cartLines` count are read from the sheet's items.
+- Cookie partner bar: flavoured squares carry `data-flavor`, legend `partner-legend`.

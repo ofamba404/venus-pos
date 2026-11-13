@@ -257,7 +257,7 @@ test.describe('write-contract scenarios (next)', () => {
     expect(reward?.line_total).toBe(0);
   });
 
-  test('S21 load and confirm a pending order', async ({ page }) => {
+  test('S21 open, confirm and check out a pending order', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S21);
     const { total, posts } = saleTotal(driver);
@@ -266,7 +266,8 @@ test.describe('write-contract scenarios (next)', () => {
     const statuses = driver.mock.writes
       .filter((w) => w.method === 'PATCH' && w.url.includes('/rest/v1/store_orders'))
       .map((w) => (w.body as { status?: string } | null)?.status);
-    expect(statuses).toContain('accepted');
+    // The order sheet never writes 'accepted': Confirm writes 'confirmed', Checkout writes 'checked_out'.
+    expect(statuses).not.toContain('accepted');
     expect(statuses).toContain('confirmed');
     expect(statuses).toContain('checked_out');
   });
@@ -293,7 +294,7 @@ test.describe('write-contract scenarios (next)', () => {
     expect(saleTotal(driver).total).toBe(8000);
   });
 
-  test('S27 deep link opens the store order', async ({ page }) => {
+  test('S27 deep link opens the store order sheet', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S27);
   });
