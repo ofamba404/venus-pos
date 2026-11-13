@@ -22,7 +22,6 @@ import {
 import { Button } from '../../ui/Button';
 import { Money } from '../../ui/Money';
 import { Sheet } from '../../ui/Sheet';
-import { Collapse } from '../../ui/Collapse';
 import { Tag } from '../../ui/Tag';
 import { IconChevronRight } from '../../ui/icons';
 import { PartnerBar } from './PartnerBar';
@@ -49,8 +48,8 @@ export function CookiePartnerPage() {
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [showAll, setShowAll] = useState(false);
-  // A sent batch opened to see what was in it. Only one at a time.
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  // A sent batch loaded into the top card. Null shows the current (or next) batch.
+  const [viewIndex, setViewIndex] = useState<number | null>(null);
 
   function loadSettle() {
     setFailed(false);
@@ -97,6 +96,17 @@ export function CookiePartnerPage() {
     }))
     .reverse();
   const shown = showAll ? history : history.slice(0, 4);
+  const viewed = viewIndex === null ? null : history.find((b) => b.index === viewIndex) || null;
+
+  function viewBatch(index: number | null) {
+    setViewIndex(index);
+    // The card is at the top of the page. Bring it into view so the tap visibly loads it.
+    try {
+      document.querySelector('[data-testid="partner-hero"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch {
+      /* no scrolling in this environment */
+    }
+  }
 
   async function send() {
     if (!plan || !settle || sending) return;
@@ -127,75 +137,111 @@ export function CookiePartnerPage() {
     <section data-testid="cookie-partner-page">
       <h1 class="page-title">Cookie partner</h1>
 
-      <div class="cp-hero" data-testid="partner-hero">
-        <div class="cp-hero__head">
-          <div>
-            <div class="cp-hero__kicker">{open ? `Batch ${open.index}` : 'Next batch'}</div>
-            <div class="cp-hero__count">
-              <strong data-testid="partner-open-count">{open ? open.cookieCount : 0}</strong>
-              <span>of {every} cookies</span>
-            </div>
-          </div>
-          {plan ? (
-            <Tag tone={plan.kind === 'ready' ? 'bronze' : 'bronze-soft'}>
-              {plan.kind === 'ready' ? 'Full batch ready' : 'Part batch'}
-            </Tag>
-          ) : (
-            <Tag tone="default">{settle ? 'Nothing open' : 'Loading'}</Tag>
-          )}
-        </div>
-        <PartnerBar count={open ? Math.min(open.cookieCount, every) : 0} />
-        {open ? (
-          <div class="cp-figures">
-            <div class="cp-figure" data-testid="partner-due">
-              <span class="cp-figure__label">Send partner</span>
-              <Money value={open.partnerDue} />
-            </div>
-            <div class="cp-figure">
-              <span class="cp-figure__label">Your split</span>
-              <Money value={open.ownerSplit} />
-            </div>
-          </div>
-        ) : null}
-        {plan ? (
+      <div class={`cp-hero${viewed ? ' cp-hero--sent' : ''}`} data-testid="partner-hero" data-viewing={viewed ? viewed.index : undefined}>
+        {viewed ? (
           <>
-            <Button
-              variant="primary"
-              size="xl"
-              data-testid="partner-settle"
-              onClick={() => setConfirming(true)}
-            >
-              {partnerSendLabel(plan)}
+            <div class="cp-hero__head">
+              <div>
+                <div class="cp-hero__kicker" data-testid="partner-hero-kicker">Batch {viewed.index} · Sent</div>
+                <div class="cp-hero__count">
+                  <strong data-testid="partner-open-count">{viewed.cookieCount}</strong>
+                  <span>of {every} cookies</span>
+                </div>
+                <div class="cp-hero__dates" data-testid="partner-hero-dates">{viewed.range || 'Dates not loaded'}</div>
+              </div>
+              <Tag tone={viewed.complete ? 'paid' : 'bronze-soft'}>{viewed.complete ? 'Sent' : 'Part batch sent'}</Tag>
+            </div>
+            <PartnerBar count={Math.min(viewed.cookieCount, every)} />
+            {viewed.partnerDue === null ? null : (
+              <div class="cp-figures">
+                <div class="cp-figure" data-testid="partner-due">
+                  <span class="cp-figure__label">Sent to partner</span>
+                  <Money value={viewed.partnerDue} />
+                </div>
+                {viewed.ownerSplit === null ? null : (
+                  <div class="cp-figure">
+                    <span class="cp-figure__label">Your split</span>
+                    <Money value={viewed.ownerSplit} />
+                  </div>
+                )}
+              </div>
+            )}
+            <Button variant="secondary" size="xl" data-testid="partner-back" onClick={() => viewBatch(null)}>
+              {plan ? `Back to ${open ? `batch ${open.index}` : 'next batch'}` : 'Back to next batch'}
             </Button>
-            <p class="cp-note" data-testid="partner-note">
-              {plan.kind === 'partial'
-                ? 'Sends what is in the batch now. The next batch then starts from 0.'
-                : plan.queued > 0
-                  ? `${plan.queued} more full batch${plan.queued === 1 ? '' : 'es'} stay queued after this one.`
-                  : 'A full batch is ready to send.'}
-            </p>
           </>
         ) : (
-          <p class="cp-note" data-testid="partner-note">
-            {failed
-              ? 'Could not load what is already settled. Sending is off until it loads.'
-              : settle
-                ? 'No cookies waiting. The next batch starts with the next cookie sale.'
-                : 'Loading settlement…'}
-          </p>
+          <>
+            <div class="cp-hero__head">
+              <div>
+                <div class="cp-hero__kicker">{open ? `Batch ${open.index}` : 'Next batch'}</div>
+                <div class="cp-hero__count">
+                  <strong data-testid="partner-open-count">{open ? open.cookieCount : 0}</strong>
+                  <span>of {every} cookies</span>
+                </div>
+              </div>
+              {plan ? (
+                <Tag tone={plan.kind === 'ready' ? 'bronze' : 'bronze-soft'}>
+                  {plan.kind === 'ready' ? 'Full batch ready' : 'Part batch'}
+                </Tag>
+              ) : (
+                <Tag tone="default">{settle ? 'Nothing open' : 'Loading'}</Tag>
+              )}
+            </div>
+            <PartnerBar count={open ? Math.min(open.cookieCount, every) : 0} />
+            {open ? (
+              <div class="cp-figures">
+                <div class="cp-figure" data-testid="partner-due">
+                  <span class="cp-figure__label">Send partner</span>
+                  <Money value={open.partnerDue} />
+                </div>
+                <div class="cp-figure">
+                  <span class="cp-figure__label">Your split</span>
+                  <Money value={open.ownerSplit} />
+                </div>
+              </div>
+            ) : null}
+            {plan ? (
+              <>
+                <Button
+                  variant="primary"
+                  size="xl"
+                  data-testid="partner-settle"
+                  onClick={() => setConfirming(true)}
+                >
+                  {partnerSendLabel(plan)}
+                </Button>
+                <p class="cp-note" data-testid="partner-note">
+                  {plan.kind === 'partial'
+                    ? 'Sends what is in the batch now. The next batch then starts from 0.'
+                    : plan.queued > 0
+                      ? `${plan.queued} more full batch${plan.queued === 1 ? '' : 'es'} stay queued after this one.`
+                      : 'A full batch is ready to send.'}
+                </p>
+              </>
+            ) : (
+              <p class="cp-note" data-testid="partner-note">
+                {failed
+                  ? 'Could not load what is already settled. Sending is off until it loads.'
+                  : settle
+                    ? 'No cookies waiting. The next batch starts with the next cookie sale.'
+                    : 'Loading settlement…'}
+              </p>
+            )}
+            {failed ? (
+              <Button variant="secondary" size="md" onClick={loadSettle}>
+                Try again
+              </Button>
+            ) : null}
+          </>
         )}
-        {failed ? (
-          <Button variant="secondary" size="md" onClick={loadSettle}>
-            Try again
-          </Button>
-        ) : null}
       </div>
 
-      {open && open.lines.length ? (
+      {(viewed ? viewed.lines.length > 0 : open && open.lines.length > 0) ? (
         <>
-          <h2 class="cp-section v-section-label">In this batch</h2>
+          <h2 class="cp-section v-section-label">{viewed ? `In batch ${viewed.index}` : 'In this batch'}</h2>
           <div class="cp-lines" data-testid="partner-batch-lines">
-            {open.lines.map((row, i) => {
+            {(viewed ? viewed.lines : open?.lines || []).map((row, i) => {
               const mix = row.kind === 'single' ? '' : cookieFlavorMixPhrase(row.flavorCounts);
               return (
                 <div class="cp-line" key={i}>
@@ -211,6 +257,10 @@ export function CookiePartnerPage() {
             })}
           </div>
         </>
+      ) : viewed ? (
+        <p class="v-muted" data-testid="partner-batch-nodetail">
+          The sales in this batch are not loaded, so only the count was kept.
+        </p>
       ) : null}
 
       <h2 class="cp-section v-section-label">Already sent</h2>
@@ -223,7 +273,7 @@ export function CookiePartnerPage() {
       </p>
       <div data-testid="partner-history">
         {shown.map((batch) => {
-          const isOpen = openIndex === batch.index;
+          const isOpen = viewIndex === batch.index;
           return (
             <div
               class={`cp-batch${isOpen ? ' is-open' : ''}`}
@@ -233,9 +283,9 @@ export function CookiePartnerPage() {
               <button
                 type="button"
                 class="cp-batch__head"
-                aria-expanded={isOpen}
+                aria-pressed={isOpen}
                 data-testid={`partner-batch-toggle-${batch.index}`}
-                onClick={() => setOpenIndex(isOpen ? null : batch.index)}
+                onClick={() => viewBatch(isOpen ? null : batch.index)}
               >
                 <div class="cp-batch__main">
                   <div class="v-list-row__title">
@@ -249,41 +299,12 @@ export function CookiePartnerPage() {
                   {batch.partnerDue === null ? null : <Money value={batch.partnerDue} />}
                   {batch.complete ? null : <Tag tone="bronze-soft">Part batch</Tag>}
                 </div>
-                <span class={`cp-batch__chev${isOpen ? ' is-open' : ''}`} aria-hidden="true">
-                  <IconChevronRight size={18} />
-                </span>
+                {isOpen ? <Tag tone="bronze">Showing</Tag> : (
+                  <span class="cp-batch__chev" aria-hidden="true">
+                    <IconChevronRight size={18} />
+                  </span>
+                )}
               </button>
-              <Collapse open={isOpen}>
-                <div class="cp-batch__body" data-testid={`partner-batch-detail-${batch.index}`}>
-                  {batch.lines.length ? (
-                    batch.lines.map((row, i) => {
-                      const mix =
-                        row.kind === 'single' ? '' : cookieFlavorMixPhrase(row.flavorCounts);
-                      return (
-                        <div class="cp-line" key={i}>
-                          <div class="cp-line__main">
-                            <div class="cp-line__title">
-                              {row.qty} × {cookieBatchLineTitle(row)}
-                            </div>
-                            {mix ? <div class="cp-line__meta">{mix}</div> : null}
-                          </div>
-                          <Money value={row.revenue} />
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p class="v-muted" data-testid={`partner-batch-nodetail-${batch.index}`}>
-                      The sales in this batch are not loaded, so only the count was kept.
-                    </p>
-                  )}
-                  {batch.ownerSplit === null ? null : (
-                    <div class="cp-batch__split">
-                      <span>Your split</span>
-                      <Money value={batch.ownerSplit} />
-                    </div>
-                  )}
-                </div>
-              </Collapse>
             </div>
           );
         })}

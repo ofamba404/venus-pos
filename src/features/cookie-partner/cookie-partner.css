@@ -202,3 +202,13 @@
   height: 8px;
   margin-top: var(--s-2);
 }
+
+.cp-hero__dates {
+  margin-top: 2px;
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.cp-hero--sent {
+  background: var(--surface-sunk);
+}

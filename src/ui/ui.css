@@ -2477,7 +2477,7 @@ button.kpi-tile {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-height: 10px;
+  min-height: 6px;
 }
 
 .v-gallery__dot {
@@ -2591,11 +2591,9 @@ button.kpi-tile {
   transform: scale(1.25);
 }
 
-/* Mini gallery: the photo on an order card or History row. Same size as the old round thumb; dots sit on the photo. */
+/* Mini gallery: the photo on an order card or History row. The dots sit in a thin row below the tile, never on the photo. */
 .v-gallery--mini {
-  position: relative;
-  display: block;
-  gap: 0;
+  gap: 3px;
 }
 
 .v-gallery--mini .v-gallery__viewport {
@@ -2611,12 +2609,8 @@ button.kpi-tile {
 }
 
 .v-gallery--mini .v-gallery__dots {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 3px;
   gap: 3px;
-  min-height: 0;
+  min-height: 4px;
   pointer-events: none;
 }
 
