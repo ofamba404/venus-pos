@@ -37,8 +37,10 @@ export function HistoryRow({
         ))}
         <span class="v-list-row__meta">{when}</span>
       </span>
-      {tags}
-      {amount}
+      <span class="history-row__end">
+        {amount}
+        {tags}
+      </span>
     </button>
   );
 }

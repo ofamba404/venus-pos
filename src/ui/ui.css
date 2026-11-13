@@ -1970,7 +1970,6 @@ button.kpi-tile {
 }
 
 .order-card__top,
-.history-row,
 .client-card__main,
 .decision-row {
   flex-wrap: wrap;
@@ -1988,12 +1987,34 @@ button.kpi-tile {
 }
 
 .order-card__top > .v-money,
-.history-row > .v-money,
 .client-card__main > .v-money {
   margin-left: auto;
 }
 
-.history-row > .v-tag {
+/* Photo | name and lines | amount over pill. The right column never wraps, so "owes" stays on one line and the pill is whole. */
+.history-row {
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+
+.history-row__end {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  align-content: start;
+  gap: 4px;
+  max-width: 45%;
+  white-space: nowrap;
+}
+
+.history-row__end .history-owed {
+  grid-auto-flow: column;
+  align-items: baseline;
+  column-gap: 6px;
+  justify-items: end;
+}
+
+.history-row__end .v-tag {
   flex: 0 0 auto;
 }
 
@@ -2622,4 +2643,134 @@ button.kpi-tile {
 .v-gallery--mini .v-gallery__track {
   /* Inside a scrolling list: vertical drags must still scroll the page. */
   touch-action: pan-x pan-y;
+}
+
+/* Time chips and our own time picker sheet: three scroll-snap wheels under a big readout. No native time input. */
+.v-clock__chip {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--paper-0);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--fg);
+  font: 500 16px/1 var(--font-mono);
+  text-align: left;
+}
+
+.v-clock__chip.is-empty {
+  color: var(--fg-2);
+}
+
+.v-clock__chip:focus-visible,
+.v-wheel__item:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.v-clock {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.v-clock__readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  color: var(--fg);
+}
+
+.v-clock__digits {
+  font: 600 56px/1 var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+.v-clock__ampm {
+  font: 600 20px/1 var(--font-mono);
+  color: var(--bronze-deep);
+}
+
+.v-clock__wheels {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--s-2);
+}
+
+/* The row that is picked sits in this band. */
+.v-clock__band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% - 22px);
+  height: 44px;
+  border-radius: var(--r-md);
+  background: var(--wash);
+  box-shadow: inset 0 0 0 1px var(--bronze);
+  pointer-events: none;
+}
+
+.v-clock__foot {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.v-clock__foot > .v-btn {
+  flex: 1 1 0;
+}
+
+.v-wheel {
+  position: relative;
+  z-index: 1;
+}
+
+.v-wheel__list {
+  /* Five rows tall. Padding lets the first and last rows reach the middle band. */
+  height: 220px;
+  padding: 88px 0;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+}
+
+.v-wheel__list::-webkit-scrollbar {
+  display: none;
+}
+
+.v-wheel__item {
+  display: block;
+  width: 100%;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg-3);
+  font: 500 22px/44px var(--font-mono);
+  text-align: center;
+  scroll-snap-align: center;
+}
+
+.v-wheel__item.is-on {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.hours__busy-now {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-lg);
+  background: var(--wash);
+}
+
+.hours__busy-left {
+  font: 600 16px/1.3 var(--font-ui);
 }

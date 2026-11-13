@@ -161,25 +161,30 @@ test.describe('Cookie partner page', () => {
     await expect(history.getByTestId('partner-batch-1')).toContainText('Batch 1 · 25/25');
   });
 
-  test('a sent batch opens to show what was in it, one at a time', async ({ page }) => {
+  test('tapping a sent batch loads it into the top card, with a way back, and no accordion', async ({ page }) => {
     const { qty } = await open(page, 6);
     const cuts = settledCutsFor(qty, null);
     const last = cuts.length;
-    const row = page.getByTestId(`partner-batch-${last}`);
-    await expect(row).toBeVisible();
-    await expect(page.getByTestId(`partner-batch-detail-${last}`)).toHaveCount(0);
+    const hero = page.getByTestId('partner-hero');
+    const currentCount = await page.getByTestId('partner-open-count').innerText();
     await page.getByTestId(`partner-batch-toggle-${last}`).click();
-    const detail = page.getByTestId(`partner-batch-detail-${last}`);
-    await expect(detail).toBeVisible();
-    await expect(detail).toContainText('×');
-    await expect(detail).toContainText('Your split');
-    await expect(page.getByTestId(`partner-batch-toggle-${last}`)).toHaveAttribute('aria-expanded', 'true');
-    // Opening another closes this one.
+    await expect(hero).toHaveAttribute('data-viewing', String(last));
+    await expect(page.getByTestId('partner-hero-kicker')).toContainText(`Batch ${last} · Sent`);
+    await expect(page.getByTestId('partner-open-count')).toHaveText(String(cuts[last - 1]));
+    await expect(page.getByTestId('partner-hero-dates')).not.toBeEmpty();
+    await expect(hero).toContainText('Sent to partner');
+    await expect(page.getByTestId('partner-batch-lines')).toContainText('×');
+    await expect(page.getByTestId('partner-settle')).toHaveCount(0);
+    await expect(page.getByTestId(`partner-batch-toggle-${last}`)).toHaveAttribute('aria-pressed', 'true');
+    // Nothing expands under the row any more.
+    await expect(page.getByTestId(`partner-batch-detail-${last}`)).toHaveCount(0);
+    // Another sent batch replaces it in the same card.
     await page.getByTestId(`partner-batch-toggle-${last - 1}`).click();
-    await expect(page.getByTestId(`partner-batch-detail-${last - 1}`)).toBeVisible();
-    await expect(detail).toHaveCount(0);
-    await page.getByTestId(`partner-batch-toggle-${last - 1}`).click();
-    await expect(page.getByTestId(`partner-batch-detail-${last - 1}`)).toHaveCount(0);
+    await expect(hero).toHaveAttribute('data-viewing', String(last - 1));
+    // The way back restores the current batch.
+    await page.getByTestId('partner-back').click();
+    await expect(hero).not.toHaveAttribute('data-viewing', /.*/);
+    await expect(page.getByTestId('partner-open-count')).toHaveText(currentCount);
   });
 
   test('an expired token is refreshed and the batches still load', async ({ page }) => {

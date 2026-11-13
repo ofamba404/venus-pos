@@ -241,23 +241,7 @@ export function OrdersPage() {
           const photos = itemsImageSlides(items.map(orderLine));
           const phone = String(o.phone_e164 || o.phone || '');
           const place = String(o.location_label || '');
-          return (
-          <OrderCard
-            key={o.id}
-            title={orderTitle(o, labels)}
-            total={orderTotal(o)}
-            photos={photos}
-            lines={items.slice(0, 3).map(orderLine)}
-            tags={
-              <>
-                {statusTag(seg, o)}
-                <Tag tone={o.delivery_enabled === false ? 'default' : 'bronze'}>
-                  {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
-                </Tag>
-                {isOrderConfirmed(o) ? <ConfirmedTag testId={`confirmed-${o.id}`} /> : null}
-              </>
-            }
-            copies={
+          const copyRow = (
               <DeliveryCopyRow
                 compact
                 allOnly
@@ -273,6 +257,22 @@ export function OrdersPage() {
                 idPrefix="copy-"
                 idSuffix={`-${o.id}`}
               />
+          );
+          return (
+          <OrderCard
+            key={o.id}
+            title={orderTitle(o, labels)}
+            total={orderTotal(o)}
+            photos={photos}
+            lines={items.slice(0, 3).map(orderLine)}
+            tags={
+              <>
+                {statusTag(seg, o)}
+                <Tag tone={o.delivery_enabled === false ? 'default' : 'bronze'}>
+                  {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
+                </Tag>
+                {isOrderConfirmed(o) ? <ConfirmedTag testId={`confirmed-${o.id}`} /> : null}
+              </>
             }
           >
             <div class="v-order-card__actions">
@@ -293,6 +293,7 @@ export function OrdersPage() {
                   >
                     Load into sale
                   </Button>
+                  {copyRow}
                   <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => void cancelOrder(o)}>
                     Cancel
                   </Button>
@@ -307,11 +308,13 @@ export function OrdersPage() {
                   >
                     Review sale
                   </Button>
+                  {copyRow}
                   <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => void cancelOrder(o)}>
                     Cancel
                   </Button>
                 </>
               ) : null}
+              {seg === 'closed' ? copyRow : null}
               {seg === 'closed' && !o.dismissed_at ? (
                 <Button
                   size="md"

@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { test } from '@playwright/test';
 import { createNextDriver } from './drivers/next';
+import { setClock } from './helpers/clock';
 import { installMockBackend } from '../mock';
 
 const dir = process.env.V2C_SHOT_DIR || '/workspace/shots3';
@@ -67,7 +68,7 @@ test.describe('v2f shots at 390px', () => {
     await page.getByTestId('partner-history').waitFor();
     await page.getByTestId('partner-history-more').click();
     await page.getByTestId('partner-batch-toggle-11').click();
-    await page.getByTestId('partner-batch-detail-11').waitFor();
+    await page.getByTestId('partner-hero').and(page.locator('[data-viewing="11"]')).waitFor();
     await page.waitForTimeout(400);
     await page.getByTestId('partner-history').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${dir}/v2f-cookie-partner-history.png` });
@@ -117,7 +118,7 @@ test.describe('v2f shots at 390px', () => {
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${dir}/v2f-hours.png` });
     await page.getByTestId('busy-30').click();
-    await page.getByTestId('hours-open').fill('08:30');
+    await setClock(page, 'hours-open', '08:30');
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${dir}/v2f-hours-busy-edited.png` });
   });

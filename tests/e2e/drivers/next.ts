@@ -7,6 +7,7 @@ import { computeTodayStats } from '../../../src/domain/today';
 import { getOutstandingCredit, sumCreditOwed } from '../../../src/domain/credit';
 import { groupSalesByDay } from '../../../src/domain/history-groups';
 import { countHistoryDays, openSale } from '../helpers/history';
+import { setClock } from '../helpers/clock';
 
 export type NextDriver = {
   mock: MockHandle;
@@ -254,12 +255,12 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         return;
       case 'setStoreHours': {
         await page.goto('/next/store');
-        await page.getByTestId('hours-open').fill(step.open);
-        await page.getByTestId('hours-close').fill(step.close);
+        await setClock(page, 'hours-open', step.open);
+        await setClock(page, 'hours-close', step.close);
         const suggest = String(step.suggest || '');
         const parts = suggest.split(/[–-]/);
-        if (parts[0]) await page.getByTestId('hours-suggest-start').fill(parts[0].trim());
-        if (parts[1]) await page.getByTestId('hours-suggest-end').fill(parts[1].trim());
+        if (parts[0]) await setClock(page, 'hours-suggest-start', parts[0].trim());
+        if (parts[1]) await setClock(page, 'hours-suggest-end', parts[1].trim());
         await page.getByRole('button', { name: /save hours/i }).click();
         return;
       }

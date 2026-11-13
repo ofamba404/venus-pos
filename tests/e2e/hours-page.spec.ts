@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { setClock } from './helpers/clock';
 import { createNextDriver } from './drivers/next';
 
 test.describe('Hours & availability', () => {
@@ -32,21 +33,22 @@ test.describe('Hours & availability', () => {
     await expect(page.getByTestId('busy-clear')).toHaveCount(0);
   });
 
-  test('hours are time pickers, Save lights up only when something changed, and the preview follows', async ({ page }) => {
+  test('hours are tap-to-set time chips (no native time input), Save lights up only when something changed, and the preview follows', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/store');
     const open = page.getByTestId('hours-open');
-    await expect(open).toHaveAttribute('type', 'time');
+    await expect(open.locator('xpath=self::input')).toHaveCount(0);
+    await expect(page.locator('input[type="time"]')).toHaveCount(0);
     const save = page.getByTestId('hours-save');
     await expect(save).toBeDisabled();
     await expect(save).toHaveText('Saved');
-    await open.fill('08:30');
+    await setClock(page, 'hours-open', '08:30');
     await expect(save).toBeEnabled();
     await expect(save).toHaveText('Save hours');
     await expect(page.getByTestId('hours-preview')).toContainText('Clients see');
     await expect(page.getByTestId('hours-preview')).toContainText('8:30');
-    await page.getByTestId('hours-suggest-start').fill('12:00');
-    await page.getByTestId('hours-suggest-end').fill('17:00');
+    await setClock(page, 'hours-suggest-start', '12:00');
+    await setClock(page, 'hours-suggest-end', '17:00');
     await expect(page.getByTestId('hours-preview')).toContainText('Suggested delivery: 12:00');
     await save.click();
     await expect(page.getByTestId('hours-save')).toHaveText('Saved');
@@ -57,7 +59,7 @@ test.describe('Hours & availability', () => {
   test('clearing an opening time cannot be saved', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/store');
-    await page.getByTestId('hours-close').fill('');
+    await setClock(page, 'hours-close', '');
     await expect(page.getByTestId('hours-save')).toBeDisabled();
   });
 

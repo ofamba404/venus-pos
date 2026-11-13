@@ -12,10 +12,35 @@ import {
 import { sbFetch } from '../../data/api';
 import { KEYS } from '../../data/keys';
 import { patchFulfillment } from '../../data/writes/store';
-import { Field } from '../../ui/Field';
+import { ClockField, TimePickerSheet } from '../../ui/ClockField';
 import { formatClockHHmm, nextOpenAt } from '../../domain/hours';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
+
+/** "42 min left", "1 h 5 min left". */
+function remainingLabel(untilIso: string | null | undefined): string {
+  const ms = untilIso ? new Date(untilIso).getTime() - Date.now() : 0;
+  const total = Math.max(1, Math.ceil(ms / 60_000));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${h ? `${h} h ` : ''}${m || !h ? `${m} min` : ''} left`.replace(/\s+/g, ' ').trim();
+}
+
+/** The next time of day on a 15-minute mark, an hour from now: where the Busy until wheels start. */
+function busyDefaultUntil(): string {
+  const d = new Date(Date.now() + 60 * 60_000);
+  d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** Whole minutes from now to the next HH:mm. A time that has already passed today means tomorrow. */
+function minutesUntil(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number) as [number, number];
+  const target = new Date();
+  target.setHours(h, m, 0, 0);
+  if (target.getTime() <= Date.now() + 60_000) target.setDate(target.getDate() + 1);
+  return Math.max(1, Math.ceil((target.getTime() - Date.now()) / 60_000));
+}
 
 export function StorePage() {
   const [status, setStatus] = useState<FulfillmentStatus>({
@@ -23,6 +48,13 @@ export function StorePage() {
     closeTime: DEFAULT_CLOSE,
   });
   const [busy, setBusy] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  // Re-read the clock so the remaining busy time counts down while the page is open.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
   // What the server last had, so Save only lights up when something changed.
   const [saved, setSaved] = useState<FulfillmentStatus | null>(null);
 
@@ -165,48 +197,47 @@ export function StorePage() {
             {minutes === 60 ? '1 hour' : `${minutes} min`}
           </Button>
         ))}
-        {busyNow ? (
-          <Button size="md" variant="ghost" data-testid="busy-clear" disabled={busy} onClick={() => void setBusyMinutes(null)}>
-            Clear busy
-          </Button>
-        ) : null}
+        <Button size="md" variant="secondary" data-testid="busy-custom" disabled={busy} onClick={() => setCustomOpen(true)}>
+          Custom
+        </Button>
       </div>
+      {busyNow ? (
+        <div class="hours__busy-now" data-testid="busy-active">
+          <div>
+            <div class="hours__busy-left" data-testid="busy-remaining">{remainingLabel(status.busyUntil)}</div>
+            <div class="v-muted">
+              Back to normal at {new Date(status.busyUntil!).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          </div>
+          <Button size="md" variant="secondary" data-testid="busy-clear" disabled={busy} onClick={() => void setBusyMinutes(null)}>
+            Clear
+          </Button>
+        </div>
+      ) : null}
+      <TimePickerSheet
+        open={customOpen}
+        title="Busy until"
+        value=""
+        fallback={busyDefaultUntil()}
+        setLabel="Set busy"
+        onCancel={() => setCustomOpen(false)}
+        onSet={(hhmm) => {
+          setCustomOpen(false);
+          void setBusyMinutes(minutesUntil(hhmm));
+        }}
+      />
 
       <h2 class="v-section-label">Opening hours</h2>
       <div class="hours__grid">
-        <Field
-          label="Opens"
-          type="time"
-          data-testid="hours-open"
-          value={status.openTime || ''}
-          onInput={(e) => setTime('openTime', (e.target as HTMLInputElement).value)}
-        />
-        <Field
-          label="Closes"
-          type="time"
-          data-testid="hours-close"
-          value={status.closeTime || ''}
-          onInput={(e) => setTime('closeTime', (e.target as HTMLInputElement).value)}
-        />
+        <ClockField label="Opens" testId="hours-open" value={status.openTime || ''} onChange={(v) => setTime('openTime', v)} />
+        <ClockField label="Closes" testId="hours-close" value={status.closeTime || ''} onChange={(v) => setTime('closeTime', v)} />
       </div>
 
       <h2 class="v-section-label">Suggested delivery window</h2>
       <p class="v-muted hours__note">The time range the storefront nudges clients toward. Leave empty for none.</p>
       <div class="hours__grid">
-        <Field
-          label="From"
-          type="time"
-          data-testid="hours-suggest-start"
-          value={status.suggestStart || ''}
-          onInput={(e) => setTime('suggestStart', (e.target as HTMLInputElement).value)}
-        />
-        <Field
-          label="To"
-          type="time"
-          data-testid="hours-suggest-end"
-          value={status.suggestEnd || ''}
-          onInput={(e) => setTime('suggestEnd', (e.target as HTMLInputElement).value)}
-        />
+        <ClockField label="From" testId="hours-suggest-start" value={status.suggestStart || ''} onChange={(v) => setTime('suggestStart', v)} />
+        <ClockField label="To" testId="hours-suggest-end" value={status.suggestEnd || ''} onChange={(v) => setTime('suggestEnd', v)} />
       </div>
 
       <div class="hours__preview" data-testid="hours-preview">
