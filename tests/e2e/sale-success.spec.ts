@@ -26,9 +26,12 @@ test.describe('sale success sheet', () => {
     const dialog = page.getByRole('dialog', { name: 'Sale', exact: true });
     await expect(dialog.getByTestId('success-total')).toHaveText(/UGX/);
     await expect(dialog.getByTestId('success-client')).toHaveText('Test Client A');
-    await expect(dialog.getByText('Sale recorded')).toBeVisible();
+    await expect(dialog.getByTestId('success-label')).toHaveText('Sale recorded');
+    // No icon and no green: the amount is the hero.
+    await expect(dialog.locator('.v-success svg')).toHaveCount(0);
+    await expect(dialog.locator('.v-success__check')).toHaveCount(0);
     await page.waitForTimeout(900);
-    await page.screenshot({ path: `${dir}/v2k-success.png` });
+    await page.screenshot({ path: `${dir}/v2l-success.png` });
     await dialog.getByTestId('success-done').click();
     await expect(page.getByTestId('sale-success')).toHaveCount(0);
     await expect(page).toHaveURL(/\/next\/sell/);
@@ -89,7 +92,7 @@ test.describe('sale success sheet', () => {
     await page.getByTestId('store-order-checkout').click();
     await expect(page.getByTestId('sale-success')).toBeVisible();
     await page.waitForTimeout(900);
-    await page.screenshot({ path: `${dir}/v2k-store-order-checkout.png` });
+    await page.screenshot({ path: `${dir}/v2l-store-order-checkout.png` });
     // Done leaves me on Orders.
     await page.getByTestId('success-done').click();
     await expect(page).toHaveURL(/\/next\/orders/);
@@ -104,5 +107,43 @@ test.describe('sale success sheet', () => {
     await page.getByTestId('success-another').click();
     await expect(page).toHaveURL(/\/next\/sell/);
     await expect(page.getByTestId('sale-success')).toHaveCount(0);
+  });
+
+  test('Checkout shows a spinner and is disabled while saving, with the label unchanged', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await page.goto('/next/sell');
+    await page.getByTestId('product-plain_single').click();
+    await page.getByTestId('config-add').click();
+    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    await sheet.getByTestId('cart-client').fill('Test Client A');
+    const charge = sheet.getByTestId('charge');
+    await page.waitForTimeout(500);
+    const before = await charge.boundingBox();
+    const label = await charge.innerText();
+    driver.mock.setLatency(2500);
+    await charge.click();
+    await expect(charge).toBeDisabled();
+    await expect(charge).toHaveAttribute('aria-busy', 'true');
+    await expect(charge.locator('.v-btn__spinner')).toBeVisible();
+    expect(await charge.innerText()).toBe(label);
+    const during = await charge.boundingBox();
+    expect(during!.width).toBe(before!.width);
+    expect(during!.height).toBe(before!.height);
+    await page.screenshot({ path: `${dir}/v2l-checkout-loading.png` });
+    await expect(page.getByTestId('sale-success')).toBeVisible({ timeout: 15000 });
+  });
+
+  test('the spinner breathes instead of turning with reduced motion', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/next/sell');
+    await page.getByTestId('product-plain_single').click();
+    await page.getByTestId('config-add').click();
+    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    await sheet.getByTestId('cart-client').fill('Test Client A');
+    driver.mock.setLatency(2000);
+    await sheet.getByTestId('charge').click();
+    const name = await sheet.getByTestId('charge').locator('.v-btn__spinner').evaluate((el) => getComputedStyle(el).animationName);
+    expect(name).toBe('v-breathe');
   });
 });

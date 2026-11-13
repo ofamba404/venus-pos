@@ -616,14 +616,13 @@ export function SellPage() {
             size="xl"
             data-testid="charge"
             className={chargeReason ? 'v-btn--reason' : ''}
-            disabled={!lines.length || !canCharge || paying}
+            disabled={!lines.length || !canCharge}
+            loading={paying}
             onClick={() => void charge()}
           >
-            {paying
-              ? 'Saving…'
-              : payment === 'credit'
-                ? `Record on credit · ${formatUGX(cartSum.value)}`
-                : `Checkout ${formatUGX(cartSum.value)}`}
+            {payment === 'credit'
+              ? `Record on credit · ${formatUGX(cartSum.value)}`
+              : `Checkout ${formatUGX(cartSum.value)}`}
           </Button>
           {chargeReason ? (
             <p class="charge-reason" data-testid="charge-reason">
@@ -685,14 +684,13 @@ export function SellPage() {
               size="xl"
               data-testid="charge"
               className={chargeReason ? 'v-btn--reason' : ''}
-              disabled={!lines.length || !canCharge || paying}
+              disabled={!lines.length || !canCharge}
+            loading={paying}
               onClick={() => void charge()}
             >
-              {paying
-                ? 'Saving…'
-                : payment === 'credit'
-                  ? `Record on credit · ${formatUGX(cartSum.value)}`
-                  : `Checkout ${formatUGX(cartSum.value)}`}
+              {payment === 'credit'
+                ? `Record on credit · ${formatUGX(cartSum.value)}`
+                : `Checkout ${formatUGX(cartSum.value)}`}
             </Button>
             {chargeReason ? (
               <p class="charge-reason" data-testid="charge-reason">

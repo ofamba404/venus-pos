@@ -123,8 +123,8 @@ function StoreOrderBody({
 
   const footer = open ? (
     <div class="v-so-foot">
-      <Button size="xl" data-testid="store-order-checkout" disabled={paying} onClick={() => void checkout()}>
-        {paying ? 'Saving…' : `Checkout ${formatUGX(total)}`}
+      <Button size="xl" data-testid="store-order-checkout" loading={paying} onClick={() => void checkout()}>
+        {`Checkout ${formatUGX(total)}`}
       </Button>
       <Button
         size="md"

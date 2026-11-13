@@ -192,4 +192,46 @@ test.describe('store order sheet', () => {
     await expect(page.getByTestId('store-order-cancel')).toHaveCount(0);
     await expect(page.getByTestId('store-order-fee')).toHaveCount(0);
   });
+
+  test('a very long location stays on one line in its field, and Copy stays as tall as the other fields', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    const long = 'Plot 14 Acacia Avenue, Block C, Apartment 12B, opposite the old Shell petrol station near Kololo Hill, Kampala Central Division, Uganda';
+    driver.mock.db.table('store_orders').push({ ...DELIVERY, location_label: long });
+    await page.goto('/next/orders');
+    await page.getByTestId('view-order-so-delivery').click();
+    const sheet = page.getByTestId('store-order-sheet');
+    await expect(sheet).toBeVisible();
+    const place = sheet.getByTestId('so-place-value');
+    const phone = sheet.getByTestId('so-phone-value');
+    await expect(place).toHaveText(long);
+    const [pb, hb, pc, hc] = await Promise.all([
+      place.boundingBox(),
+      phone.boundingBox(),
+      sheet.getByTestId('so-copy-place').boundingBox(),
+      sheet.getByTestId('so-copy-phone').boundingBox(),
+    ]);
+    expect(Math.abs(pb!.height - hb!.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(pb!.height - pc!.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(hb!.height - hc!.height)).toBeLessThanOrEqual(1);
+    // It overflows sideways inside the box and the button is still on the same line.
+    await page.screenshot({ path: `${dir}/v2l-store-order-long-location.png` });
+    expect(await place.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    expect(pc!.x).toBeGreaterThanOrEqual(pb!.x + pb!.width - 1);
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${dir}/v2l-store-order-long-location.png` });
+  });
+
+  test('the cart Drop-off field also stays one line with a long location', async ({ page }) => {
+    await createNextDriver(page, { role: 'pos_staff' });
+    await page.goto('/next/sell');
+    await page.getByTestId('product-plain_single').click();
+    await page.getByTestId('config-add').click();
+    const cart = page.getByRole('dialog', { name: 'Review sale' });
+    const input = cart.getByTestId('place-input');
+    await input.fill('Plot 14 Acacia Avenue, Block C, Apartment 12B, opposite the old Shell petrol station near Kololo Hill, Kampala Central Division, Uganda');
+    const [ib, cb] = await Promise.all([input.boundingBox(), cart.getByTestId('copy-location').boundingBox()]);
+    expect(Math.abs(ib!.height - cb!.height)).toBeLessThanOrEqual(1);
+    expect(Math.abs(ib!.y - cb!.y)).toBeLessThanOrEqual(1);
+    expect(await input.evaluate((el) => getComputedStyle(el).textOverflow)).toBe('ellipsis');
+  });
 });

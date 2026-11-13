@@ -202,8 +202,8 @@ function AuthPage() {
               />
             </label>
           ) : null}
-          <Button size="xl" type="submit" disabled={busy}>
-            {busy ? 'Please wait…' : mode === 'forgot' ? 'Send reset link' : mode === 'reset' ? 'Update password' : 'Sign in'}
+          <Button size="xl" type="submit" loading={busy}>
+            {mode === 'forgot' ? 'Send reset link' : mode === 'reset' ? 'Update password' : 'Sign in'}
           </Button>
         </form>
         {mode === 'login' ? (

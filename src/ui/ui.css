@@ -81,6 +81,52 @@
   cursor: not-allowed;
 }
 
+/* Saving: the button keeps its colour and label, and a ring turns at its left edge. */
+.v-btn {
+  position: relative;
+}
+
+.v-btn.is-loading:disabled {
+  background: var(--action);
+  color: var(--on-action);
+  cursor: progress;
+}
+
+.v-btn--secondary.is-loading:disabled,
+.v-btn--ghost.is-loading:disabled {
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.v-btn__spinner {
+  position: absolute;
+  left: var(--s-4);
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
+  animation: v-spin 700ms linear infinite;
+}
+
+@keyframes v-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Reduced motion: the ring does not turn. It breathes instead, which still says "working". */
+@media (prefers-reduced-motion: reduce) {
+  .v-btn__spinner {
+    animation: v-breathe 1400ms ease-in-out infinite;
+  }
+}
+
+@keyframes v-breathe {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
 .v-btn.v-btn--reason:disabled {
   /* Muted ink and neutral, a quiet outline. No amber or orange anywhere on this sheet. */
   background: var(--surface-sunk);
@@ -844,6 +890,10 @@ button.kpi-tile {
   border: 1px solid var(--input-line);
   line-height: var(--hit);
   transition: border-color var(--d-fast), box-shadow var(--d-fast);
+}
+
+.v-field__input {
+  text-overflow: ellipsis;
 }
 
 .v-field__input::placeholder {
@@ -2118,6 +2168,7 @@ body:has(.v-sheet) .v-toast-host {
 
 .v-field-copy .v-copy-btn {
   flex: none;
+  min-height: var(--hit);
 }
 
 .v-copy-row--end {
@@ -2765,6 +2816,7 @@ body:has(.v-sheet) .v-toast-host {
 
 .v-so {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s-5);
   padding-bottom: var(--s-2);
 }
@@ -2790,6 +2842,8 @@ body:has(.v-sheet) .v-toast-host {
 /* Each group (items, delivery details, total) is a section with the same small label and the same rhythm. */
 .v-so-sec {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: var(--s-3);
   align-content: start;
 }
@@ -2813,25 +2867,39 @@ body:has(.v-sheet) .v-toast-host {
 
 .v-so-details {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s-3);
 }
 
 /* Read-only fields: the cart's labelled boxes, on the warm wash so they do not read as inputs. */
 .v-field__input--ro {
-  display: flex;
-  align-items: center;
-  height: auto;
+  /* One line, always. A long location scrolls sideways inside the box instead of making it taller. */
+  display: block;
+  height: var(--hit);
   min-height: var(--hit);
-  padding: var(--s-2) var(--s-3);
-  line-height: 1.35;
+  padding: 0 var(--s-3);
+  line-height: var(--hit);
   background: var(--wash);
   border-color: transparent;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-overflow: ellipsis;
+  scrollbar-width: none;
   user-select: text;
+}
+
+.v-field__input--ro::-webkit-scrollbar {
+  display: none;
+}
+
+.v-so-field {
+  min-width: 0;
 }
 
 .v-so-field__row {
   display: flex;
+  min-width: 0;
   align-items: stretch;
   gap: var(--s-2);
 }
@@ -2848,7 +2916,7 @@ body:has(.v-sheet) .v-toast-host {
 
 .v-so-pair {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
   gap: var(--s-3);
 }
 
@@ -2885,17 +2953,10 @@ body:has(.v-sheet) .v-toast-host {
   text-align: center;
 }
 
-.v-success__check {
-  width: 40px;
-  height: 40px;
-  margin-bottom: var(--s-2);
-  border-radius: var(--r-pill);
-  background: var(--success);
-  color: var(--on-action);
-  display: grid;
-  place-items: center;
-  line-height: 0;
-  animation: v-pop var(--d-base) var(--ease-spring);
+.v-success__label {
+  margin: 0 0 var(--s-1);
+  color: var(--fg-2);
+  font: var(--t-label);
 }
 
 .v-success__total {
@@ -2910,19 +2971,10 @@ body:has(.v-sheet) .v-toast-host {
   color: var(--fg);
 }
 
-.v-success__note {
-  margin: 2px 0 0;
-  color: var(--fg-2);
-  font: var(--t-meta);
-}
+
 
 .v-success-foot {
   display: grid;
   gap: var(--s-2);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .v-success__check {
-    animation: none;
-  }
-}

@@ -52,19 +52,14 @@ export function SaleSuccessSheet() {
     >
       {info ? (
         <div class="v-success" data-testid="sale-success">
-          <div class="v-success__check" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6">
-              <path d="M5 12.5 9.2 17 19 7" />
-            </svg>
-          </div>
+          <p class="v-success__label" data-testid="success-label">
+            {successCopy({ queued: info.queued, credit: info.credit, savingDelivery: info.savingDelivery })}
+          </p>
           <p class="v-success__total" data-testid="success-total">
             {formatUGX(info.total)}
           </p>
           <p class="v-success__client" data-testid="success-client">
             {info.client}
-          </p>
-          <p class="v-success__note">
-            {successCopy({ queued: info.queued, credit: info.credit, savingDelivery: info.savingDelivery })}
           </p>
         </div>
       ) : null}
