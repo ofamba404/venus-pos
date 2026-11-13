@@ -122,9 +122,15 @@ test.describe('SafeBoda copy pills', () => {
     await sheet.getByRole('tab', { name: 'Delivery' }).click();
     await sheet.getByTestId('cart-client').fill('Nakato');
     await sheet.getByTestId('delivery-phone').fill('+256700111222');
-    for (const id of ['copy-phone', 'copy-location', 'copy-all']) {
-      expect(Math.round((await sheet.getByTestId(id).boundingBox())!.height)).toBe(44);
-    }
+    // The country code is its own fixed segment. The box holds the national number only.
+    await expect(sheet.getByTestId('delivery-phone-cc')).toHaveText('+256');
+    await expect(sheet.getByTestId('delivery-phone')).toHaveValue('700111222');
+    // Beside a field, Copy is as tall as the field. Copy all is the plain 44px pill.
+    const phoneBox = (await sheet.getByTestId('delivery-phone').locator('xpath=ancestor::span[contains(@class,"v-phone")]').boundingBox())!;
+    const placeBox = (await sheet.getByTestId('place-input').boundingBox())!;
+    expect(Math.round((await sheet.getByTestId('copy-phone').boundingBox())!.height)).toBe(Math.round(phoneBox.height));
+    expect(Math.round((await sheet.getByTestId('copy-location').boundingBox())!.height)).toBe(Math.round(placeBox.height));
+    expect(Math.round((await sheet.getByTestId('copy-all').boundingBox())!.height)).toBe(44);
     await sheet.getByTestId('copy-phone').click();
     expect(await clip(page)).toBe('700111222');
     await sheet.getByTestId('copy-all').click();
@@ -146,7 +152,8 @@ test.describe('SafeBoda copy pills', () => {
     await page.getByTestId('view-order-so-confirmed-1').click();
     const sheet = page.getByTestId('store-order-sheet');
     await sheet.waitFor();
-    await expect(sheet.getByTestId('so-phone-value')).toHaveText('+256700654321');
+    await expect(sheet.getByTestId('so-phone-cc')).toHaveText('+256');
+    await expect(sheet.getByTestId('so-phone-value')).toHaveText('700654321');
     await expect(sheet.getByTestId('so-place-value')).toHaveText('Kololo Test');
     await sheet.getByTestId('so-copy-phone').click();
     expect(await clip(page)).toBe('700654321');

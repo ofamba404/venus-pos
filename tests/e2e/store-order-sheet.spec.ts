@@ -37,7 +37,7 @@ test.describe('store order sheet', () => {
 
   test('Sell has no store-order or review card, and the cart is only for walk-in sales', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
-    driver.mock.db.table('store_orders').push(DELIVERY);
+    driver.mock.db.table('store_orders').push({ ...DELIVERY });
     await page.goto('/next/sell');
     await page.getByTestId('today-pill').waitFor();
     await expect(page.getByTestId('loaded-order')).toHaveCount(0);
@@ -72,7 +72,7 @@ test.describe('store order sheet', () => {
 
   test('Orders: a tap on the card or View order opens a read-only sheet', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
-    driver.mock.db.table('store_orders').push(DELIVERY);
+    driver.mock.db.table('store_orders').push({ ...DELIVERY });
     await page.goto('/next/orders');
     await page.getByTestId('view-order-so-delivery').waitFor();
     await page.waitForTimeout(400);
@@ -89,7 +89,8 @@ test.describe('store order sheet', () => {
     await expect(sheet.locator('input')).toHaveCount(1); // the delivery fee, nothing else
     await expect(sheet.getByTestId('so-gallery').first()).toBeVisible();
     await expect(sheet.getByTestId('so-place-value')).toContainText('Acacia Avenue');
-    await expect(sheet.getByTestId('so-phone-value')).toHaveText('+256700333444');
+    await expect(sheet.getByTestId('so-phone-cc')).toHaveText('+256');
+    await expect(sheet.getByTestId('so-phone-value')).toHaveText('700333444');
     await expect(sheet.getByTestId('so-when-value')).toHaveText('Tomorrow, 5:30 PM');
     await expect(sheet.getByTestId('so-distance-value')).toHaveText('6.4 km · ~22 min');
     await expect(sheet.getByTestId('store-order-confirmed')).toBeVisible();
@@ -98,7 +99,7 @@ test.describe('store order sheet', () => {
     await expect(sheet.getByTestId('so-copy-when')).toHaveCount(0);
     await expect(sheet.getByTestId('so-copy-all')).toHaveCount(0);
     for (const id of ['place', 'phone']) {
-      const box = (await sheet.getByTestId(`so-${id}-value`).boundingBox())!;
+      const box = (await sheet.getByTestId(id === 'phone' ? 'so-phone-box' : `so-${id}-value`).boundingBox())!;
       const btn = (await sheet.getByTestId(`so-copy-${id}`).boundingBox())!;
       expect(Math.abs(box.height - btn.height)).toBeLessThanOrEqual(1);
       expect(Math.abs(box.y - btn.y)).toBeLessThanOrEqual(1);
@@ -112,7 +113,7 @@ test.describe('store order sheet', () => {
 
   test('the delivery fee updates the total, and Checkout records the sale from the order', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
-    driver.mock.db.table('store_orders').push(DELIVERY);
+    driver.mock.db.table('store_orders').push({ ...DELIVERY });
     await page.goto('/next/orders');
     await page.getByTestId('view-order-so-delivery').click();
     const sheet = page.getByTestId('store-order-sheet');
@@ -202,11 +203,11 @@ test.describe('store order sheet', () => {
     const sheet = page.getByTestId('store-order-sheet');
     await expect(sheet).toBeVisible();
     const place = sheet.getByTestId('so-place-value');
-    const phone = sheet.getByTestId('so-phone-value');
+    const phone = sheet.getByTestId('so-phone-box');
     await expect(place).toHaveText(long);
     const [pb, hb, pc, hc] = await Promise.all([
       place.boundingBox(),
-      phone.boundingBox(),
+      sheet.getByTestId('so-phone-box').boundingBox(),
       sheet.getByTestId('so-copy-place').boundingBox(),
       sheet.getByTestId('so-copy-phone').boundingBox(),
     ]);
@@ -233,5 +234,21 @@ test.describe('store order sheet', () => {
     expect(Math.abs(ib!.height - cb!.height)).toBeLessThanOrEqual(1);
     expect(Math.abs(ib!.y - cb!.y)).toBeLessThanOrEqual(1);
     expect(await input.evaluate((el) => getComputedStyle(el).textOverflow)).toBe('ellipsis');
+  });
+
+  test('the phone shows +256 as its own segment and Copy gives the 9-digit national number', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    driver.mock.db.table('store_orders').push({ ...DELIVERY });
+    await page.goto('/next/orders');
+    await page.getByTestId('view-order-so-delivery').click();
+    const sheet = page.getByTestId('store-order-sheet');
+    await expect(sheet.getByTestId('so-phone-cc')).toHaveText('+256');
+    await expect(sheet.getByTestId('so-phone-value')).toHaveText('700333444');
+    await sheet.getByTestId('so-phone').scrollIntoViewIfNeeded();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${dir}/v2m-phone-field.png` });
+    await sheet.getByTestId('so-copy-phone').click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('700333444');
   });
 });

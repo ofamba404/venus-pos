@@ -13,6 +13,7 @@ import { ConfirmButton, ConfirmedTag } from '../../ui/ConfirmOrder';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { Money } from '../../ui/Money';
 import { ProductGallery } from '../../ui/ProductGallery';
+import { ReadPhone } from '../../ui/PhoneField';
 import { Sheet } from '../../ui/Sheet';
 import { Tag } from '../../ui/Tag';
 import { showToast } from '../../ui/ToastHost';
@@ -200,8 +201,7 @@ function StoreOrderBody({
                 />
               ) : null}
               {phone ? (
-                <ReadField
-                  label="Phone"
+                <ReadPhone
                   value={phone}
                   testId="so-phone"
                   copy={<CopyButton kind="phone" label="Copy" ariaLabel="Copy phone" compact testId="so-copy-phone" value={() => copyPhoneText(phone)} />}

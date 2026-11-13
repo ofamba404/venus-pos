@@ -61,6 +61,7 @@ import { PlaceSearch } from '../../ui/PlaceSearch';
 import { showToast } from '../../ui/ToastHost';
 import { IconButton } from '../../ui/IconButton';
 import { IconClose, IconPlus } from '../../ui/icons';
+import { PhoneField } from '../../ui/PhoneField';
 
 export function SellPage() {
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
@@ -516,12 +517,10 @@ export function SellPage() {
               }}
             />
             <div class="v-field-copy">
-              <Field
-                label="Phone"
-                data-testid="delivery-phone"
+              <PhoneField
+                testId="delivery-phone"
                 value={meta.clientPhone}
-                placeholder="+256…"
-                onInput={(e) => setOrderMetaPatch({ clientPhone: (e.target as HTMLInputElement).value })}
+                onChange={(clientPhone) => setOrderMetaPatch({ clientPhone })}
               />
               <CopyButton
                 kind="phone"

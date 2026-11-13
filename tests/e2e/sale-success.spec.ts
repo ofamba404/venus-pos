@@ -27,11 +27,13 @@ test.describe('sale success sheet', () => {
     await expect(dialog.getByTestId('success-total')).toHaveText(/UGX/);
     await expect(dialog.getByTestId('success-client')).toHaveText('Test Client A');
     await expect(dialog.getByTestId('success-label')).toHaveText('Sale recorded');
-    // No icon and no green: the amount is the hero.
-    await expect(dialog.locator('.v-success svg')).toHaveCount(0);
+    // The store's mark: an ink ring and check, not a green blob.
+    const stroke = await dialog.locator('.v-ok__mark-ring').evaluate((el) => getComputedStyle(el).stroke);
+    expect(stroke).toBe('rgb(33, 33, 33)');
     await expect(dialog.locator('.v-success__check')).toHaveCount(0);
-    await page.waitForTimeout(900);
-    await page.screenshot({ path: `${dir}/v2l-success.png` });
+    await expect(dialog.getByText('Amount')).toBeVisible();
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: `${dir}/v2m-success.png` });
     await dialog.getByTestId('success-done').click();
     await expect(page.getByTestId('sale-success')).toHaveCount(0);
     await expect(page).toHaveURL(/\/next\/sell/);
@@ -65,9 +67,9 @@ test.describe('sale success sheet', () => {
   test('a swipe down dismisses it, a short drag springs back', async ({ page }) => {
     await sellOne(page);
     await page.waitForTimeout(900);
-    const box = (await page.getByRole('dialog', { name: 'Sale', exact: true }).boundingBox())!;
+    const box = (await page.locator('.v-ok__panel').boundingBox())!;
     const x = box.x + box.width / 2;
-    const y = box.y + 30;
+    const y = box.y + 14;
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(x, y + 30, { steps: 3 });
@@ -80,7 +82,7 @@ test.describe('sale success sheet', () => {
     await page.mouse.up();
     await expect(page.getByTestId('sale-success')).toHaveCount(0);
     // Nothing is left over the page.
-    await expect(page.locator('.v-sheet-scrim')).toHaveCount(0);
+    await expect(page.locator('.v-ok')).toHaveCount(0);
     await page.getByTestId('product-plain_single').click();
     await expect(page.getByTestId('config-add')).toBeVisible();
   });
