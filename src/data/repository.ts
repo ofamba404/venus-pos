@@ -14,12 +14,13 @@ export const STALE_MS: Record<EntityName, number> = {
 
 /** v1 query strings. Clients in the app stay `select=*` so the sheet can show a phone. */
 export const QUERIES = {
-  salesRecent: 'sales?select=*&order=created_at.desc&limit=2000',
+  /** Read a page at a time (see `sbFetchAll`): the server caps one response, so a single limit=2000 silently drops older rows. */
+  salesRecent: 'sales?select=*&order=created_at.desc,id.desc',
   salesOpenCredit:
     'sales?is_credit=eq.true&credit_cleared=eq.false&select=*&order=created_at.desc',
   inventory: 'inventory?select=category_id,stock',
   clients: 'clients?select=id,name,created_at&order=name.asc',
-  clientsApp: 'clients?select=*&order=name.asc&limit=500',
+  clientsApp: 'clients?select=*&order=name.asc,id.asc',
   deliveries:
     'deliveries?select=id,client_id,client_name,sale_id,origin_lat,origin_lng,origin_label,dest_lat,dest_lng,dest_label,distance_km,duration_min,fee_ugx,predicted_fee_ugx,fee_was_edited,created_at&order=created_at.desc&limit=500',
   storeOrders:
@@ -75,14 +76,40 @@ export function keepCachedRows(rows: unknown, hadData: boolean, trustEmpty = fal
   return !trustEmpty && Array.isArray(rows) && rows.length === 0 && hadData;
 }
 
+/** PostgREST answers at most its own row cap per request (often 1000), whatever `limit` says. */
+export const PAGE_SIZE = 1000;
+const MAX_PAGES = 30;
+
+/**
+ * Every row of a query, a page at a time, until a page comes back short. Rows are de-duplicated by `id`, since
+ * rows added while paging can shift a boundary. Throws on a failed page rather than returning part of the list.
+ */
+export async function sbFetchAll<T extends { id?: string }>(path: string, pageSize = PAGE_SIZE): Promise<T[]> {
+  const all: T[] = [];
+  const seen = new Set<string>();
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const res = await sbFetch(`${path}${path.includes('?') ? '&' : '?'}limit=${pageSize}&offset=${page * pageSize}`);
+    if (!res.ok) throw new Error(`Supabase ${res.status}`);
+    const rows = await res.json();
+    if (!Array.isArray(rows)) break;
+    for (const row of rows as T[]) {
+      const id = row?.id;
+      if (id) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+      }
+      all.push(row);
+    }
+    if (rows.length < pageSize) break;
+  }
+  return all;
+}
+
 export async function fetchSalesMerged(): Promise<SaleLike[]> {
-  const [recentRes, openRes] = await Promise.all([
-    sbFetch(QUERIES.salesRecent),
+  const [recent, openRes] = await Promise.all([
+    sbFetchAll<SaleLike>(QUERIES.salesRecent),
     sbFetch(QUERIES.salesOpenCredit),
   ]);
-  if (!recentRes.ok) throw new Error(`Supabase ${recentRes.status}`);
-  const recent = await recentRes.json();
-  if (!Array.isArray(recent)) return [];
   if (!openRes.ok) return recent;
   const open = await openRes.json();
   if (!Array.isArray(open)) return recent;
@@ -90,10 +117,7 @@ export async function fetchSalesMerged(): Promise<SaleLike[]> {
 }
 
 export async function fetchClients(): Promise<unknown[]> {
-  const res = await sbFetch(QUERIES.clientsApp);
-  if (!res.ok) throw new Error(`Supabase ${res.status}`);
-  const rows = await res.json();
-  return Array.isArray(rows) ? rows : [];
+  return sbFetchAll<{ id?: string }>(QUERIES.clientsApp);
 }
 
 const loads = new Map<string, Promise<unknown>>();

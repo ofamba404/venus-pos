@@ -161,6 +161,47 @@ test.describe('Cookie partner page', () => {
     await expect(history.getByTestId('partner-batch-1')).toContainText('Batch 1 · 25/25');
   });
 
+  test('a sent batch opens to show what was in it, one at a time', async ({ page }) => {
+    const { qty } = await open(page, 6);
+    const cuts = settledCutsFor(qty, null);
+    const last = cuts.length;
+    const row = page.getByTestId(`partner-batch-${last}`);
+    await expect(row).toBeVisible();
+    await expect(page.getByTestId(`partner-batch-detail-${last}`)).toHaveCount(0);
+    await page.getByTestId(`partner-batch-toggle-${last}`).click();
+    const detail = page.getByTestId(`partner-batch-detail-${last}`);
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText('×');
+    await expect(detail).toContainText('Your split');
+    await expect(page.getByTestId(`partner-batch-toggle-${last}`)).toHaveAttribute('aria-expanded', 'true');
+    // Opening another closes this one.
+    await page.getByTestId(`partner-batch-toggle-${last - 1}`).click();
+    await expect(page.getByTestId(`partner-batch-detail-${last - 1}`)).toBeVisible();
+    await expect(detail).toHaveCount(0);
+    await page.getByTestId(`partner-batch-toggle-${last - 1}`).click();
+    await expect(page.getByTestId(`partner-batch-detail-${last - 1}`)).toHaveCount(0);
+  });
+
+  test('an expired token is refreshed and the batches still load', async ({ page }) => {
+    const qty = TOTAL - 6;
+    await installMockBackend(page, { role: 'pos_admin', partnerSettle: { qty, batches: settledCutsFor(qty, null) } });
+    let first = true;
+    let seen401 = 0;
+    await page.route('**/api/cookie-partner/settle', async (route) => {
+      if (route.request().method() === 'GET' && first) {
+        first = false;
+        seen401 += 1;
+        await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'Unauthorized' }) });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.goto('/next/cookie-partner');
+    await expect(page.getByTestId('partner-settled-qty')).toHaveText(`${qty} cookies already settled`);
+    expect(seen401).toBe(1);
+    await expect(page.getByTestId(`partner-batch-${settledCutsFor(qty, null).length}`)).toBeVisible();
+  });
+
   test('Insights keeps a small summary that opens the page, and More lists it', async ({ page }) => {
     await open(page, 6);
     await page.goto('/next/insights');

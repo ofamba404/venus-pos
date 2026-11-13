@@ -20,7 +20,7 @@ describe('repository', () => {
       clients: 30 * 60_000,
       deliveries: 15 * 60_000,
     });
-    expect(QUERIES.salesRecent).toBe('sales?select=*&order=created_at.desc&limit=2000');
+    expect(QUERIES.salesRecent).toBe('sales?select=*&order=created_at.desc,id.desc');
     expect(QUERIES.salesOpenCredit).toBe(
       'sales?is_credit=eq.true&credit_cleared=eq.false&select=*&order=created_at.desc',
     );

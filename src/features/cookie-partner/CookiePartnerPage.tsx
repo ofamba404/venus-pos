@@ -23,10 +23,23 @@ import { Button } from '../../ui/Button';
 import { Money } from '../../ui/Money';
 import { Sheet } from '../../ui/Sheet';
 import { Tag } from '../../ui/Tag';
+import { IconChevronRight } from '../../ui/icons';
 import { PartnerBar } from './PartnerBar';
 import { showToast } from '../../ui/ToastHost';
 
 type Settle = { qty: number; batches: number[] };
+
+/** "9 Nov – 12 Nov" for the sales that made up one sent batch, or '' when they are not loaded. */
+function batchRange(units: Array<{ created_at?: string }>, cuts: number[], index: number): string {
+  const start = cuts.slice(0, index).reduce((a, b) => a + b, 0);
+  const first = units[start]?.created_at;
+  const last = units[start + (cuts[index] || 1) - 1]?.created_at;
+  if (!first || !last) return '';
+  const fmt = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const a = fmt(first);
+  const b = fmt(last);
+  return a === b ? a : `${a} – ${b}`;
+}
 
 export function CookiePartnerPage() {
   const [settle, setSettle] = useState<Settle | null>(null);
@@ -34,6 +47,8 @@ export function CookiePartnerPage() {
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  // A sent batch opened to see what was in it. Only one at a time.
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   function loadSettle() {
     setFailed(false);
@@ -68,6 +83,9 @@ export function CookiePartnerPage() {
       every: COOKIE_PARTNER_SETTLE_EVERY,
       complete: count >= COOKIE_PARTNER_SETTLE_EVERY,
       partnerDue: board.settled[i]?.partnerDue ?? null,
+      ownerSplit: board.settled[i]?.ownerSplit ?? null,
+      lines: board.settled[i]?.lines ?? [],
+      range: batchRange(units, cuts, i),
     }))
     .reverse();
   const shown = showAll ? history : history.slice(0, 4);
@@ -187,20 +205,64 @@ export function CookiePartnerPage() {
         {settle ? `${qty} cookies already settled` : failed ? 'Settlement unavailable' : 'Loading settlement…'}
       </p>
       <div data-testid="partner-history">
-        {shown.map((batch) => (
-          <div class="cp-batch" key={batch.index} data-testid={`partner-batch-${batch.index}`}>
-            <div class="cp-batch__main">
-              <div class="v-list-row__title">
-                Batch {batch.index} · {batch.cookieCount}/{batch.every}
-              </div>
-              <div class="v-list-row__meta">Sent</div>
+        {shown.map((batch) => {
+          const isOpen = openIndex === batch.index;
+          return (
+            <div class={`cp-batch${isOpen ? ' is-open' : ''}`} key={batch.index} data-testid={`partner-batch-${batch.index}`}>
+              <button
+                type="button"
+                class="cp-batch__head"
+                aria-expanded={isOpen}
+                data-testid={`partner-batch-toggle-${batch.index}`}
+                onClick={() => setOpenIndex(isOpen ? null : batch.index)}
+              >
+                <div class="cp-batch__main">
+                  <div class="v-list-row__title">
+                    Batch {batch.index} · {batch.cookieCount}/{batch.every}
+                  </div>
+                  <div class="v-list-row__meta">{batch.range ? `Sent · ${batch.range}` : 'Sent'}</div>
+                </div>
+                <div class="cp-batch__end">
+                  {batch.partnerDue === null ? null : <Money value={batch.partnerDue} />}
+                  {batch.complete ? null : <Tag tone="bronze-soft">Part batch</Tag>}
+                </div>
+                <span class={`cp-batch__chev${isOpen ? ' is-open' : ''}`} aria-hidden="true">
+                  <IconChevronRight size={18} />
+                </span>
+              </button>
+              {isOpen ? (
+                <div class="cp-batch__body" data-testid={`partner-batch-detail-${batch.index}`}>
+                  {batch.lines.length ? (
+                    batch.lines.map((row, i) => {
+                      const mix = row.kind === 'single' ? '' : cookieFlavorMixPhrase(row.flavorCounts);
+                      return (
+                        <div class="cp-line" key={i}>
+                          <div class="cp-line__main">
+                            <div class="cp-line__title">
+                              {row.qty} × {cookieBatchLineTitle(row)}
+                            </div>
+                            {mix ? <div class="cp-line__meta">{mix}</div> : null}
+                          </div>
+                          <Money value={row.revenue} />
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p class="v-muted" data-testid={`partner-batch-nodetail-${batch.index}`}>
+                      The sales in this batch are not loaded, so only the count was kept.
+                    </p>
+                  )}
+                  {batch.ownerSplit === null ? null : (
+                    <div class="cp-batch__split">
+                      <span>Your split</span>
+                      <Money value={batch.ownerSplit} />
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
-            <div class="cp-batch__end">
-              {batch.partnerDue === null ? null : <Money value={batch.partnerDue} />}
-              {batch.complete ? null : <Tag tone="bronze-soft">Part batch</Tag>}
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {!history.length && settle ? <p class="v-muted">No batches sent yet</p> : null}
       </div>
       {history.length > 4 ? (

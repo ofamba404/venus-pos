@@ -120,13 +120,18 @@
 }
 
 .cp-batch {
+  border-bottom: 1px solid var(--line);
+}
+
+.cp-batch__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
+  width: 100%;
   min-height: var(--hit-lg);
   padding: var(--s-2) 0;
-  border-bottom: 1px solid var(--line);
+  text-align: left;
 }
 
 .cp-batch__main {
@@ -138,6 +143,29 @@
   display: grid;
   justify-items: end;
   gap: 4px;
+}
+
+.cp-batch__chev {
+  display: grid;
+  color: var(--fg-3);
+  transition: transform var(--d-base) var(--ease-out);
+}
+
+.cp-batch__chev.is-open {
+  transform: rotate(90deg);
+}
+
+.cp-batch__body {
+  display: grid;
+  gap: var(--s-2);
+  padding: 0 0 var(--s-3);
+}
+
+.cp-batch__split {
+  display: flex;
+  justify-content: space-between;
+  font: var(--t-meta);
+  color: var(--fg-2);
 }
 
 .cp-confirm {

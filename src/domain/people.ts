@@ -9,6 +9,8 @@ export type PersonClient = { id: string; name?: string | null; phone?: string | 
 export type PersonAccount = {
   id: string;
   phone?: string | null;
+  /** Some account lists name the number this way. */
+  phone_e164?: string | null;
   pos_display_name?: string | null;
   verified?: boolean;
 };
@@ -33,12 +35,17 @@ export function phoneKey(raw: string | null | undefined): string {
   return digits.length === 9 ? digits : '';
 }
 
+/** An account's number, whichever column the list used. */
+function accountPhone(account: PersonAccount | null | undefined): string {
+  return String(account?.phone || account?.phone_e164 || '');
+}
+
 export function personName(client: PersonClient | null, account: PersonAccount | null): string {
   const fromClient = String(client?.name || '').trim();
   if (fromClient) return fromClient;
   const fromAccount = String(account?.pos_display_name || '').trim();
   if (fromAccount) return fromAccount;
-  return String(client?.phone || account?.phone || '').trim() || 'Client';
+  return String(client?.phone || accountPhone(account)).trim() || 'Client';
 }
 
 export function mergePeople(
@@ -53,7 +60,7 @@ export function mergePeople(
   const lastBy = extras.lastOrderByClient || new Map<string, string>();
   const accountByPhone = new Map<string, PersonAccount>();
   for (const account of accounts) {
-    const key = phoneKey(account.phone);
+    const key = phoneKey(accountPhone(account));
     if (key && !accountByPhone.has(key)) accountByPhone.set(key, account);
   }
   const used = new Set<string>();
@@ -67,7 +74,7 @@ export function mergePeople(
     people.push({
       key: `c:${client.id}`,
       name: personName(client, joined),
-      phone: String(client.phone || joined?.phone || ''),
+      phone: String(client.phone || accountPhone(joined)),
       client,
       account: joined,
       owed: owedBy.get(client.id) || 0,
@@ -79,7 +86,7 @@ export function mergePeople(
     people.push({
       key: `a:${account.id}`,
       name: personName(null, account),
-      phone: String(account.phone || ''),
+      phone: accountPhone(account),
       client: null,
       account,
       owed: 0,
