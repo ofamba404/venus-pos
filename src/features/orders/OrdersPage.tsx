@@ -102,6 +102,15 @@ function orderTotal(o: StoreOrderRow): number {
   }, 0);
 }
 
+/** Where the order stands, as a tag: In sale (bronze), Cancelled (red), Completed or Closed (neutral). */
+function statusTag(seg: OrderSegment, o: StoreOrderRow) {
+  if (seg === 'in_sale') return <Tag tone="bronze" testId={`status-${o.id}`}>In sale</Tag>;
+  if (seg !== 'closed') return null;
+  if (o.status === 'cancelled') return <Tag tone="danger" testId={`status-${o.id}`}>Cancelled</Tag>;
+  if (o.status === 'checked_out') return <Tag tone="default" testId={`status-${o.id}`}>Completed</Tag>;
+  return <Tag tone="default" testId={`status-${o.id}`}>Closed</Tag>;
+}
+
 export function OrdersPage() {
   const [seg, setSeg] = useState<Segment>('waiting');
   const [loading, setLoading] = useState(true);
@@ -126,6 +135,8 @@ export function OrdersPage() {
 
   const loadedId = orderMeta.value.storeOrderId || '';
   const list = storeOrders.value.filter((o) => orderSegment(o, loadedId) === seg);
+  const counts = { waiting: 0, in_sale: 0, closed: 0 } as Record<OrderSegment, number>;
+  for (const o of storeOrders.value) counts[orderSegment(o, loadedId)] += 1;
 
   /** The order is already in the cart. Go to Sell and open the Review sale sheet in place, keeping any edits. */
   function openLoadedCart() {
@@ -202,9 +213,9 @@ export function OrdersPage() {
           value={seg}
           onChange={setSeg}
           options={[
-            { id: 'waiting', label: 'Waiting' },
-            { id: 'in_sale', label: 'In sale' },
-            { id: 'closed', label: 'Closed' },
+            { id: 'waiting', label: 'Waiting', count: counts.waiting },
+            { id: 'in_sale', label: 'In sale', count: counts.in_sale },
+            { id: 'closed', label: 'Closed', count: counts.closed },
           ]}
         />
       </div>
@@ -229,12 +240,12 @@ export function OrdersPage() {
           <OrderCard
             key={o.id}
             title={orderTitle(o, labels)}
-            status={String(o.status || 'open')}
             total={orderTotal(o)}
             image={thumb}
             lines={items.slice(0, 3).map(orderLine)}
             tags={
               <>
+                {statusTag(seg, o)}
                 <Tag tone={o.delivery_enabled === false ? 'default' : 'bronze'}>
                   {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
                 </Tag>

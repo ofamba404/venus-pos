@@ -53,12 +53,13 @@ import { Field } from '../../ui/Field';
 import { Segmented } from '../../ui/Segmented';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { FlavorPicker } from '../../ui/FlavorPicker';
-import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
 import { lineCount } from '../../domain/line-count';
 import { LoadedOrderCard } from '../../ui/LoadedOrderCard';
 import { confirmStoreOrder, isOrderConfirmed } from '../orders/confirm-order';
 import { ProductGrid } from '../../ui/ProductGrid';
 import { DeliveryBlock } from '../../ui/DeliveryBlock';
+import { CopyButton } from '../../ui/CopyButton';
+import { copyAllText, copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
 import { TimePicker } from '../../ui/TimePicker';
 import { Celebration } from '../../ui/Celebration';
 import { EmptyState } from '../../ui/EmptyState';
@@ -86,7 +87,6 @@ export function SellPage() {
   const [debtAsk, setDebtAsk] = useState<{ name: string; owed: number } | null>(null);
   const debtClearedRef = useRef(false);
   const placeGen = useRef(0);
-  const pickupLocateGen = useRef(0);
   const [editingKey, setEditingKey] = useState<string | null>(null);
 
   const lines = cartLines.value;
@@ -177,45 +177,6 @@ export function SellPage() {
       feeManuallyEdited: false,
     });
     if (pred.predicted == null) showToast('Place set — log more quotes to predict fee');
-  }
-
-  function locatePickup() {
-    const gen = pickupLocateGen.current + 1;
-    pickupLocateGen.current = gen;
-    placeGen.current += 1;
-    const quoteGen = placeGen.current;
-    setCheckoutDraft({ originText: 'Locating…' });
-    if (!navigator.geolocation) {
-      showToast('Location is off');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (gen !== pickupLocateGen.current) return;
-        const origin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const label = `${origin.lat.toFixed(2)}, ${origin.lng.toFixed(2)}`;
-        setCheckoutDraft({ origin, originText: label });
-        const dest = checkoutDraft.value.dest;
-        if (dest?.lat == null || dest.lng == null) return;
-        void quoteFeeForDest({ lat: Number(dest.lat), lng: Number(dest.lng) }, origin).then((pred) => {
-          if (gen !== pickupLocateGen.current || quoteGen !== placeGen.current) return;
-          setCheckoutDraft({
-            origin,
-            originText: label,
-            distanceKm: pred.km,
-            durationMin: pred.durationMin,
-            feeValue: pred.predicted != null ? String(pred.predicted) : checkoutDraft.value.feeValue,
-            predictedFee: pred.predicted,
-            feeManuallyEdited: false,
-          });
-        });
-      },
-      () => {
-        if (gen !== pickupLocateGen.current) return;
-        showToast('Could not read location');
-      },
-      { enableHighAccuracy: false, maximumAge: 15000, timeout: 8000 },
-    );
   }
 
   function openConfig(p: Product) {
@@ -600,16 +561,26 @@ export function SellPage() {
         />
         {meta.deliveryEnabled !== false ? (
           <DeliveryBlock>
-            <Button size="md" variant="secondary" data-testid="pickup-locate" onClick={locatePickup}>
-              Use GPS
-            </Button>
-            <button type="button" class="pickup-control" data-testid="pickup-label" onClick={locatePickup}>
-              {draft.originText || 'Shop pickup'}
-            </button>
-            <PlaceSearch
-              value={draft.destText || meta.deliveryLocationLabel || ''}
-              onPick={onPlacePick}
-            />
+            <div class="v-field-copy">
+              <PlaceSearch
+                value={draft.destText || meta.deliveryLocationLabel || ''}
+                onPick={onPlacePick}
+              />
+              <CopyButton
+                kind="place"
+                label="Copy"
+                ariaLabel="Copy location"
+                compact
+                testId="copy-location"
+                value={() =>
+                  copyLocationText({
+                    place: checkoutDraft.value.destText || orderMeta.value.deliveryLocationLabel || '',
+                    lat: checkoutDraft.value.dest?.lat ?? null,
+                    lng: checkoutDraft.value.dest?.lng ?? null,
+                  })
+                }
+              />
+            </div>
             <Field
               label="Delivery fee (UGX)"
               inputMode="numeric"
@@ -621,29 +592,44 @@ export function SellPage() {
                 setCheckoutDraft({ feeValue, feeManuallyEdited: true });
               }}
             />
-            <Field
-              label="Phone"
-              data-testid="delivery-phone"
-              value={meta.clientPhone}
-              placeholder="+256…"
-              onInput={(e) => setOrderMetaPatch({ clientPhone: (e.target as HTMLInputElement).value })}
-            />
-            <DeliveryCopyRow
-              delivery
-              idPrefix="copy-"
-              read={() => ({
-                name: orderMeta.value.clientName,
-                phone: orderMeta.value.clientPhone,
-                place: checkoutDraft.value.destText || orderMeta.value.deliveryLocationLabel || '',
-                lat: checkoutDraft.value.dest?.lat ?? null,
-                lng: checkoutDraft.value.dest?.lng ?? null,
-                collect: collectNow,
-              })}
-            />
+            <div class="v-field-copy">
+              <Field
+                label="Phone"
+                data-testid="delivery-phone"
+                value={meta.clientPhone}
+                placeholder="+256…"
+                onInput={(e) => setOrderMetaPatch({ clientPhone: (e.target as HTMLInputElement).value })}
+              />
+              <CopyButton
+                kind="phone"
+                label="Copy"
+                ariaLabel="Copy phone"
+                compact
+                testId="copy-phone"
+                value={() => copyPhoneText(orderMeta.value.clientPhone)}
+              />
+            </div>
             <TimePicker
               value={kampalaLocalInput(meta.deliveryDeliverAt)}
               onChange={(value) => setOrderMetaPatch({ deliveryDeliverAt: kampalaInputToIso(value) })}
             />
+            <div class="v-copy-row v-copy-row--end">
+              <CopyButton
+                kind="all"
+                label="Copy all"
+                testId="copy-all"
+                value={() =>
+                  copyAllText({
+                    name: orderMeta.value.clientName,
+                    phone: orderMeta.value.clientPhone,
+                    place: checkoutDraft.value.destText || orderMeta.value.deliveryLocationLabel || '',
+                    lat: checkoutDraft.value.dest?.lat ?? null,
+                    lng: checkoutDraft.value.dest?.lng ?? null,
+                    collect: collectNow,
+                  })
+                }
+              />
+            </div>
             {draft.distanceKm != null ? (
               <p class="v-muted">
                 {Number(draft.distanceKm).toFixed(1)} km

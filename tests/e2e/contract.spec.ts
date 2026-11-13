@@ -472,35 +472,27 @@ test.describe('write-contract scenarios (next)', () => {
     await page.getByRole('status').filter({ hasText: /new review/i }).waitFor({ timeout: 8000 });
   });
 
-  test('GPS locate keeps the latest fix', async ({ page }) => {
-    await page.addInitScript(() => {
-      let calls = 0;
-      const geo = {
-        getCurrentPosition(success: (pos: { coords: { latitude: number; longitude: number } }) => void) {
-          calls += 1;
-          const n = calls;
-          window.setTimeout(() => {
-            success({ coords: { latitude: n === 1 ? 0.11 : 0.22, longitude: 32.58 } });
-          }, n === 1 ? 600 : 40);
-        },
-      };
-      Object.defineProperty(navigator, 'geolocation', { configurable: true, value: geo });
-    });
-    const driver = await createNextDriver(page, { role: 'pos_staff' });
-    await driver.run({
-      id: 'GPS',
-      title: 'gps',
-      role: 'pos_staff',
-      seed: 'default',
-      steps: [{ do: 'addProduct', product: 'scout', flavors: { mint: 1 } }],
-    });
+  test('Review sale in delivery mode has no Use GPS or Shop pickup, and copy sits beside its field', async ({ page }) => {
+    await createNextDriver(page, { role: 'pos_staff' });
+    await page.goto('/next/sell');
+    await page.getByTestId('product-scout').click();
+    await page.getByTestId('config-flavor-mint-inc').click();
+    await page.getByTestId('config-add').click();
     const dialog = page.getByRole('dialog', { name: 'Review sale' });
-    const opened = await dialog.isVisible().catch(() => false);
-    const scope = opened ? dialog : page.locator('[data-desktop-cart]');
-    const button = scope.getByTestId('pickup-locate');
-    await button.click();
-    await button.click();
-    await expect(scope.getByTestId('pickup-label')).toHaveText('0.22, 32.58', { timeout: 4000 });
+    await dialog.getByRole('tab', { name: 'Delivery' }).click();
+    await expect(dialog.getByTestId('pickup-locate')).toHaveCount(0);
+    await expect(dialog.getByTestId('pickup-label')).toHaveCount(0);
+    await expect(dialog.getByText('Use GPS')).toHaveCount(0);
+    await expect(dialog.getByText('Shop pickup')).toHaveCount(0);
+    // Copy phone is on the same line as the Phone field, to its right.
+    const field = await dialog.getByTestId('delivery-phone').boundingBox();
+    const copy = await dialog.getByTestId('copy-phone').boundingBox();
+    expect(copy!.x).toBeGreaterThanOrEqual(field!.x + field!.width - 1);
+    expect(Math.abs(copy!.y + copy!.height / 2 - (field!.y + field!.height / 2))).toBeLessThan(field!.height);
+    // Pickup mode shows none of the delivery fields.
+    await dialog.getByRole('tab', { name: 'Pickup' }).click();
+    await expect(dialog.getByTestId('delivery-phone')).toHaveCount(0);
+    await expect(dialog.getByTestId('copy-phone')).toHaveCount(0);
   });
 
   test('S39 add rename and delete a client', async ({ page }) => {

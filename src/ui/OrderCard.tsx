@@ -5,7 +5,6 @@ import { Money } from './Money';
 /** An incoming order the cashier can scan: who, what flavours, and the copies they need. */
 export function OrderCard({
   title,
-  status,
   total,
   image,
   lines,
@@ -14,7 +13,6 @@ export function OrderCard({
   children,
 }: {
   title: string;
-  status: string;
   total: number;
   image?: string;
   lines: Array<{ name: string; productId?: string; breakdown?: Record<string, unknown> }>;
@@ -31,7 +29,6 @@ export function OrderCard({
         {image ? <img class="v-thumb" src={image} alt="" /> : null}
         <div class="order-card__who">
           <div class="v-list-row__title">{title}</div>
-          <div class="v-list-row__meta">{status}</div>
           {tags ? <div class="order-card__tags">{tags}</div> : null}
         </div>
         <Money className="v-money--total" value={total} />

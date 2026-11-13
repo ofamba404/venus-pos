@@ -4,6 +4,25 @@
   box-sizing: border-box;
 }
 
+/* No blue flash on tap. Keyboard focus keeps its ring (:focus-visible below). */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[role='button'],
+[role='tab'],
+a {
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+button,
+[role='tab'] {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 html,
 body {
   margin: 0;

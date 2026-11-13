@@ -896,8 +896,9 @@ button.kpi-tile {
 }
 
 .v-seg__btn {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
   padding: 0 var(--s-2);
   border-radius: var(--r-pill);
@@ -2202,4 +2203,48 @@ button.kpi-tile {
   gap: var(--s-3);
   padding-top: var(--s-2);
   border-top: 1px solid var(--line);
+}
+
+/* Count after a segmented tab label (Orders: Waiting 2, In sale 1). */
+.v-seg__count {
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--wash);
+  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+
+.v-seg__btn.is-on .v-seg__count {
+  background: rgb(255 255 255 / 0.2);
+  color: var(--on-action);
+}
+
+/* A field with its Copy button on the right, on the same line. */
+.v-field-copy {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-2);
+}
+
+.v-field-copy > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.v-field-copy .v-copy-btn {
+  flex: none;
+}
+
+.v-copy-row--end {
+  justify-content: flex-end;
+}
+
+.v-tag--danger {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger);
 }
