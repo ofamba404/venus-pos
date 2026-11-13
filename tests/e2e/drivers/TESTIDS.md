@@ -39,3 +39,13 @@ Use these on v2 elements. Drivers resolve via `[data-testid="…"]`.
 - Restock: `insights-restock`, `restock-headline`, `restock-row-{id}`, `restock-qty-{id}` (plain text), `restock-key`, `restock-fine-toggle`, `restock-fine-line`, `restock-fine-list`, `copy-restock`.
 - Credit: `insights-credit`, `credit-headline`, `credit-toggle`, `credit-settled`, `credit-age-bar`, `credit-legend`, `credit-person-{key}`, `credit-whatsapp-{key}`, `credit-phone-{key}`, `credit-orders-{key}`, `credit-settle-order-{id}`, `credit-settle-all-{key}`, `credit-settle-sheet`, `credit-settle-amount`, `credit-settle-confirm`.
 - Loaded order: `loaded-order-unlink` (label "Unlink") and `loaded-order-unlink-hint`; in checkout `release-store-order` and `unlink-hint`.
+
+## v2f (sheets, history, hours, gallery)
+
+- Sheets: `v-sheet` gains `is-closing` for 480ms while closing; scrim likewise. Reduced motion unmounts at once.
+- Orders: `orders-status-{id}` tags (In sale, Closed), `orders-{waiting,in_sale,closed}` carry counts.
+- History: week and day accordion toggles (`history-week-*`, `history-day-*`), owed rows (`history-owed*`). Open a day before asserting a sale row (`tests/e2e/helpers/history.ts`).
+- Insights: helper start date input and hint; restock card verbs Roll N (joints) and Order N (cookies); `copy-restock` has Roll and Order sections.
+- Cookie partner: `partner-batch-{n}` toggles open a batch's lines.
+- Hours page: `hours-page`, `store-status` (`data-state` open, closed or busy), `busy-15` / `busy-30` / `busy-60` / `busy-clear`, `hours-open`, `hours-close`, `hours-suggest-start`, `hours-suggest-end`, `hours-preview`, `hours-save`.
+- Gallery: `line-gallery` (cart line) and `edit-line-gallery` (sale edit), each with `data-slides`; `gallery-track`, dots with `data-dot`. The cart body renders twice (aside and Review sale dialog), so scope to the dialog.

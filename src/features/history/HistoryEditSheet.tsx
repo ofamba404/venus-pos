@@ -14,10 +14,10 @@ import {
 } from '../../data/sale-edit';
 import type { Product } from '../../domain/catalog';
 import { configReady, configTarget, type ConfigSelection } from '../../domain/pricing/pack-config';
-import { productImageSrc } from '../../domain/product-art';
 import { Button } from '../../ui/Button';
 import { Field } from '../../ui/Field';
 import { FlavorPicker } from '../../ui/FlavorPicker';
+import { ProductGallery } from '../../ui/ProductGallery';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { ProductGrid } from '../../ui/ProductGrid';
 import { Money } from '../../ui/Money';
@@ -221,12 +221,16 @@ export function HistoryEditSheet({
         ) : null}
         {draft.map((item, index) => {
           const qty = lineQuantity(item);
-          const art = productImageSrc(String(item.product_id || ''), item.breakdown as Record<string, unknown>);
           const canPick = Boolean(flavourProduct(item));
           return (
             <div class="edit-line" key={`${item.product_id}-${index}`} data-testid={`sale-edit-line-${index}`}>
               <div class="edit-line__top">
-                {art ? <img class="v-thumb" src={art} alt="" /> : null}
+                <ProductGallery
+                  productId={String(item.product_id || '')}
+                  breakdown={item.breakdown as Record<string, unknown>}
+                  size={56}
+                  testId="edit-line-gallery"
+                />
                 <div class="v-list-row__main">
                   <div class="edit-line__title">{item.product_name || 'Item'}</div>
                   <FlavorSwatches

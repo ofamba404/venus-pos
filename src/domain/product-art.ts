@@ -76,3 +76,40 @@ export function productImageSrc(
   const file = FILE[id];
   return file ? assetUrl(file) : '';
 }
+
+export interface ImageSlide {
+  src: string;
+  /** How many of this flavour are in the line. Shown as a ×N badge when above one. */
+  count: number;
+}
+
+/**
+ * One slide per flavour in the line, each with that flavour's own photo, the way the
+ * storefront cart drawer builds its swipe gallery. A line with no breakdown, or no
+ * flavour photos to show, is one slide with the generic photo.
+ */
+export function productImageSlides(
+  productId: string | null | undefined,
+  breakdown?: Record<string, unknown> | null,
+): ImageSlide[] {
+  const id = String(productId || '');
+  const cookie = id.startsWith('cookie');
+  const prefix = PACK_FILE_PREFIX[id] || (id === 'choose_variety' || id === 'variety' ? 'scout' : '');
+  const slides: ImageSlide[] = [];
+  for (const [flavour, qty] of Object.entries(breakdown || {})) {
+    const count = Math.round(Number(qty) || 0);
+    if (count <= 0 || flavour.startsWith('_')) continue;
+    let file = '';
+    if (cookie) file = COOKIE_FLAVOR_FILE[flavour] || '';
+    else if (flavour === 'classic') file = FILE.plain_single!;
+    else if (prefix && PACK_FLAVOUR.has(flavour)) file = `${prefix}-${flavour}.webp`;
+    if (!file) continue;
+    const src = assetUrl(file);
+    const existing = slides.find((s) => s.src === src);
+    if (existing) existing.count += count;
+    else slides.push({ src, count });
+  }
+  if (slides.length) return slides;
+  const generic = productImageSrc(id, breakdown);
+  return generic ? [{ src: generic, count: 1 }] : [];
+}

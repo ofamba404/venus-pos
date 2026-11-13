@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
-import { productImageSrc } from '../../domain/product-art';
 import { kampalaInputToIso, kampalaLocalInput } from '../../domain/kampala-time';
 import { itemToConfigSelection } from '../../domain/pricing/pack-config';
 import { stockNotifyDecision } from '../../domain/stock-notify';
@@ -53,6 +52,7 @@ import { Field } from '../../ui/Field';
 import { Segmented } from '../../ui/Segmented';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { FlavorPicker } from '../../ui/FlavorPicker';
+import { ProductGallery } from '../../ui/ProductGallery';
 import { lineCount } from '../../domain/line-count';
 import { LoadedOrderCard } from '../../ui/LoadedOrderCard';
 import { confirmStoreOrder, isOrderConfirmed } from '../orders/confirm-order';
@@ -419,10 +419,9 @@ export function SellPage() {
         <div>
           {lines.map((line) => {
             const { qty, contents } = lineCount(line);
-            const art = productImageSrc(line.productId, line.breakdown);
             return (
             <div class="v-cart-line" key={line.key}>
-              {art ? <img class="v-thumb" src={art} alt="" /> : null}
+              <ProductGallery productId={line.productId} breakdown={line.breakdown} size={56} testId="line-gallery" />
               <span class="v-qty" aria-label={`Quantity ${qty}`} data-testid="line-qty">
                 ×{qty}
               </span>
