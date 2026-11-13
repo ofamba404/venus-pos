@@ -10,10 +10,10 @@ import {
   type FulfillmentStatus,
 } from '../../domain/hours';
 import { sbFetch } from '../../data/api';
-import { go } from '../../app/router';
 import { KEYS } from '../../data/keys';
 import { patchFulfillment } from '../../data/writes/store';
 import { Field } from '../../ui/Field';
+import { formatClockHHmm, nextOpenAt } from '../../domain/hours';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
 
@@ -23,9 +23,12 @@ export function StorePage() {
     closeTime: DEFAULT_CLOSE,
   });
   const [busy, setBusy] = useState(false);
+  // What the server last had, so Save only lights up when something changed.
+  const [saved, setSaved] = useState<FulfillmentStatus | null>(null);
 
   function remember(next: FulfillmentStatus) {
     setStatus(next);
+    setSaved(next);
     try {
       localStorage.setItem(KEYS.fulfillment, JSON.stringify(next));
     } catch {
@@ -71,6 +74,7 @@ export function StorePage() {
         suggest_end: status.suggestEnd,
       });
       if (!res.ok) throw new Error(`Could not save hours (${res.status})`);
+      setSaved(status);
       showToast('Hours saved');
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Could not save hours');
@@ -109,77 +113,114 @@ export function StorePage() {
     }
   }
 
-  const openNow = isWithinOpenHours(new Date(), status);
+  const now = new Date();
+  const openNow = isWithinOpenHours(now, status);
   const busyNow = isBusyActive(status);
+  const tone = busyNow ? 'busy' : openNow ? 'open' : 'closed';
+  const headline = busyNow ? 'Busy' : openNow ? 'Open now' : 'Closed';
+  const detail = busyNow
+    ? `Back to normal at ${new Date(status.busyUntil!).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+    : openNow
+      ? `Closes at ${formatClockHHmm(status.closeTime || DEFAULT_CLOSE)}`
+      : `Opens ${nextOpenAt(now, status).toDateString() === now.toDateString() ? 'today' : 'tomorrow'} at ${formatClockHHmm(status.openTime || DEFAULT_OPEN)}`;
+  const dirty =
+    !saved ||
+    saved.openTime !== status.openTime ||
+    saved.closeTime !== status.closeTime ||
+    (saved.suggestStart || '') !== (status.suggestStart || '') ||
+    (saved.suggestEnd || '') !== (status.suggestEnd || '');
+  const valid = Boolean(status.openTime && status.closeTime);
+  const suggest =
+    status.suggestStart && status.suggestEnd
+      ? `${formatClockHHmm(status.suggestStart)} to ${formatClockHHmm(status.suggestEnd)}`
+      : 'Not set';
+
+  function setTime(key: 'openTime' | 'closeTime' | 'suggestStart' | 'suggestEnd', value: string) {
+    setStatus((s) => ({ ...s, [key]: value || null }));
+  }
 
   return (
-    <section>
-      <h1 class="page-title">Store</h1>
-      <div class="v-order-card" style={{ display: 'grid', gap: 12 }}>
-        <div class="v-muted" data-testid="store-status">
-          Status: {busyNow ? 'Busy' : openNow ? 'Open' : 'Closed'} · defaults {DEFAULT_OPEN}–
-          {DEFAULT_CLOSE}
+    <section class="hours" data-testid="hours-page">
+      <h1 class="page-title">Hours &amp; availability</h1>
+
+      <div class={`hours__hero hours__hero--${tone}`} data-testid="store-status" data-state={tone}>
+        <span class="hours__dot" aria-hidden="true" />
+        <div>
+          <div class="hours__state">{headline}</div>
+          <div class="hours__detail">{detail}</div>
         </div>
-        <Field
-          label="Open"
-          value={status.openTime || ''}
-          onInput={(e) =>
-            setStatus((s) => ({ ...s, openTime: (e.target as HTMLInputElement).value }))
-          }
-        />
-        <Field
-          label="Close"
-          value={status.closeTime || ''}
-          onInput={(e) =>
-            setStatus((s) => ({ ...s, closeTime: (e.target as HTMLInputElement).value }))
-          }
-        />
-        <Field
-          label="Suggest start"
-          value={status.suggestStart || ''}
-          onInput={(e) =>
-            setStatus((s) => ({ ...s, suggestStart: (e.target as HTMLInputElement).value }))
-          }
-        />
-        <Field
-          label="Suggest end"
-          value={status.suggestEnd || ''}
-          onInput={(e) =>
-            setStatus((s) => ({ ...s, suggestEnd: (e.target as HTMLInputElement).value }))
-          }
-        />
-        <Button size="lg" disabled={busy} onClick={() => void saveHours()}>
-          {busy ? 'Saving…' : 'Save hours'}
-        </Button>
-        <div class="v-chip-row">
-          <Button size="md" data-testid="busy-30" disabled={busy} onClick={() => void setBusyMinutes(30)}>
-            Busy 30 min
-          </Button>
+      </div>
+
+      <h2 class="v-section-label">Busy</h2>
+      <p class="v-muted hours__note">Pauses new delivery and pickup times for a while. Customers see the next free time.</p>
+      <div class="v-chip-row hours__busy">
+        {[15, 30, 60].map((minutes) => (
           <Button
+            key={minutes}
             size="md"
             variant="secondary"
-            data-testid="busy-clear"
+            data-testid={`busy-${minutes}`}
             disabled={busy}
-            onClick={() => void setBusyMinutes(null)}
+            onClick={() => void setBusyMinutes(minutes)}
           >
+            {minutes === 60 ? '1 hour' : `${minutes} min`}
+          </Button>
+        ))}
+        {busyNow ? (
+          <Button size="md" variant="ghost" data-testid="busy-clear" disabled={busy} onClick={() => void setBusyMinutes(null)}>
             Clear busy
           </Button>
+        ) : null}
+      </div>
+
+      <h2 class="v-section-label">Opening hours</h2>
+      <div class="hours__grid">
+        <Field
+          label="Opens"
+          type="time"
+          data-testid="hours-open"
+          value={status.openTime || ''}
+          onInput={(e) => setTime('openTime', (e.target as HTMLInputElement).value)}
+        />
+        <Field
+          label="Closes"
+          type="time"
+          data-testid="hours-close"
+          value={status.closeTime || ''}
+          onInput={(e) => setTime('closeTime', (e.target as HTMLInputElement).value)}
+        />
+      </div>
+
+      <h2 class="v-section-label">Suggested delivery window</h2>
+      <p class="v-muted hours__note">The time range the storefront nudges customers toward. Leave empty for none.</p>
+      <div class="hours__grid">
+        <Field
+          label="From"
+          type="time"
+          data-testid="hours-suggest-start"
+          value={status.suggestStart || ''}
+          onInput={(e) => setTime('suggestStart', (e.target as HTMLInputElement).value)}
+        />
+        <Field
+          label="To"
+          type="time"
+          data-testid="hours-suggest-end"
+          value={status.suggestEnd || ''}
+          onInput={(e) => setTime('suggestEnd', (e.target as HTMLInputElement).value)}
+        />
+      </div>
+
+      <div class="hours__preview" data-testid="hours-preview">
+        <div class="v-list-row__meta">Customers see</div>
+        <div>
+          Open {formatClockHHmm(status.openTime || DEFAULT_OPEN)} to {formatClockHHmm(status.closeTime || DEFAULT_CLOSE)}
         </div>
+        <div>Suggested delivery: {suggest}</div>
       </div>
-      <div class="v-section-label">Storefront users</div>
-      <div class="v-order-card" data-testid="store-users-moved" style={{ display: 'grid', gap: 12 }}>
-        <p class="v-muted" style={{ margin: 0 }}>
-          Storefront accounts now live in Clients, merged with POS clients. Verify, rename, reset codes and delete are there.
-        </p>
-        <Button size="md" variant="secondary" data-testid="store-users-open-clients" onClick={() => go('/clients')}>
-          Open Clients
-        </Button>
-      </div>
-      <div style={{ marginTop: 16 }}>
-        <Button variant="secondary" onClick={() => (location.href = '/')}>
-          Open legacy admin
-        </Button>
-      </div>
+
+      <Button size="lg" data-testid="hours-save" disabled={busy || !dirty || !valid} onClick={() => void saveHours()}>
+        {busy ? 'Saving…' : dirty ? 'Save hours' : 'Saved'}
+      </Button>
     </section>
   );
 }

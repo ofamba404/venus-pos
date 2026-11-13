@@ -191,14 +191,14 @@ test.describe('one Clients list for POS clients and storefront accounts', () => 
     await expect.poll(() => driver.mock.requests.filter((r) => r.method === 'GET' && r.url.includes('store_accounts')).length).toBeGreaterThanOrEqual(2);
   });
 
-  test('the Store page no longer lists storefront users', async ({ page }) => {
+  test('the Hours page no longer lists storefront users or points at Clients', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/store');
+    await expect(page.getByRole('heading', { name: 'Hours & availability' })).toBeVisible();
     await expect(page.getByTestId('store-user-list')).toHaveCount(0);
     await expect(page.getByTestId('store-user-name')).toHaveCount(0);
-    await expect(page.getByTestId('store-users-moved')).toBeVisible();
-    await page.getByTestId('store-users-open-clients').click();
-    await page.waitForURL(/\/clients/);
+    await expect(page.getByTestId('store-users-moved')).toHaveCount(0);
+    await expect(page.getByText('Storefront users')).toHaveCount(0);
   });
 });
 

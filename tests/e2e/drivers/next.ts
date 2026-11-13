@@ -74,7 +74,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/cookie-partner': 'Cookie partner',
   '/delivery': 'Delivery',
   '/reviews': 'Reviews',
-  '/store': 'Store',
+  '/store': 'Hours',
   '/system': 'System',
 };
 

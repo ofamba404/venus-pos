@@ -2338,3 +2338,72 @@ button.kpi-tile {
     transition: none;
   }
 }
+
+/* Hours & availability */
+.hours {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.hours__hero {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--wash);
+}
+
+.hours__dot {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--fg-3);
+  flex: none;
+}
+
+.hours__hero--open .hours__dot {
+  background: var(--success);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 22%, transparent);
+}
+
+.hours__hero--busy .hours__dot {
+  background: var(--bronze);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--bronze) 24%, transparent);
+}
+
+.hours__hero--closed .hours__dot {
+  background: var(--danger);
+}
+
+.hours__state {
+  font: var(--t-title);
+}
+
+.hours__detail {
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.hours__note {
+  margin: 0;
+}
+
+.hours__busy {
+  flex-wrap: wrap;
+}
+
+.hours__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+
+.hours__preview {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--surface-sunk);
+  font: var(--t-body);
+}

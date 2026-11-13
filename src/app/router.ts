@@ -36,7 +36,7 @@ export const ROUTES: Route[] = [
   { id: 'partner', path: '/cookie-partner', title: 'Cookie partner', nav: 'more', minRole: 'admin' },
   { id: 'delivery', path: '/delivery', title: 'Delivery', nav: 'more', minRole: 'admin' },
   { id: 'reviews', path: '/reviews', title: 'Reviews', nav: 'more', minRole: 'admin' },
-  { id: 'store', path: '/store', title: 'Store', nav: 'more', minRole: 'admin' },
+  { id: 'store', path: '/store', title: 'Hours', nav: 'more', minRole: 'admin' },
   { id: 'system', path: '/system', title: 'System', nav: 'more', minRole: 'admin' },
 ];
 
