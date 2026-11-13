@@ -1,9 +1,15 @@
+import { Collapse } from '../../ui/Collapse';
 import { useState } from 'preact/hooks';
 import './insights.css';
 import { sales } from '../../data/entities';
 import { settleCredit } from '../../data/credit-settle';
 import { getOutstandingCredit, type CreditSale } from '../../domain/credit';
-import { creditHeadline, type CreditBook, type CreditOrder, type CreditPerson } from '../../domain/credit-book';
+import {
+  creditHeadline,
+  type CreditBook,
+  type CreditOrder,
+  type CreditPerson,
+} from '../../domain/credit-book';
 import { formatUGX } from '../../domain/format';
 import { Button } from '../../ui/Button';
 import { Field } from '../../ui/Field';
@@ -20,7 +26,9 @@ function plain(n: number) {
 
 function dayLabel(iso: string) {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 function copyPhone(digits: string) {
@@ -61,7 +69,8 @@ export function CreditCard({
         <strong>{creditHeadline(book)}</strong>
       ) : (
         <>
-          <strong>{formatUGX(book.owed)}</strong> owed by {book.people.length} {book.people.length === 1 ? 'person' : 'people'}
+          <strong>{formatUGX(book.owed)}</strong> owed by {book.people.length}{' '}
+          {book.people.length === 1 ? 'person' : 'people'}
         </>
       )}
       {collected !== null && collected > 0 ? ` · collected ${plain(collected)} ${phrase}` : ''}
@@ -79,9 +88,16 @@ export function CreditCard({
   async function settle() {
     if (!target) return;
     const wanted = new Set((target.order ? [target.order] : target.person.orders).map((o) => o.id));
-    const openSales = getOutstandingCredit(sales.value as CreditSale[]).filter((s) => wanted.has(String(s.id)));
+    const openSales = getOutstandingCredit(sales.value as CreditSale[]).filter((s) =>
+      wanted.has(String(s.id)),
+    );
     setBusy(true);
-    const result = await settleCredit({ openSales, clientId: target.person.clientId, amount: Number(amount), note });
+    const result = await settleCredit({
+      openSales,
+      clientId: target.person.clientId,
+      amount: Number(amount),
+      note,
+    });
     setBusy(false);
     if (!result.ok) {
       showToast(result.error);
@@ -93,7 +109,12 @@ export function CreditCard({
   }
 
   return (
-    <section class="decision credit" aria-label="Who owes me" data-testid="insights-credit" data-owed={book.owed}>
+    <section
+      class="decision credit"
+      aria-label="Who owes me"
+      data-testid="insights-credit"
+      data-owed={book.owed}
+    >
       <h2 class="decision__q">Who owes me?</h2>
       {settled ? (
         <div class="credit__card credit__card--static" data-testid="credit-settled">
@@ -120,12 +141,22 @@ export function CreditCard({
             data-testid="credit-age-bar"
           >
             {live.map((b) => (
-              <span key={b.id} class={`credit__seg credit__seg--${b.id}`} style={{ flexGrow: b.amount }} data-bucket={b.id} />
+              <span
+                key={b.id}
+                class={`credit__seg credit__seg--${b.id}`}
+                style={{ flexGrow: b.amount }}
+                data-bucket={b.id}
+              />
             ))}
           </span>
           <span class="credit__legend" data-testid="credit-legend">
             {live.map((b) => (
-              <span class="credit__key" key={b.id} data-testid={`credit-key-${b.id}`} data-amount={b.amount}>
+              <span
+                class="credit__key"
+                key={b.id}
+                data-testid={`credit-key-${b.id}`}
+                data-amount={b.amount}
+              >
                 <i class={`credit__swatch credit__seg--${b.id}`} aria-hidden="true" />
                 {b.label} <b>{plain(b.amount)}</b>
               </span>
@@ -134,7 +165,7 @@ export function CreditCard({
         </button>
       )}
 
-      {open && !settled ? (
+      <Collapse open={open && !settled}>
         <div class="credit__people" data-testid="credit-people">
           {book.people.map((p) => {
             const on = openKey === p.key;
@@ -175,7 +206,7 @@ export function CreditCard({
                     </button>
                   ) : null}
                 </span>
-                {on ? (
+                <Collapse open={on}>
                   <div class="credit__orders" data-testid={`credit-orders-${p.key}`}>
                     {p.orders.map((o) => (
                       <div class="credit__order" key={o.id} data-testid={`credit-order-${o.id}`}>
@@ -197,17 +228,21 @@ export function CreditCard({
                       </div>
                     ))}
                     {p.orders.length > 1 ? (
-                      <Button size="md" data-testid={`credit-settle-all-${p.key}`} onClick={() => begin(p, null)}>
+                      <Button
+                        size="md"
+                        data-testid={`credit-settle-all-${p.key}`}
+                        onClick={() => begin(p, null)}
+                      >
                         Settle all {formatUGX(p.owed)}
                       </Button>
                     ) : null}
                   </div>
-                ) : null}
+                </Collapse>
               </div>
             );
           })}
         </div>
-      ) : null}
+      </Collapse>
 
       <Sheet
         open={!!target}
@@ -252,4 +287,3 @@ export function CreditCard({
     </section>
   );
 }
-

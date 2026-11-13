@@ -22,6 +22,7 @@ import {
 import { Button } from '../../ui/Button';
 import { Money } from '../../ui/Money';
 import { Sheet } from '../../ui/Sheet';
+import { Collapse } from '../../ui/Collapse';
 import { Tag } from '../../ui/Tag';
 import { IconChevronRight } from '../../ui/icons';
 import { PartnerBar } from './PartnerBar';
@@ -35,7 +36,8 @@ function batchRange(units: Array<{ created_at?: string }>, cuts: number[], index
   const first = units[start]?.created_at;
   const last = units[start + (cuts[index] || 1) - 1]?.created_at;
   if (!first || !last) return '';
-  const fmt = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const a = fmt(first);
   const b = fmt(last);
   return a === b ? a : `${a} – ${b}`;
@@ -61,18 +63,24 @@ export function CookiePartnerPage() {
   }
 
   useEffect(() => {
-    void loadSales().catch((e) => showToast(e instanceof Error ? e.message : 'Could not load sales'));
+    void loadSales().catch((e) =>
+      showToast(e instanceof Error ? e.message : 'Could not load sales'),
+    );
     loadSettle();
   }, []);
 
   const units = useMemo(
-    () => expandPartnerUnitsFromSales(sales.value as Parameters<typeof expandPartnerUnitsFromSales>[0]),
+    () =>
+      expandPartnerUnitsFromSales(sales.value as Parameters<typeof expandPartnerUnitsFromSales>[0]),
     [sales.value],
   );
   const qty = settle?.qty ?? 0;
   const cuts = useMemo(() => settledCutsFor(qty, settle?.batches ?? []), [qty, settle]);
   const board = useMemo(() => partnerBoard(units, qty, cuts), [units, qty, cuts]);
-  const plan = useMemo(() => (settle ? partnerSendPlan(units, qty, cuts) : null), [settle, units, qty, cuts]);
+  const plan = useMemo(
+    () => (settle ? partnerSendPlan(units, qty, cuts) : null),
+    [settle, units, qty, cuts],
+  );
   const open = board.open;
   const every = COOKIE_PARTNER_SETTLE_EVERY;
   // The server's cuts are the record of what was sent. Money comes from the sales when they cover it.
@@ -151,7 +159,12 @@ export function CookiePartnerPage() {
         ) : null}
         {plan ? (
           <>
-            <Button variant="primary" size="xl" data-testid="partner-settle" onClick={() => setConfirming(true)}>
+            <Button
+              variant="primary"
+              size="xl"
+              data-testid="partner-settle"
+              onClick={() => setConfirming(true)}
+            >
               {partnerSendLabel(plan)}
             </Button>
             <p class="cp-note" data-testid="partner-note">
@@ -202,13 +215,21 @@ export function CookiePartnerPage() {
 
       <h2 class="cp-section v-section-label">Already sent</h2>
       <p class="cp-note" data-testid="partner-settled-qty">
-        {settle ? `${qty} cookies already settled` : failed ? 'Settlement unavailable' : 'Loading settlement…'}
+        {settle
+          ? `${qty} cookies already settled`
+          : failed
+            ? 'Settlement unavailable'
+            : 'Loading settlement…'}
       </p>
       <div data-testid="partner-history">
         {shown.map((batch) => {
           const isOpen = openIndex === batch.index;
           return (
-            <div class={`cp-batch${isOpen ? ' is-open' : ''}`} key={batch.index} data-testid={`partner-batch-${batch.index}`}>
+            <div
+              class={`cp-batch${isOpen ? ' is-open' : ''}`}
+              key={batch.index}
+              data-testid={`partner-batch-${batch.index}`}
+            >
               <button
                 type="button"
                 class="cp-batch__head"
@@ -220,7 +241,9 @@ export function CookiePartnerPage() {
                   <div class="v-list-row__title">
                     Batch {batch.index} · {batch.cookieCount}/{batch.every}
                   </div>
-                  <div class="v-list-row__meta">{batch.range ? `Sent · ${batch.range}` : 'Sent'}</div>
+                  <div class="v-list-row__meta">
+                    {batch.range ? `Sent · ${batch.range}` : 'Sent'}
+                  </div>
                 </div>
                 <div class="cp-batch__end">
                   {batch.partnerDue === null ? null : <Money value={batch.partnerDue} />}
@@ -230,11 +253,12 @@ export function CookiePartnerPage() {
                   <IconChevronRight size={18} />
                 </span>
               </button>
-              {isOpen ? (
+              <Collapse open={isOpen}>
                 <div class="cp-batch__body" data-testid={`partner-batch-detail-${batch.index}`}>
                   {batch.lines.length ? (
                     batch.lines.map((row, i) => {
-                      const mix = row.kind === 'single' ? '' : cookieFlavorMixPhrase(row.flavorCounts);
+                      const mix =
+                        row.kind === 'single' ? '' : cookieFlavorMixPhrase(row.flavorCounts);
                       return (
                         <div class="cp-line" key={i}>
                           <div class="cp-line__main">
@@ -259,14 +283,19 @@ export function CookiePartnerPage() {
                     </div>
                   )}
                 </div>
-              ) : null}
+              </Collapse>
             </div>
           );
         })}
         {!history.length && settle ? <p class="v-muted">No batches sent yet</p> : null}
       </div>
       {history.length > 4 ? (
-        <Button variant="secondary" size="md" data-testid="partner-history-more" onClick={() => setShowAll(!showAll)}>
+        <Button
+          variant="secondary"
+          size="md"
+          data-testid="partner-history-more"
+          onClick={() => setShowAll(!showAll)}
+        >
           {showAll ? 'Show fewer' : `Show all ${history.length}`}
         </Button>
       ) : null}
@@ -277,10 +306,21 @@ export function CookiePartnerPage() {
         onClose={() => setConfirming(false)}
         footer={
           <div class="edit-picker__foot">
-            <Button variant="secondary" size="xl" data-testid="partner-confirm-cancel" onClick={() => setConfirming(false)}>
+            <Button
+              variant="secondary"
+              size="xl"
+              data-testid="partner-confirm-cancel"
+              onClick={() => setConfirming(false)}
+            >
               Not yet
             </Button>
-            <Button variant="primary" size="xl" data-testid="partner-confirm-send" disabled={sending} onClick={() => void send()}>
+            <Button
+              variant="primary"
+              size="xl"
+              data-testid="partner-confirm-send"
+              disabled={sending}
+              onClick={() => void send()}
+            >
               {sending ? 'Sending…' : 'Mark sent'}
             </Button>
           </div>
@@ -289,7 +329,9 @@ export function CookiePartnerPage() {
         {plan ? (
           <div class="cp-confirm" data-testid="partner-confirm">
             <p>{partnerConfirmText(plan)}</p>
-            <p class="cp-note">The partner total only ever goes up. If anything fails, nothing is marked sent.</p>
+            <p class="cp-note">
+              The partner total only ever goes up. If anything fails, nothing is marked sent.
+            </p>
           </div>
         ) : null}
       </Sheet>
