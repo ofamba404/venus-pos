@@ -44,8 +44,9 @@ describe('mergePeople', () => {
   });
 
   it('never matches on a missing or short phone', () => {
-    const none = mergePeople([{ id: 'x', name: 'X', phone: null }], [{ id: 'y', phone: '' }]);
+    const none = mergePeople([{ id: 'x', name: 'X', phone: null }], [{ id: 'y', phone: '', snapchat_name: 'Y Store' }]);
     expect(none).toHaveLength(2);
+    expect(none.find((p) => p.client)!.account).toBeNull();
   });
 
   it('counts and filters: All, Walk-in, Storefront, Owes money', () => {
@@ -70,5 +71,58 @@ describe('personMeta', () => {
     expect(personMeta(grace!)).toBe('0700333444 · Last bought 6 Nov');
     expect(personMeta(walk!)).toBe('No sales yet');
     expect(personMeta(mergePeople([], [accounts[1]!])[0]!)).toBe('0700999000 · Not verified');
+  });
+});
+
+describe('real-shaped storefront accounts (store-auth admin_list_users)', () => {
+  // Anonymised rows with the live column names: snapchat_name, pos_display_name, phone_country_code, phone_national.
+  const real = [
+    { id: 'r1', snapchat_name: 'Alpha One', pos_display_name: null, phone_country_code: '+256', phone_national: '700111222', verified: true },
+    { id: 'r2', snapchat_name: 'beta  two', pos_display_name: 'Beta Alias', phone_country_code: '+256', phone_national: '', verified: false },
+    { id: 'r3', snapchat_name: '_J_', pos_display_name: null, phone_country_code: '+256', phone_national: '', verified: true },
+    { id: 'r4', snapchat_name: 'Alpha One', pos_display_name: null, phone_country_code: '+256', phone_national: '700111222', verified: true },
+    { id: 'r5', snapchat_name: '', pos_display_name: null, phone_country_code: '+256', phone_national: '', verified: false },
+    { id: 'r6', snapchat_name: 'Gamma', pos_display_name: null, phone_country_code: '+256', phone_national: '', verified: true },
+  ];
+  // The live clients table has no phone column.
+  const walkIns = [
+    { id: 'k1', name: 'Gamma' },
+    { id: 'k2', name: 'Delta Walkin' },
+    { id: 'k3', name: 'Owes A Lot' },
+    { id: 'k4', name: '' },
+  ];
+  const people = mergePeople(walkIns, real, { owedByClient: new Map([['k3', 9000]]) });
+
+  it('names an account by its snapchat name and builds its phone from the country code and national number', () => {
+    const alpha = people.find((p) => p.account?.id === 'r1')!;
+    expect(alpha.name).toBe('Alpha One');
+    expect(alpha.phone).toBe('+256700111222');
+    expect(personMeta(alpha)).toBe('+256700111222 · Verified');
+    expect(people.some((p) => p.name === 'Client')).toBe(false);
+  });
+
+  it('prefers the POS alias when there is one', () => {
+    expect(people.find((p) => p.account?.id === 'r2')!.name).toBe('Beta Alias');
+  });
+
+  it('drops empty accounts and empty clients, and dedupes the same number', () => {
+    expect(people.find((p) => p.account?.id === 'r5')).toBeUndefined();
+    expect(people.find((p) => p.client?.id === 'k4')).toBeUndefined();
+    expect(people.filter((p) => p.account?.id === 'r1' || p.account?.id === 'r4')).toHaveLength(1);
+  });
+
+  it('joins a walk-in to its account by name when the client has no phone', () => {
+    const gamma = people.find((p) => p.client?.id === 'k1')!;
+    expect(gamma.account?.id).toBe('r6');
+    expect(people.filter((p) => p.account?.id === 'r6')).toHaveLength(1);
+  });
+
+  it('All / Walk-in / Storefront / Owes each filter the real-shaped list', () => {
+    const counts = filterCounts(people);
+    expect(counts.all).toBe(people.length);
+    expect(filterPeople(people, 'walkin', '').map((p) => p.name).sort()).toEqual(['Delta Walkin', 'Owes A Lot']);
+    expect(filterPeople(people, 'storefront', '').map((p) => p.name).sort()).toEqual(['Alpha One', 'Beta Alias', 'Gamma', '_J_']);
+    expect(filterPeople(people, 'owes', '').map((p) => p.name)).toEqual(['Owes A Lot']);
+    expect(filterPeople(people, 'all', '700111222')).toHaveLength(1);
   });
 });
