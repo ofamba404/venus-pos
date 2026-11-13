@@ -23,13 +23,28 @@ test.describe('one Clients list for POS clients and storefront accounts', () => 
     await page.setViewportSize({ width: 390, height: 844 });
   });
 
-  test('filter chips: All, Walk-in, Storefront, Owes money, with counts', async ({ page }) => {
+  for (const width of [390, 360]) {
+    test(`filter chips fit on one row at ${width}px without scrolling`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await createNextDriver(page, { role: 'pos_admin' });
+      await page.goto('/next/clients');
+      const row = page.getByTestId('client-filters');
+      await row.waitFor();
+      const tops = await row.getByRole('tab').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+      expect(new Set(tops).size).toBe(1);
+      await page.evaluate(() => document.fonts.ready);
+      const fits = await row.evaluate((e) => e.scrollWidth <= e.clientWidth + 1);
+      expect(fits).toBe(true);
+    });
+  }
+
+  test('filter chips: All, Walk-in, Storefront, Owes, with counts', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     addMergedAccount(driver);
     await page.goto('/next/clients');
     await page.getByTestId('client-list').getByRole('button').first().waitFor();
     const tabs = page.getByTestId('client-filters').getByRole('tab');
-    await expect(tabs).toHaveText([/^All\d+$/, /^Walk-in\d+$/, /^Storefront\d+$/, /^Owes money\d+$/]);
+    await expect(tabs).toHaveText([/^All\d+$/, /^Walk-in\d+$/, /^Storefront\d+$/, /^Owes\d+$/]);
 
     const count = async (id: string) => Number(((await page.getByTestId(`client-filter-${id}`).innerText()).match(/\d+$/) || ['0'])[0]);
     // 12 POS clients + 2 default store-only accounts (the third account is joined to Client With Debt).

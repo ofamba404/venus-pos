@@ -13,7 +13,7 @@ describe('orderSegment', () => {
     expect(orderSegment({ id: 'a', status: 'confirmed' }, 'a')).toBe('in_sale');
     expect(orderSegment({ id: 'b', status: 'confirmed' }, 'a')).toBe('waiting');
   });
-  it('detaching sends it back to Waiting', () => {
+  it('unlinking sends it back to Waiting', () => {
     expect(orderSegment({ id: 'a', status: 'confirmed' }, '')).toBe('waiting');
   });
   it('a closed order stays Closed even if it is the loaded one', () => {

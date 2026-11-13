@@ -43,6 +43,8 @@ describe('money chart', () => {
       expect(Math.abs(sum(k) - chart.totals[k])).toBeLessThanOrEqual(chart.buckets.length);
     }
     expect(chart.max).toBe(Math.max(...chart.buckets.map((b) => b.sales)));
+    expect(chart.maxSales).toBe(chart.max);
+    expect(chart.maxProfit).toBe(Math.max(1, ...chart.buckets.map((b) => b.profit)));
   });
 
   it('splits a bucket into owner, helper 40%, partner and costs that add back to sales', () => {

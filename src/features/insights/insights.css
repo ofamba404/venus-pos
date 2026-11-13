@@ -1,66 +1,58 @@
 /* Insights: the money chart and the restock answer. Ink and bronze, money in plain semibold ink. */
 
-.money {
+/* Page rhythm: every Insights section gets the same generous gap. */
+.insights .decision {
   gap: var(--s-3);
+  margin: 0 0 var(--s-8, 40px);
 }
 
-.money__totals {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-3);
+.insights .decision-lead {
+  margin: var(--s-3) 0 var(--s-6, 28px);
 }
 
-.money__figure {
+.insights .decision__q {
+  margin: 0;
+}
+
+/* Money: one profit figure, bars, one split strip. */
+.money__hero {
   display: grid;
   gap: 2px;
-  padding: var(--s-3);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line);
-  min-width: 0;
 }
 
-.money__label {
-  font: var(--t-meta);
-  color: var(--fg-2);
-}
-
-.money__figure .v-money {
-  font-size: clamp(15px, 4.6vw, 20px);
+.money__profit .v-money--xl {
+  font-size: clamp(30px, 9vw, 40px);
   font-weight: 600;
+  line-height: 1.1;
   white-space: nowrap;
 }
 
-.money__pct {
-  font: var(--t-meta);
-  color: var(--bronze-deep);
+.money__of {
+  font: var(--t-body);
+  color: var(--fg-2);
+}
+
+.money__of .v-money {
+  font-weight: 500;
 }
 
 .money__plot {
-  position: relative;
   display: grid;
-  gap: 4px;
-  padding-top: var(--s-4);
-}
-
-.money__max {
-  position: absolute;
-  top: 0;
-  left: 0;
-  font: var(--t-mono-micro);
-  color: var(--fg-2);
+  gap: 6px;
+  margin-top: var(--s-2);
 }
 
 .money__bars {
   display: grid;
   align-items: end;
   gap: 4px;
-  height: 168px;
-  border-top: 1px dashed var(--input-line);
+  padding-inline: var(--s-1);
+  height: 150px;
   border-bottom: 1px solid var(--input-line);
 }
 
 .money__col {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -109,18 +101,10 @@
   background: var(--bronze);
 }
 
-.money__seg--partner {
-  background: repeating-linear-gradient(135deg, var(--bronze-deep) 0 2px, var(--wash-strong) 2px 5px);
-}
-
-.money__seg--costs {
-  background: var(--paper-100);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-
 .money__axis {
   display: grid;
   gap: 4px;
+  padding-inline: var(--s-1);
   font: var(--t-mono-micro);
   color: var(--fg-2);
   text-align: center;
@@ -133,49 +117,48 @@
 
 .money__readout {
   margin: 0;
-  font: var(--t-body);
-  color: var(--fg-2);
-}
-
-.money__readout strong {
-  display: block;
-  color: var(--fg);
-}
-
-.money__legend {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s-2);
-}
-
-.money__chip {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-areas: 'swatch label' 'swatch value';
-  column-gap: var(--s-2);
-  align-items: center;
-  padding: var(--s-2) var(--s-3);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-
-.money__swatch {
-  grid-area: swatch;
-  width: 14px;
-  height: 28px;
-  border-radius: 3px;
-}
-
-.money__chip-label {
-  grid-area: label;
+  min-height: 1.5em;
   font: var(--t-meta);
   color: var(--fg-2);
 }
 
-.money__chip .v-money {
-  grid-area: value;
+.money__readout b {
   font-weight: 600;
+  color: var(--fg);
+}
+
+.money__split {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.money__strip {
+  display: flex;
+  height: 10px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--paper-100);
+}
+
+.money__split-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.money__split-labels .v-money {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.money__swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 50%;
 }
 
 /* Restock */
@@ -208,11 +191,11 @@
 }
 
 .restock__qty {
-  padding: 4px 12px;
-  border-radius: var(--r-pill);
-  background: var(--ink-900);
-  color: var(--on-action);
+  margin-left: auto;
+  color: var(--fg);
   font: var(--t-label);
+  font-weight: 600;
+  text-align: right;
   white-space: nowrap;
 }
 

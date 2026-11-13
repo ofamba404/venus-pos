@@ -1,19 +1,12 @@
 import { useState } from 'preact/hooks';
 import './insights.css';
-import type { MoneyBucket, MoneyChart as MoneyChartData, MoneyFigures } from '../../domain/money-chart';
-import { profitMarginPct } from '../../domain/money-chart';
+import type { MoneyBucket, MoneyChart as MoneyChartData } from '../../domain/money-chart';
 import { formatUGX } from '../../domain/format';
 import { Money } from '../../ui/Money';
 import { EmptyState } from '../../ui/EmptyState';
 
-const PARTS = [
-  { key: 'owner', label: 'You keep' },
-  { key: 'helper', label: 'Helper' },
-  { key: 'partner', label: 'Cookie partner' },
-  { key: 'costs', label: 'Joint cost' },
-] as const;
-
-type PartKey = (typeof PARTS)[number]['key'];
+/** The bars: profit only, split into what you keep and the helper's share. */
+const PARTS = ['owner', 'helper'] as const;
 
 function labelStep(count: number) {
   return Math.max(1, Math.ceil(count / 7));
@@ -21,18 +14,19 @@ function labelStep(count: number) {
 
 function Column({
   bucket,
-  max,
+  maxProfit,
   on,
   dim,
   onPick,
 }: {
   bucket: MoneyBucket;
-  max: number;
+  maxProfit: number;
   on: boolean;
   dim: boolean;
   onPick: () => void;
 }) {
-  const height = bucket.sales > 0 ? Math.max(3, (bucket.sales / max) * 100) : 0;
+  const height = bucket.profit > 0 ? Math.max(3, (bucket.profit / maxProfit) * 100) : 0;
+
   return (
     <button
       type="button"
@@ -46,46 +40,37 @@ function Column({
     >
       <span class="money__stack" style={{ height: `${height}%` }}>
         {PARTS.map((part) => {
-          const value = bucket[part.key];
+          const value = bucket[part];
           return value > 0 ? (
-            <span
-              key={part.key}
-              class={`money__seg money__seg--${part.key}`}
-              style={{ flexGrow: value }}
-              data-part={part.key}
-            />
+            <span key={part} class={`money__seg money__seg--${part}`} style={{ flexGrow: value }} data-part={part} />
           ) : null;
         })}
       </span>
-      {bucket.sales <= 0 ? <span class="money__zero" /> : null}
+      {bucket.profit <= 0 ? <span class="money__zero" /> : null}
     </button>
   );
 }
 
-/** Sales and profit for the chosen range, one stacked bar per day, week or month. */
+/** Profit for the chosen range: one number, one bar per day, week or month, and one split strip. */
 export function MoneyChart({ chart, loading }: { chart: MoneyChartData; loading?: boolean }) {
   const [pick, setPick] = useState<number | null>(null);
   const picked = pick !== null ? chart.buckets[pick] ?? null : null;
-  const shown: MoneyFigures = picked || chart.totals;
+  const shown = picked || chart.totals;
   const step = labelStep(chart.buckets.length);
   const hasSales = chart.totals.sales > 0;
-  const unit = chart.unit === 'day' ? 'day' : chart.unit === 'week' ? 'week' : 'month';
+  const split = shown.owner + shown.helper;
+  const ownerPct = split > 0 ? (shown.owner / split) * 100 : 50;
 
   return (
     <section class="decision money" aria-label="Sales and profit" data-testid="money-chart">
       <h2 class="decision__q">What am I making?</h2>
-      <div class="money__totals" data-testid="money-totals">
-        <div class="money__figure" data-testid="money-sales" data-value={chart.totals.sales}>
-          <span class="money__label">Sales</span>
-          <Money value={chart.totals.sales} />
-        </div>
-        <div class="money__figure" data-testid="money-profit" data-value={chart.totals.profit}>
-          <span class="money__label">Profit</span>
-          <Money value={chart.totals.profit} />
-          <span class="money__pct" data-testid="money-margin">
-            {profitMarginPct(chart.totals)}% of sales
-          </span>
-        </div>
+      <div class="money__hero" data-testid="money-totals">
+        <span class="money__profit" data-testid="money-profit" data-value={chart.totals.profit}>
+          <Money value={chart.totals.profit} size="xl" />
+        </span>
+        <span class="money__of" data-testid="money-sales" data-value={chart.totals.sales}>
+          profit of <Money value={chart.totals.sales} /> sales
+        </span>
       </div>
 
       {loading ? (
@@ -95,15 +80,12 @@ export function MoneyChart({ chart, loading }: { chart: MoneyChartData; loading?
       ) : (
         <>
           <div class="money__plot" data-testid="money-plot" data-unit={chart.unit}>
-            <span class="money__max" aria-hidden="true">
-              {formatUGX(chart.max)}
-            </span>
             <div class="money__bars" style={{ gridTemplateColumns: `repeat(${chart.buckets.length}, minmax(0, 1fr))` }}>
               {chart.buckets.map((bucket, i) => (
                 <Column
                   key={bucket.key}
                   bucket={bucket}
-                  max={chart.max}
+                  maxProfit={chart.maxProfit}
                   on={pick === i}
                   dim={pick !== null && pick !== i}
                   onPick={() => setPick(pick === i ? null : i)}
@@ -116,22 +98,27 @@ export function MoneyChart({ chart, loading }: { chart: MoneyChartData; loading?
               ))}
             </div>
           </div>
-          <p class="money__readout" data-testid="money-readout">
-            <strong>{picked ? picked.title : `Whole range, by ${unit}`}</strong>
-            Sales <Money value={shown.sales} /> · Profit <Money value={shown.profit} />
+          <p class="money__readout" data-testid="money-readout" aria-live="polite">
+            {picked ? (
+              <>
+                {picked.title} · profit <b>{picked.profit.toLocaleString('en-UG')}</b> · sales <b>{picked.sales.toLocaleString('en-UG')}</b>
+              </>
+            ) : null}
           </p>
-          <div class="money__legend" data-testid="money-legend">
-            {PARTS.map((part) => (
-              <div class="money__chip" key={part.key} data-testid={`money-${part.key}`} data-value={shown[part.key as PartKey]}>
-                <span class={`money__swatch money__seg--${part.key}`} aria-hidden="true" />
-                <span class="money__chip-label">{part.label}</span>
-                <Money value={shown[part.key as PartKey]} />
-              </div>
-            ))}
+          <div class="money__split" data-testid="money-split">
+            <div class="money__strip" aria-hidden="true">
+              <span class="money__seg--owner" style={{ width: `${ownerPct}%` }} />
+              <span class="money__seg--helper" style={{ width: `${100 - ownerPct}%` }} />
+            </div>
+            <div class="money__split-labels">
+              <span data-testid="money-owner" data-value={shown.owner}>
+                <span class="money__swatch money__seg--owner" aria-hidden="true" /> You <Money value={shown.owner} />
+              </span>
+              <span data-testid="money-helper" data-value={shown.helper}>
+                <span class="money__swatch money__seg--helper" aria-hidden="true" /> Helper <Money value={shown.helper} />
+              </span>
+            </div>
           </div>
-          <p class="decision__why">
-            Profit is your share plus the helper's. Joint cost and the cookie partner's cut come out of sales first.
-          </p>
         </>
       )}
     </section>

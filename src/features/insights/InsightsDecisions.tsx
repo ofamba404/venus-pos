@@ -5,7 +5,6 @@ import type { PartnerBatch } from '../../domain/partner';
 import type { CommissionLedger } from '../../domain/commission';
 import { formatUGX } from '../../domain/format';
 import { Money } from '../../ui/Money';
-import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
 import { EmptyState } from '../../ui/EmptyState';
 import { IconChevronRight } from '../../ui/icons';

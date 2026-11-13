@@ -32,3 +32,10 @@ Use these on v2 elements. Drivers resolve via `[data-testid="…"]`.
 | Add item (History edit) | `sale-edit-add`, `sale-add-catalog`, `sale-add-apply` |
 | Cookie partner page | `cookie-partner-page`, `partner-hero`, `partner-progress`, `partner-settle`, `partner-confirm`, `partner-confirm-send`, `partner-confirm-cancel`, `partner-history`, `partner-batch-{n}` |
 | Insights partner tile | `partner-summary` |
+
+## Insights (v2c/v2d)
+
+- Money chart: `money-chart`, `money-totals` (hero), `money-profit` and `money-sales` (`data-value`), `money-plot` (`data-unit`), `money-bar` (`data-sales`, `data-profit`), `money-readout` (empty until a bar is tapped), `money-split`, `money-owner`, `money-helper`.
+- Restock: `insights-restock`, `restock-headline`, `restock-row-{id}`, `restock-qty-{id}` (plain text), `restock-key`, `restock-fine-toggle`, `restock-fine-line`, `restock-fine-list`, `copy-restock`.
+- Credit: `insights-credit`, `credit-headline`, `credit-toggle`, `credit-settled`, `credit-age-bar`, `credit-legend`, `credit-person-{key}`, `credit-whatsapp-{key}`, `credit-phone-{key}`, `credit-orders-{key}`, `credit-settle-order-{id}`, `credit-settle-all-{key}`, `credit-settle-sheet`, `credit-settle-amount`, `credit-settle-confirm`.
+- Loaded order: `loaded-order-unlink` (label "Unlink") and `loaded-order-unlink-hint`; in checkout `release-store-order` and `unlink-hint`.

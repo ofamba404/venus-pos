@@ -667,10 +667,10 @@ export function SellPage() {
               data-testid="release-store-order"
               onClick={() => setOrderMetaPatch({ storeOrderId: '' })}
             >
-              Detach order
+              Unlink
             </Button>
-            <p class="v-muted" data-testid="detach-hint">
-              Detach keeps these items, and the order stays in Orders. It is not cancelled.
+            <p class="v-muted" data-testid="unlink-hint">
+              Unlink keeps these items. The order stays in Orders, not cancelled.
             </p>
           </div>
         ) : null}

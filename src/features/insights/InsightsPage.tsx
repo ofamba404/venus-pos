@@ -85,7 +85,7 @@ export function InsightsPage() {
     return partnerBoard(expandPartnerUnitsFromSales(list), serverSettle?.qty ?? 0, serverSettle?.batches ?? []);
   }, [sales.value, serverSettle]);
   return (
-    <section>
+    <section class="insights">
       <h1 class="page-title">Insights</h1>
       <div class="v-chip-row" data-testid="chart-range">
         {CHART_RANGES.map((row) => (

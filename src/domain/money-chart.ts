@@ -39,7 +39,11 @@ export type MoneyChart = {
   unit: MoneyUnit;
   buckets: MoneyBucket[];
   totals: MoneyFigures & { orders: number };
-  /** The tallest bar's sales, never 0, so a bar's height is `sales / max`. */
+  /** The tallest day's sales, never 0. The sales dots are placed as `sales / maxSales`. */
+  maxSales: number;
+  /** The most profitable day's profit, never 0. Bars are `profit / maxProfit`, so the tallest bar is the best day. */
+  maxProfit: number;
+  /** Same as `maxSales`. */
   max: number;
 };
 
@@ -158,7 +162,7 @@ export function moneyChart(
     end = bounds.end;
   } else {
     if (!book.length) {
-      return { unit: 'day', buckets: [], totals: { ...figures([], history, rates), orders: 0 }, max: 1 };
+      return { unit: 'day', buckets: [], totals: { ...figures([], history, rates), orders: 0 }, max: 1, maxSales: 1, maxProfit: 1 };
     }
     const first = Math.min(...book.map((sale) => new Date(sale.created_at!).getTime()));
     start = startOfDay(new Date(first));
@@ -182,6 +186,8 @@ export function moneyChart(
     buckets,
     totals: { ...figures(inRange, history, rates), orders: inRange.length },
     max: Math.max(1, ...buckets.map((b) => b.sales)),
+    maxSales: Math.max(1, ...buckets.map((b) => b.sales)),
+    maxProfit: Math.max(1, ...buckets.map((b) => b.profit)),
   };
 }
 

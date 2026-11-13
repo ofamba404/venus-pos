@@ -45,29 +45,71 @@ test.describe('Insights: money chart', () => {
       const sales = await page.getByTestId('money-bar').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-sales'))));
       expect(sales.reduce((a, b) => a + b, 0)).toBe(expected.totals.sales);
       await expect(page.getByTestId('money-plot')).toHaveAttribute('data-unit', expected.unit);
-      // Profit is never more than sales, and the legend is you + helper + partner + joint cost.
+      // Profit is never more than sales, and the split strip is you + helper = profit.
       expect(await num(page, 'money-profit')).toBeLessThanOrEqual(await num(page, 'money-sales'));
-      const parts = (await Promise.all(['owner', 'helper', 'partner', 'costs'].map((k) => num(page, `money-${k}`)))).reduce((a, b) => a + b, 0);
-      expect(Math.abs(parts - (await num(page, 'money-sales')))).toBeLessThanOrEqual(2);
+      const split = (await num(page, 'money-owner')) + (await num(page, 'money-helper'));
+      expect(Math.abs(split - (await num(page, 'money-profit')))).toBeLessThanOrEqual(1);
     });
   }
 
-  test('tapping a bar shows that day, and tapping it again goes back to the whole range', async ({ page }) => {
+  test('no readout until a bar is tapped; the tap shows profit and sales for that day; tapping again clears it', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/insights');
     await page.getByRole('button', { name: '1M', exact: true }).click();
-    const whole = await page.getByTestId('money-readout').innerText();
-    expect(whole).toContain('Whole range, by day');
+    await expect(page.getByTestId('money-readout')).toHaveText('');
     const bars = page.getByTestId('money-bar');
-    const busy = await bars.evaluateAll((els) => els.findIndex((e) => Number(e.getAttribute('data-sales')) > 0));
+    const busy = await bars.evaluateAll((els) => els.findIndex((e) => Number(e.getAttribute('data-profit')) > 0));
     const bar = bars.nth(busy);
-    const sales = Number(await bar.getAttribute('data-sales'));
+    const profit = Number(await bar.getAttribute('data-profit'));
     await bar.click();
     await expect(bar).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByTestId('money-readout')).not.toContainText('Whole range');
-    expect(await num(page, 'money-owner') + (await num(page, 'money-helper')) + (await num(page, 'money-partner')) + (await num(page, 'money-costs'))).toBeGreaterThanOrEqual(sales - 2);
+    await expect(page.getByTestId('money-readout')).toContainText('profit');
+    await expect(page.getByTestId('money-readout')).toContainText('sales');
+    expect(Math.abs((await num(page, 'money-owner')) + (await num(page, 'money-helper')) - profit)).toBeLessThanOrEqual(1);
     await bar.click();
-    await expect(page.getByTestId('money-readout')).toContainText('Whole range, by day');
+    await expect(page.getByTestId('money-readout')).toHaveText('');
+  });
+});
+
+test.describe('Insights: money chart is minimal', () => {
+  test('bars are profit only, the tallest is the best day, and the section carries no scale, dots, partner or cost copy', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await createNextDriver(page, { role: 'pos_admin' });
+    await page.goto('/next/insights');
+    await page.getByRole('button', { name: '1M', exact: true }).click();
+    const bars = page.getByTestId('money-bar');
+    const info = await bars.evaluateAll((els) =>
+      els.map((e) => ({
+        profit: Number(e.getAttribute('data-profit')),
+        h: (e.querySelector('.money__stack') as HTMLElement).getBoundingClientRect().height,
+      })),
+    );
+    const best = info.reduce((a, b) => (b.profit > a.profit ? b : a));
+    expect(best.profit).toBeGreaterThan(0);
+    expect(Math.max(...info.map((i) => i.h))).toBeCloseTo(best.h, 0);
+    const chart = page.getByTestId('money-chart');
+    await expect(chart.locator('[data-part="costs"], [data-part="partner"], .money__dot, [data-testid="money-scale"], [data-testid="money-legend"]')).toHaveCount(0);
+    const text = (await chart.innerText()).toLowerCase();
+    for (const word of ['whole range', 'taken from sales', 'joint cost', 'cookie partner', 'profit is what you keep']) expect(text).not.toContain(word);
+    // The two Sales/Profit tiles are gone: one hero figure and a small "of ... sales" line.
+    await expect(chart.locator('.money__figure')).toHaveCount(0);
+    await expect(page.getByTestId('money-sales')).toContainText('sales');
+    const box = await page.getByTestId('money-plot').boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(360);
+  });
+
+  test('sections are spaced evenly and generously', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await createNextDriver(page, { role: 'pos_admin' });
+    await page.goto('/next/insights');
+    await page.getByTestId('money-chart').waitFor();
+    const gaps = await page.locator('.insights > section.decision').evaluateAll((els) =>
+      els.slice(1).map((e, i) => Math.round(e.getBoundingClientRect().top - els[i]!.getBoundingClientRect().bottom)),
+    );
+    expect(gaps.length).toBeGreaterThan(3);
+    for (const g of gaps) expect(g).toBeGreaterThanOrEqual(28);
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(2);
   });
 });
 
@@ -87,6 +129,8 @@ test.describe('Insights: restock answers directly', () => {
     await expect(page.locator('[data-testid^="restock-row-"]')).toHaveCount(summary.order.length);
     for (const row of summary.order) {
       await expect(page.getByTestId(`restock-qty-${row.id}`)).toHaveText(`Order ${row.orderQty}`);
+      // Plain text, not a pill.
+      expect(await page.getByTestId(`restock-qty-${row.id}`).evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
     }
     if (summary.order.length) await expect(page.getByTestId('restock-key')).toContainText('2-week restock cycle');
     // The rest is one line, closed until tapped.

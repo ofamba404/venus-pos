@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { clients, loadClients, loadSales, sales, type SaleRow } from '../../data/entities';
+import { clients, loadClients, loadSales, sales } from '../../data/entities';
 import { loadStoreAccounts, storeAccounts } from '../../data/store-accounts';
 import {
   getClientOutstandingCredit,
@@ -36,7 +36,7 @@ const FILTERS: Array<{ id: PersonFilter; label: string }> = [
   { id: 'all', label: 'All' },
   { id: 'walkin', label: 'Walk-in' },
   { id: 'storefront', label: 'Storefront' },
-  { id: 'owes', label: 'Owes money' },
+  { id: 'owes', label: 'Owes' },
 ];
 
 const PAGE = 60;
