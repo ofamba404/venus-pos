@@ -35,6 +35,8 @@ export function InsightsDecisions({
   picture,
   ledger,
   ledgerLoading,
+  helperSince,
+  onHelperSince,
   packSentence,
   partnerLoading,
   openBatch,
@@ -52,6 +54,9 @@ export function InsightsDecisions({
   picture: ProfitPicture;
   ledger: CommissionLedger | null;
   ledgerLoading: boolean;
+  /** Day the helper started (YYYY-MM-DD), or null when every day counts. */
+  helperSince: string | null;
+  onHelperSince: (day: string | null) => void;
   packSentence: string;
   partnerLoading: boolean;
   openBatch: PartnerBatch | null;
@@ -107,6 +112,27 @@ export function InsightsDecisions({
               {ledger ? <span class="owe__now-label">owed now</span> : null}
             </div>
           </div>
+          <label class="owe__since" data-testid="helper-since">
+            <span class="owe__since-label">{helperSince ? 'Helper started' : 'Helper started on'}</span>
+            <input
+              type="date"
+              class="owe__since-input"
+              data-testid="helper-since-input"
+              value={helperSince || ''}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => onHelperSince((e.target as HTMLInputElement).value || null)}
+            />
+            {helperSince ? (
+              <button type="button" class="owe__since-clear" data-testid="helper-since-clear" onClick={() => onHelperSince(null)}>
+                Clear
+              </button>
+            ) : null}
+          </label>
+          {helperSince ? null : (
+            <p class="decision__why" data-testid="helper-since-hint">
+              Sales do not record who made them. Set the day your helper started and nothing counts for them before it.
+            </p>
+          )}
           {ledger ? (
             <div class="owe__sum">
               <div class="owe__chip" data-testid="commission-earned" data-value={ledger.earned}>

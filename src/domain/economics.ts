@@ -18,3 +18,23 @@ export type Economics = {
   ownerCookieShare: number;
   restockCycleDays: number;
 };
+
+/**
+ * The day the helper started (YYYY-MM-DD, Kampala). Sales do not record who made them, so this is how Insights
+ * knows which days had a helper. Before it, the owner keeps everything. Unset means the helper counts on every day.
+ * The data layer sets it from a saved setting.
+ */
+export const helperConfig: { since: string | null } = { since: null };
+
+/** Kampala calendar day (YYYY-MM-DD) of a timestamp. Kampala is UTC+3 all year. */
+export function kampalaDay(iso: string | null | undefined): string {
+  const t = new Date(iso || 0).getTime();
+  if (!Number.isFinite(t)) return '';
+  return new Date(t + 3 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/** Did the helper work the day of this sale? True for every day when no start date is set. */
+export function helperWorked(createdAt: string | null | undefined, since: string | null = helperConfig.since): boolean {
+  if (!since) return true;
+  return kampalaDay(createdAt) >= since;
+}

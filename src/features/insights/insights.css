@@ -462,3 +462,32 @@
   margin: 0;
   font: var(--t-body);
 }
+
+.owe__since {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+
+.owe__since-label {
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.owe__since-input {
+  min-height: 40px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font: var(--t-label);
+  color: var(--fg);
+}
+
+.owe__since-clear {
+  margin-left: auto;
+  padding: 8px 4px;
+  font: var(--t-label);
+  color: var(--fg-2);
+}

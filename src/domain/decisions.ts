@@ -5,7 +5,7 @@
 import { priorBounds, rangeBounds, type ChartRange } from './analytics/periods';
 import { canonicalProductName } from './analytics/rank';
 import { CAT_MAP, PRODUCTS, cookieWholesaleUgx, isCookieCategoryId } from './catalog';
-import { ECONOMICS, type Economics } from './economics';
+import { ECONOMICS, helperWorked, type Economics } from './economics';
 import { jointCostAt, type JointCostRow } from './joint-cost';
 import { historyOrDefault } from './insights-view';
 import {
@@ -134,10 +134,12 @@ function lineContribution(
   if (item.is_reward) return { owner: 0, helper: 0, partner: 0, margin: 0, packId: '' };
   const ratio = salePaidRatio(sale);
   if (ratio <= 0) return { owner: 0, helper: 0, partner: 0, margin: 0, packId: '' };
+  // No helper before the day they started: the owner keeps the whole share.
+  const helperShare = helperWorked(sale.created_at) ? rates.helperShare : 0;
   const cookie = cookieTake(item, rates.ownerCookieShare);
   if (cookie) {
     const ownerSplit = cookie.owner * ratio;
-    const helper = cookie.wholesale ? 0 : ownerSplit * rates.helperShare;
+    const helper = cookie.wholesale ? 0 : ownerSplit * helperShare;
     return {
       owner: ownerSplit - helper,
       helper,
@@ -148,7 +150,7 @@ function lineContribution(
   }
   const cost = jointCostOf(item, history, sale.created_at || '1970-01-01T00:00:00.000Z');
   const margin = Math.max(0, (Number(item.line_total) || 0) - cost) * ratio;
-  const helper = margin * rates.helperShare;
+  const helper = margin * helperShare;
   const packId = PACK_IDS.includes(String(item.product_id) as (typeof PACK_IDS)[number]) ? String(item.product_id) : '';
   return { owner: margin - helper, helper, partner: 0, margin, packId };
 }

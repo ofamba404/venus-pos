@@ -10,6 +10,7 @@ export const KEYS = {
   notifFired: 'venus.notif.fired.v1',
   notifStock: 'venus.notif.stock.v1',
   fulfillment: 'venus.pos.fulfillment',
+  helperSince: 'venus.pos.helper-since.v1',
   partnerSettled: 'venus-cookie-partner-settled-qty-v4',
   chartRange: 'venus_chart_range',
   insightPeriod: 'venus_insight_period',

@@ -42,7 +42,12 @@ function Column({
         {PARTS.map((part) => {
           const value = bucket[part];
           return value > 0 ? (
-            <span key={part} class={`money__seg money__seg--${part}`} style={{ flexGrow: value }} data-part={part} />
+            <span
+              key={part}
+              class={`money__seg money__seg--${part}`}
+              style={{ flexGrow: value }}
+              data-part={part}
+            />
           ) : null;
         })}
       </span>
@@ -54,7 +59,7 @@ function Column({
 /** Profit for the chosen range: one number, one bar per day, week or month, and one split strip. */
 export function MoneyChart({ chart, loading }: { chart: MoneyChartData; loading?: boolean }) {
   const [pick, setPick] = useState<number | null>(null);
-  const picked = pick !== null ? chart.buckets[pick] ?? null : null;
+  const picked = pick !== null ? (chart.buckets[pick] ?? null) : null;
   const shown = picked || chart.totals;
   const step = labelStep(chart.buckets.length);
   const hasSales = chart.totals.sales > 0;
@@ -80,7 +85,10 @@ export function MoneyChart({ chart, loading }: { chart: MoneyChartData; loading?
       ) : (
         <>
           <div class="money__plot" data-testid="money-plot" data-unit={chart.unit}>
-            <div class="money__bars" style={{ gridTemplateColumns: `repeat(${chart.buckets.length}, minmax(0, 1fr))` }}>
+            <div
+              class="money__bars"
+              style={{ gridTemplateColumns: `repeat(${chart.buckets.length}, minmax(0, 1fr))` }}
+            >
               {chart.buckets.map((bucket, i) => (
                 <Column
                   key={bucket.key}
@@ -92,7 +100,11 @@ export function MoneyChart({ chart, loading }: { chart: MoneyChartData; loading?
                 />
               ))}
             </div>
-            <div class="money__axis" style={{ gridTemplateColumns: `repeat(${chart.buckets.length}, minmax(0, 1fr))` }} aria-hidden="true">
+            <div
+              class="money__axis"
+              style={{ gridTemplateColumns: `repeat(${chart.buckets.length}, minmax(0, 1fr))` }}
+              aria-hidden="true"
+            >
               {chart.buckets.map((bucket, i) => (
                 <span key={bucket.key}>{i % step === 0 ? bucket.label : ''}</span>
               ))}
@@ -101,24 +113,29 @@ export function MoneyChart({ chart, loading }: { chart: MoneyChartData; loading?
           <p class="money__readout" data-testid="money-readout" aria-live="polite">
             {picked ? (
               <>
-                {picked.title} · profit <b>{picked.profit.toLocaleString('en-UG')}</b> · sales <b>{picked.sales.toLocaleString('en-UG')}</b>
+                {picked.title} · profit <b>{picked.profit.toLocaleString('en-UG')}</b> · sales{' '}
+                <b>{picked.sales.toLocaleString('en-UG')}</b>
               </>
             ) : null}
           </p>
-          <div class="money__split" data-testid="money-split">
-            <div class="money__strip" aria-hidden="true">
-              <span class="money__seg--owner" style={{ width: `${ownerPct}%` }} />
-              <span class="money__seg--helper" style={{ width: `${100 - ownerPct}%` }} />
+          {chart.totals.helper > 0 ? (
+            <div class="money__split" data-testid="money-split">
+              <div class="money__strip" aria-hidden="true">
+                <span class="money__seg--owner" style={{ width: `${ownerPct}%` }} />
+                <span class="money__seg--helper" style={{ width: `${100 - ownerPct}%` }} />
+              </div>
+              <div class="money__split-labels">
+                <span data-testid="money-owner" data-value={shown.owner}>
+                  <span class="money__swatch money__seg--owner" aria-hidden="true" /> You{' '}
+                  <Money value={shown.owner} />
+                </span>
+                <span data-testid="money-helper" data-value={shown.helper}>
+                  <span class="money__swatch money__seg--helper" aria-hidden="true" /> Helper{' '}
+                  <Money value={shown.helper} />
+                </span>
+              </div>
             </div>
-            <div class="money__split-labels">
-              <span data-testid="money-owner" data-value={shown.owner}>
-                <span class="money__swatch money__seg--owner" aria-hidden="true" /> You <Money value={shown.owner} />
-              </span>
-              <span data-testid="money-helper" data-value={shown.helper}>
-                <span class="money__swatch money__seg--helper" aria-hidden="true" /> Helper <Money value={shown.helper} />
-              </span>
-            </div>
-          </div>
+          ) : null}
         </>
       )}
     </section>

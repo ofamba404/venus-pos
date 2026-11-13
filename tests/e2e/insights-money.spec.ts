@@ -187,3 +187,31 @@ test.describe('Insights: restock answers directly', () => {
     expect(copied.indexOf('Roll:')).toBeLessThan(copied.indexOf('Order:'));
   });
 });
+
+test.describe('Insights: helper only counts from the day they started', () => {
+  test('before the start day the helper gets nothing, and the helper figures disappear', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await createNextDriver(page, { role: 'pos_admin' });
+    await page.goto('/next/insights');
+    await page.getByTestId('money-chart').waitFor();
+    // Nothing set: the helper counts on every day, and the page asks for the start day.
+    await expect(page.getByTestId('helper-since-hint')).toBeVisible();
+    const before = Number(await page.getByTestId('money-helper').getAttribute('data-value'));
+    expect(before).toBeGreaterThan(0);
+
+    // A start day tomorrow: no sale is on or after it.
+    const tomorrow = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
+    await page.getByTestId('helper-since-input').fill(tomorrow);
+    await expect(page.getByTestId('money-split')).toHaveCount(0);
+    await expect(page.getByTestId('commission-earned')).toHaveAttribute('data-value', '0');
+    await expect(page.getByTestId('helper-since-hint')).toHaveCount(0);
+    // It is remembered.
+    await page.reload();
+    await expect(page.getByTestId('helper-since-input')).toHaveValue(tomorrow);
+    await expect(page.getByTestId('money-split')).toHaveCount(0);
+
+    await page.getByTestId('helper-since-clear').click();
+    await expect(page.getByTestId('money-helper')).toHaveAttribute('data-value', String(before));
+  });
+});

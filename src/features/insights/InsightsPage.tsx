@@ -14,6 +14,7 @@ import { sbFetch } from '../../data/api';
 import { fetchStaffSettlements } from '../../data/commission';
 import { commissionLedger, type Settlement } from '../../domain/commission';
 import { KEYS } from '../../data/keys';
+import { helperSince, setHelperSince } from '../../data/helper-since';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
 import {
@@ -63,22 +64,24 @@ export function InsightsPage() {
     () => computeTodayStats(sales.value as Parameters<typeof computeTodayStats>[0]),
     [sales.value],
   );
+  // The helper's start day changes every helper figure below, so each one depends on it.
+  const since = helperSince.value;
   const history = historyOrDefault(costHistory);
   const book = sales.value as DecisionSale[];
   const ranged = useMemo(
     () => filterSalesByRange(book, range) as DecisionSale[],
     [book, range],
   );
-  const picture = useMemo(() => profitPicture(ranged, history), [ranged, history]);
+  const picture = useMemo(() => profitPicture(ranged, history), [ranged, history, since]);
   const ledger = useMemo(
     () => (settlements === undefined || settlements === null ? null : commissionLedger(book, history, settlements)),
-    [book, history, settlements],
+    [book, history, settlements, since],
   );
-  const sentence = useMemo(() => periodSentence(book, range, history).text, [book, range, history]);
+  const sentence = useMemo(() => periodSentence(book, range, history).text, [book, range, history, since]);
   const restock = useMemo(() => restockPlan(book, inventory.value), [book, inventory.value]);
   const credit = useMemo(() => creditBook(book, clients.value), [book, clients.value]);
   const collected = useMemo(() => (payments === null ? null : collectedIn(payments, range, new Date())), [payments, range]);
-  const money = useMemo(() => moneyChart(book, range, history), [book, range, history]);
+  const money = useMemo(() => moneyChart(book, range, history), [book, range, history, since]);
 
   const partner = useMemo(() => {
     const list = sales.value as Parameters<typeof expandPartnerUnitsFromSales>[0];
@@ -119,6 +122,8 @@ export function InsightsPage() {
         picture={picture}
         ledger={ledger}
         ledgerLoading={settlements === undefined}
+        helperSince={since}
+        onHelperSince={setHelperSince}
         packSentence={packDriverSentence(picture)}
         partnerLoading={!serverSettle}
         openBatch={partner.open}
