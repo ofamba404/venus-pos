@@ -38,6 +38,24 @@ test.describe('one Clients list for POS clients and storefront accounts', () => 
     });
   }
 
+  test('Storefront still filters when the table cannot be read straight (live row rules): accounts come from store-auth', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    addMergedAccount(driver);
+    // Live: a signed-in app reading store_accounts directly gets nothing back.
+    await page.route(/\/rest\/v1\/store_accounts\?/, async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.goto('/next/clients');
+    await page.getByTestId('client-filter-storefront').click();
+    await expect(page.getByTestId('storefront-tag').first()).toBeVisible();
+    await expect(page.getByTestId('client-list').getByText('Client With Debt')).toBeVisible();
+    expect(driver.mock.writes.some((w) => w.url.includes('/functions/v1/store-auth') && (w.body as { action?: string }).action === 'admin_list_users')).toBe(true);
+  });
+
   test('filter chips: All, Walk-in, Storefront, Owes, with counts', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     addMergedAccount(driver);
@@ -47,6 +65,8 @@ test.describe('one Clients list for POS clients and storefront accounts', () => 
     await expect(tabs).toHaveText([/^All\d+$/, /^Walk-in\d+$/, /^Storefront\d+$/, /^Owes\d+$/]);
 
     const count = async (id: string) => Number(((await page.getByTestId(`client-filter-${id}`).innerText()).match(/\d+$/) || ['0'])[0]);
+    // Accounts arrive after the clients: wait for them, then count.
+    await expect(page.getByTestId('client-filter-storefront')).toHaveText(/3$/);
     // 12 POS clients + 2 default store-only accounts (the third account is joined to Client With Debt).
     expect(await count('all')).toBe(12 + 2);
     expect(await count('storefront')).toBe(3);
@@ -149,13 +169,26 @@ test.describe('one Clients list for POS clients and storefront accounts', () => 
     await page.goto('/next/clients');
     await page.getByTestId('client-list').getByRole('button').first().waitFor();
     await expect(page.getByTestId('client-filter-storefront')).toHaveText(/247$/);
-    // Fetched in pages of 200, not capped at 20.
-    await expect.poll(() => driver.mock.requests.filter((r) => r.method === 'GET' && r.url.includes('store_accounts')).length).toBeGreaterThanOrEqual(2);
+    // One store-auth list call returns them all, as v1 does.
+    expect(driver.mock.writes.some((w) => (w.body as { action?: string }).action === 'admin_list_users')).toBe(true);
     // The list shows a page of people with a Show more button, not 250 rows in an inner scroller.
     await page.getByTestId('client-filter-storefront').click();
     await expect(page.getByTestId('client-show-more')).toBeVisible();
     await page.getByTestId('client-show-more').click();
     expect(await page.getByTestId('client-list').locator('.client-card').count()).toBeGreaterThan(60);
+  });
+
+  test('if store-auth is down, the table is read a page at a time instead', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    const table = driver.mock.db.table('store_accounts');
+    for (let i = 0; i < 245; i += 1) {
+      table.push({ id: `bulk-${String(i).padStart(3, '0')}`, phone: `07555${String(i).padStart(5, '0')}`, pos_display_name: `Bulk ${i}`, verified: true });
+    }
+    await page.route(/\/functions\/v1\/store-auth/, (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"down"}' }));
+    await page.goto('/next/clients');
+    await page.getByTestId('client-list').getByRole('button').first().waitFor();
+    await expect(page.getByTestId('client-filter-storefront')).toHaveText(/247$/);
+    await expect.poll(() => driver.mock.requests.filter((r) => r.method === 'GET' && r.url.includes('store_accounts')).length).toBeGreaterThanOrEqual(2);
   });
 
   test('the Store page no longer lists storefront users', async ({ page }) => {
