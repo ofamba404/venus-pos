@@ -21,7 +21,7 @@ export async function openCartScenario(page: Page) {
   await page.getByTestId('config-add').click();
   // Adding the pack already opens the Review sale sheet.
   const sheet = page.getByRole('dialog', { name: 'Review sale' });
-  const lines = await sheet.getByTestId('line-qty').count();
+  const lines = await sheet.locator('.v-cart-line').count();
   expect(lines).toBeGreaterThanOrEqual(2);
   await sheet.getByRole('button', { name: 'Close' }).click();
   await sheet.waitFor({ state: 'hidden' });
@@ -37,7 +37,7 @@ export async function openCartScenario(page: Page) {
   await expect(again).toBeVisible();
   await expect(again.getByTestId('loaded-order-cart')).toBeVisible();
   // Nothing was reset: the extra pack is still there.
-  await expect(again.getByTestId('line-qty')).toHaveCount(lines);
+  await expect(again.locator('.v-cart-line')).toHaveCount(lines);
   // The request is used up: closing the sheet and reloading Sell does not reopen it.
   await again.getByRole('button', { name: 'Close' }).click();
   await again.waitFor({ state: 'hidden' });

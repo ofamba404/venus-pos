@@ -9,7 +9,7 @@
           "sale_id": "<id:0>",
           "client_id": "<id:1>",
           "amount_ugx": 15000,
-          "method": "mobile",
+          "method": "cash",
           "note": "Cleared at counter"
         }
       ],

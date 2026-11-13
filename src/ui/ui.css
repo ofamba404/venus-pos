@@ -82,18 +82,19 @@
 }
 
 .v-btn.v-btn--reason:disabled {
-  background: var(--melon-tint);
-  color: var(--fg);
-  box-shadow: inset 0 0 0 1.5px var(--melon);
+  /* Muted ink and neutral, a quiet outline. No amber or orange anywhere on this sheet. */
+  background: var(--surface-sunk);
+  color: var(--fg-2);
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
 }
 
 .charge-reason {
   margin: 8px 0 0;
-  padding: 10px 12px;
-  border-radius: var(--r-md);
-  background: var(--melon-tint);
-  color: var(--fg);
-  font: var(--t-label);
+  padding: 0 var(--s-2);
+  background: none;
+  color: var(--fg-2);
+  font: var(--t-meta);
+  text-align: center;
 }
 
 .pickup-control {
@@ -126,19 +127,10 @@
   color: var(--money);
 }
 
-.v-qty {
-  flex: 0 0 auto;
-  min-width: 28px;
-  height: 28px;
-  margin-top: 1px;
-  padding: 0 8px;
-  border-radius: var(--r-pill);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.v-qty-inline {
+  margin-left: 6px;
   font: 500 13px/1 var(--font-mono);
-  color: var(--on-action);
-  background: var(--bronze);
+  color: var(--fg-2);
 }
 
 .v-cart-line {
@@ -2443,6 +2435,7 @@ button.kpi-tile {
   position: relative;
   flex: 0 0 100%;
   height: 100%;
+  overflow: hidden;
   scroll-snap-align: center;
   scroll-snap-stop: always;
 }
@@ -2582,6 +2575,12 @@ button.kpi-tile {
   .edit-line {
     animation: none;
   }
+}
+
+/* In a cart line or sale-edit line the subject is the middle half of a square photo, so zoom it to fill the frame. */
+.v-gallery:not(.v-gallery--mini) .v-gallery__img,
+.v-gallery--mini .v-gallery__img {
+  transform: scale(1.5);
 }
 
 /* Mini gallery: the photo on an order card or History row. Same size as the old round thumb; dots sit on the photo. */

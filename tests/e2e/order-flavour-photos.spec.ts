@@ -124,6 +124,11 @@ test('v2h shots at 390px: plain Sell tiles, a multi-flavour Review sale line, an
   await sheet.getByTestId('line-gallery').locator('[data-dot="1"]').click({ force: true });
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${dir}/v2h-review-sale-line-2.png` });
+  // Footer: no client chosen, so Checkout is disabled and the reason is quiet text.
+  await expect(sheet.getByTestId('charge')).toBeDisabled();
+  await sheet.getByTestId('charge').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${dir}/v2h-review-footer.png` });
   await sheet.getByRole('button', { name: 'Close' }).click();
   await sheet.waitFor({ state: 'hidden' });
   await page.getByTestId('product-pilot').scrollIntoViewIfNeeded();
@@ -136,4 +141,9 @@ test('v2h shots at 390px: plain Sell tiles, a multi-flavour Review sale line, an
   await page.locator('article', { has: page.getByTestId('load-order-photo-order') }).getByTestId('gallery-track').evaluate((el) => el.scrollTo({ left: el.clientWidth * 2, behavior: 'auto' }));
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${dir}/v2h-order-card-2.png` });
+  // The storefront-shaped Buyer One order (no breakdown) gets the same gallery.
+  const buyer = page.locator('article.order-card', { has: page.getByTestId('load-order-so-pending-1') });
+  await buyer.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${dir}/v2h-order-card-buyer-one.png` });
 });

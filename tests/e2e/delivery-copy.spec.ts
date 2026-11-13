@@ -184,7 +184,7 @@ test.describe('SafeBoda copy pills', () => {
 });
 
 test.describe('checkout lines and login', () => {
-  test('a pack reads ×1 with its joints as small text; a single reads ×N', async ({ page }) => {
+  test('a pack shows no ×1 and its joints as small text', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/next/sell');
@@ -196,7 +196,8 @@ test.describe('checkout lines and login', () => {
     await page.keyboard.press('Escape').catch(() => {});
     const sheet = page.getByRole('dialog', { name: 'Review sale' });
     const pilot = sheet.locator('.v-cart-line').first();
-    await expect(pilot.getByTestId('line-qty')).toHaveText('×1');
+    // One pack is just one pack: no ×1 chip. A quantity only shows when it is more than one.
+    await expect(pilot.getByTestId('line-qty')).toHaveCount(0);
     await expect(pilot.getByTestId('line-contents')).toHaveText('2 joints');
   });
 

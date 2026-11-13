@@ -228,7 +228,7 @@ export function HistoryEditSheet({
                 <ProductGallery
                   productId={String(item.product_id || '')}
                   breakdown={item.breakdown as Record<string, unknown>}
-                  size={56}
+                  size={64}
                   testId="edit-line-gallery"
                 />
                 <div class="v-list-row__main">

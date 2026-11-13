@@ -421,13 +421,17 @@ export function SellPage() {
             const { qty, contents } = lineCount(line);
             return (
             <div class="v-cart-line" key={line.key}>
-              <ProductGallery productId={line.productId} breakdown={line.breakdown} size={56} testId="line-gallery" />
-              <span class="v-qty" aria-label={`Quantity ${qty}`} data-testid="line-qty">
-                ×{qty}
-              </span>
+              <ProductGallery productId={line.productId} breakdown={line.breakdown} size={64} testId="line-gallery" />
               <div class="v-cart-line__main">
                 <div class="v-cart-line__head">
-                  <div class="v-list-row__title">{line.name}</div>
+                  <div class="v-list-row__title">
+                    {line.name}
+                    {qty > 1 ? (
+                      <span class="v-qty-inline" aria-label={`Quantity ${qty}`} data-testid="line-qty">
+                        ×{qty}
+                      </span>
+                    ) : null}
+                  </div>
                   <Money className="v-money--total" value={line.isReward ? 0 : line.lineTotal} />
                 </div>
                 {contents ? (

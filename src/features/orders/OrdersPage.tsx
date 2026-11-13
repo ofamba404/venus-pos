@@ -226,7 +226,8 @@ export function OrdersPage() {
       <div class="v-stagger">
         {list.map((o) => {
           const items = Array.isArray(o.items) ? o.items : [];
-          const photos = itemsImageSlides(items as never);
+          // Storefront orders spell products and flavours their own way (cookie-duet, flavors: [...]). Read them like the lines below do.
+          const photos = itemsImageSlides(items.map(orderLine));
           const phone = String(o.phone_e164 || o.phone || '');
           const place = String(o.location_label || '');
           return (
