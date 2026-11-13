@@ -77,12 +77,18 @@ test.describe('v2f shots at 390px', () => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/insights');
     await page.getByTestId('money-chart').waitFor();
-    await page.getByTestId('helper-since').scrollIntoViewIfNeeded();
+    // No helper yet: no split, no helper card, one quiet line.
+    await page.getByTestId('helper-add').scrollIntoViewIfNeeded();
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${dir}/v2f-insights-helper-unset.png` });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${dir}/v2f-insights-top-no-helper.png` });
+    await page.getByTestId('helper-add').scrollIntoViewIfNeeded();
+    await page.getByTestId('helper-add-open').click();
     await page.getByTestId('helper-since-input').fill('2026-11-05');
     await page.waitForTimeout(500);
-    await page.getByTestId('helper-since').scrollIntoViewIfNeeded();
+    await page.getByTestId('commission-ledger').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${dir}/v2f-insights-helper-start-day.png` });
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(300);

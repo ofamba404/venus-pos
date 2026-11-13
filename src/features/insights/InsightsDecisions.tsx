@@ -1,3 +1,4 @@
+import { useState } from 'preact/hooks';
 import type { PackLine, ProfitPicture, RestockRow } from '../../domain/decisions';
 import type { CreditBook } from '../../domain/credit-book';
 import type { MoneyChart as MoneyChartData } from '../../domain/money-chart';
@@ -54,13 +55,14 @@ export function InsightsDecisions({
   picture: ProfitPicture;
   ledger: CommissionLedger | null;
   ledgerLoading: boolean;
-  /** Day the helper started (YYYY-MM-DD), or null when every day counts. */
+  /** Day the helper started (YYYY-MM-DD). Null means no helper: nothing about a helper is shown. */
   helperSince: string | null;
   onHelperSince: (day: string | null) => void;
   packSentence: string;
   partnerLoading: boolean;
   openBatch: PartnerBatch | null;
 }) {
+  const [settingHelper, setSettingHelper] = useState(false);
   const soldPacks = picture.packs.filter((row) => row.soldProfit > 0);
   const maxPack = Math.max(1, ...soldPacks.map((row) => row.soldProfit));
   return (
@@ -99,63 +101,58 @@ export function InsightsDecisions({
 
       <section class="decision" aria-label="What do I owe" data-testid="insights-commission">
         <h2 class="decision__q">What do I owe?</h2>
-        <div class="owe" data-testid="commission-ledger">
-          <div class="owe__head">
-            <div>
-              <div class="v-list-row__title">Helper</div>
-              <div class="v-list-row__meta">
-                {Math.round(picture.helperShare * 100)}% of profit, an estimate
+        {helperSince ? (
+          <div class="owe" data-testid="commission-ledger">
+            <div class="owe__head">
+              <div>
+                <div class="v-list-row__title">Helper</div>
+                <div class="v-list-row__meta">
+                  {Math.round(picture.helperShare * 100)}% of profit, an estimate
+                </div>
+              </div>
+              <div class="owe__now" data-testid="commission-owed" data-value={ledger ? ledger.owed : ''}>
+                {ledger ? <Money value={ledger.owed} /> : <span class="v-muted">{ledgerLoading ? 'Loading…' : 'Payouts unavailable'}</span>}
+                {ledger ? <span class="owe__now-label">owed now</span> : null}
               </div>
             </div>
-            <div class="owe__now" data-testid="commission-owed" data-value={ledger ? ledger.owed : ''}>
-              {ledger ? <Money value={ledger.owed} /> : <span class="v-muted">{ledgerLoading ? 'Loading…' : 'Payouts unavailable'}</span>}
-              {ledger ? <span class="owe__now-label">owed now</span> : null}
-            </div>
-          </div>
-          <label class="owe__since" data-testid="helper-since">
-            <span class="owe__since-label">{helperSince ? 'Helper started' : 'Helper started on'}</span>
-            <input
-              type="date"
-              class="owe__since-input"
-              data-testid="helper-since-input"
-              value={helperSince || ''}
-              max={new Date().toISOString().slice(0, 10)}
-              onChange={(e) => onHelperSince((e.target as HTMLInputElement).value || null)}
-            />
-            {helperSince ? (
+            <label class="owe__since" data-testid="helper-since">
+              <span class="owe__since-label">Helper started</span>
+              <input
+                type="date"
+                class="owe__since-input"
+                data-testid="helper-since-input"
+                value={helperSince || ''}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => onHelperSince((e.target as HTMLInputElement).value || null)}
+              />
               <button type="button" class="owe__since-clear" data-testid="helper-since-clear" onClick={() => onHelperSince(null)}>
                 Clear
               </button>
+            </label>
+            {ledger ? (
+              <div class="owe__sum">
+                <div class="owe__chip" data-testid="commission-earned" data-value={ledger.earned}>
+                  <span class="owe__chip-label">Earned</span>
+                  <Money value={ledger.earned} />
+                </div>
+                <div class="owe__chip owe__chip--paid" data-testid="commission-paid" data-value={ledger.paid}>
+                  <span class="owe__chip-label">Paid</span>
+                  <Money value={ledger.paid} />
+                </div>
+              </div>
             ) : null}
-          </label>
-          {helperSince ? null : (
-            <p class="decision__why" data-testid="helper-since-hint">
-              Sales do not record who made them. Set the day your helper started and nothing counts for them before it.
-            </p>
-          )}
-          {ledger ? (
-            <div class="owe__sum">
-              <div class="owe__chip" data-testid="commission-earned" data-value={ledger.earned}>
-                <span class="owe__chip-label">Earned</span>
-                <Money value={ledger.earned} />
-              </div>
-              <div class="owe__chip owe__chip--paid" data-testid="commission-paid" data-value={ledger.paid}>
-                <span class="owe__chip-label">Paid</span>
-                <Money value={ledger.paid} />
-              </div>
-            </div>
-          ) : null}
-          {ledger ? (
-            <p class="decision__why" data-testid="commission-note">
-              {ledger.ahead > 0
-                ? `Paid is ${formatUGX(ledger.ahead)} ahead of the estimate. Nothing owed.`
-                : ledger.lastPaid
-                  ? `Last payout ${formatUGX(ledger.lastPaid.amount)} on ${new Date(ledger.lastPaid.at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}.`
-                  : 'No payouts recorded yet.'}
-              {' '}This period: <Money value={picture.helper} />.
-            </p>
-          ) : null}
-        </div>
+            {ledger ? (
+              <p class="decision__why" data-testid="commission-note">
+                {ledger.ahead > 0
+                  ? `Paid is ${formatUGX(ledger.ahead)} ahead of the estimate. Nothing owed.`
+                  : ledger.lastPaid
+                    ? `Last payout ${formatUGX(ledger.lastPaid.amount)} on ${new Date(ledger.lastPaid.at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}.`
+                    : 'No payouts recorded yet.'}
+                {' '}This period: <Money value={picture.helper} />.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <button type="button" class="cp-tile" data-testid="partner-summary" onClick={() => go('/cookie-partner')}>
           <span class="cp-tile__main">
             <span class="v-list-row__title">Cookie partner</span>
@@ -173,6 +170,32 @@ export function InsightsDecisions({
             <IconChevronRight size={18} />
           </span>
         </button>
+        {helperSince ? null : (
+          <div class="owe__quiet" data-testid="helper-add">
+            {settingHelper ? (
+              <label class="owe__since" data-testid="helper-since">
+                <span class="owe__since-label">Helper started</span>
+                <input
+                  type="date"
+                  class="owe__since-input"
+                  data-testid="helper-since-input"
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => {
+                    const day = (e.target as HTMLInputElement).value;
+                    if (day) onHelperSince(day);
+                  }}
+                />
+                <button type="button" class="owe__since-clear" data-testid="helper-add-cancel" onClick={() => setSettingHelper(false)}>
+                  Cancel
+                </button>
+              </label>
+            ) : (
+              <button type="button" class="owe__quiet-btn" data-testid="helper-add-open" onClick={() => setSettingHelper(true)}>
+                Hired a helper? Set their start day
+              </button>
+            )}
+          </div>
+        )}
       </section>
     </>
   );

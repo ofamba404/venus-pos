@@ -113,3 +113,19 @@ export function productImageSlides(
   const generic = productImageSrc(id, breakdown);
   return generic ? [{ src: generic, count: 1 }] : [];
 }
+
+/** Sum the flavours of every cart line per product, so a pack tile can show what is in the cart. */
+export function selectedByProduct(
+  lines: Array<{ productId: string; breakdown?: Record<string, unknown> | null }>,
+): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const line of lines) {
+    for (const [flavour, qty] of Object.entries(line.breakdown || {})) {
+      const n = Number(qty) || 0;
+      if (n <= 0 || flavour.startsWith('_')) continue;
+      const bucket = (out[line.productId] ||= {});
+      bucket[flavour] = (bucket[flavour] || 0) + n;
+    }
+  }
+  return out;
+}

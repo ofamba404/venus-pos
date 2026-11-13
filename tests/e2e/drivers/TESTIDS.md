@@ -45,7 +45,7 @@ Use these on v2 elements. Drivers resolve via `[data-testid="…"]`.
 - Sheets: `v-sheet` gains `is-closing` for 480ms while closing; scrim likewise. Reduced motion unmounts at once.
 - Orders: `status-{id}` tags (In sale, Closed), `orders-{waiting,in_sale,closed}` carry counts.
 - History: week and day accordion toggles (`history-week-toggle-{key}`, `history-day-toggle-{key}`), owed rows (`history-owed*`). Open a day before asserting a sale row (`tests/e2e/helpers/history.ts`).
-- Insights: helper start date input and hint; restock card verbs Roll N (joints) and Order N (cookies); `copy-restock` has Roll and Order sections.
+- Insights: no helper until a start day is set. `helper-add` (quiet row) with `helper-add-open`, then `helper-since-input` and `helper-add-cancel`. With a start day: `commission-ledger`, `helper-since-input`, `helper-since-clear`. Tests that need the helper call `withHelper(page)` (`tests/e2e/helpers/helper.ts`); restock card verbs Roll N (joints) and Order N (cookies); `copy-restock` has Roll and Order sections.
 - Cookie partner: `partner-batch-toggle-{n}` opens `partner-batch-detail-{n}`, showing the batch lines.
 - Hours page: `hours-page`, `store-status` (`data-state` open, closed or busy), `busy-15` / `busy-30` / `busy-60` / `busy-clear`, `hours-open`, `hours-close`, `hours-suggest-start`, `hours-suggest-end`, `hours-preview`, `hours-save`.
 - Gallery: `line-gallery` (cart line) and `edit-line-gallery` (sale edit), each with `data-slides`; `gallery-track`, dots with `data-dot`. The cart body renders twice (aside and Review sale dialog), so scope to the dialog.

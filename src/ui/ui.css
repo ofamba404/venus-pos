@@ -2583,3 +2583,41 @@ button.kpi-tile {
     animation: none;
   }
 }
+
+/* Gallery inside a Sell product tile: fills the photo area, dots sit on the photo. Neutral white like the tile. */
+.v-gallery--tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  gap: 0;
+}
+
+.v-gallery--tile .v-gallery__viewport {
+  width: 100%;
+  height: 104px;
+  border-radius: 0;
+  background: var(--surface);
+}
+
+.v-gallery--tile .v-gallery__track {
+  /* A tile sits in a scrolling page: vertical drags must still scroll it. */
+  touch-action: pan-x pan-y;
+}
+
+.v-gallery--tile .v-gallery__img {
+  object-fit: contain;
+  filter: brightness(1.04);
+}
+
+.v-gallery--tile .v-gallery__qty {
+  right: var(--s-2);
+  bottom: var(--s-2);
+}
+
+.v-gallery--tile .v-gallery__dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  pointer-events: none;
+}

@@ -412,7 +412,7 @@ export function ClientsPage() {
                     Give this once: <strong>{resetCode}</strong>. It expires in 24 hours and will not be shown again.
                   </p>
                 ) : (
-                  <p class="v-muted">A reset code lets the customer set a new store password. It is shown once.</p>
+                  <p class="v-muted">A reset code lets the client set a new store password. It is shown once.</p>
                 )}
                 {confirmDelete === 'account' ? (
                   <div class="person-sheet__confirm" role="alert">

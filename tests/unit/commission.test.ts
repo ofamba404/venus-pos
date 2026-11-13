@@ -1,7 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { commissionLedger } from '../../src/domain/commission';
 import { profitPicture, type DecisionSale } from '../../src/domain/decisions';
-import { ECONOMICS } from '../../src/domain/economics';
+import { ECONOMICS, helperConfig } from '../../src/domain/economics';
+
+// These cases are about the helper's share, so a helper has started. With no start day there is no helper at all
+// (tests/unit/helper-since.test.ts).
+beforeEach(() => {
+  helperConfig.since = '2000-01-01';
+});
+afterEach(() => {
+  helperConfig.since = null;
+});
 
 const sale: DecisionSale = {
   id: 's1',
@@ -13,7 +22,10 @@ const sale: DecisionSale = {
 } as unknown as DecisionSale;
 
 describe('commission ledger', () => {
-  const earned = profitPicture([sale], null).helper;
+  let earned = 0;
+  beforeEach(() => {
+    earned = profitPicture([sale], null).helper;
+  });
 
   it('uses the 40% estimate from economics', () => {
     expect(ECONOMICS.helperShare).toBe(0.4);

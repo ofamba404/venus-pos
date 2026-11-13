@@ -74,7 +74,7 @@ export async function runCheckout(input: CheckoutInput): Promise<CheckoutResult>
   if (input.isCredit && isWalkInCheckout(input.meta, false)) {
     return { ok: false, error: 'Credit needs a client name', restored: false };
   }
-  if (!clientName && !walkIn) return { ok: false, error: 'Add a customer to continue', restored: false };
+  if (!clientName && !walkIn) return { ok: false, error: 'Add a client to continue', restored: false };
 
   inFlight = true;
   let holdOrderId = '';

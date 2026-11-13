@@ -43,6 +43,7 @@ test.describe('Hours & availability', () => {
     await open.fill('08:30');
     await expect(save).toBeEnabled();
     await expect(save).toHaveText('Save hours');
+    await expect(page.getByTestId('hours-preview')).toContainText('Clients see');
     await expect(page.getByTestId('hours-preview')).toContainText('8:30');
     await page.getByTestId('hours-suggest-start').fill('12:00');
     await page.getByTestId('hours-suggest-end').fill('17:00');

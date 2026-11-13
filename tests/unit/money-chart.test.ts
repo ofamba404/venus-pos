@@ -1,7 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { moneyChart, moneyUnitFor, profitMarginPct, saleSalesUgx } from '../../src/domain/money-chart';
+import { helperConfig } from '../../src/domain/economics';
 import { profitPicture, type DecisionSale } from '../../src/domain/decisions';
 import { CHART_RANGES } from '../../src/domain/analytics/periods';
+
+// These cases are about the helper's share, so a helper has started. With no start day there is no helper at all
+// (tests/unit/helper-since.test.ts).
+beforeEach(() => {
+  helperConfig.since = '2000-01-01';
+});
+afterEach(() => {
+  helperConfig.since = null;
+});
 
 // Thu 12 Nov 2026, midday local.
 const NOW = new Date(2026, 10, 12, 12, 0, 0);

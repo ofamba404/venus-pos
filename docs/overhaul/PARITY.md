@@ -27,7 +27,7 @@ Staff email reset is no longer an ask. It is on `/next/auth.html` (show/hide pas
 | Cookie partner server settlement | `851db69`; blob `/api/cookie-partner/settle`; mock seeds qty 262 | Ported |
 | Storefront reset code | `admin_issue_reset_code`; owner ask | Ported |
 | Pick which storefront account that code applies to | `admin.js` lists every account; seed has two `store_accounts` | Ported. The chip rail selects the account. Save, verify, delete, and reset use that row. Default stays the unverified account so S40 is unchanged |
-| Long customer names on order cards | Owner nit | They wrap. The amount stays put |
+| Long client names on order cards | Owner nit | They wrap. The amount stays put |
 | Walk-in, device hold, offline queue | D2, D6, D4 answered 2026-11-12; S48 and phase 8 | Ported |
 | Bangis 50/50 hidden from the live stock grid | `3743756` removed it and said keep legacy display; category is `legacy: true`; no scenario edits `spliff5050` | Ported as a hide. Old sales can still name it. It is not a stock stepper |
 
@@ -49,9 +49,9 @@ Staff email reset is no longer an ask. It is on `/next/auth.html` (show/hide pas
 | Review sale | Opens in place from Load into sale (before loading) and is Review sale everywhere after. No Review order button. Delivery orders show no pickup fields, pickup orders show no delivery fields. Copy buttons sit inline on the right of the field. Use GPS and Shop pickup are gone from delivery mode |
 | Orders status | In sale and Closed cards carry a status badge; the tabs carry counts |
 | History | Weeks and days are accordions (this week and the latest day open). Owed rows are grouped. Rows are collapsed by default, so tests reveal them first |
-| Helper days | Sales do not record who made them, so Insights has a Helper started on date. Days before it are not counted as helper days. Unset keeps the old behaviour |
+| Helper days | Sales do not record who made them, so the helper only exists from a saved Helper started day. Unset means no helper at all: every day is the owner's alone, the chart has no split strip, and there is no helper card under What do I owe. A single muted line, Hired a helper? Set their start day, opens the date picker. Once set, the helper card and split return, counting from that day. Clear puts it back to no helper |
 | Cookie partner batches | Each sent batch opens to its lines. The settle fetch refreshes an expired token and retries once |
-| Hours & availability | Replaces Store under More (`/store`, titled Hours). Status hero (Open now, Closed, Busy), busy 15 min, 30 min, 1 hour and Clear busy, time pickers for opening hours and the suggested delivery window, a Customers see preview, Save only when changed. No storefront users, no legacy admin button |
+| Hours & availability | Replaces Store under More (`/store`, titled Hours). Status hero (Open now, Closed, Busy), busy 15 min, 30 min, 1 hour and Clear busy, time pickers for opening hours and the suggested delivery window, a Clients see preview, Save only when changed. No storefront users, no legacy admin button |
 | Pack photos | Cart and sale-edit lines show one photo per flavour with a ×N badge, dots and slow auto-advance that pauses on touch and off screen, like the storefront cart drawer. One flavour is a plain photo. Reduced motion stops auto-advance |
 | Motion | Every sheet uses the storefront drawer open and close motion. Accordions (History, partner batches, credit, restock) animate. List items, toasts and segments ease in. Reduced motion turns it all off. Tap highlight is removed |
 

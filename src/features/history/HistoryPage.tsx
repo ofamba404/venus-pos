@@ -117,7 +117,7 @@ export function HistoryPage() {
       <HistoryRow
         key={s.id}
         testId={`history-sale-${s.id}`}
-        name={person || (full.store_order_id ? 'Store customer' : 'Counter')}
+        name={person || (full.store_order_id ? 'Store client' : 'Counter')}
         when={`${new Date(s.created_at || '').toLocaleString('en-GB', {
           hour: '2-digit',
           minute: '2-digit',

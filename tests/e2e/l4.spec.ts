@@ -21,7 +21,7 @@ test('recent-client scout sale is at most 6 taps', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'New sale' })).toBeVisible();
 });
 
-test('charge stays disabled until a customer is chosen', async ({ page }) => {
+test('charge stays disabled until a client is chosen', async ({ page }) => {
   await createNextDriver(page, { role: 'pos_staff' });
   await page.goto('/next/sell');
   await page.getByTestId('product-plain_single').click();
@@ -29,7 +29,7 @@ test('charge stays disabled until a customer is chosen', async ({ page }) => {
   const charge = page.locator('[data-desktop-cart]').getByTestId('charge');
   await expect(charge).toBeDisabled();
   await expect(page.locator('[data-desktop-cart]').getByTestId('charge-reason')).toHaveText(
-    'Add a customer to continue',
+    'Add a client to continue',
   );
 });
 

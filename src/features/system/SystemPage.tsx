@@ -50,7 +50,7 @@ export function SystemPage() {
         ]}
       />
       <div style={{ height: 12 }} />
-      <Field label="Customer" placeholder="Amina" />
+      <Field label="Client" placeholder="Amina" />
       <div class="v-section-label">Debug</div>
       <div class="v-chip-row">
         <Button

@@ -151,7 +151,7 @@ export function StorePage() {
       </div>
 
       <h2 class="v-section-label">Busy</h2>
-      <p class="v-muted hours__note">Pauses new delivery and pickup times for a while. Customers see the next free time.</p>
+      <p class="v-muted hours__note">Pauses new delivery and pickup times for a while. Clients see the next free time.</p>
       <div class="v-chip-row hours__busy">
         {[15, 30, 60].map((minutes) => (
           <Button
@@ -191,7 +191,7 @@ export function StorePage() {
       </div>
 
       <h2 class="v-section-label">Suggested delivery window</h2>
-      <p class="v-muted hours__note">The time range the storefront nudges customers toward. Leave empty for none.</p>
+      <p class="v-muted hours__note">The time range the storefront nudges clients toward. Leave empty for none.</p>
       <div class="hours__grid">
         <Field
           label="From"
@@ -210,7 +210,7 @@ export function StorePage() {
       </div>
 
       <div class="hours__preview" data-testid="hours-preview">
-        <div class="v-list-row__meta">Customers see</div>
+        <div class="v-list-row__meta">Clients see</div>
         <div>
           Open {formatClockHHmm(status.openTime || DEFAULT_OPEN)} to {formatClockHHmm(status.closeTime || DEFAULT_CLOSE)}
         </div>

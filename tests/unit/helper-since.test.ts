@@ -8,8 +8,9 @@ afterEach(() => {
 });
 
 describe('helper start day', () => {
-  it('counts every day until a start day is set', () => {
-    expect(helperWorked('2020-01-01T10:00:00.000Z')).toBe(true);
+  it('has no helper at all until a start day is set', () => {
+    expect(helperWorked('2020-01-01T10:00:00.000Z')).toBe(false);
+    expect(helperWorked('2026-11-12T10:00:00.000Z')).toBe(false);
     helperConfig.since = '2026-11-10';
     expect(helperWorked('2026-11-09T10:00:00.000Z')).toBe(false);
     expect(helperWorked('2026-11-10T10:00:00.000Z')).toBe(true);
@@ -23,8 +24,11 @@ describe('helper start day', () => {
     expect(helperWorked('2026-11-09T22:30:00.000Z', '2026-11-10')).toBe(true);
   });
 
-  it('gives the owner the whole share on days before the helper started', () => {
+  it('gives the owner the whole share while no helper has started, and before the start day', () => {
     const sales = buildDefaultSeed().sales as unknown as DecisionSale[];
+    // Unset: no helper, every day is the owner's.
+    expect(profitPicture(sales, null).helper).toBe(0);
+    helperConfig.since = '2000-01-01';
     const all = profitPicture(sales, null);
     expect(all.helper).toBeGreaterThan(0);
     helperConfig.since = '2999-01-01';

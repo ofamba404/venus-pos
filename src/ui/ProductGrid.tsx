@@ -1,6 +1,6 @@
 import { PRODUCTS, type Product } from '../domain/catalog';
 import { formatUGX } from '../domain/format';
-import { productImageSrc } from '../domain/product-art';
+import { productImageSrc, selectedByProduct } from '../domain/product-art';
 import { ProductCard } from './ProductCard';
 
 const PACKS = PRODUCTS.filter((p) => !p.retired && (p.rule === 'choose_any' || p.rule === 'choose_variety'));
@@ -21,7 +21,14 @@ function productPriceLabel(p: Product) {
 }
 
 /** The product tiles Sell sells from: Packs, Singles, Wholesale. History's Add item uses the very same grid. */
-export function ProductGrid({ onPick }: { onPick: (product: Product) => void }) {
+export function ProductGrid({
+  onPick,
+  selected,
+}: {
+  onPick: (product: Product) => void;
+  /** Flavours picked so far per product id (summed across cart lines). Pack tiles swipe through those photos. */
+  selected?: Record<string, Record<string, number>>;
+}) {
   return (
     <>
       <div class="v-section-label">Packs</div>
@@ -33,6 +40,7 @@ export function ProductGrid({ onPick }: { onPick: (product: Product) => void }) 
             name={p.name}
             kind={productKind(p)}
             image={productImageSrc(p.id)}
+            selected={selected?.[p.id]}
             meta={`${p.joints} ${p.slotNoun || (Number(p.joints) === 1 ? 'joint' : 'joints')}`}
             price={productPriceLabel(p)}
             onClick={() => onPick(p)}

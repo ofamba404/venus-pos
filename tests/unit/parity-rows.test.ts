@@ -154,9 +154,9 @@ describe('parity row helpers', () => {
     expect(posCustomerLabel({ account_id: 'acc-1', customer_name: 'snap' }, index)).toBe('Buyer One');
     expect(posCustomerLabel({ customer_name: 'snap' }, index)).toBe('Buyer One');
     expect(posCustomerLabel({ customer_name: 'Store Customer' }, index)).toBe('Store Customer');
-    expect(posCustomerLabel({ account_id: 'missing', customer_name: '' }, index)).toBe('Customer');
+    expect(posCustomerLabel({ account_id: 'missing', customer_name: '' }, index)).toBe('Client');
     expect(posCustomerLabel({ pos_display_name: 'Counter' }, index)).toBe('Counter');
-    expect(posCustomerLabel(null, index)).toBe('Customer');
+    expect(posCustomerLabel(null, index)).toBe('Client');
     expect(labelsAreStale(0, 10)).toBe(true);
     expect(labelsAreStale(1_000, 1_000 + POS_LABEL_STALE_MS - 1)).toBe(false);
     expect(labelsAreStale(1_000, 1_000 + POS_LABEL_STALE_MS)).toBe(true);

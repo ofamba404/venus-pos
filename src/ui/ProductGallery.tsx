@@ -18,12 +18,19 @@ export function ProductGallery({
   breakdown,
   size = 64,
   testId,
+  variant = 'thumb',
 }: {
   productId: string | null | undefined;
   breakdown?: Record<string, unknown> | null;
   size?: number;
   testId?: string;
+  /**
+   * `tile` fills a Sell product tile (a button, so the dots are pictures, not buttons) and is
+   * swiped with a thumb. Tapping the tile still opens the picker. `thumb` is the small cart photo.
+   */
+  variant?: 'thumb' | 'tile';
 }) {
+  const tile = variant === 'tile';
   const slides = productImageSlides(productId, breakdown);
   const key = slides.map((s) => `${s.src}:${s.count}`).join('|');
   const trackRef = useRef<HTMLDivElement>(null);
@@ -117,10 +124,11 @@ export function ProductGallery({
   }, [key, count]);
 
   if (!count) return null;
-  const style = { '--gallery-size': `${size}px` } as Record<string, string>;
+  const style = tile ? undefined : ({ '--gallery-size': `${size}px` } as Record<string, string>);
+  const cls = `v-gallery${tile ? ' v-gallery--tile' : ''}`;
   if (count === 1) {
     return (
-      <div class="v-gallery" style={style} data-testid={testId} data-slides="1">
+      <div class={cls} style={style} data-testid={testId} data-slides="1">
         <div class="v-gallery__viewport">
           <img class="v-gallery__img" src={slides[0]!.src} alt="" draggable={false} />
           {slides[0]!.count > 1 ? <span class="v-gallery__qty">×{slides[0]!.count}</span> : null}
@@ -129,12 +137,12 @@ export function ProductGallery({
     );
   }
   return (
-    <div class="v-gallery has-multiple" ref={rootRef} style={style} data-testid={testId} data-slides={count}>
+    <div class={`${cls} has-multiple`} ref={rootRef} style={style} data-testid={testId} data-slides={count}>
       <div class="v-gallery__viewport">
         <div
           class="v-gallery__track"
           ref={trackRef}
-          tabIndex={0}
+          tabIndex={tile ? -1 : 0}
           role="region"
           aria-roledescription="carousel"
           aria-label="Flavour photos"
@@ -148,17 +156,21 @@ export function ProductGallery({
           ))}
         </div>
       </div>
-      <div class="v-gallery__dots" role="tablist" aria-label="Flavour photos">
-        {slides.map((slide, i) => (
-          <button
-            key={slide.src}
-            type="button"
-            class={`v-gallery__dot${i === active ? ' is-active' : ''}`}
-            data-dot={i}
-            aria-label={`Photo ${i + 1} of ${count}`}
-            aria-current={i === active ? 'true' : undefined}
-          />
-        ))}
+      <div class="v-gallery__dots" role={tile ? undefined : 'tablist'} aria-label="Flavour photos" aria-hidden={tile ? 'true' : undefined}>
+        {slides.map((slide, i) =>
+          tile ? (
+            <span key={slide.src} class={`v-gallery__dot${i === active ? ' is-active' : ''}`} />
+          ) : (
+            <button
+              key={slide.src}
+              type="button"
+              class={`v-gallery__dot${i === active ? ' is-active' : ''}`}
+              data-dot={i}
+              aria-label={`Photo ${i + 1} of ${count}`}
+              aria-current={i === active ? 'true' : undefined}
+            />
+          ),
+        )}
       </div>
     </div>
   );

@@ -3,6 +3,8 @@ import { createNextDriver } from './drivers/next';
 import { buildDefaultSeed } from '../fixtures/seed';
 import { commissionLedger } from '../../src/domain/commission';
 import { openSale } from './helpers/history';
+import { withHelper } from './helpers/helper';
+import { helperConfig } from '../../src/domain/economics';
 
 function deltas(driver: Awaited<ReturnType<typeof createNextDriver>>, categoryId: string) {
   return driver.mock.writes
@@ -62,9 +64,12 @@ test.describe('owner decisions', () => {
   });
 
   test('helper commission is the 40% estimate, what is paid, and what is left', async ({ page }) => {
+    await withHelper(page);
     await createNextDriver(page, { role: 'pos_admin' });
     const seed = buildDefaultSeed();
+    helperConfig.since = '2000-01-01';
     const want = commissionLedger(seed.sales as never, null, seed.staff_settlements);
+    helperConfig.since = null;
     expect(want.paid).toBe(5000);
     expect(want.owed).toBe(want.earned - want.paid);
     await page.goto('/next/insights');
@@ -78,6 +83,7 @@ test.describe('owner decisions', () => {
   });
 
   test('commission says so when payouts cannot be read, instead of a wrong owed figure', async ({ page }) => {
+    await withHelper(page);
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     driver.mock.setFailure({ method: 'GET', table: 'staff_settlements', status: 500, times: 5 });
     await page.goto('/next/insights');
@@ -131,7 +137,7 @@ test.describe('owner decisions', () => {
     expect(patch().busy_until).toBeNull();
   });
 
-  test('long customer names wrap on an order card instead of being cut off', async ({ page }) => {
+  test('long client names wrap on an order card instead of being cut off', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     await page.setViewportSize({ width: 360, height: 780 });
     const longName = 'Bartholomew Nakimuli Wolfeschlegelstein Mukasa Junior';

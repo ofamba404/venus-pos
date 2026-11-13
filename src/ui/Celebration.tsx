@@ -1,6 +1,6 @@
 import { Button } from './Button';
 
-/** The moment after a sale. A check and the amount, then one way back to the next customer. */
+/** The moment after a sale. A check and the amount, then one way back to the next client. */
 export function Celebration({
   total,
   message,

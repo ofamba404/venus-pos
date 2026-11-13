@@ -195,7 +195,7 @@ export function HistoryEditSheet({
     <Sheet open={open} title="Edit sale" onClose={onClose} dismissible={false}>
       <div style={{ display: 'grid', gap: 12 }}>
         <Field
-          label="Customer"
+          label="Client"
           data-testid="sale-edit-customer"
           value={name}
           placeholder="Client name"

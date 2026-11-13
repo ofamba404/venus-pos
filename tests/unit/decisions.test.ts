@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CHART_RANGES, rangeBounds } from '../../src/domain/analytics/periods';
 import { buildDefaultSeed } from '../fixtures/seed';
-import { ECONOMICS } from '../../src/domain/economics';
+import { ECONOMICS, helperConfig } from '../../src/domain/economics';
 import {
   compareLabel,
   creditChase,
@@ -16,6 +16,15 @@ import {
   whatsappLink,
 } from '../../src/domain/decisions';
 import { defaultJointHistory } from '../../src/domain/insights-view';
+
+// These cases are about the helper's share, so a helper has started. With no start day there is no helper at all
+// (tests/unit/helper-since.test.ts).
+beforeEach(() => {
+  helperConfig.since = '2000-01-01';
+});
+afterEach(() => {
+  helperConfig.since = null;
+});
 
 const at = '2026-11-12T12:00:00.000Z';
 

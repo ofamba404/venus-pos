@@ -491,3 +491,21 @@
   font: var(--t-label);
   color: var(--fg-2);
 }
+
+/* No helper yet: one quiet line at the bottom, nothing else. */
+.owe__quiet {
+  margin-top: var(--s-2);
+}
+
+.owe__quiet .owe__since {
+  margin-top: 0;
+}
+
+.owe__quiet-btn {
+  padding: 8px 0;
+  font: var(--t-meta);
+  color: var(--fg-3);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  background: none;
+}

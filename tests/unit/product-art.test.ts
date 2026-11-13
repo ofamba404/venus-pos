@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { productImageSlides, productImageSrc } from '../../src/domain/product-art';
+import { productImageSlides, productImageSrc, selectedByProduct } from '../../src/domain/product-art';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -79,5 +79,19 @@ describe('flavour photo slides', () => {
     const slides = productImageSlides('cookie_trio', { cookie: 1, cookie_butterscotch: 2 });
     expect(slides).toHaveLength(1);
     expect(slides[0]!.count).toBe(3);
+  });
+});
+
+describe('selectedByProduct', () => {
+  it('sums the flavours of each product across cart lines and skips zeros and internal keys', () => {
+    expect(
+      selectedByProduct([
+        { productId: 'pilot', breakdown: { mint: 1, grape: 1 } },
+        { productId: 'pilot', breakdown: { mint: 1, _unitPrice: 9, strawberry: 0 } },
+        { productId: 'scout', breakdown: { mint: 1 } },
+        { productId: 'scout', breakdown: null },
+        { productId: 'cookie_trio' },
+      ]),
+    ).toEqual({ pilot: { mint: 2, grape: 1 }, scout: { mint: 1 } });
   });
 });

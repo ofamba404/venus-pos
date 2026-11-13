@@ -42,7 +42,7 @@ export function buildPosLabelIndex(rows: PosLabelRow[] | null | undefined): PosL
 export function posCustomerLabel(
   source: PosLabelSource | null | undefined,
   index: PosLabelIndex,
-  fallback = 'Customer',
+  fallback = 'Client',
 ): string {
   if (!source) return fallback;
   const direct = String(source.pos_display_name || '').trim();

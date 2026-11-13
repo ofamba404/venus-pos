@@ -57,6 +57,7 @@ import { lineCount } from '../../domain/line-count';
 import { LoadedOrderCard } from '../../ui/LoadedOrderCard';
 import { confirmStoreOrder, isOrderConfirmed } from '../orders/confirm-order';
 import { ProductGrid } from '../../ui/ProductGrid';
+import { selectedByProduct } from '../../domain/product-art';
 import { DeliveryBlock } from '../../ui/DeliveryBlock';
 import { CopyButton } from '../../ui/CopyButton';
 import { copyAllText, copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
@@ -371,7 +372,7 @@ export function SellPage() {
       ? ''
       : credit && isWalkInCheckout(meta, false)
         ? 'Credit needs a client name'
-        : 'Add a customer to continue';
+        : 'Add a client to continue';
 
   // The rider collects only when this sale is unpaid: On credit. Paid never shows a Collect line, and a
   // store order carries no paid flag, so it follows the Paid / On credit choice above and nothing else.
@@ -480,7 +481,7 @@ export function SellPage() {
 
       <div style={{ display: 'grid', gap: 'var(--s-3)', marginTop: 'var(--s-4)' }}>
         <Field
-          label="Customer"
+          label="Client"
           data-testid="cart-client"
           value={meta.clientName}
           placeholder="Name"
@@ -724,7 +725,7 @@ export function SellPage() {
             {today.cookies ? ` · ${today.cookies} cookies` : ''}
           </span>
         </button>
-        <ProductGrid onPick={openConfig} />
+        <ProductGrid onPick={openConfig} selected={selectedByProduct(lines)} />
       </div>
 
       <aside class="sell-cart-pane" data-desktop-cart>

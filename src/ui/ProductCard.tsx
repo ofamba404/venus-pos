@@ -1,3 +1,5 @@
+import { ProductGallery } from './ProductGallery';
+
 const COOKIE_COLORS = ['#D4A355', '#5c2e1f', '#3CB043', '#d81e2c'];
 
 /** Wholesale is the flavour set and has no catalog photo. */
@@ -20,6 +22,7 @@ export function ProductCard({
   image,
   art,
   kind,
+  selected,
   onClick,
 }: {
   id: string;
@@ -29,11 +32,15 @@ export function ProductCard({
   image?: string;
   art?: 'swatches';
   kind: 'joint' | 'cookie';
+  /** Flavours already picked for this product, for example in the cart. Shows their own photos, swiping. */
+  selected?: Record<string, number>;
   onClick: () => void;
 }) {
   return (
     <button type="button" class="v-tile product-card" data-kind={kind} data-testid={`product-${id}`} onClick={onClick}>
-      {image ? <img class="v-tile__img" src={image} alt="" /> : art ? <CookieArt mode={art} /> : <span class="product-card__blank" aria-hidden="true" />}
+      {selected && Object.values(selected).some((n) => n > 0) ? (
+        <ProductGallery productId={id} breakdown={selected} variant="tile" testId="tile-gallery" />
+      ) : image ? <img class="v-tile__img" src={image} alt="" /> : art ? <CookieArt mode={art} /> : <span class="product-card__blank" aria-hidden="true" />}
       <span class="v-tile__name">{name}</span>
       {meta ? <span class="v-tile__meta">{meta}</span> : null}
       <span class="v-tile__price">{price}</span>

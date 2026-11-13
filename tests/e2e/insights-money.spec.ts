@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createNextDriver } from './drivers/next';
+import { withHelper } from './helpers/helper';
 import { buildDefaultSeed } from '../fixtures/seed';
 import { moneyChart } from '../../src/domain/money-chart';
 import { restockPlan, restockVerb } from '../../src/domain/decisions-book';
@@ -31,6 +32,7 @@ test.describe('Insights: money chart', () => {
 
   for (const id of ['1w', 'lw', '2w', '1m', '3m', 'all']) {
     test(`range ${id}: totals match the domain and the bars add up to them`, async ({ page }) => {
+      await withHelper(page);
       await createNextDriver(page, { role: 'pos_admin' });
       await page.goto('/next/insights');
       await page.getByRole('button', { name: range(id).short, exact: true }).click();
@@ -53,6 +55,7 @@ test.describe('Insights: money chart', () => {
   }
 
   test('no readout until a bar is tapped; the tap shows profit and sales for that day; tapping again clears it', async ({ page }) => {
+    await withHelper(page);
     await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/insights');
     await page.getByRole('button', { name: '1M', exact: true }).click();
@@ -188,30 +191,55 @@ test.describe('Insights: restock answers directly', () => {
   });
 });
 
-test.describe('Insights: helper only counts from the day they started', () => {
-  test('before the start day the helper gets nothing, and the helper figures disappear', async ({ page }) => {
+test.describe('Insights: no helper until a start day is set', () => {
+  test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
+  });
+
+  test('unset means no helper anywhere: no split, no helper card, one quiet way to add one', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/insights');
     await page.getByTestId('money-chart').waitFor();
-    // Nothing set: the helper counts on every day, and the page asks for the start day.
-    await expect(page.getByTestId('helper-since-hint')).toBeVisible();
-    const before = Number(await page.getByTestId('money-helper').getAttribute('data-value'));
-    expect(before).toBeGreaterThan(0);
+    // Every day is yours alone, so there is nothing to split.
+    await expect(page.getByTestId('money-split')).toHaveCount(0);
+    await expect(page.getByTestId('money-helper')).toHaveCount(0);
+    await expect(page.getByTestId('commission-ledger')).toHaveCount(0);
+    await expect(page.getByTestId('commission-owed')).toHaveCount(0);
+    await expect(page.getByTestId('helper-since-hint')).toHaveCount(0);
+    await expect(page.getByTestId('insights-commission')).not.toContainText(/helper's|Helper\b.*owed/i);
+    expect(await num(page, 'money-profit')).toBeGreaterThan(0);
+    // The way to add one is a single muted line, with the date picker behind it.
+    await expect(page.getByTestId('helper-since-input')).toHaveCount(0);
+    await expect(page.getByTestId('helper-add-open')).toHaveText('Hired a helper? Set their start day');
+    await page.getByTestId('helper-add-open').click();
+    await expect(page.getByTestId('helper-since-input')).toBeVisible();
+    await page.getByTestId('helper-add-cancel').click();
+    await expect(page.getByTestId('helper-since-input')).toHaveCount(0);
+  });
 
-    // A start day tomorrow: no sale is on or after it.
+  test('setting a start day brings the helper back from that day, and it is remembered', async ({ page }) => {
+    await createNextDriver(page, { role: 'pos_admin' });
+    await page.goto('/next/insights');
+    await page.getByTestId('money-chart').waitFor();
+    await page.getByTestId('helper-add-open').click();
+    await page.getByTestId('helper-since-input').fill('2000-01-01');
+    await expect(page.getByTestId('commission-ledger')).toBeVisible();
+    await expect(page.getByTestId('helper-add')).toHaveCount(0);
+    expect(await num(page, 'money-helper')).toBeGreaterThan(0);
+
+    await page.reload();
+    await expect(page.getByTestId('helper-since-input')).toHaveValue('2000-01-01');
+
+    // A start day in the future: still no sale on or after it, so the helper figures stay out of the chart.
     const tomorrow = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
     await page.getByTestId('helper-since-input').fill(tomorrow);
     await expect(page.getByTestId('money-split')).toHaveCount(0);
     await expect(page.getByTestId('commission-earned')).toHaveAttribute('data-value', '0');
-    await expect(page.getByTestId('helper-since-hint')).toHaveCount(0);
-    // It is remembered.
-    await page.reload();
-    await expect(page.getByTestId('helper-since-input')).toHaveValue(tomorrow);
-    await expect(page.getByTestId('money-split')).toHaveCount(0);
 
+    // Clear puts it back to no helper.
     await page.getByTestId('helper-since-clear').click();
-    await expect(page.getByTestId('money-helper')).toHaveAttribute('data-value', String(before));
+    await expect(page.getByTestId('commission-ledger')).toHaveCount(0);
+    await expect(page.getByTestId('helper-add-open')).toBeVisible();
   });
 });

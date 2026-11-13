@@ -21,7 +21,8 @@ export type Economics = {
 
 /**
  * The day the helper started (YYYY-MM-DD, Kampala). Sales do not record who made them, so this is how Insights
- * knows which days had a helper. Before it, the owner keeps everything. Unset means the helper counts on every day.
+ * knows which days had a helper. Before it, the owner keeps everything. Unset means there is no helper at all: every
+ * day is the owner's alone, and no helper figure is shown. The owner sets it when a helper is hired.
  * The data layer sets it from a saved setting.
  */
 export const helperConfig: { since: string | null } = { since: null };
@@ -33,8 +34,8 @@ export function kampalaDay(iso: string | null | undefined): string {
   return new Date(t + 3 * 3_600_000).toISOString().slice(0, 10);
 }
 
-/** Did the helper work the day of this sale? True for every day when no start date is set. */
+/** Did the helper work the day of this sale? Never, when no start date is set: there is no helper yet. */
 export function helperWorked(createdAt: string | null | undefined, since: string | null = helperConfig.since): boolean {
-  if (!since) return true;
+  if (!since) return false;
   return kampalaDay(createdAt) >= since;
 }
