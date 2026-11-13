@@ -1,25 +1,31 @@
 import { useState } from 'preact/hooks';
 import {
-  addPlainLine,
-  bumpFirstLine,
+  addConfiguredLine,
+  bumpLine,
+  canDecrement,
   flavourProduct,
   flavourSelection,
+  lineQuantity,
+  newItemSelection,
   reflavourLine,
   removeSaleLine,
-  setLineQty,
+  saleItemsTotal,
+  type SaleItem,
 } from '../../data/sale-edit';
+import type { Product } from '../../domain/catalog';
 import { configReady, configTarget, type ConfigSelection } from '../../domain/pricing/pack-config';
 import { productImageSrc } from '../../domain/product-art';
 import { Button } from '../../ui/Button';
 import { Field } from '../../ui/Field';
 import { FlavorPicker } from '../../ui/FlavorPicker';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
+import { ProductGrid } from '../../ui/ProductGrid';
 import { Money } from '../../ui/Money';
 import { Segmented } from '../../ui/Segmented';
 import { Sheet } from '../../ui/Sheet';
 import { IconMinus, IconPlus } from '../../ui/icons';
 
-type Item = ReturnType<typeof setLineQty>[number];
+type Item = SaleItem;
 
 export function HistoryEditSheet({
   open,
@@ -52,6 +58,20 @@ export function HistoryEditSheet({
   const [picking, setPicking] = useState<{ index: number; selection: ConfigSelection } | null>(null);
   const pickItem = picking ? draft[picking.index] : undefined;
   const pickProduct = flavourProduct(pickItem);
+  // Add item: the same product tiles as Sell, then the same capped picker for the product chosen.
+  const [catalog, setCatalog] = useState(false);
+  const [adding, setAdding] = useState<{ product: Product; selection: ConfigSelection } | null>(null);
+
+  function bumpAdding(id: string, delta: number) {
+    setAdding((cur) => {
+      if (!cur) return cur;
+      const next = { ...cur.selection };
+      const n = Math.max(0, (Number(next[id]) || 0) + delta);
+      if (n === 0) delete next[id];
+      else next[id] = n;
+      return { ...cur, selection: next };
+    });
+  }
 
   function bump(id: string, delta: number) {
     setPicking((cur) => {
@@ -62,6 +82,70 @@ export function HistoryEditSheet({
       else next[id] = n;
       return { ...cur, selection: next };
     });
+  }
+
+  if (adding) {
+    const canAdd = configReady(adding.product, adding.selection);
+    return (
+      <Sheet
+        open={open}
+        title={`Add · ${adding.product.name}`}
+        onClose={() => setAdding(null)}
+        dismissible={false}
+        footer={
+          <div class="edit-picker__foot">
+            <Button size="xl" variant="secondary" data-testid="sale-add-back" onClick={() => setAdding(null)}>
+              Back
+            </Button>
+            <Button
+              size="xl"
+              data-testid="sale-add-apply"
+              disabled={!canAdd}
+              onClick={() => {
+                onDraft(addConfiguredLine(draft, adding.product, adding.selection));
+                setAdding(null);
+                setCatalog(false);
+              }}
+            >
+              {canAdd
+                ? 'Add to sale'
+                : configTarget(adding.product) === null
+                  ? 'Pick at least one'
+                  : `Pick ${configTarget(adding.product)} to add`}
+            </Button>
+          </div>
+        }
+      >
+        <FlavorPicker
+          product={adding.product}
+          selection={adding.selection}
+          sellable={null}
+          onBump={bumpAdding}
+          onQty={(qty) => setAdding((cur) => (cur ? { ...cur, selection: { qty } } : cur))}
+          onUnit={(n) => setAdding((cur) => (cur ? { ...cur, selection: { ...cur.selection, _unitPrice: n } } : cur))}
+        />
+      </Sheet>
+    );
+  }
+
+  if (catalog) {
+    return (
+      <Sheet
+        open={open}
+        title="Add item"
+        onClose={() => setCatalog(false)}
+        dismissible={false}
+        footer={
+          <Button size="xl" variant="secondary" data-testid="sale-add-close" onClick={() => setCatalog(false)}>
+            Back to sale
+          </Button>
+        }
+      >
+        <div data-testid="sale-add-catalog">
+          <ProductGrid onPick={(product) => setAdding({ product, selection: newItemSelection(product) })} />
+        </div>
+      </Sheet>
+    );
   }
 
   if (picking && pickItem && pickProduct) {
@@ -136,7 +220,7 @@ export function HistoryEditSheet({
           />
         ) : null}
         {draft.map((item, index) => {
-          const qty = Math.max(1, Math.round(Number(Object.values(item.breakdown || {})[0]) || 1));
+          const qty = lineQuantity(item);
           const art = productImageSrc(String(item.product_id || ''), item.breakdown as Record<string, unknown>);
           const canPick = Boolean(flavourProduct(item));
           return (
@@ -164,7 +248,12 @@ export function HistoryEditSheet({
                   </button>
                 ) : null}
                 <div class="stepper">
-                  <button type="button" aria-label="Less" onClick={() => onDraft(setLineQty(draft, index, qty - 1))}>
+                  <button
+                    type="button"
+                    aria-label="Less"
+                    disabled={!canDecrement(draft, index)}
+                    onClick={() => onDraft(bumpLine(draft, index, -1))}
+                  >
                     <IconMinus size={18} />
                   </button>
                   <span class="stepper__n">{qty}</span>
@@ -172,7 +261,7 @@ export function HistoryEditSheet({
                     type="button"
                     aria-label="More"
                     data-testid={index === 0 ? 'sale-edit-inc' : undefined}
-                    onClick={() => onDraft(index === 0 ? bumpFirstLine(draft) : setLineQty(draft, index, qty + 1))}
+                    onClick={() => onDraft(bumpLine(draft, index, 1))}
                   >
                     <IconPlus size={18} />
                   </button>
@@ -189,9 +278,13 @@ export function HistoryEditSheet({
             </div>
           );
         })}
-        <Button variant="secondary" data-testid="sale-edit-add" onClick={() => onDraft(addPlainLine(draft))}>
-          Add Plain
+        <Button variant="secondary" data-testid="sale-edit-add" onClick={() => setCatalog(true)}>
+          Add item
         </Button>
+        <div class="edit-total" data-testid="sale-edit-total">
+          <span class="cart-total__label">Total</span>
+          <Money className="v-money--total" value={saleItemsTotal(draft)} size="xl" />
+        </div>
         <Button data-testid="sale-edit-save" disabled={busy || !draft.length} onClick={onSave}>
           Save sale
         </Button>

@@ -28,6 +28,7 @@
   --fg-disabled: var(--ink-300);
   --line: var(--paper-200);
   --tile-line: #ebe8e2;
+  --input-line: #85807a;
   --shadow-tile: 0 1px 2px rgb(33 33 33 / 0.06), 0 2px 8px rgb(33 33 33 / 0.05);
   --line-strong: var(--stroke-400);
   --mint: #0f8f78;

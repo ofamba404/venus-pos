@@ -19,6 +19,7 @@ import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
 import { KEYS } from '../../data/keys';
 import { ConfirmButton, ConfirmedTag } from '../../ui/ConfirmOrder';
 import { confirmStoreOrder, isOrderConfirmed } from './confirm-order';
+import { orderSegment, type OrderSegment } from '../../domain/order-segment';
 import { writePaint } from '../../domain/parity';
 import { SUPABASE_ANON_JWT, SUPABASE_URL } from '../../data/env';
 import {
@@ -30,13 +31,7 @@ import {
   type PosLabelRow,
 } from '../../domain/pos-labels';
 
-type Segment = 'waiting' | 'in_sale' | 'closed';
-
-function segmentOf(o: StoreOrderRow): Segment {
-  if (o.status === 'accepted') return 'in_sale';
-  if (o.status === 'cancelled' || o.status === 'checked_out') return 'closed';
-  return 'waiting';
-}
+type Segment = OrderSegment;
 
 let posLabels: PosLabelIndex = buildPosLabelIndex([]);
 let posLabelsAt = 0;
@@ -129,7 +124,8 @@ export function OrdersPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const list = storeOrders.value.filter((o) => segmentOf(o) === seg);
+  const loadedId = orderMeta.value.storeOrderId || '';
+  const list = storeOrders.value.filter((o) => orderSegment(o, loadedId) === seg);
 
   async function loadIntoSale(order: StoreOrderRow) {
     const device_id = deviceId();
@@ -242,6 +238,7 @@ export function OrdersPage() {
             copies={
               <DeliveryCopyRow
                 compact
+                allOnly
                 delivery={o.delivery_enabled !== false}
                 name={orderTitle(o, labels)}
                 phone={phone}

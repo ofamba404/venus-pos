@@ -275,10 +275,13 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
           return;
         }
         await page.getByTestId('client-delete').click();
+        await page.getByTestId('client-delete-confirm').click();
         return;
       }
       case 'storeUsers':
-        await page.goto('/next/store');
+        await page.goto('/next/clients');
+        await page.getByTestId('client-filter-storefront').click();
+        await page.getByTestId('person-acc-2').getByRole('button').click();
         if (step.action === 'setName') {
           await page.getByTestId('store-user-name').fill(step.name || '');
           await page.getByTestId('store-user-save').click();
@@ -289,6 +292,7 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
           return;
         }
         await page.getByTestId('store-user-delete').click();
+        await page.getByTestId('store-user-delete-confirm').click();
         return;
       case 'quoteLabPreset':
         await page.goto('/next/delivery');
@@ -304,8 +308,9 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         return;
       case 'partnerSettleBatch':
         await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-        await page.goto('/next/insights');
-        await page.getByTestId('partner-settle').first().click();
+        await page.goto('/next/cookie-partner');
+        await page.getByTestId('partner-settle').click();
+        await page.getByTestId('partner-confirm-send').click();
         await page.getByRole('status').filter({ hasText: /settled|cookies/i }).waitFor({ timeout: 8000 });
         return;
       case 'goOffline':
@@ -319,8 +324,6 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         creditOwedBefore = parseUgx(await row.innerText());
         await row.click();
         await page.getByTestId('settle-amount').fill(String(step.amountUgx));
-        const methodLabel = step.method === 'mobile_money' ? 'Mobile money' : 'Cash';
-        await page.getByRole('tab', { name: methodLabel }).click();
         if (step.note) await page.getByRole('textbox', { name: 'Note' }).fill(step.note);
         await page.getByTestId('settle-confirm').click();
         return;

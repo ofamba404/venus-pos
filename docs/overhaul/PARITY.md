@@ -31,6 +31,19 @@ Staff email reset is no longer an ask. It is on `/next/auth.html` (show/hide pas
 | Walk-in, device hold, offline queue | D2, D6, D4 answered 2026-11-12; S48 and phase 8 | Ported |
 | Bangis 50/50 hidden from the live stock grid | `3743756` removed it and said keep legacy display; category is `legacy: true`; no scenario edits `spliff5050` | Ported as a hide. Old sales can still name it. It is not a stock stepper |
 
+## Changed in v2 (owner-approved, v2c)
+
+| Item | Decision |
+| --- | --- |
+| Clients and storefront users | One Clients page. POS clients (`clients`) and storefront accounts (`store_accounts`) merge into one list with All / Walk-in / Storefront / Owes money chips. A client and an account that share the same 9-digit phone are one person with both action sets. Matching is UI-only: no DB link, no migration. The Store page no longer lists users. S40 now runs from Clients |
+| Store accounts load | All of them, 200 per request until a page comes back short. It was 20 |
+| Settle credit | Amount plus an optional note. The Cash / Mobile money toggle is gone. The `credit_payments` row still sends `method: 'cash'` so the schema is untouched |
+| Deleting | Asks first, for a client and for a storefront account |
+| Orders list card copy | One pill, Copy all. Copy phone and Copy location stay on the loaded-order card and in checkout |
+| Loaded order | A confirmed order that is loaded into the sale stays in In sale. Unlink is now Detach order, and says the order stays in Orders, not cancelled |
+| History edit sale | Add item opens Sell's product tiles and capped picker, replacing Add Plain. + on a pack adds another pack (it used to multiply the first flavour). Totals use Sell's line builder and cookie repricing |
+| Cookie partner | Its own page, Cookie partner under More (`/cookie-partner`). Insights keeps a small summary tile that opens it. Partial batch send ported from v1 PR #3: a part-filled batch can be sent only while no full batch waits, after a confirm, with the server checked first and one write of a higher total. Same failure wording as v1. The write is still `POST /api/cookie-partner/settle`, unchanged |
+
 ## Drop
 
 | Item | Why it is clutter |
@@ -42,7 +55,7 @@ Staff email reset is no longer an ask. It is on `/next/auth.html` (show/hide pas
 | Cookie Quartet on Sell | Owner decision, S03 | Removed. See above |
 | Insights donut and Pareto drawings | The same numbers are the flavour and product bars |
 | Cookie partner swipe pager | The settled list and the open batch are the same data |
-| Export users JSON, and a second “copy users” button | Admin toolbox. The account list is on Store. Copy names stays on Clients, which S39 and L4 use |
+| Export users JSON, and a second “copy users” button | Admin toolbox. Copy names stays on Clients, which S39 and L4 use |
 | Speed-dial FAB and the header bag | Replaced by the bottom nav and Orders (`07cbf4a`) |
 | Per-item “you earn” rate table | Dropped on purpose for the minimal staff analytics (`29e16ab`) |
 | Review `page_path` and the shop carousels | Storefront. POS dropped review paths in `07cbf4a`. Carousels stay on the shop (`82ca7e4`) |

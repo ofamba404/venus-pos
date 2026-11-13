@@ -6,14 +6,14 @@ export const S34: Scenario = {
   role: 'pos_admin',
   seed: 'default',
   steps: [
-    { do: 'settleCredit', clientName: 'Client With Debt', amountUgx: 5000, method: 'cash' },
+    { do: 'settleCredit', clientName: 'Client With Debt', amountUgx: 5000 },
     { expect: 'display', values: { creditOwedDelta: -5000 } },
   ],
 };
 
 export const S35: Scenario = {
   id: 'S35',
-  title: 'Settle full credit with mobile money + note',
+  title: 'Settle full credit with a note',
   role: 'pos_admin',
   seed: 'default',
   steps: [
@@ -21,7 +21,6 @@ export const S35: Scenario = {
       do: 'settleCredit',
       clientName: 'Client With Debt',
       amountUgx: 999999,
-      method: 'mobile_money',
       note: 'Cleared at counter',
     },
     { expect: 'display', values: { creditOwed: 0 } },
@@ -159,6 +158,7 @@ export const S47: Scenario = {
         '/clients',
         '/history',
         '/insights',
+        '/cookie-partner',
         '/delivery',
         '/reviews',
         '/store',

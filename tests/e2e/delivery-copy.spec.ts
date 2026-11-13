@@ -12,40 +12,21 @@ test.describe('SafeBoda copy pills', () => {
     await page.setViewportSize({ width: 390, height: 844 });
   });
 
-  test('order card: labelled pills only, 44px tall, with the exact text', async ({ page }) => {
+  test('Orders list card keeps only Copy all: a labelled 44px pill with the exact text', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/next/orders');
-    const phone = page.getByTestId('copy-phone-so-confirmed-1');
-    const place = page.getByTestId('copy-location-so-confirmed-1');
     const all = page.getByTestId('copy-all-so-confirmed-1');
-    await expect(phone).toHaveText('Copy phone');
-    await expect(place).toHaveText('Copy location');
     await expect(all).toHaveText('Copy all');
-    for (const button of [phone, place, all]) {
-      expect(Math.round((await button.boundingBox())!.height)).toBe(44);
-    }
-    // Phone and location share one style. Copy all is the strong ink one.
-    const bg = (b: typeof phone) => b.evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(await bg(phone)).toBe(await bg(place));
-    expect(await bg(all)).not.toBe(await bg(phone));
-    // The row stays inside the card on a phone.
+    expect(Math.round((await all.boundingBox())!.height)).toBe(44);
+    // Copy phone and Copy location are gone from every Orders card. They live on the loaded-order card and in checkout.
+    await expect(page.locator('[data-testid^="copy-phone-"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid^="copy-location-"]')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
-
-    await phone.click();
-    await expect(page.getByRole('status').filter({ hasText: 'Phone copied' })).toBeVisible();
-    await expect(phone).toHaveClass(/is-done/);
-    // One row on a phone: the three pills share a top edge.
-    const tops = await Promise.all([phone, place, all].map(async (b) => Math.round((await b.boundingBox())!.y)));
-    expect(new Set(tops).size).toBe(1);
-    expect(await clip(page)).toBe('700654321');
-
-    await place.click();
-    await expect(page.getByRole('status').filter({ hasText: 'Location copied' })).toBeVisible();
-    expect(await clip(page)).toBe(`Kololo Test\n${MAP}`);
 
     await all.click();
     await expect(page.getByRole('status').filter({ hasText: 'Delivery details copied' })).toBeVisible();
+    await expect(all).toHaveClass(/is-done/);
     // Store orders carry no paid / unpaid field, so there is never a Collect line here.
     expect(await clip(page)).toBe(['Name: Test Buyer Two', 'Phone: 700654321', 'Drop-off: Kololo Test', `Map: ${MAP}`].join('\n'));
   });
@@ -58,15 +39,15 @@ test.describe('SafeBoda copy pills', () => {
     for (const text of await buttons.allInnerTexts()) expect(text.trim().length).toBeGreaterThan(0);
   });
 
-  test('a pickup order shows Copy phone and nothing else', async ({ page }) => {
+  test('a pickup order card also has just Copy all, with name and phone', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/next/orders');
-    await expect(page.getByTestId('copy-phone-seed-pending-order')).toBeVisible();
+    await expect(page.getByTestId('copy-all-seed-pending-order')).toBeVisible();
+    await expect(page.getByTestId('copy-phone-seed-pending-order')).toHaveCount(0);
     await expect(page.getByTestId('copy-location-seed-pending-order')).toHaveCount(0);
-    await expect(page.getByTestId('copy-all-seed-pending-order')).toHaveCount(0);
-    await page.getByTestId('copy-phone-seed-pending-order').click();
-    expect(await clip(page)).toBe('700000099');
+    await page.getByTestId('copy-all-seed-pending-order').click();
+    expect(await clip(page)).toBe('Name: Store Customer\nPhone: 700000099');
   });
 
   test('the sale sheet copies the same way, and collects only what is still owed', async ({ page }) => {

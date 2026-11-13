@@ -89,6 +89,10 @@ export function pairs() {
   add('--wash', ['--action'], KEY, 'Light wash text on ink');
   add('--on-action', ['--bronze'], NORMAL, 'White on solid bronze (Delivery tag, quantity badge)');
   add('--bronze', ['--paper-0', '--bg', '--wash', '--wash-strong'], NON_TEXT, 'Bronze borders, nav marker, chart bars and the selected ring against the surfaces they sit on');
+  add('--input-line', ['--paper-0', '--bg'], NON_TEXT, 'Input borders against the sheet and the page');
+  add('--bronze-deep', ['--wash-strong'], NORMAL, 'Avatar initials on the stronger wash');
+  add('--danger', [{ mix: ['--danger', 7, '--surface'] }, { mix: ['--danger', 6, '--surface'] }], KEY, 'Calm owed tag and delete confirmation');
+  add('--fg-3', ['--paper-0'], NORMAL, 'Placeholder text on a white input');
   add('--focus', ['--bg', '--paper-0', '--wash'], NON_TEXT, 'Focus ring against the page and the wash');
   add('--line-strong', ['--paper-0'], 1, 'Divider only, not for information');
   return list;

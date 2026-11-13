@@ -20,7 +20,7 @@ export type LoadedOrderCardProps = {
   confirmed?: boolean;
   /** Confirm pill. Resolves true on success. Left out where the order cannot be confirmed. */
   onConfirm?: () => Promise<boolean> | boolean | void;
-  /** Page variant adds Review and Unlink. The sheet variant is just the header. */
+  /** Page variant adds Review and Detach. The sheet variant is just the header. */
   onReview?: () => void;
   onUnlink?: () => void;
   testId?: string;
@@ -96,10 +96,15 @@ export function LoadedOrderCard({
           ) : null}
           {onUnlink ? (
             <Button size="md" variant="ghost" data-testid={`${testId}-unlink`} onClick={onUnlink}>
-              Unlink
+              Detach order
             </Button>
           ) : null}
         </div>
+      ) : null}
+      {onUnlink ? (
+        <p class="v-loaded-order__hint" data-testid={`${testId}-detach-hint`}>
+          Detach keeps these items, and the order stays in Orders. It is not cancelled.
+        </p>
       ) : null}
     </section>
   );

@@ -54,7 +54,7 @@ test.describe('loaded store order', () => {
     await expect(sheet.getByTestId('walk-in')).toHaveCount(0);
   });
 
-  test('a pickup order shows no location, and Unlink drops the banner but keeps the items', async ({ page }) => {
+  test('a pickup order shows no location, and Detach order drops the banner but keeps the items', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/next/orders');
@@ -63,8 +63,16 @@ test.describe('loaded store order', () => {
     const banner = page.getByTestId('loaded-order');
     await expect(banner).toHaveAttribute('data-mode', 'pickup');
     await expect(banner.getByTestId('loaded-order-place')).toHaveCount(0);
+    await expect(banner.getByTestId('loaded-order-unlink')).toHaveText('Detach order');
+    await expect(banner.getByTestId('loaded-order-detach-hint')).toContainText('stays in Orders');
+    await expect(banner.getByTestId('loaded-order-detach-hint')).toContainText('not cancelled');
     await banner.getByTestId('loaded-order-unlink').click();
     await expect(page.getByTestId('loaded-order')).toHaveCount(0);
     await expect(page.getByTestId('cart-bar')).toBeVisible();
+    // The order is still in Orders (In sale, where loading put it), and nothing cancelled it.
+    await page.goto('/next/orders');
+    await page.getByRole('tab', { name: 'In sale' }).click();
+    await expect(page.getByTestId('load-order-seed-pending-order')).toBeVisible();
+    await expect(page.getByTestId('cancel-order-seed-pending-order')).toBeVisible();
   });
 });

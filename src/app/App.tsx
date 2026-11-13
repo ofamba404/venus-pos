@@ -26,6 +26,7 @@ const PAGES = {
   clients: page(() => import('../features/clients/ClientsPage').then((m) => ({ default: m.ClientsPage }))),
   history: page(() => import('../features/history/HistoryPage').then((m) => ({ default: m.HistoryPage }))),
   insights: page(() => import('../features/insights/InsightsPage').then((m) => ({ default: m.InsightsPage }))),
+  partner: page(() => import('../features/cookie-partner/CookiePartnerPage').then((m) => ({ default: m.CookiePartnerPage }))),
   delivery: page(() => import('../features/delivery/DeliveryPage').then((m) => ({ default: m.DeliveryPage }))),
   reviews: page(() => import('../features/reviews/ReviewsPage').then((m) => ({ default: m.ReviewsPage }))),
   store: page(() => import('../features/store/StorePage').then((m) => ({ default: m.StorePage }))),

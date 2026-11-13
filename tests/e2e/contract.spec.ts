@@ -315,7 +315,8 @@ test.describe('write-contract scenarios (next)', () => {
     const payments = driver.mock.writes.filter(
       (w) => w.method === 'POST' && w.url.includes('/rest/v1/credit_payments'),
     );
-    expect((payments[0]!.body as { method?: string; note?: string }).method).toBe('mobile_money');
+    // The Cash / Mobile money toggle is gone. The row still carries the schema's method column, fixed to 'cash'.
+    expect((payments[0]!.body as { method?: string }).method).toBe('cash');
     expect((payments[0]!.body as { note?: string }).note).toBe('Cleared at counter');
   });
 

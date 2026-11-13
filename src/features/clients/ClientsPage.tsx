@@ -1,50 +1,116 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { clients, loadClients, loadSales, sales, type SaleRow } from '../../data/entities';
+import { loadStoreAccounts, storeAccounts } from '../../data/store-accounts';
 import {
   allocatePaymentFifo,
   getClientOutstandingCredit,
+  creditBalance,
   sumCreditOwed,
 } from '../../domain/credit';
+import {
+  filterCounts,
+  filterPeople,
+  mergePeople,
+  personMeta,
+  type Person,
+  type PersonFilter,
+} from '../../domain/people';
 import { deleteClient, patchClient, postClient } from '../../data/writes/clients';
 import { postCreditPayment } from '../../data/writes/credit';
 import { patchSale } from '../../data/writes/sales';
+import { deleteStoreAccount, patchStoreAccount, storeAuth } from '../../data/writes/store';
 import { Money } from '../../ui/Money';
 import { Sheet } from '../../ui/Sheet';
 import { Field } from '../../ui/Field';
 import { Button } from '../../ui/Button';
-import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
-import { ClientCard } from '../../ui/ClientCard';
-import { clientNamesText, virtualWindow } from '../../domain/parity';
+import { PersonRow } from '../../ui/PersonRow';
+import { clientNamesText } from '../../domain/parity';
+
+/** Settling is amount plus an optional note. The payment row still carries the column the schema expects. */
+/** First letter of a name. A phone-number name has no letter, so it gets a hash mark. */
+function avatarInitial(name: string | null | undefined): string {
+  const c = String(name || '').trim().charAt(0).toUpperCase();
+  if (!c) return '?';
+  return /[0-9+]/.test(c) ? '#' : c;
+}
+
+export const SETTLE_DEFAULT_METHOD = 'cash';
+
+const FILTERS: Array<{ id: PersonFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'walkin', label: 'Walk-in' },
+  { id: 'storefront', label: 'Storefront' },
+  { id: 'owes', label: 'Owes money' },
+];
+
+const PAGE = 60;
 
 export function ClientsPage() {
   const [q, setQ] = useState('');
-  const [settleId, setSettleId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<PersonFilter>('all');
+  const [shown, setShown] = useState(PAGE);
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<'cash' | 'mobile_money'>('cash');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [scrollTop, setScrollTop] = useState(0);
+  const [accountName, setAccountName] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<'client' | 'account' | null>(null);
 
   useEffect(() => {
-    void Promise.all([loadClients(), loadSales()]).catch((e) =>
+    void Promise.all([loadClients(), loadSales(), loadStoreAccounts()]).catch((e) =>
       showToast(e instanceof Error ? e.message : 'Could not load clients'),
     );
   }, []);
 
-  const list = clients.value
-    .filter((c) => String(c.name || '').toLowerCase().includes(q.toLowerCase()))
-    .slice(0, 100);
+  const people = useMemo(() => {
+    const owedByClient = new Map<string, number>();
+    for (const sale of sales.value) {
+      const left = creditBalance(sale);
+      if (left > 0 && sale.client_id) owedByClient.set(sale.client_id, (owedByClient.get(sale.client_id) || 0) + left);
+    }
+    const lastOrderByClient = new Map<string, string>();
+    for (const sale of sales.value) {
+      if (!sale.client_id || !sale.created_at) continue;
+      const prev = lastOrderByClient.get(sale.client_id);
+      if (!prev || new Date(sale.created_at).getTime() > new Date(prev).getTime()) {
+        lastOrderByClient.set(sale.client_id, sale.created_at);
+      }
+    }
+    const merged = mergePeople(clients.value, storeAccounts.value, { owedByClient, lastOrderByClient });
+    return merged.sort((a, b) => b.owed - a.owed || a.name.localeCompare(b.name));
+  }, [clients.value, storeAccounts.value, sales.value]);
 
-  const settleClient = settleId ? clients.value.find((c) => c.id === settleId) : null;
-  const openSales = settleId ? getClientOutstandingCredit(sales.value, settleId) : [];
+  const counts = filterCounts(people);
+  const list = filterPeople(people, filter, q);
+  const visible = list.slice(0, shown);
+  const open = openKey ? people.find((p) => p.key === openKey) || null : null;
+
+  const openSales = open?.client ? getClientOutstandingCredit(sales.value, open.client.id) : [];
   const owed = sumCreditOwed(openSales);
 
+  function openPerson(person: Person) {
+    setOpenKey(person.key);
+    setEditName(person.client?.name || '');
+    setAccountName(String(person.account?.pos_display_name || ''));
+    setAmount(person.owed > 0 ? String(person.owed) : '');
+    setNote('');
+    setResetCode('');
+    setConfirmDelete(null);
+  }
+
+  function closeSheet() {
+    setOpenKey(null);
+    setConfirmDelete(null);
+    setResetCode('');
+  }
+
   async function settle() {
-    if (!settleId || owed <= 0) return;
+    const clientId = open?.client?.id;
+    if (!clientId || owed <= 0) return;
     const pay = Math.min(owed, Math.max(0, Math.round(Number(amount) || 0)));
     if (pay <= 0) {
       showToast('Enter an amount');
@@ -64,15 +130,15 @@ export function ClientsPage() {
         if (!res.ok) throw new Error(`Could not update sale (${res.status})`);
       }
       await postCreditPayment({
-        client_id: settleId,
+        client_id: clientId,
         amount_ugx: pay,
-        method,
+        method: SETTLE_DEFAULT_METHOD,
         note: note.trim() || null,
       }).catch(() => {});
       showToast(`Settled ${pay.toLocaleString('en-UG')} UGX`);
-      setSettleId(null);
       setAmount('');
       setNote('');
+      closeSheet();
       await loadSales({ force: true });
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Settle failed');
@@ -91,31 +157,64 @@ export function ClientsPage() {
     }
     setNewName('');
     showToast('Client added');
-    await loadClients().catch(() => {});
+    await loadClients({ force: true }).catch(() => {});
   }
 
   async function renameClient() {
-    if (!editId) return;
-    const res = await patchClient(editId, { name: editName.trim() });
+    if (!open?.client) return;
+    const res = await patchClient(open.client.id, { name: editName.trim() });
     if (!res.ok) {
       showToast('Could not rename client');
       return;
     }
-    setEditId(null);
     showToast('Client renamed');
-    await loadClients().catch(() => {});
+    await loadClients({ force: true }).catch(() => {});
   }
 
   async function removeClient() {
-    if (!editId) return;
-    const res = await deleteClient(editId);
+    if (!open?.client) return;
+    const res = await deleteClient(open.client.id);
     if (!res.ok) {
       showToast('Could not delete client');
       return;
     }
-    setEditId(null);
     showToast('Client deleted');
-    await loadClients().catch(() => {});
+    closeSheet();
+    await loadClients({ force: true }).catch(() => {});
+  }
+
+  async function patchAccount(body: Record<string, unknown>, toast: string) {
+    if (!open?.account) return;
+    const res = await patchStoreAccount(open.account.id, body);
+    if (!res.ok) {
+      showToast('Could not update user');
+      return;
+    }
+    showToast(toast);
+    await loadStoreAccounts().catch(() => {});
+  }
+
+  async function issueReset() {
+    if (!open?.account) return;
+    const result = await storeAuth('admin_issue_reset_code', { user_id: open.account.id });
+    if (!result.ok || !result.data.code) {
+      showToast(result.data.error || 'Could not create reset code');
+      return;
+    }
+    setResetCode(result.data.code);
+    showToast('Reset code ready');
+  }
+
+  async function removeAccount() {
+    if (!open?.account) return;
+    const res = await deleteStoreAccount(open.account.id);
+    if (!res.ok) {
+      showToast('Could not delete user');
+      return;
+    }
+    showToast('User deleted');
+    closeSheet();
+    await loadStoreAccounts().catch(() => {});
   }
 
   return (
@@ -134,143 +233,228 @@ export function ClientsPage() {
       </div>
       <input
         class="v-field__input"
-        placeholder="Search"
+        placeholder="Search name or phone"
+        aria-label="Search clients"
+        data-testid="client-search"
         value={q}
-        onInput={(e) => setQ((e.target as HTMLInputElement).value)}
+        onInput={(e) => {
+          setQ((e.target as HTMLInputElement).value);
+          setShown(PAGE);
+        }}
         style={{ marginBottom: 12 }}
       />
-      <Button
-        size="md"
-        variant="secondary"
-        data-testid="copy-client-names"
-        onClick={() => {
-          const text = clientNamesText(clients.value.map((c) => c.name));
-          void navigator.clipboard?.writeText(text);
-          showToast(text ? 'Names copied' : 'No clients');
-        }}
-      >
-        Copy names
-      </Button>
-      <div
-        class="v-stagger"
-        data-testid="client-list"
-        onScroll={(e) => setScrollTop((e.currentTarget as HTMLElement).scrollTop)}
-        style={{ maxHeight: '70vh', overflow: 'auto', paddingRight: 4 }}
-      >
-      <div style={{ height: virtualWindow(list, scrollTop, 672, 72).padPx }} />
-      {virtualWindow(list, scrollTop, 672, 72).items.map((c) => {
-        const clientOwed = sumCreditOwed(getClientOutstandingCredit(sales.value, c.id));
-        const latest = sales.value
-          .filter((sale) => sale.client_id === c.id)
-          .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
-        const lastLabel = latest?.created_at
-          ? new Date(latest.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
-          : 'No orders yet';
-        const initial = String(c.name || '?').trim().charAt(0).toUpperCase() || '?';
-        return (
-          <ClientCard
-            key={c.id}
-            name={c.name || 'Client'}
-            initial={initial}
-            meta={`${c.phone ? `${c.phone} · ` : ''}Last order ${lastLabel}`}
-            owed={
-              clientOwed > 0 ? (
-                <span class="v-tag v-tag--credit">
-                  <Money value={clientOwed} />
-                </span>
-              ) : (
-                <span class="v-tag">Clear</span>
-              )
-            }
-            onOpen={() => {
-              if (clientOwed > 0) {
-                setSettleId(c.id);
-                setAmount(String(clientOwed));
-                return;
-              }
-              setEditId(c.id);
-              setEditName(c.name || '');
+      <div class="v-filter-row" role="tablist" aria-label="Filter people" data-testid="client-filters">
+        {FILTERS.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            role="tab"
+            aria-selected={filter === f.id}
+            class={`v-filter ${filter === f.id ? 'is-on' : ''}`}
+            data-testid={`client-filter-${f.id}`}
+            onClick={() => {
+              setFilter(f.id);
+              setShown(PAGE);
             }}
-            edit={
-            <Button
-              size="md"
-              variant="ghost"
-              data-testid={`client-edit-${c.id}`}
-              onClick={() => {
-                setEditId(c.id);
-                setEditName(c.name || '');
-              }}
-            >
-              Edit
-            </Button>
-            }
-          />
-        );
-      })}
+          >
+            {f.label}
+            <span class="v-filter__count">{counts[f.id]}</span>
+          </button>
+        ))}
+      </div>
+      <div class="v-toolbar">
+        <Button
+          size="md"
+          variant="secondary"
+          data-testid="copy-client-names"
+          onClick={() => {
+            const text = clientNamesText(clients.value.map((c) => c.name));
+            void navigator.clipboard?.writeText(text);
+            showToast(text ? 'Names copied' : 'No clients');
+          }}
+        >
+          Copy names
+        </Button>
+        <span class="v-muted" data-testid="client-count">
+          {list.length} {list.length === 1 ? 'person' : 'people'}
+        </span>
       </div>
 
-      <Sheet
-        open={Boolean(settleId)}
-        title={settleClient?.name || 'Settle credit'}
-        onClose={() => setSettleId(null)}
-        footer={
+      <div data-testid="client-list">
+        {visible.map((person) => (
+          <PersonRow
+            key={person.key}
+            testId={`person-${person.client?.id || person.account?.id}`}
+            name={person.name}
+            initial={avatarInitial(person.name)}
+            meta={personMeta(person)}
+            tags={
+              person.account ? (
+                <span class="v-tag v-tag--bronze-soft" data-testid="storefront-tag">
+                  Storefront
+                </span>
+              ) : null
+            }
+            status={
+              person.owed > 0 ? (
+                <span class="v-owed" data-testid="owed-tag">
+                  <Money value={person.owed} />
+                </span>
+              ) : person.client ? (
+                <span class="v-tag">Clear</span>
+              ) : null
+            }
+            onOpen={() => openPerson(person)}
+          />
+        ))}
+        {!visible.length ? <p class="v-muted">Nobody matches. Try another filter or search.</p> : null}
+        {list.length > visible.length ? (
           <Button
-            size="xl"
-            data-testid="settle-confirm"
-            disabled={busy || owed <= 0}
-            onClick={() => void settle()}
+            size="md"
+            variant="secondary"
+            data-testid="client-show-more"
+            onClick={() => setShown((n) => n + PAGE)}
           >
-            {busy ? 'Saving…' : 'Record payment'}
+            Show {Math.min(PAGE, list.length - visible.length)} more
           </Button>
-        }
-      >
-        <p class="v-muted" style={{ marginTop: 0 }}>
-          Owes <Money value={owed} />
-        </p>
-        <Field
-          label="Amount (UGX)"
-          inputMode="numeric"
-          data-testid="settle-amount"
-          value={amount}
-          onInput={(e) => setAmount((e.target as HTMLInputElement).value)}
-        />
-        <div style={{ height: 12 }} />
-        <Segmented
-          value={method}
-          onChange={setMethod}
-          options={[
-            { id: 'cash', label: 'Cash' },
-            { id: 'mobile_money', label: 'Mobile money' },
-          ]}
-        />
-        <div style={{ height: 12 }} />
-        <Field
-          label="Note"
-          value={note}
-          placeholder="Optional"
-          onInput={(e) => setNote((e.target as HTMLInputElement).value)}
-        />
-      </Sheet>
-      <Sheet
-        open={Boolean(editId)}
-        title="Client"
-        onClose={() => setEditId(null)}
-        footer={
-          <Button size="xl" data-testid="client-rename" onClick={() => void renameClient()}>
-            Save name
-          </Button>
-        }
-      >
-        <Field
-          label="Name"
-          data-testid="client-edit-name"
-          value={editName}
-          onInput={(e) => setEditName((e.target as HTMLInputElement).value)}
-        />
-        <div style={{ height: 12 }} />
-        <Button size="md" variant="danger" data-testid="client-delete" onClick={() => void removeClient()}>
-          Delete
-        </Button>
+        ) : null}
+      </div>
+
+      <Sheet open={Boolean(open)} title={open?.name || 'Client'} onClose={closeSheet}>
+        {open ? (
+          <div class="person-sheet" data-testid="person-sheet" data-kind={open.client && open.account ? 'both' : open.client ? 'client' : 'account'}>
+            <div class="person-sheet__tags">
+              {open.client ? <span class="v-tag">POS client</span> : null}
+              {open.account ? <span class="v-tag v-tag--bronze-soft">Storefront</span> : null}
+              {open.account ? (
+                <span class={open.account.verified ? 'v-tag v-tag--paid' : 'v-tag'}>
+                  {open.account.verified ? 'Verified' : 'Not verified'}
+                </span>
+              ) : null}
+              {open.phone ? <span class="v-muted">{open.phone}</span> : null}
+            </div>
+
+            {open.client ? (
+              <section class="person-sheet__section" data-testid="section-client">
+                <h3 class="v-section-label">Client</h3>
+                {owed > 0 ? (
+                  <>
+                    <p class="person-sheet__owes">
+                      Owes <Money className="v-money--total" value={owed} />
+                    </p>
+                    <Field
+                      label="Amount (UGX)"
+                      inputMode="numeric"
+                      data-testid="settle-amount"
+                      value={amount}
+                      onInput={(e) => setAmount((e.target as HTMLInputElement).value)}
+                    />
+                    <Field
+                      label="Note"
+                      value={note}
+                      placeholder="Optional"
+                      onInput={(e) => setNote((e.target as HTMLInputElement).value)}
+                    />
+                    <Button
+                      size="lg"
+                      data-testid="settle-confirm"
+                      disabled={busy || owed <= 0}
+                      onClick={() => void settle()}
+                    >
+                      {busy ? 'Saving…' : 'Record payment'}
+                    </Button>
+                  </>
+                ) : (
+                  <p class="v-muted" data-testid="settle-clear">Nothing owed.</p>
+                )}
+                <Field
+                  label="Name"
+                  data-testid="client-edit-name"
+                  value={editName}
+                  onInput={(e) => setEditName((e.target as HTMLInputElement).value)}
+                />
+                <Button size="md" variant="secondary" data-testid="client-rename" onClick={() => void renameClient()}>
+                  Save name
+                </Button>
+                {confirmDelete === 'client' ? (
+                  <div class="person-sheet__confirm" role="alert">
+                    <span>Delete {open.client.name || 'this client'}? Their past sales are kept.</span>
+                    <div class="person-sheet__confirm-row">
+                      <Button size="md" variant="ghost" data-testid="client-delete-cancel" onClick={() => setConfirmDelete(null)}>
+                        Keep
+                      </Button>
+                      <Button size="md" variant="danger" data-testid="client-delete-confirm" onClick={() => void removeClient()}>
+                        Yes, delete
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" class="v-link-danger" data-testid="client-delete" onClick={() => setConfirmDelete('client')}>
+                    Delete client
+                  </button>
+                )}
+              </section>
+            ) : null}
+
+            {open.account ? (
+              <section class="person-sheet__section" data-testid="section-account">
+                <h3 class="v-section-label">Storefront account</h3>
+                <Field
+                  label="Display name"
+                  data-testid="store-user-name"
+                  value={accountName}
+                  onInput={(e) => setAccountName((e.target as HTMLInputElement).value)}
+                />
+                <div class="v-chip-row person-sheet__actions">
+                  <Button
+                    size="md"
+                    data-testid="store-user-save"
+                    onClick={() => void patchAccount({ pos_display_name: accountName }, 'Name saved')}
+                  >
+                    Save name
+                  </Button>
+                  {!open.account.verified ? (
+                    <Button
+                      size="md"
+                      variant="secondary"
+                      data-testid="store-user-verify"
+                      onClick={() => void patchAccount({ verified: true }, 'User verified')}
+                    >
+                      Verify
+                    </Button>
+                  ) : null}
+                  <Button size="md" variant="secondary" data-testid="store-user-reset" onClick={() => void issueReset()}>
+                    Reset code
+                  </Button>
+                </div>
+                {resetCode ? (
+                  <p data-testid="store-reset-code">
+                    Give this once: <strong>{resetCode}</strong>. It expires in 24 hours and will not be shown again.
+                  </p>
+                ) : (
+                  <p class="v-muted">A reset code lets the customer set a new store password. It is shown once.</p>
+                )}
+                {confirmDelete === 'account' ? (
+                  <div class="person-sheet__confirm" role="alert">
+                    <span>Delete this storefront account? They will need to sign up again.</span>
+                    <div class="person-sheet__confirm-row">
+                      <Button size="md" variant="ghost" data-testid="store-user-delete-cancel" onClick={() => setConfirmDelete(null)}>
+                        Keep
+                      </Button>
+                      <Button size="md" variant="danger" data-testid="store-user-delete-confirm" onClick={() => void removeAccount()}>
+                        Yes, delete
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" class="v-link-danger" data-testid="store-user-delete" onClick={() => setConfirmDelete('account')}>
+                    Delete account
+                  </button>
+                )}
+              </section>
+            ) : null}
+          </div>
+        ) : null}
       </Sheet>
     </section>
   );

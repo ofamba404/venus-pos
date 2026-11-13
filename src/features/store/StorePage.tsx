@@ -10,18 +10,12 @@ import {
   type FulfillmentStatus,
 } from '../../domain/hours';
 import { sbFetch } from '../../data/api';
+import { go } from '../../app/router';
 import { KEYS } from '../../data/keys';
-import { deleteStoreAccount, patchFulfillment, patchStoreAccount, storeAuth } from '../../data/writes/store';
+import { patchFulfillment } from '../../data/writes/store';
 import { Field } from '../../ui/Field';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
-
-type StoreUser = {
-  id: string;
-  phone?: string;
-  pos_display_name?: string | null;
-  verified?: boolean;
-};
 
 export function StorePage() {
   const [status, setStatus] = useState<FulfillmentStatus>({
@@ -29,19 +23,6 @@ export function StorePage() {
     closeTime: DEFAULT_CLOSE,
   });
   const [busy, setBusy] = useState(false);
-  const [users, setUsers] = useState<StoreUser[]>([]);
-  const [userName, setUserName] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [resetCode, setResetCode] = useState('');
-
-  async function loadUsers() {
-    const res = await sbFetch('store_accounts?select=*&limit=20');
-    if (!res.ok) return;
-    const rows = (await res.json()) as StoreUser[];
-    setUsers(rows);
-    const target = rows.find((row) => !row.verified) || rows[0];
-    if (target && !userName) setUserName(String(target.pos_display_name || ''));
-  }
 
   function remember(next: FulfillmentStatus) {
     setStatus(next);
@@ -78,7 +59,6 @@ export function StorePage() {
         /* offline / missing table */
       }
     })();
-    void loadUsers().catch(() => {});
   }, []);
 
   async function saveHours() {
@@ -127,57 +107,6 @@ export function StorePage() {
     } finally {
       setBusy(false);
     }
-  }
-
-  function targetUser() {
-    return (
-      users.find((row) => row.id === selectedId) ||
-      users.find((row) => !row.verified) ||
-      users[0] ||
-      null
-    );
-  }
-
-  async function patchUser(body: Record<string, unknown>, toast: string) {
-    const user = targetUser();
-    if (!user) {
-      showToast('No store user');
-      return;
-    }
-    const res = await patchStoreAccount(user.id, body);
-    if (!res.ok) {
-      showToast('Could not update user');
-      return;
-    }
-    showToast(toast);
-    await loadUsers().catch(() => {});
-  }
-
-  async function issueReset() {
-    const user = targetUser();
-    if (!user) {
-      showToast('No store user');
-      return;
-    }
-    const result = await storeAuth('admin_issue_reset_code', { user_id: user.id });
-    if (!result.ok || !result.data.code) {
-      showToast(result.data.error || 'Could not create reset code');
-      return;
-    }
-    setResetCode(result.data.code);
-    showToast('Reset code ready');
-  }
-
-  async function deleteUser() {
-    const user = targetUser();
-    if (!user) return;
-    const res = await deleteStoreAccount(user.id);
-    if (!res.ok) {
-      showToast('Could not delete user');
-      return;
-    }
-    showToast('User deleted');
-    await loadUsers().catch(() => {});
   }
 
   const openNow = isWithinOpenHours(new Date(), status);
@@ -238,56 +167,13 @@ export function StorePage() {
         </div>
       </div>
       <div class="v-section-label">Storefront users</div>
-      <div class="v-chip-row" data-testid="store-user-list" style={{ marginBottom: 12 }}>
-        {users.map((user) => {
-          const active = targetUser()?.id === user.id;
-          const label = user.pos_display_name || user.phone || 'Account';
-          return (
-            <button
-              key={user.id}
-              type="button"
-              class={active ? 'v-tag is-active' : 'v-tag'}
-              data-testid={`store-user-${user.id}`}
-              onClick={() => {
-                setSelectedId(user.id);
-                setUserName(String(user.pos_display_name || ''));
-                setResetCode('');
-              }}
-            >
-              {label}
-              {user.verified ? '' : ' · unverified'}
-            </button>
-          );
-        })}
-      </div>
-      <div class="v-order-card" style={{ display: 'grid', gap: 12 }}>
-        <Field
-          label="POS name"
-          data-testid="store-user-name"
-          value={userName}
-          onInput={(e) => setUserName((e.target as HTMLInputElement).value)}
-        />
-        <div class="v-chip-row">
-          <Button size="md" data-testid="store-user-save" onClick={() => void patchUser({ pos_display_name: userName }, 'Name saved')}>
-            Save name
-          </Button>
-          <Button size="md" variant="secondary" data-testid="store-user-verify" onClick={() => void patchUser({ verified: true }, 'User verified')}>
-            Verify
-          </Button>
-          <Button size="md" variant="danger" data-testid="store-user-delete" onClick={() => void deleteUser()}>
-            Delete
-          </Button>
-          <Button size="md" variant="secondary" data-testid="store-user-reset" onClick={() => void issueReset()}>
-            Reset code
-          </Button>
-        </div>
-        {resetCode ? (
-          <p data-testid="store-reset-code">
-            Give this once: <strong>{resetCode}</strong>. It expires in 24 hours and will not be shown again.
-          </p>
-        ) : (
-          <p class="v-muted">A reset code lets the customer set a new store password. It is shown once.</p>
-        )}
+      <div class="v-order-card" data-testid="store-users-moved" style={{ display: 'grid', gap: 12 }}>
+        <p class="v-muted" style={{ margin: 0 }}>
+          Storefront accounts now live in Clients, merged with POS clients. Verify, rename, reset codes and delete are there.
+        </p>
+        <Button size="md" variant="secondary" data-testid="store-users-open-clients" onClick={() => go('/clients')}>
+          Open Clients
+        </Button>
       </div>
       <div style={{ marginTop: 16 }}>
         <Button variant="secondary" onClick={() => (location.href = '/')}>

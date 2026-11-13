@@ -25,3 +25,10 @@ Use these on v2 elements. Drivers resolve via `[data-testid="…"]`.
 | Load order | `order-load-{id}` |
 | Settle credit amount | `settle-amount` |
 | Settle confirm | `settle-confirm` |
+| Person row / sheet | `person-{clientId or accountId}` / `person-sheet` |
+| Clients filter chips | `client-filter-{all,walkin,storefront,owes}` |
+| Storefront account actions | `store-user-name` / `-save` / `-verify` / `-reset` / `-delete` / `-delete-confirm` |
+| Client delete | `client-delete` then `client-delete-confirm` |
+| Add item (History edit) | `sale-edit-add`, `sale-add-catalog`, `sale-add-apply` |
+| Cookie partner page | `cookie-partner-page`, `partner-hero`, `partner-progress`, `partner-settle`, `partner-confirm`, `partner-confirm-send`, `partner-confirm-cancel`, `partner-history`, `partner-batch-{n}` |
+| Insights partner tile | `partner-summary` |

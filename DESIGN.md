@@ -159,6 +159,12 @@ Each component has one `.tsx` and one co-located `.css` file, class prefix `v-` 
 
 States every interactive component must show in the gallery: default, hover (pointer devices), pressed, focus-visible, disabled, loading (where relevant), error (where relevant).
 
+### People, fields and sheets (v2c)
+
+- Clients is one list of people. Avatars are `--wash-strong` with `--bronze-deep` initials. The owed tag is a calm red outline on a faint wash and sits on the right, level with Clear. Storefront is a small `--wash` tag.
+- Inputs are white with a 1 px `--input-line` border (3:1) and a bronze border plus soft bronze halo on focus.
+- Delete is a quiet red text button, well apart from Save, and always asks first.
+
 ## 5. Iconography
 
 - Custom inline SVG set in `src/ui/icons.tsx`, 24 × 24 viewBox, 1.75 px stroke, round caps and joins, `currentColor`. No icon library dependency, and no icons inside rounded-square containers.

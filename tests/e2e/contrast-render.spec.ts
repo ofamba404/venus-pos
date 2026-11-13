@@ -19,7 +19,7 @@ test.describe('rendered contrast on the screens with tints', () => {
     await page.setViewportSize({ width: 390, height: 844 });
   });
 
-  for (const path of ['/next/orders', '/next/insights', '/next/history', '/next/stock', '/next/clients']) {
+  for (const path of ['/next/orders', '/next/insights', '/next/history', '/next/stock', '/next/clients', '/next/cookie-partner']) {
     test(`${path} has no contrast failures`, async ({ page }) => {
       await createNextDriver(page, { role: 'pos_admin' });
       await page.goto(path);
@@ -40,6 +40,28 @@ test.describe('rendered contrast on the screens with tints', () => {
     expect(await contrast(page)).toEqual([]);
     await page.getByTestId('cart-bar').click();
     await page.getByRole('dialog', { name: 'Review sale' }).waitFor();
+    expect(await contrast(page)).toEqual([]);
+  });
+
+  test('Clients: a merged person sheet with the delete confirmation, and the Add item views', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    driver.mock.db.table('store_accounts').push({ id: 'acc-debt', phone: '+256700333444', pos_display_name: 'Debt Storefront', verified: false });
+    await page.goto('/next/clients');
+    await page.getByRole('button', { name: /Client With Debt/ }).first().click();
+    await page.getByTestId('person-sheet').waitFor();
+    expect(await contrast(page)).toEqual([]);
+    await page.getByTestId('client-delete').click();
+    await page.getByTestId('client-delete-confirm').waitFor();
+    expect(await contrast(page)).toEqual([]);
+
+    await page.goto('/next/history');
+    await page.getByTestId('history-sale-seed-sale-1').click();
+    await page.getByTestId('sale-edit').click();
+    expect(await contrast(page)).toEqual([]);
+    await page.getByTestId('sale-edit-add').click();
+    await page.getByTestId('sale-add-catalog').waitFor();
+    expect(await contrast(page)).toEqual([]);
+    await page.getByTestId('product-pilot').click();
     expect(await contrast(page)).toEqual([]);
   });
 

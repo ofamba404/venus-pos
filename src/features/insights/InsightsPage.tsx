@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { clients, ensureInventory, inventory, loadClients, loadSales, sales } from '../../data/entities';
 import { computeTodayStats } from '../../domain/today';
 import { sumCreditOwed, getOutstandingCredit } from '../../domain/credit';
-import { cookieBatchShareText, expandPartnerUnitsFromSales, partnerBoard, proposeSettle } from '../../domain/partner';
-import { fetchCookiePartnerSettle, postCookiePartnerSettle } from '../../data/writes/partner';
+import { expandPartnerUnitsFromSales, partnerBoard } from '../../domain/partner';
+import { fetchCookiePartnerSettle } from '../../data/writes/partner';
 import { CHART_RANGES, filterSalesByRange } from '../../domain/analytics/periods';
 import { readStoredId } from '../../domain/parity';
 import { historyOrDefault } from '../../domain/insights-view';
@@ -80,59 +80,6 @@ export function InsightsPage() {
     const list = sales.value as Parameters<typeof expandPartnerUnitsFromSales>[0];
     return partnerBoard(expandPartnerUnitsFromSales(list), serverSettle?.qty ?? 0, serverSettle?.batches ?? []);
   }, [sales.value, serverSettle]);
-  const settledCuts = serverSettle?.batches ?? [];
-
-  async function settleNextBatch() {
-    const open = partner.open;
-    if (!open || !serverSettle) {
-      showToast('No batch to settle');
-      return;
-    }
-    const send = open.complete ? open.every : open.cookieCount;
-    const proposed = proposeSettle(serverSettle.qty, serverSettle.batches, send);
-    if (!proposed) {
-      showToast('Already settled');
-      return;
-    }
-    let res: Response;
-    try {
-      res = await postCookiePartnerSettle(proposed.qty, proposed.batches, serverSettle.qty);
-    } catch {
-      showToast('Could not reach the server. Batch not marked sent.');
-      return;
-    }
-    if (!res.ok) {
-      showToast('Server refused the settlement. Batch not marked sent.');
-      return;
-    }
-    const data = (await res.json().catch(() => null)) as { ok?: boolean; settled_qty?: number; batches?: number[] } | null;
-    if (!data?.ok || data.settled_qty === undefined || data.settled_qty === null || data.settled_qty < proposed.qty) {
-      if (data?.settled_qty !== undefined && data?.settled_qty !== null) {
-        setServerSettle({
-          qty: data.settled_qty,
-          batches: Array.isArray(data.batches) ? data.batches : serverSettle.batches,
-        });
-      }
-      showToast('Server kept the earlier total. Batch not marked sent.');
-      return;
-    }
-    const next = {
-      qty: data.settled_qty,
-      batches: Array.isArray(data.batches) ? data.batches : proposed.batches,
-    };
-    setServerSettle(next);
-    try {
-      localStorage.setItem(KEYS.partnerSettled, String(next.qty));
-    } catch {
-      /* private mode */
-    }
-    const text = cookieBatchShareText(open);
-    void navigator.clipboard?.writeText(text).then(
-      () => showToast('Batch settled'),
-      () => showToast(text),
-    );
-  }
-
   return (
     <section>
       <h1 class="page-title">Insights</h1>
@@ -163,15 +110,8 @@ export function InsightsPage() {
         ledger={ledger}
         ledgerLoading={settlements === undefined}
         packSentence={packDriverSentence(picture)}
-        partnerQty={serverSettle ? serverSettle.qty : null}
         partnerLoading={!serverSettle}
-        settled={
-          settledCuts.length
-            ? settledCuts.map((count, index) => ({ index: index + 1, cookieCount: count, every: 25 }))
-            : partner.settled
-        }
         openBatch={partner.open}
-        onSettle={() => void settleNextBatch()}
       />
     </section>
   );

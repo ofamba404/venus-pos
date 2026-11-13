@@ -111,7 +111,7 @@ test('Loaded-order card: Confirm uses the same write, flips to the green tag, an
   expect(writes[0].url).toContain(`id=eq.${PENDING}`);
   expect((writes[0].body as { confirmed_at?: string }).confirmed_at).toBeTruthy();
 
-  // The checkout sheet shows the same tag, has no Confirm paragraph, and keeps only Unlink.
+  // The checkout sheet shows the same tag, has no Confirm paragraph, and keeps only Detach order.
   await card.getByTestId('loaded-order-review').click();
   const sheet = page.getByRole('dialog', { name: 'Review sale' });
   await expect(sheet.getByTestId('loaded-order-cart-confirmed')).toBeVisible();
@@ -141,4 +141,32 @@ test('Checkout sheet: a pending loaded order can be confirmed there too, and a f
   await expect(page.getByText('Could not confirm order')).toBeVisible();
   await expect(sheet.getByTestId('loaded-order-cart-confirm')).toBeVisible();
   expect(confirmWrites(driver)).toHaveLength(0);
+});
+
+test('A confirmed order that is loaded into the sale stays in the In sale tab, and Detach keeps it in Orders', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await createNextDriver(page, { role: 'pos_staff' });
+  await page.goto('/next/orders');
+  await page.getByTestId(`load-order-${PENDING}`).click();
+  await page.waitForURL(/\/sell/);
+  await page.getByTestId('loaded-order-confirm').click();
+  await expect(page.getByTestId('loaded-order-confirmed')).toBeVisible();
+
+  await page.goto('/next/orders');
+  await page.getByRole('tab', { name: 'In sale' }).click();
+  await expect(page.getByTestId(`load-order-${PENDING}`)).toHaveText('Open cart');
+  await expect(page.getByTestId(`confirmed-${PENDING}`)).toBeVisible();
+  await page.getByRole('tab', { name: 'Waiting' }).click();
+  await expect(page.getByTestId(`load-order-${PENDING}`)).toHaveCount(0);
+
+  await page.getByRole('tab', { name: 'In sale' }).click();
+  await page.getByTestId(`load-order-${PENDING}`).click();
+  await page.waitForURL(/\/sell/);
+  await page.getByTestId('loaded-order-unlink').click();
+  // Detach does not cancel or release the order. It is still in Orders, still confirmed.
+  await page.goto('/next/orders');
+  await page.getByRole('tab', { name: 'In sale' }).click();
+  await expect(page.getByTestId(`load-order-${PENDING}`)).toBeVisible();
+  await expect(page.getByTestId(`confirmed-${PENDING}`)).toBeVisible();
+  await expect(page.getByTestId('cancelled-banner')).toHaveCount(0);
 });

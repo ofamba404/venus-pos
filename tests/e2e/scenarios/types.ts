@@ -22,7 +22,7 @@ export type ScenarioStep =
   | { do: 'arriveStoreOrder' }
   | { do: 'adjustStock'; categoryId: string; delta: number }
   | { do: 'setStockCount'; categoryId: string; qty: number }
-  | { do: 'settleCredit'; clientId?: string; clientName?: string; amountUgx: number; method?: string; note?: string }
+  | { do: 'settleCredit'; clientId?: string; clientName?: string; amountUgx: number; note?: string }
   | { do: 'editSale'; saleId: string }
   | { do: 'voidSale'; saleId: string }
   | { do: 'partnerSettleBatch' }

@@ -10,6 +10,7 @@ export type RouteId =
   | 'clients'
   | 'history'
   | 'insights'
+  | 'partner'
   | 'delivery'
   | 'reviews'
   | 'store'
@@ -32,6 +33,7 @@ export const ROUTES: Route[] = [
   { id: 'clients', path: '/clients', title: 'Clients', nav: 'more', minRole: 'admin' },
   { id: 'history', path: '/history', title: 'History', nav: 'more', minRole: 'admin' },
   { id: 'insights', path: '/insights', title: 'Insights', nav: 'more', minRole: 'admin' },
+  { id: 'partner', path: '/cookie-partner', title: 'Cookie partner', nav: 'more', minRole: 'admin' },
   { id: 'delivery', path: '/delivery', title: 'Delivery', nav: 'more', minRole: 'admin' },
   { id: 'reviews', path: '/reviews', title: 'Reviews', nav: 'more', minRole: 'admin' },
   { id: 'store', path: '/store', title: 'Store', nav: 'more', minRole: 'admin' },

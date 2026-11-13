@@ -118,11 +118,13 @@ export class MemoryDb {
     const select = params.get('select');
     const order = params.get('order');
     const limit = params.get('limit') ? Number(params.get('limit')) : null;
+    const offset = params.get('offset') ? Number(params.get('offset')) : 0;
     const rows = this.table(table);
     const matched = rows.filter((r) => filters.every((f) => matchFilter(r, f)));
 
     if (method === 'GET') {
       let out = applyOrder(matched, order).map((r) => project(r, select));
+      if (offset > 0) out = out.slice(offset);
       if (limit != null) out = out.slice(0, limit);
       return { status: 200, body: out };
     }

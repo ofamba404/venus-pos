@@ -12,7 +12,7 @@ import {
 import { adjustInventory, loadSales, type SaleRow } from './entities';
 import { deleteSale, patchSale } from './writes/sales';
 
-type SaleItem = {
+export type SaleItem = {
   product_id?: string;
   product_name?: string;
   detail?: string;
@@ -35,25 +35,64 @@ export function mergeBreakdown(items: SaleItem[]): Record<string, number> {
   return out;
 }
 
-/** Add one unit of the line's first flavour and the same unit price. */
+/**
+ * A "count" line is sold by the unit: Plain, where the breakdown is a single count. Packs, cookies and
+ * wholesale are not counts. A pack holds a fixed set of flavours, so its quantity is one pack per line.
+ */
+export function isCountLine(item: SaleItem | null | undefined): boolean {
+  const product = findProduct(String(item?.product_id || ''));
+  if (product) return product.rule === 'single_qty';
+  return Object.keys(item?.breakdown || {}).length <= 1;
+}
+
+/** How many of a line there are: the unit count for a count line, otherwise one pack. */
+export function lineQuantity(item: SaleItem): number {
+  if (!isCountLine(item)) return 1;
+  return Math.max(1, Math.round(Number(Object.values(item.breakdown || {})[0]) || 1));
+}
+
+function sameLine(a: SaleItem, b: SaleItem): boolean {
+  return (
+    String(a.product_id) === String(b.product_id) &&
+    JSON.stringify(Object.entries(a.breakdown || {}).sort()) === JSON.stringify(Object.entries(b.breakdown || {}).sort())
+  );
+}
+
+/** Price cookie lines across the whole sale the way Sell reprices its cart. Mutates a copy only. */
+function reprice(items: SaleItem[]): SaleItem[] {
+  const next = items.map((item) => ({ ...item }));
+  if (next.some((item) => isCookiePricedProduct(String(item.product_id)))) applyToCartLines(next);
+  return next;
+}
+
+/**
+ * The + and - on a line. A count line changes its count and price per unit. A pack line never changes its
+ * flavours: + adds another identical pack as its own line, - removes one of two identical packs.
+ */
+export function bumpLine(items: SaleItem[], index: number, delta: number): SaleItem[] {
+  const target = items[index];
+  if (!target || !delta) return items;
+  if (isCountLine(target)) return setLineQty(items, index, lineQuantity(target) + delta);
+  if (delta > 0) {
+    const copy = { ...target, breakdown: { ...(target.breakdown || {}) } };
+    return reprice([...items.slice(0, index + 1), copy, ...items.slice(index + 1)]);
+  }
+  const twin = items.findIndex((item, i) => i !== index && sameLine(item, target));
+  if (twin < 0) return items;
+  return reprice(items.filter((_, i) => i !== index));
+}
+
+/** Can - do anything on this line? A pack needs an identical twin to take one away. */
+export function canDecrement(items: SaleItem[], index: number): boolean {
+  const target = items[index];
+  if (!target) return false;
+  if (isCountLine(target)) return lineQuantity(target) > 1;
+  return items.some((item, i) => i !== index && sameLine(item, target));
+}
+
+/** Add one more of the first line. Kept for the edit flow's + on line 0. */
 export function bumpFirstLine(items: SaleItem[]): SaleItem[] {
-  if (!items.length) return items;
-  return items.map((item, index) => {
-    if (index !== 0) return item;
-    const breakdown = { ...(item.breakdown || {}) };
-    const key = Object.keys(breakdown)[0] || 'mint';
-    const prev = Math.round(Number(breakdown[key]) || 0);
-    const next = prev + 1;
-    breakdown[key] = next;
-    const line = Math.round(Number(item.line_total) || 0);
-    const unit = prev > 0 ? Math.round(line / prev) : line;
-    return {
-      ...item,
-      breakdown,
-      line_total: line + unit,
-      detail: `${next} × ${key}`,
-    };
-  });
+  return bumpLine(items, 0, 1);
 }
 
 async function applySoldDelta(before: Record<string, number>, after: Record<string, number>) {
@@ -68,14 +107,16 @@ async function applySoldDelta(before: Record<string, number>, after: Record<stri
 export function setLineQty(items: SaleItem[], index: number, qty: number): SaleItem[] {
   return items.map((item, i) => {
     if (i !== index) return item;
+    // Only a count line has a quantity. Setting it never touches the flavours of a pack.
+    if (!isCountLine(item)) return item;
     const breakdown = { ...(item.breakdown || {}) };
-    const key = Object.keys(breakdown)[0] || 'mint';
+    const key = Object.keys(breakdown)[0] || 'classic';
     const prev = Math.max(1, Math.round(Number(breakdown[key]) || 0) || 1);
     const next = Math.max(1, Math.round(qty));
     breakdown[key] = next;
     const line = Math.round(Number(item.line_total) || 0);
     const unit = prev > 0 ? Math.round(line / prev) : line;
-    return { ...item, breakdown, line_total: unit * next };
+    return { ...item, breakdown, line_total: unit * next, detail: `x${next}` };
   });
 }
 
@@ -94,6 +135,36 @@ export function addPlainLine(items: SaleItem[]): SaleItem[] {
       breakdown: { classic: 1 },
     },
   ];
+}
+
+/** The picker's starting selection for a product, the same as Sell's openConfig. */
+export function newItemSelection(product: Product): ConfigSelection {
+  if (product.rule === 'single_qty') return { qty: 1 };
+  if (product.rule === 'cookie_wholesale') return { _unitPrice: 2500 };
+  return {};
+}
+
+/**
+ * Append a product to a sale. The line is built by the same buildLineFromConfig Sell uses, and cookies are
+ * repriced across the whole sale, so a sale edited here totals exactly like one made on Sell.
+ */
+export function addConfiguredLine(items: SaleItem[], product: Product, selection: ConfigSelection): SaleItem[] {
+  const others = items.map((item) => ({ ...item, productId: item.product_id }));
+  const built = buildLineFromConfig(product, selection, { otherLines: others });
+  const line: SaleItem = {
+    product_id: product.id,
+    product_name: cookieLineDisplayName(product.id, built.breakdown, product.name),
+    detail: built.detail,
+    breakdown: built.breakdown,
+    line_total: built.lineTotal,
+    ...(built.wholesaleUnitPrice ? { wholesale_unit_price: built.wholesaleUnitPrice } : {}),
+  };
+  return reprice([...items, line]);
+}
+
+/** Total of a sale's lines, the figure saved as total_ugx. */
+export function saleItemsTotal(items: SaleItem[]): number {
+  return items.reduce((sum, item) => sum + Math.round(Number(item.line_total) || 0), 0);
 }
 
 /** Rules that pick flavours. Plain is a plain count, so it has nothing to re-pick. */

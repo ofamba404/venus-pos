@@ -453,8 +453,8 @@
   width: 40px;
   height: 40px;
   border-radius: var(--r-pill);
-  background: var(--grape-tint);
-  color: var(--grape);
+  background: var(--wash-strong);
+  color: var(--bronze-deep);
   font: var(--t-label);
   flex: 0 0 auto;
 }
@@ -866,14 +866,22 @@ button.kpi-tile {
   min-height: var(--hit);
   padding: 0 var(--s-3);
   border-radius: var(--r-md);
-  background: var(--surface-sunk);
-  border: 1px solid transparent;
+  background: var(--surface);
+  border: 1px solid var(--input-line);
   line-height: var(--hit);
+  transition: border-color var(--d-fast), box-shadow var(--d-fast);
 }
 
+.v-field__input::placeholder {
+  color: var(--fg-3);
+  opacity: 1;
+}
+
+/* A bronze cue on focus: a bronze border plus a soft bronze halo. */
 .v-field__input:focus {
   outline: none;
-  border-color: var(--line-strong);
+  border-color: var(--bronze);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bronze) 28%, transparent);
   background: var(--surface);
 }
 
@@ -1950,4 +1958,184 @@ button.kpi-tile {
   flex: 0 0 auto;
   gap: var(--s-2);
   margin-left: auto;
+}
+
+
+/* Clients: one list for walk-ins and storefront accounts. */
+.client-card {
+  align-items: stretch;
+}
+
+.client-card__main {
+  flex-wrap: nowrap;
+  align-items: center;
+  width: 100%;
+  padding: var(--s-1) 0;
+}
+
+.client-card__text {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.client-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  margin-top: 2px;
+}
+
+.client-card__status {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-left: auto;
+  align-self: center;
+}
+
+.client-card__tags .v-tag {
+  min-height: 22px;
+  padding: 0 8px;
+}
+
+/* Calm owed tag: still red, but a thin outline on a faint wash instead of a heavy filled block. */
+.v-owed {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 30%, transparent);
+  color: var(--danger);
+  font: var(--t-meta);
+  white-space: nowrap;
+}
+
+.v-owed .v-money {
+  color: var(--danger);
+  font: 500 13px/1 var(--font-mono);
+}
+
+.v-tag--bronze-soft {
+  background: var(--wash);
+  color: var(--bronze-deep);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bronze) 40%, transparent);
+}
+
+.v-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+}
+
+.v-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 40px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--input-line);
+  font: var(--t-label);
+}
+
+.v-filter.is-on {
+  background: var(--ink-900);
+  color: var(--on-action);
+  box-shadow: none;
+}
+
+.v-filter__count {
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.v-filter.is-on .v-filter__count {
+  color: var(--wash-strong);
+}
+
+.v-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+
+.person-sheet {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.person-sheet__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.person-sheet__section {
+  display: grid;
+  gap: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+
+.person-sheet__owes {
+  margin: 0;
+  color: var(--fg);
+}
+
+.person-sheet__actions {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.person-sheet__confirm {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--danger) 6%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 30%, transparent);
+  color: var(--fg);
+}
+
+.person-sheet__confirm-row {
+  display: flex;
+  gap: var(--s-2);
+  justify-content: flex-end;
+}
+
+/* Destructive but quiet: a text button well apart from Save, never a filled pill beside it. */
+.v-link-danger {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 var(--s-2);
+  color: var(--danger);
+  font: var(--t-label);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  background: transparent;
+}
+
+.v-loaded-order__hint {
+  margin: 0;
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.edit-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line);
 }

@@ -356,8 +356,11 @@ describe('data layer', () => {
     };
     const nextItems = bumpFirstLine(saleItems(sale));
     expect(mergeBreakdown(nextItems).mint).toBe(2);
-    expect(mergeBreakdown(setLineQty(nextItems, 0, 3)).mint).toBe(3);
-    expect(removeSaleLine(nextItems, 0)).toEqual([]);
+    // + on a pack adds another whole pack. It never multiplies the first flavour's count inside one.
+    expect(nextItems).toHaveLength(2);
+    expect(nextItems[0]?.breakdown).toEqual({ mint: 1 });
+    expect(mergeBreakdown(setLineQty([{ product_id: 'plain_single', line_total: 5000, breakdown: { classic: 1 } }], 0, 3)).classic).toBe(3);
+    expect(removeSaleLine(nextItems, 0)).toHaveLength(1);
     expect(addPlainLine([] )[0]?.product_id).toBe('plain_single');
     expect(setLineQty([{ line_total: 0 }], 0, 2)[0]?.line_total).toBe(0);
     mode.deltaStatus = 200;

@@ -9,6 +9,9 @@ import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
 import { localPhoneDigits } from '../../domain/phone';
 import { EmptyState } from '../../ui/EmptyState';
+import { IconChevronRight } from '../../ui/icons';
+import { go } from '../../app/router';
+import { PartnerBar } from '../cookie-partner/PartnerBar';
 
 function copyText(text: string, ok: string) {
   void navigator.clipboard?.writeText(text).then(
@@ -29,11 +32,8 @@ export function InsightsDecisions({
   ledger,
   ledgerLoading,
   packSentence,
-  partnerQty,
   partnerLoading,
-  settled,
   openBatch,
-  onSettle,
 }: {
   sentence: string;
   todayRevenue: number;
@@ -46,18 +46,14 @@ export function InsightsDecisions({
   ledger: CommissionLedger | null;
   ledgerLoading: boolean;
   packSentence: string;
-  partnerQty: number | null;
   partnerLoading: boolean;
-  settled: Array<{ index: number; cookieCount: number; every: number }>;
   openBatch: PartnerBatch | null;
-  onSettle: () => void;
 }) {
   const selling = restock.filter((row) => row.sold > 0);
   const quiet = restock.length - selling.length;
   const horizon = ECONOMICS.restockCycleDays * 2;
   const soldPacks = picture.packs.filter((row) => row.soldProfit > 0);
   const maxPack = Math.max(1, ...soldPacks.map((row) => row.soldProfit));
-  const firstSettled = settled[0];
   return (
     <>
       <p class="decision-lead" data-testid="insights-today" data-revenue={todayRevenue} data-joints={joints}>
@@ -200,32 +196,23 @@ export function InsightsDecisions({
             </p>
           ) : null}
         </div>
-        <p data-testid="partner-settled-qty">
-          {partnerLoading ? 'Loading settlement…' : `${partnerQty ?? 0} cookies already settled`}
-        </p>
-        {firstSettled ? (
-          <p class="decision__why">
-            Settled · Batch {firstSettled.index} · {firstSettled.cookieCount}/{firstSettled.every}
-            {settled.length > 1 ? ` · ${settled.length} batches` : ''}
-          </p>
-        ) : null}
-        {openBatch ? (
-          <div class="decision-row">
-            <div class="decision-row__main">
-              <div class="v-list-row__title">
-                Batch {openBatch.index} · {openBatch.cookieCount}/{openBatch.every}
-              </div>
-              <div class="v-list-row__meta">
-                {openBatch.complete ? 'Ready to pay' : 'Fills before you pay'} · partner <Money value={openBatch.partnerDue} />
-              </div>
-            </div>
-            <Button variant="secondary" size="md" data-testid="partner-settle" onClick={onSettle}>
-              Settle batch
-            </Button>
-          </div>
-        ) : (
-          <p class="v-muted">No open partner batch</p>
-        )}
+        <button type="button" class="cp-tile" data-testid="partner-summary" onClick={() => go('/cookie-partner')}>
+          <span class="cp-tile__main">
+            <span class="v-list-row__title">Cookie partner</span>
+            <span class="v-list-row__meta">
+              {partnerLoading
+                ? 'Loading…'
+                : openBatch
+                  ? `${openBatch.cookieCount} of ${openBatch.every} in this batch · ${openBatch.complete ? 'ready to send' : 'part batch'}`
+                  : 'Nothing open'}
+            </span>
+            <PartnerBar count={openBatch ? openBatch.cookieCount : 0} />
+          </span>
+          {openBatch ? <Money value={openBatch.partnerDue} /> : null}
+          <span class="v-list-row__chevron" aria-hidden="true">
+            <IconChevronRight size={18} />
+          </span>
+        </button>
       </section>
     </>
   );
