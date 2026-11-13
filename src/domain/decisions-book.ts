@@ -30,7 +30,14 @@ export type RestockRow = {
   orderQty: number;
   urgent: boolean;
   line: string;
+  /** Joints are rolled by hand; cookies are bought in. */
+  kind: 'joint' | 'cookie';
 };
+
+/** What you do to restock it: roll a joint, order a cookie. */
+export function restockVerb(row: Pick<RestockRow, 'kind'>): 'Roll' | 'Order' {
+  return row.kind === 'cookie' ? 'Order' : 'Roll';
+}
 
 export type ChaseRow = {
   id: string;
@@ -54,14 +61,16 @@ export function restockLine(name: string, stock: number, daysLeft: number | null
   return `${name}: ${weeks} ${weeks === 1 ? 'week' : 'weeks'} left`;
 }
 
-function flavourRows(): Array<{ id: string; name: string }> {
+function flavourRows(): Array<{ id: string; name: string; kind: 'joint' | 'cookie' }> {
   const joints = JOINT_FLAVOURS.map((id) => ({
     id,
     name: id === 'classic' ? 'Plain' : CAT_MAP[id]!.name,
+    kind: 'joint' as const,
   }));
   const cookies = COOKIE_FLAVORS.map((flavor) => ({
     id: cookieCategoryId(flavor.id),
     name: `${flavor.name} cookie`,
+    kind: 'cookie' as const,
   }));
   return [...joints, ...cookies];
 }
@@ -106,6 +115,7 @@ export function restockPlan(
       daysLeft,
       orderQty,
       urgent,
+      kind: flavor.kind,
       line: restockLine(flavor.name, have, daysLeft, days),
     };
   });
@@ -119,10 +129,16 @@ export function restockPlan(
   return rows;
 }
 
+/** The copied list: a Roll section for joints, an Order section for cookies. */
 export function restockListText(rows: RestockRow[] | null | undefined, days = ECONOMICS.restockCycleDays): string {
-  const lines = (rows || []).filter((row) => row.orderQty > 0).map((row) => `${row.name} — ${row.orderQty}`);
   const title = `Restock for ${Math.round(days / 7)} weeks`;
-  return lines.length ? `${title}\n${lines.join('\n')}` : `${title}\nNothing to order`;
+  const need = (rows || []).filter((row) => row.orderQty > 0);
+  const section = (verb: 'Roll' | 'Order') => {
+    const lines = need.filter((row) => restockVerb(row) === verb).map((row) => `${row.name} — ${row.orderQty}`);
+    return lines.length ? [`${verb}:`, ...lines].join('\n') : '';
+  };
+  const body = [section('Roll'), section('Order')].filter(Boolean).join('\n\n');
+  return body ? `${title}\n${body}` : `${title}\nNothing to order`;
 }
 
 export function whatsappLink(phone: string | null | undefined): string {

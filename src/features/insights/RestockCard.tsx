@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks';
 import './insights.css';
 import { ECONOMICS } from '../../domain/economics';
 import { daysLeftLabel, restockSummary } from '../../domain/restock-summary';
-import type { RestockRow } from '../../domain/decisions-book';
+import { restockVerb, type RestockRow } from '../../domain/decisions-book';
 import { FlavorDot } from '../../ui/FlavorDot';
 import { Button } from '../../ui/Button';
 import { IconChevronRight } from '../../ui/icons';
@@ -34,7 +34,7 @@ export function RestockCard({ rows, text, onCopy }: { rows: RestockRow[]; text: 
                 {row.name}
               </span>
               <span class="restock__qty" data-testid={`restock-qty-${row.id}`}>
-                Order {row.orderQty}
+                {restockVerb(row)} {row.orderQty}
               </span>
             </div>
             <div class="restock__bar">

@@ -11,6 +11,7 @@ import {
   profitPicture,
   restockLine,
   restockListText,
+  restockVerb,
   restockPlan,
   whatsappLink,
 } from '../../src/domain/decisions';
@@ -45,6 +46,15 @@ describe('restock', () => {
     expect(rows[0]?.urgent).toBe(true);
     expect(restockListText(rows)).toContain('Grape — 10');
     expect(restockListText(null)).toContain('Nothing to order');
+    // Joints are rolled, cookies are ordered: two sections, Roll first.
+    const split = restockListText([
+      { id: 'cookie-x', name: 'Mint cookie', color: '#000', stock: 0, sold: 4, daysLeft: 0, orderQty: 4, urgent: true, line: '', kind: 'cookie' },
+      { id: 'grape', name: 'Grape', color: '#000', stock: 0, sold: 4, daysLeft: 0, orderQty: 10, urgent: true, line: '', kind: 'joint' },
+    ]);
+    expect(split).toBe('Restock for 2 weeks\nRoll:\nGrape — 10\n\nOrder:\nMint cookie — 4');
+    expect(restockVerb({ kind: 'joint' })).toBe('Roll');
+    expect(restockVerb({ kind: 'cookie' })).toBe('Order');
+    expect(rows.find((row) => row.id === 'grape')?.kind).toBe('joint');
     expect(restockLine('Grape', 1, 1 / 14, 14)).toBe('Grape runs out in ~1 day');
     expect(restockLine('Coconut', 21, 21, 14)).toBe('Coconut: 3 weeks left');
     expect(restockLine('Coconut', 7, 7, 7)).toBe('Coconut: 1 week left');

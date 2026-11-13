@@ -1,6 +1,6 @@
 /**
  * The restock answer, in one headline. Built from `restockPlan` rows:
- * order the urgent flavours with a quantity, and fold the rest into one line.
+ * restock the urgent flavours with a quantity, and fold the rest into one line.
  */
 import { ECONOMICS } from './economics';
 import type { RestockRow } from './decisions-book';
@@ -27,7 +27,7 @@ export function restockSummary(rows: RestockRow[] | null | undefined, cycleDays 
   const weeks = Math.max(1, Math.round(cycleDays / 7));
   const n = order.length;
   return {
-    headline: n === 0 ? 'Nothing to restock this cycle' : `Order ${n} flavour${n === 1 ? '' : 's'}`,
+    headline: n === 0 ? 'Nothing to restock this cycle' : `Restock ${n} flavour${n === 1 ? '' : 's'}`,
     order,
     idle,
     fine,

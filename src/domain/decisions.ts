@@ -22,6 +22,7 @@ export {
   creditChase,
   restockLine,
   restockListText,
+  restockVerb,
   restockPlan,
   whatsappLink,
 } from './decisions-book';

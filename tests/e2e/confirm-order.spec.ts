@@ -12,7 +12,7 @@ function confirmWrites(driver: Awaited<ReturnType<typeof createNextDriver>>) {
 for (const width of [360, 390]) {
   test(`Orders card: Confirm is the primary action of a pending order at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
-    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await createNextDriver(page, { role: 'pos_staff' });
     await page.goto('/next/orders');
     const card = page.locator('article.v-order-card', { has: page.getByTestId(`confirm-order-${PENDING}`) });
     const confirm = card.getByTestId(`confirm-order-${PENDING}`);
@@ -96,14 +96,15 @@ test('Loaded-order card: Confirm uses the same write, flips to the green tag, an
   await expect(card).toBeVisible();
   await expect(card.getByTestId('loaded-order-confirmed')).toHaveCount(0);
   await expect(card.getByTestId('loaded-order-confirm')).toHaveClass(/v-btn--primary/);
-  await expect(card.getByTestId('loaded-order-review')).toHaveClass(/v-btn--secondary/);
+  // No separate Review button: the floating cart bar's Review sale is the one way in.
+  await expect(card.getByTestId('loaded-order-review')).toHaveCount(0);
+  await expect(card.getByRole('button', { name: /Review/ })).toHaveCount(0);
   await expect(page.getByTestId('confirm-store-order')).toHaveCount(0);
 
   await card.getByTestId('loaded-order-confirm').click();
   await expect(card.getByTestId('loaded-order-confirmed')).toBeVisible();
   await expect(card.getByTestId('loaded-order-confirmed')).toHaveClass(/v-tag--paid/);
   await expect(card.getByTestId('loaded-order-confirm')).toHaveCount(0);
-  await expect(card.getByTestId('loaded-order-review')).toHaveClass(/v-btn--primary/);
   await expect(page.getByText('Order confirmed')).toBeVisible();
 
   const writes = confirmWrites(driver);
@@ -112,7 +113,7 @@ test('Loaded-order card: Confirm uses the same write, flips to the green tag, an
   expect((writes[0].body as { confirmed_at?: string }).confirmed_at).toBeTruthy();
 
   // The checkout sheet shows the same tag, has no Confirm paragraph, and keeps only Unlink.
-  await card.getByTestId('loaded-order-review').click();
+  await page.getByTestId('cart-bar').click();
   const sheet = page.getByRole('dialog', { name: 'Review sale' });
   await expect(sheet.getByTestId('loaded-order-cart-confirmed')).toBeVisible();
   await expect(sheet.getByTestId('loaded-order-cart-confirm')).toHaveCount(0);
@@ -127,7 +128,7 @@ test('Checkout sheet: a pending loaded order can be confirmed there too, and a f
   await page.goto('/next/orders');
   await page.getByTestId(`load-order-${PENDING}`).click();
   await page.waitForURL(/\/sell/);
-  await page.getByTestId('loaded-order-review').click();
+  await page.getByTestId('cart-bar').click();
   const sheet = page.getByRole('dialog', { name: 'Review sale' });
 
   await page.route(/store_orders\?id=eq\./, async (route) => {
@@ -154,19 +155,25 @@ test('A confirmed order that is loaded into the sale stays in the In sale tab, a
 
   await page.goto('/next/orders');
   await page.getByRole('tab', { name: 'In sale' }).click();
-  await expect(page.getByTestId(`load-order-${PENDING}`)).toHaveText('Open cart');
+  await expect(page.getByTestId(`load-order-${PENDING}`)).toHaveText('Review sale');
   await expect(page.getByTestId(`confirmed-${PENDING}`)).toBeVisible();
   await page.getByRole('tab', { name: 'Waiting' }).click();
   await expect(page.getByTestId(`load-order-${PENDING}`)).toHaveCount(0);
 
   await page.getByRole('tab', { name: 'In sale' }).click();
+  // Review sale opens the cart sheet in place. Close it to reach the card's Unlink.
   await page.getByTestId(`load-order-${PENDING}`).click();
   await page.waitForURL(/\/sell/);
+  const reviewSheet = page.getByRole('dialog', { name: 'Review sale' });
+  await expect(reviewSheet).toBeVisible();
+  await reviewSheet.getByRole('button', { name: 'Close' }).click();
+  await reviewSheet.waitFor({ state: 'hidden' });
   await page.getByTestId('loaded-order-unlink').click();
   // Unlink does not cancel or release the order. It is still in Orders, still confirmed.
+  await page.getByTestId('loaded-order').waitFor({ state: 'detached' });
   await page.goto('/next/orders');
-  await page.getByRole('tab', { name: 'In sale' }).click();
-  await expect(page.getByTestId(`load-order-${PENDING}`)).toBeVisible();
+  // Unlinked, it goes back to Waiting to be loaded again.
+  await expect(page.getByTestId(`load-order-${PENDING}`)).toHaveText('Load into sale');
   await expect(page.getByTestId(`confirmed-${PENDING}`)).toBeVisible();
   await expect(page.getByTestId('cancelled-banner')).toHaveCount(0);
 });

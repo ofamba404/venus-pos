@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { createNextDriver } from './drivers/next';
 import { buildDefaultSeed } from '../fixtures/seed';
 import { moneyChart } from '../../src/domain/money-chart';
-import { restockPlan } from '../../src/domain/decisions-book';
+import { restockPlan, restockVerb } from '../../src/domain/decisions-book';
 import { restockSummary } from '../../src/domain/restock-summary';
 import { CHART_RANGES } from '../../src/domain/analytics/periods';
 import { historyOrDefault } from '../../src/domain/insights-view';
@@ -128,7 +128,7 @@ test.describe('Insights: restock answers directly', () => {
     await expect(head).toHaveText(summary.headline);
     await expect(page.locator('[data-testid^="restock-row-"]')).toHaveCount(summary.order.length);
     for (const row of summary.order) {
-      await expect(page.getByTestId(`restock-qty-${row.id}`)).toHaveText(`Order ${row.orderQty}`);
+      await expect(page.getByTestId(`restock-qty-${row.id}`)).toHaveText(`${restockVerb(row)} ${row.orderQty}`);
       // Plain text, not a pill.
       expect(await page.getByTestId(`restock-qty-${row.id}`).evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
     }
@@ -153,6 +153,7 @@ test.describe('Insights: restock answers directly', () => {
   });
 
   test('a flavour that will run out is named with its quantity and days left', async ({ page }) => {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     for (const row of driver.mock.db.table('inventory')) row.stock = 500;
     // Mint sells, and almost none is left.
@@ -160,13 +161,29 @@ test.describe('Insights: restock answers directly', () => {
     const sales = driver.mock.db.table('sales');
     for (const sale of sales) sale.created_at = new Date().toISOString();
     sales.push({ id: 'mint-seller', created_at: new Date().toISOString(), is_credit: false, total_ugx: 80000, items: [{ product_id: 'mint', line_total: 80000, breakdown: { mint: 40 } }] });
+    // A cookie flavour sells too, and is nearly out.
+    sales.push({ id: 'cookie-seller', created_at: new Date().toISOString(), is_credit: false, total_ugx: 60000, items: [{ product_id: 'cookie_mint', line_total: 60000, breakdown: { cookie_mint: 30 } }] });
+    const inv = driver.mock.db.table('inventory');
+    const cookieRow = inv.find((r) => r.category_id === 'cookie_mint');
+    if (cookieRow) cookieRow.stock = 1;
+    else inv.push({ category_id: 'cookie_mint', stock: 1 });
     await page.goto('/next/insights');
     const stock = Object.fromEntries(driver.mock.db.table('inventory').map((r) => [String(r.category_id), Number(r.stock)]));
     const summary = restockSummary(restockPlan(sales as never, stock, new Date()));
     expect(summary.order.map((r) => r.id)).toContain('mint');
+    expect(summary.order.map((r) => r.id)).toContain('cookie_mint');
+    // The headline says Restock, joints say Roll, cookies say Order.
+    await expect(page.getByTestId('restock-headline')).toHaveText(/^Restock \d+ flavours?$/);
+    const cookie = summary.order.find((r) => r.id === 'cookie_mint')!;
+    await expect(page.getByTestId('restock-qty-cookie_mint')).toHaveText(`Order ${cookie.orderQty}`);
     await expect(page.getByTestId('restock-headline')).toHaveText(summary.headline);
     const mint = summary.order.find((r) => r.id === 'mint')!;
-    await expect(page.getByTestId('restock-qty-mint')).toHaveText(`Order ${mint.orderQty}`);
+    await expect(page.getByTestId('restock-qty-mint')).toHaveText(`Roll ${mint.orderQty}`);
     await expect(page.getByTestId('restock-row-mint')).toContainText(/days? left|Under a day/);
+    await page.getByTestId('copy-restock').click();
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toMatch(/Roll:\n(.+\n)*Mint — \d+/);
+    expect(copied).toMatch(/Order:\nMint cookie — \d+/);
+    expect(copied.indexOf('Roll:')).toBeLessThan(copied.indexOf('Order:'));
   });
 });

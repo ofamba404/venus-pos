@@ -150,7 +150,7 @@ test.describe('SafeBoda copy pills', () => {
     // Paid is the default: no Collect line.
     await card.getByTestId('loaded-order-copy-all').click();
     expect(await clip(page)).toBe(base.join('\n'));
-    await card.getByTestId('loaded-order-review').click();
+    await page.getByTestId('cart-bar').click();
     const sheet = page.getByRole('dialog', { name: 'Review sale' });
     await sheet.getByTestId('copy-all').click();
     expect(await clip(page)).toBe(base.join('\n'));

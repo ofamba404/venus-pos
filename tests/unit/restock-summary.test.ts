@@ -25,7 +25,7 @@ describe('restock summary', () => {
       NOW,
     );
     const s = restockSummary(plan);
-    expect(s.headline).toBe('Order 1 flavour');
+    expect(s.headline).toBe('Restock 1 flavour');
     expect(s.order.map((r) => r.id)).toEqual(['mint']);
     // 28 sold in 14 days is 2 a day, so 6 on hand lasts 3 days, and 2 weeks needs 28 - 6.
     expect(s.order[0]).toMatchObject({ orderQty: 22 });
@@ -40,7 +40,7 @@ describe('restock summary', () => {
       NOW,
     );
     const s = restockSummary(plan);
-    expect(s.headline).toBe('Order 2 flavours');
+    expect(s.headline).toBe('Restock 2 flavours');
     expect(s.idle.map((r) => r.id)).toContain('melon');
     expect(s.order.map((r) => r.id)).not.toContain('melon');
     expect(s.fine.map((r) => r.id)).not.toContain('melon');
@@ -49,7 +49,7 @@ describe('restock summary', () => {
   it('survives no data, a single fine flavour, and labels days left', () => {
     expect(restockSummary(null).headline).toBe('Nothing to restock this cycle');
     expect(restockSummary(undefined).fineLine).toBe('');
-    const one = restockSummary([{ id: 'mint', name: 'Mint', color: '#000', stock: 5, sold: 0, daysLeft: null, orderQty: 0, urgent: false, line: '' }]);
+    const one = restockSummary([{ id: 'mint', name: 'Mint', color: '#000', stock: 5, sold: 0, daysLeft: null, orderQty: 0, urgent: false, line: '', kind: 'joint' as const }]);
     expect(one.fineLine).toBe('1 flavour fine for 2+ weeks');
     expect(daysLeftLabel({ stock: 0, daysLeft: 0 })).toBe('Out of stock');
     expect(daysLeftLabel({ stock: 5, daysLeft: null })).toBe('No sales lately');

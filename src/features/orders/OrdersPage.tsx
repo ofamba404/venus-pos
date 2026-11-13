@@ -6,6 +6,7 @@ import { mapStoreOrderToCart } from '../../domain/store-order-map';
 import { orderMeta, replaceCart, setOrderMetaPatch } from '../../data/session-cart';
 import { replaceCheckoutDraft } from '../../data/checkout-draft';
 import { patchStoreOrder } from '../../data/writes/store-orders';
+import { requestCartOpen } from '../../data/cart-request';
 import { go } from '../../app/router';
 import { Button } from '../../ui/Button';
 import { Tag } from '../../ui/Tag';
@@ -13,7 +14,6 @@ import { Segmented } from '../../ui/Segmented';
 import { showToast } from '../../ui/ToastHost';
 import { productImageSrc } from '../../domain/product-art';
 import { EmptyState } from '../../ui/EmptyState';
-import { IconButton } from '../../ui/IconButton';
 import { OrderCard } from '../../ui/OrderCard';
 import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
 import { KEYS } from '../../data/keys';
@@ -126,6 +126,12 @@ export function OrdersPage() {
 
   const loadedId = orderMeta.value.storeOrderId || '';
   const list = storeOrders.value.filter((o) => orderSegment(o, loadedId) === seg);
+
+  /** The order is already in the cart. Go to Sell and open the Review sale sheet in place, keeping any edits. */
+  function openLoadedCart() {
+    requestCartOpen();
+    go('/sell');
+  }
 
   async function loadIntoSale(order: StoreOrderRow) {
     const device_id = deviceId();
@@ -278,8 +284,8 @@ export function OrdersPage() {
               ) : null}
               {seg === 'in_sale' ? (
                 <>
-                  <Button size="md" data-testid={`load-order-${o.id}`} onClick={() => void loadIntoSale(o)}>
-                    Open cart
+                  <Button size="md" data-testid={`load-order-${o.id}`} onClick={() => openLoadedCart()}>
+                    Review sale
                   </Button>
                   <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => void cancelOrder(o)}>
                     Cancel

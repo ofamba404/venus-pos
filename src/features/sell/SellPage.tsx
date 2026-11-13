@@ -5,6 +5,7 @@ import { kampalaInputToIso, kampalaLocalInput } from '../../domain/kampala-time'
 import { itemToConfigSelection } from '../../domain/pricing/pack-config';
 import { stockNotifyDecision } from '../../domain/stock-notify';
 import { KEYS } from '../../data/keys';
+import { cartOpenWanted, takeCartOpenRequest } from '../../data/cart-request';
 import { cancelledOrderBanner, clientOwesLabel, successCopy } from '../../domain/parity';
 import { cartStockShortfalls, sellAnywayMessage } from '../../domain/stock-shortfall';
 import { formatUGX } from '../../domain/format';
@@ -70,6 +71,11 @@ export function SellPage() {
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
   const [selection, setSelection] = useState<Record<string, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
+  // Another page (Orders: Review sale) asked for the Review sale sheet. Open it in place.
+  const cartWanted = cartOpenWanted.value;
+  useEffect(() => {
+    if (cartWanted && takeCartOpenRequest()) setCartOpen(true);
+  }, [cartWanted]);
   const [paying, setPaying] = useState(false);
   const [successTotal, setSuccessTotal] = useState<number | null>(null);
   const [payment, setPayment] = useState<'paid' | 'credit'>('paid');
@@ -710,7 +716,7 @@ export function SellPage() {
           <div class="v-loaded-order--page">
             <LoadedOrderCard
               {...loadedOrderProps}
-              onReview={() => setCartOpen(true)}
+              page
               onUnlink={() => setOrderMetaPatch({ storeOrderId: '' })}
             />
           </div>

@@ -20,8 +20,11 @@ export type LoadedOrderCardProps = {
   confirmed?: boolean;
   /** Confirm pill. Resolves true on success. Left out where the order cannot be confirmed. */
   onConfirm?: () => Promise<boolean> | boolean | void;
-  /** Page variant adds Review and Unlink. The sheet variant is just the header. */
-  onReview?: () => void;
+  /**
+   * Page variant (above the Sell grid) adds the phone, the copy pills and Unlink. The sheet variant is just the header.
+   * There is no Review button: the floating cart bar's Review sale does that.
+   */
+  page?: boolean;
   onUnlink?: () => void;
   testId?: string;
 };
@@ -43,7 +46,7 @@ export function LoadedOrderCard({
   total,
   confirmed = false,
   onConfirm,
-  onReview,
+  page = false,
   onUnlink,
   testId = 'loaded-order',
 }: LoadedOrderCardProps) {
@@ -68,8 +71,8 @@ export function LoadedOrderCard({
           {place}
         </div>
       ) : null}
-      {onReview && phone ? <div class="v-loaded-order__text">{phone}</div> : null}
-      {onReview ? (
+      {page && phone ? <div class="v-loaded-order__text">{phone}</div> : null}
+      {page ? (
         <DeliveryCopyRow
           delivery={delivery}
           name={name}
@@ -81,19 +84,9 @@ export function LoadedOrderCard({
           idPrefix={`${testId}-copy-`}
         />
       ) : null}
-      {onReview || onUnlink || (onConfirm && !confirmed) ? (
+      {onUnlink || (onConfirm && !confirmed) ? (
         <div class="v-loaded-order__actions">
           {onConfirm && !confirmed ? <ConfirmButton testId={`${testId}-confirm`} onConfirm={onConfirm} /> : null}
-          {onReview ? (
-            <Button
-              size="md"
-              variant={onConfirm && !confirmed ? 'secondary' : 'primary'}
-              data-testid={`${testId}-review`}
-              onClick={onReview}
-            >
-              Review order
-            </Button>
-          ) : null}
           {onUnlink ? (
             <Button size="md" variant="ghost" data-testid={`${testId}-unlink`} onClick={onUnlink}>
               Unlink

@@ -42,7 +42,7 @@ test.describe('loaded store order', () => {
     await expect(banner.getByTestId('loaded-order-copy-phone')).toBeVisible();
     await expect(banner.getByTestId('loaded-order-copy-location')).toBeVisible();
 
-    await banner.getByTestId('loaded-order-review').click();
+    await page.getByTestId('cart-bar').click();
     const sheet = page.getByRole('dialog', { name: 'Review sale' });
     await expect(sheet.getByTestId('loaded-order-cart')).toBeVisible();
     // The name wraps instead of truncating, and every swatch of the 8-flavour pack is on screen.

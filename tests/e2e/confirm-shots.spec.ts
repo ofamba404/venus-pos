@@ -50,7 +50,7 @@ for (const width of [360, 390]) {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${dir}/confirm-loaded-order-confirmed-${width}.png` });
-    await page.getByTestId('loaded-order-review').click();
+    await page.getByTestId('cart-bar').click();
     const sheet = page.getByRole('dialog', { name: 'Review sale' });
     await sheet.waitFor();
     await page.waitForTimeout(600);
