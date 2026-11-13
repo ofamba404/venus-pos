@@ -65,6 +65,25 @@ test.describe('rendered contrast on the screens with tints', () => {
     expect(await contrast(page)).toEqual([]);
   });
 
+  test('Insights: money chart with a bar picked, restock list open, credit open with orders and the settle sheet', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    driver.mock.db.table('inventory').find((r) => r.category_id === 'mint')!.stock = 1;
+    await page.goto('/next/insights');
+    await page.getByTestId('money-chart').waitFor();
+    await page.getByRole('button', { name: '1M', exact: true }).click();
+    expect(await contrast(page)).toEqual([]);
+    await page.getByTestId('money-bar').nth(0).click();
+    expect(await contrast(page)).toEqual([]);
+    await page.getByTestId('restock-fine-toggle').click();
+    expect(await contrast(page)).toEqual([]);
+    await page.getByTestId('credit-toggle').click();
+    await page.locator('[data-testid^="credit-person-"]').first().click();
+    expect(await contrast(page)).toEqual([]);
+    await page.locator('[data-testid^="credit-settle-order-"]').first().click();
+    await page.getByTestId('credit-settle-sheet').waitFor();
+    expect(await contrast(page)).toEqual([]);
+  });
+
   test('the sign-in page', async ({ page }) => {
     await page.goto('/next/auth.html');
     await page.getByRole('heading', { name: 'Sign in' }).waitFor();

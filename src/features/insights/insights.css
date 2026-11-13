@@ -1,0 +1,481 @@
+/* Insights: the money chart and the restock answer. Ink and bronze, money in plain semibold ink. */
+
+.money {
+  gap: var(--s-3);
+}
+
+.money__totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+.money__figure {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-3);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  min-width: 0;
+}
+
+.money__label {
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.money__figure .v-money {
+  font-size: clamp(15px, 4.6vw, 20px);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.money__pct {
+  font: var(--t-meta);
+  color: var(--bronze-deep);
+}
+
+.money__plot {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding-top: var(--s-4);
+}
+
+.money__max {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font: var(--t-mono-micro);
+  color: var(--fg-2);
+}
+
+.money__bars {
+  display: grid;
+  align-items: end;
+  gap: 4px;
+  height: 168px;
+  border-top: 1px dashed var(--input-line);
+  border-bottom: 1px solid var(--input-line);
+}
+
+.money__col {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 4px 4px 0 0;
+  transition: opacity 140ms ease;
+}
+
+.money__col.is-dim {
+  opacity: 0.4;
+}
+
+.money__col.is-on {
+  outline: 2px solid var(--bronze);
+  outline-offset: 2px;
+}
+
+.money__stack {
+  display: flex;
+  flex-direction: column-reverse;
+  min-height: 0;
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+}
+
+.money__seg {
+  display: block;
+  min-height: 1px;
+}
+
+.money__zero {
+  display: block;
+  height: 2px;
+  background: var(--input-line);
+}
+
+.money__seg--owner {
+  background: var(--ink-900);
+}
+
+.money__seg--helper {
+  background: var(--bronze);
+}
+
+.money__seg--partner {
+  background: repeating-linear-gradient(135deg, var(--bronze-deep) 0 2px, var(--wash-strong) 2px 5px);
+}
+
+.money__seg--costs {
+  background: var(--paper-100);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.money__axis {
+  display: grid;
+  gap: 4px;
+  font: var(--t-mono-micro);
+  color: var(--fg-2);
+  text-align: center;
+}
+
+.money__axis span {
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.money__readout {
+  margin: 0;
+  font: var(--t-body);
+  color: var(--fg-2);
+}
+
+.money__readout strong {
+  display: block;
+  color: var(--fg);
+}
+
+.money__legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+
+.money__chip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: 'swatch label' 'swatch value';
+  column-gap: var(--s-2);
+  align-items: center;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.money__swatch {
+  grid-area: swatch;
+  width: 14px;
+  height: 28px;
+  border-radius: 3px;
+}
+
+.money__chip-label {
+  grid-area: label;
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.money__chip .v-money {
+  grid-area: value;
+  font-weight: 600;
+}
+
+/* Restock */
+.restock {
+  gap: var(--s-2);
+}
+
+.restock__row {
+  display: grid;
+  gap: 6px;
+  padding: var(--s-3);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.restock__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.restock__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font: var(--t-label);
+}
+
+.restock__qty {
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  background: var(--ink-900);
+  color: var(--on-action);
+  font: var(--t-label);
+  white-space: nowrap;
+}
+
+.restock__bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.restock__track {
+  display: block;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: var(--wash-strong);
+  overflow: hidden;
+}
+
+.restock__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink-900) 25%, transparent);
+}
+
+.restock__days {
+  font: var(--t-meta);
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+
+.restock__key {
+  margin: 0;
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.restock__fold {
+  display: grid;
+}
+
+.restock__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: var(--hit-lg);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--line);
+  font: var(--t-label);
+  text-align: left;
+  width: 100%;
+}
+
+.restock__chev {
+  display: inline-flex;
+  transition: transform 140ms ease;
+}
+
+.restock__chev.is-open {
+  transform: rotate(90deg);
+}
+
+.restock__more {
+  display: grid;
+}
+
+.restock__fine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-height: 40px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Credit: one card, one age bar. Rows only when it is opened. */
+.credit {
+  gap: var(--s-2);
+}
+
+.credit__card {
+  display: grid;
+  gap: var(--s-2);
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  text-align: left;
+}
+
+.credit__card--static {
+  font: var(--t-body);
+}
+
+.credit__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.credit__line {
+  font: var(--t-body);
+  overflow-wrap: anywhere;
+}
+
+.credit__line strong {
+  font-weight: 600;
+}
+
+.credit__chev {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  transition: transform 140ms ease;
+}
+
+.credit__chev.is-open {
+  transform: rotate(90deg);
+}
+
+.credit__bar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+
+.credit__seg {
+  display: block;
+  min-width: 6px;
+}
+
+.credit__seg--week {
+  background: var(--wash-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bronze) 45%, transparent);
+}
+
+.credit__seg--two {
+  background: var(--bronze);
+}
+
+.credit__seg--four {
+  background: var(--ink-900);
+}
+
+.credit__seg--older {
+  background: var(--danger);
+}
+
+.credit__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--s-3);
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.credit__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.credit__key b {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.credit__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.credit__people {
+  display: grid;
+}
+
+.credit__person {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.credit__main {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+}
+
+.credit__name {
+  font: var(--t-label);
+  overflow-wrap: break-word;
+}
+
+.credit__meta {
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+.credit__meta .v-money {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.credit__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.credit__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--input-line);
+  font: var(--t-meta);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.credit__orders {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--wash);
+}
+
+.credit__order {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.credit__order-main {
+  display: grid;
+}
+
+.credit__order-date {
+  font: var(--t-label);
+}
+
+.credit__settle {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.credit__owes {
+  margin: 0;
+  font: var(--t-body);
+}

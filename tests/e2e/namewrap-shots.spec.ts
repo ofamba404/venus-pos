@@ -26,6 +26,7 @@ for (const width of [390, 360]) {
 
     await page.goto('/next/insights');
     await page.locator('[data-testid="insights-credit"]').waitFor();
+    await page.getByTestId('credit-toggle').click();
     await page.waitForTimeout(500);
     await hideNav();
     await page.locator('[data-testid="insights-credit"]').screenshot({ path: `${dir}/namewrap-chase-list-${width}.png` });

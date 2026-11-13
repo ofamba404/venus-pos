@@ -71,6 +71,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/clients': 'Clients',
   '/history': 'History',
   '/insights': 'Insights',
+  '/cookie-partner': 'Cookie partner',
   '/delivery': 'Delivery',
   '/reviews': 'Reviews',
   '/store': 'Store',
@@ -266,12 +267,14 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         if (step.action === 'add') {
           await page.getByTestId('client-add-name').fill(step.name || '');
           await page.getByTestId('client-add').click();
+          await page.getByText('Client added').first().waitFor();
           return;
         }
         await page.getByRole('button', { name: new RegExp(step.name || '', 'i') }).first().click();
         if (step.action === 'rename') {
           await page.getByTestId('client-edit-name').fill(step.newName || '');
           await page.getByTestId('client-rename').click();
+          await page.getByText('Client renamed').first().waitFor();
           return;
         }
         await page.getByTestId('client-delete').click();

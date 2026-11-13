@@ -43,6 +43,9 @@ Staff email reset is no longer an ask. It is on `/next/auth.html` (show/hide pas
 | Loaded order | A confirmed order that is loaded into the sale stays in In sale. Unlink is now Detach order, and says the order stays in Orders, not cancelled |
 | History edit sale | Add item opens Sell's product tiles and capped picker, replacing Add Plain. + on a pack adds another pack (it used to multiply the first flavour). Totals use Sell's line builder and cookie repricing |
 | Cookie partner | Its own page, Cookie partner under More (`/cookie-partner`). Insights keeps a small summary tile that opens it. Partial batch send ported from v1 PR #3: a part-filled batch can be sent only while no full batch waits, after a confirm, with the server checked first and one write of a higher total. Same failure wording as v1. The write is still `POST /api/cookie-partner/settle`, unchanged |
+| Insights money chart | Replaces the three profit tiles. Sales and profit per day (a month or less), week or month for the selected range, each bar stacked into you, the helper's 40%, the cookie partner and joint cost. Profit is you plus the helper. Tap a bar for that day. Profit by pack stays |
+| Insights restock | Headline first: Nothing to restock this cycle, or Order N flavours. Only urgent flavours are listed, each with its `orderQty` and days left. The rest is one line (N flavours fine for 2+ weeks), expandable. Copy restock list stays. The bar's full length is labelled as the 2-week cycle |
+| Insights credit | Replaces Who should I chase. One collapsed card (total owed, people, collected in the range) with one age bar (under 1 week, 1-2, 2-4, older). Tap for a row per person (owed age, WhatsApp reminder with the amount, Copy phone). Tap a person for their orders and settle one order or all of them, through the same `settleCredit` write the Clients page uses. There is no due date, so it says owed N days, never overdue |
 
 ## Drop
 

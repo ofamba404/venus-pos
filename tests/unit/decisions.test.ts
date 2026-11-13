@@ -66,7 +66,7 @@ describe('restock', () => {
 });
 
 describe('who to chase', () => {
-  it('sorts by days overdue and builds a 9-digit WhatsApp link', () => {
+  it('sorts by days owed and builds a 9-digit WhatsApp link', () => {
     const now = new Date('2026-11-12T12:00:00.000Z');
     const rows = creditChase(
       [

@@ -41,7 +41,7 @@ test('capture the SafeBoda copy screens at 390px', async ({ page }) => {
   await page.goto('/next/orders');
   await page.getByTestId('copy-all-sb-delivery').waitFor({ timeout: 20_000 });
   await hideNav();
-  await page.getByTestId('copy-phone-sb-delivery').click();
+  await page.getByTestId('copy-all-sb-delivery').click();
   await page.waitForTimeout(250);
   await page.locator('article.v-order-card').first().screenshot({ path: `${dir}/safeboda-order-card.png` });
   await page.screenshot({ path: `${dir}/safeboda-orders-list.png` });

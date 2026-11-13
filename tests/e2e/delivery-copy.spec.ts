@@ -34,6 +34,7 @@ test.describe('SafeBoda copy pills', () => {
   test('no icon-only copy buttons anywhere', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/orders');
+    await expect(page.getByTestId('copy-all-seed-pending-order')).toBeVisible();
     const buttons = page.locator('.v-copy-btn');
     expect(await buttons.count()).toBeGreaterThan(0);
     for (const text of await buttons.allInnerTexts()) expect(text.trim().length).toBeGreaterThan(0);

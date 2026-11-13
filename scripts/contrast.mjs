@@ -92,6 +92,10 @@ export function pairs() {
   add('--input-line', ['--paper-0', '--bg'], NON_TEXT, 'Input borders against the sheet and the page');
   add('--bronze-deep', ['--wash-strong'], NORMAL, 'Avatar initials on the stronger wash');
   add('--danger', [{ mix: ['--danger', 7, '--surface'] }, { mix: ['--danger', 6, '--surface'] }], KEY, 'Calm owed tag and delete confirmation');
+  add('--ink-900', ['--paper-0', '--bg'], NON_TEXT, 'Money chart: your share bar against the card and the page');
+  add('--bronze-deep', ['--paper-0', '--bg'], NON_TEXT, 'Money chart helper stripes');
+  add('--danger', ['--paper-0', '--bg'], NON_TEXT, 'Credit age bar, the older segment');
+  add('--fg-2', ['--wash'], NORMAL, 'Credit order rows and metadata on the wash');
   add('--fg-3', ['--paper-0'], NORMAL, 'Placeholder text on a white input');
   add('--focus', ['--bg', '--paper-0', '--wash'], NON_TEXT, 'Focus ring against the page and the wash');
   add('--line-strong', ['--paper-0'], 1, 'Divider only, not for information');

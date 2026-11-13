@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { clients, loadClients, loadSales, sales, type SaleRow } from '../../data/entities';
 import { loadStoreAccounts, storeAccounts } from '../../data/store-accounts';
 import {
-  allocatePaymentFifo,
   getClientOutstandingCredit,
   creditBalance,
   sumCreditOwed,
@@ -16,8 +15,7 @@ import {
   type PersonFilter,
 } from '../../domain/people';
 import { deleteClient, patchClient, postClient } from '../../data/writes/clients';
-import { postCreditPayment } from '../../data/writes/credit';
-import { patchSale } from '../../data/writes/sales';
+import { settleCredit } from '../../data/credit-settle';
 import { deleteStoreAccount, patchStoreAccount, storeAuth } from '../../data/writes/store';
 import { Money } from '../../ui/Money';
 import { Sheet } from '../../ui/Sheet';
@@ -27,15 +25,12 @@ import { showToast } from '../../ui/ToastHost';
 import { PersonRow } from '../../ui/PersonRow';
 import { clientNamesText } from '../../domain/parity';
 
-/** Settling is amount plus an optional note. The payment row still carries the column the schema expects. */
 /** First letter of a name. A phone-number name has no letter, so it gets a hash mark. */
 function avatarInitial(name: string | null | undefined): string {
   const c = String(name || '').trim().charAt(0).toUpperCase();
   if (!c) return '?';
   return /[0-9+]/.test(c) ? '#' : c;
 }
-
-export const SETTLE_DEFAULT_METHOD = 'cash';
 
 const FILTERS: Array<{ id: PersonFilter; label: string }> = [
   { id: 'all', label: 'All' },
@@ -118,23 +113,8 @@ export function ClientsPage() {
     }
     setBusy(true);
     try {
-      const allocations = allocatePaymentFifo(openSales, pay);
-      for (const row of allocations) {
-        const sale = row.sale as SaleRow;
-        if (!sale.id) continue;
-        const res = await patchSale(sale.id, {
-          amount_paid_ugx: row.newPaid,
-          credit_cleared: row.clears,
-          ...(row.clears ? { cleared_at: new Date().toISOString() } : {}),
-        });
-        if (!res.ok) throw new Error(`Could not update sale (${res.status})`);
-      }
-      await postCreditPayment({
-        client_id: clientId,
-        amount_ugx: pay,
-        method: SETTLE_DEFAULT_METHOD,
-        note: note.trim() || null,
-      }).catch(() => {});
+      const result = await settleCredit({ openSales, clientId, amount: pay, note });
+      if (!result.ok) throw new Error(result.error);
       showToast(`Settled ${pay.toLocaleString('en-UG')} UGX`);
       setAmount('');
       setNote('');

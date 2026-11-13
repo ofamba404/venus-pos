@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { clients, ensureInventory, inventory, loadClients, loadSales, sales } from '../../data/entities';
 import { computeTodayStats } from '../../domain/today';
-import { sumCreditOwed, getOutstandingCredit } from '../../domain/credit';
 import { expandPartnerUnitsFromSales, partnerBoard } from '../../domain/partner';
 import { fetchCookiePartnerSettle } from '../../data/writes/partner';
+import { fetchCreditPayments } from '../../data/credit-payments';
+import { collectedIn, collectedPhrase, creditBook, type CreditPayment } from '../../domain/credit-book';
+import { moneyChart } from '../../domain/money-chart';
 import { CHART_RANGES, filterSalesByRange } from '../../domain/analytics/periods';
 import { readStoredId } from '../../domain/parity';
 import { historyOrDefault } from '../../domain/insights-view';
@@ -15,7 +17,6 @@ import { KEYS } from '../../data/keys';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
 import {
-  creditChase,
   packDriverSentence,
   periodSentence,
   profitPicture,
@@ -34,6 +35,7 @@ export function InsightsPage() {
     ),
   );
   const [serverSettle, setServerSettle] = useState<{ qty: number; batches: number[] } | null>(null);
+  const [payments, setPayments] = useState<CreditPayment[] | null>(null);
   const [costHistory, setCostHistory] = useState<JointCostRow[]>([]);
   // undefined: still loading. null: could not be read, so no owed figure is shown.
   const [settlements, setSettlements] = useState<Settlement[] | null | undefined>(undefined);
@@ -46,6 +48,7 @@ export function InsightsPage() {
       if (state) setServerSettle(state);
     });
     void fetchStaffSettlements().then(setSettlements);
+    void fetchCreditPayments().then(setPayments);
     void sbFetch('joint_cost_history?select=category_id,cost_ugx,effective_from')
       .then(async (res) => {
         if (!res.ok) return;
@@ -73,8 +76,9 @@ export function InsightsPage() {
   );
   const sentence = useMemo(() => periodSentence(book, range, history).text, [book, range, history]);
   const restock = useMemo(() => restockPlan(book, inventory.value), [book, inventory.value]);
-  const chase = useMemo(() => creditChase(book, clients.value), [book, clients.value]);
-  const owed = useMemo(() => sumCreditOwed(getOutstandingCredit(sales.value)), [sales.value]);
+  const credit = useMemo(() => creditBook(book, clients.value), [book, clients.value]);
+  const collected = useMemo(() => (payments === null ? null : collectedIn(payments, range, new Date())), [payments, range]);
+  const money = useMemo(() => moneyChart(book, range, history), [book, range, history]);
 
   const partner = useMemo(() => {
     const list = sales.value as Parameters<typeof expandPartnerUnitsFromSales>[0];
@@ -104,8 +108,14 @@ export function InsightsPage() {
         joints={today.joints}
         restock={restock}
         restockText={restockListText(restock)}
-        chase={chase}
-        owed={owed}
+        money={money}
+        credit={credit}
+        collected={collected}
+        collectedPhrase={collectedPhrase(range)}
+        onCreditChanged={async () => {
+          await loadSales({ force: true });
+          setPayments(await fetchCreditPayments());
+        }}
         picture={picture}
         ledger={ledger}
         ledgerLoading={settlements === undefined}

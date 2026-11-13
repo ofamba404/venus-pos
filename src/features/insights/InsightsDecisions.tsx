@@ -1,17 +1,19 @@
-import type { ChaseRow, PackLine, ProfitPicture, RestockRow } from '../../domain/decisions';
+import type { PackLine, ProfitPicture, RestockRow } from '../../domain/decisions';
+import type { CreditBook } from '../../domain/credit-book';
+import type { MoneyChart as MoneyChartData } from '../../domain/money-chart';
 import type { PartnerBatch } from '../../domain/partner';
 import type { CommissionLedger } from '../../domain/commission';
-import { ECONOMICS } from '../../domain/economics';
 import { formatUGX } from '../../domain/format';
-import { FlavorDot } from '../../ui/FlavorDot';
 import { Money } from '../../ui/Money';
 import { Button } from '../../ui/Button';
 import { showToast } from '../../ui/ToastHost';
-import { localPhoneDigits } from '../../domain/phone';
 import { EmptyState } from '../../ui/EmptyState';
 import { IconChevronRight } from '../../ui/icons';
 import { go } from '../../app/router';
 import { PartnerBar } from '../cookie-partner/PartnerBar';
+import { MoneyChart } from './MoneyChart';
+import { RestockCard } from './RestockCard';
+import { CreditCard } from './CreditCard';
 
 function copyText(text: string, ok: string) {
   void navigator.clipboard?.writeText(text).then(
@@ -26,8 +28,11 @@ export function InsightsDecisions({
   joints,
   restock,
   restockText,
-  chase,
-  owed,
+  money,
+  credit,
+  collected,
+  collectedPhrase,
+  onCreditChanged,
   picture,
   ledger,
   ledgerLoading,
@@ -40,8 +45,11 @@ export function InsightsDecisions({
   joints: number;
   restock: RestockRow[];
   restockText: string;
-  chase: ChaseRow[];
-  owed: number;
+  money: MoneyChartData;
+  credit: CreditBook;
+  collected: number | null;
+  collectedPhrase: string;
+  onCreditChanged: () => void | Promise<void>;
   picture: ProfitPicture;
   ledger: CommissionLedger | null;
   ledgerLoading: boolean;
@@ -49,9 +57,6 @@ export function InsightsDecisions({
   partnerLoading: boolean;
   openBatch: PartnerBatch | null;
 }) {
-  const selling = restock.filter((row) => row.sold > 0);
-  const quiet = restock.length - selling.length;
-  const horizon = ECONOMICS.restockCycleDays * 2;
   const soldPacks = picture.packs.filter((row) => row.soldProfit > 0);
   const maxPack = Math.max(1, ...soldPacks.map((row) => row.soldProfit));
   return (
@@ -60,84 +65,14 @@ export function InsightsDecisions({
         {sentence}
       </p>
 
-      <section class="decision" aria-label="What should I restock">
-        <h2 class="decision__q">What should I restock?</h2>
-        {selling.map((row) => {
-          const days = row.daysLeft === null ? horizon : row.daysLeft;
-          const width = Math.max(0, Math.min(100, (days / horizon) * 100));
-          const fill = row.color.toLowerCase() === '#ffffff' || row.color.toLowerCase() === '#fff' ? 'var(--plain)' : row.color;
-          const label = row.stock <= 0 ? 'Out' : row.daysLeft !== null && row.daysLeft < ECONOMICS.restockCycleDays ? `~${Math.max(1, Math.round(row.daysLeft))}d` : `${Math.max(1, Math.round((row.daysLeft || 0) / 7))}w`;
-          return (
-            <div class={`cover${row.urgent ? ' cover--urgent' : ''}`} key={row.id}>
-              <span class="cover__name">
-                <FlavorDot color={row.color} />
-                {row.name}
-              </span>
-              <span class="cover__track" aria-hidden="true">
-                <span class="cover__fill" style={{ width: `${width}%`, background: fill }} />
-                <span class="cover__mark" />
-              </span>
-              <span class="cover__days">{label}</span>
-            </div>
-          );
-        })}
-        {quiet ? <p class="decision__why">{quiet} with no sales this cycle</p> : null}
-        <Button size="md" variant="secondary" data-testid="copy-restock" onClick={() => copyText(restockText, 'Restock list copied')}>
-          Copy restock list
-        </Button>
-      </section>
+      <MoneyChart chart={money} />
 
-      <section class="decision" aria-label="Who should I chase" data-testid="insights-credit" data-owed={owed}>
-        <h2 class="decision__q">Who should I chase?</h2>
-        {chase.length ? (
-          chase.map((row) => (
-            <div class="decision-row" key={row.id}>
-              <div class="decision-row__main">
-                <div class="v-list-row__title">{row.name}</div>
-                <div class="v-list-row__meta">
-                  {row.days} {row.days === 1 ? 'day' : 'days'} overdue · <Money value={row.owed} />
-                </div>
-              </div>
-              <div class="decision-row__actions">
-                {row.phone ? (
-                  <Button
-                    size="md"
-                    variant="secondary"
-                    data-testid={`chase-phone-${row.id}`}
-                    onClick={() => copyText(localPhoneDigits(row.phone), 'Phone copied')}
-                  >
-                    Copy phone
-                  </Button>
-                ) : null}
-                {row.whatsapp ? (
-                  <a class="chase-link" href={row.whatsapp} target="_blank" rel="noopener noreferrer">
-                    WhatsApp
-                  </a>
-                ) : null}
-              </div>
-            </div>
-          ))
-        ) : (
-          <p class="v-muted">Nobody owes you.</p>
-        )}
-      </section>
+      <RestockCard rows={restock} text={restockText} onCopy={(text) => copyText(text, 'Restock list copied')} />
 
-      <section class="decision" aria-label="What am I making">
-        <h2 class="decision__q">What am I really making?</h2>
-        <div class="kpi-grid">
-          <div class="kpi-tile">
-            <div class="kpi-tile__label">You keep</div>
-            <div class="kpi-tile__value"><Money value={picture.owner} /></div>
-          </div>
-          <div class="kpi-tile">
-            <div class="kpi-tile__label">Helper {Math.round(picture.helperShare * 100)}%</div>
-            <div class="kpi-tile__value"><Money value={picture.helper} /></div>
-          </div>
-          <div class="kpi-tile">
-            <div class="kpi-tile__label">Cookie partner</div>
-            <div class="kpi-tile__value"><Money value={picture.partner} /></div>
-          </div>
-        </div>
+      <CreditCard book={credit} collected={collected} phrase={collectedPhrase} onSettled={onCreditChanged} />
+
+      <section class="decision" aria-label="Which packs earn most">
+        <h2 class="decision__q">Which packs earn most?</h2>
         {soldPacks.length ? (
           <div class="v-bars" data-testid="insights-rank">
             {soldPacks.map((row: PackLine) => (

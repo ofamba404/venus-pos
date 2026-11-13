@@ -371,7 +371,9 @@ test.describe('write-contract scenarios (next)', () => {
       items?: Array<{ breakdown?: { mint?: number } }>;
     };
     expect(body.total_ugx).toBe(16000);
-    expect(body.items?.[0]?.breakdown?.mint).toBe(2);
+    // + on a pack adds another pack. It no longer multiplies the first flavour past the pack's cap.
+    expect(body.items).toHaveLength(2);
+    expect(body.items?.map((i) => i.breakdown?.mint)).toEqual([1, 1]);
     const deltas = driver.mock.writes.filter(
       (w) =>
         (w.body as { op?: string } | null)?.op === 'delta' &&

@@ -78,7 +78,8 @@ for (const width of [360, 390]) {
       const driver = await createNextDriver(page, { role: 'pos_admin' });
       driver.mock.db.table('clients').find((r) => r.name === 'Client With Debt')!.name = LONG;
       await page.goto('/next/insights');
-      const title = page.locator('[data-testid="insights-credit"] .v-list-row__title', { hasText: 'Wolfeschlegelstein' });
+      await page.getByTestId('credit-toggle').click();
+      const title = page.locator('[data-testid="insights-credit"] .credit__name', { hasText: 'Wolfeschlegelstein' });
       await expectWhole(page, title);
     });
 

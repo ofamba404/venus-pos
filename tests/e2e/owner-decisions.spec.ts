@@ -221,7 +221,8 @@ test.describe('owner decisions', () => {
     const name = 'Client With Debt and a Very Long Surname Nakasujja';
     driver.mock.db.table('clients').find((r) => r.name === 'Client With Debt')!.name = name;
     await page.goto('/next/insights');
-    const title = page.locator('[data-testid="insights-credit"] .v-list-row__title', { hasText: 'Nakasujja' });
+    await page.getByTestId('credit-toggle').click();
+    const title = page.locator('[data-testid="insights-credit"] .credit__name', { hasText: 'Nakasujja' });
     await expect(title).toBeVisible();
     const box = await title.evaluate((el) => {
       const style = getComputedStyle(el);
