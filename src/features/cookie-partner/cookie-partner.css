@@ -212,3 +212,7 @@
 .cp-hero--sent {
   background: var(--surface-sunk);
 }
+
+.cp-hero {
+  scroll-margin-top: 64px;
+}

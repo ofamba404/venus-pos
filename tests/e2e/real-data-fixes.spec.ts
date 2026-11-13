@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { createNextDriver } from './drivers/next';
+import { installMockBackend } from '../mock';
 import { pickOnWheels, setClock } from './helpers/clock';
 
 const dir = process.env.V2C_SHOT_DIR || '/workspace/shots3';
@@ -85,6 +86,11 @@ test.describe('real-shaped data', () => {
     await page.goto('/next/orders');
     await page.getByRole('tab', { name: /In sale/ }).click();
     await expect(page.getByTestId('load-order-real-acc-1')).toHaveText('Review sale');
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${dir}/v2i-order-cards.png` });
+    // Tight cards: each is far shorter than the old ~300px.
+    const heights = await page.locator('article.order-card').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    for (const h of heights) expect(h).toBeLessThan(190);
     await page.getByTestId('load-order-real-acc-2').click();
     await page.waitForURL(/\/next\/sell/);
     const sheet = page.getByRole('dialog', { name: 'Review sale' });
@@ -154,7 +160,6 @@ test.describe('real-shaped data', () => {
     await expect.poll(pos).toBe(count);
     await expect(gallery.locator('[data-gallery-clone="true"]')).toHaveCount(2);
     await card.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `${dir}/v2i-order-cards.png` });
     await card.screenshot({ path: `${dir}/v2i-gallery.png` });
   });
 
@@ -202,6 +207,20 @@ test.describe('real-shaped data', () => {
     await page.screenshot({ path: `${dir}/v2i-hours-busy-custom.png` });
     await page.getByTestId('busy-clear').click();
     await expect(page.getByTestId('busy-active')).toHaveCount(0);
+  });
+
+  test('Cookie partner: a sent batch loads into the top card (shot)', async ({ page }) => {
+    await setup(page);
+    const cuts = [...Array.from({ length: 10 }, () => 25), 12];
+    await installMockBackend(page, { role: 'pos_admin', partnerSettle: { qty: 262, batches: cuts } });
+    await page.goto('/next/cookie-partner');
+    await page.getByTestId('partner-history').waitFor();
+    await page.getByTestId('partner-history-more').click();
+    await page.getByTestId('partner-batch-toggle-11').click();
+    await expect(page.getByTestId('partner-hero')).toHaveAttribute('data-viewing', '11');
+    await expect(page.getByTestId('partner-open-count')).toHaveText('12');
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${dir}/v2i-cookie-partner-batch-loaded.png` });
   });
 
   for (const width of [390, 360]) {

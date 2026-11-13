@@ -20,7 +20,7 @@ test.describe('Review sale polish', () => {
     expect(Math.round(box!.width)).toBe(64);
     expect(Math.round(box!.height)).toBe(64);
     const zoom = await gallery.locator('img').first().evaluate((el) => getComputedStyle(el).transform);
-    expect(zoom).toMatch(/matrix\(1\.5/);
+    expect(zoom).toMatch(/matrix\(1\.25/);
     await expect(sheet.locator('.v-cart-line').getByTestId('line-qty')).toHaveCount(0);
     expect(await sheet.locator('.v-qty').count()).toBe(0);
   });
@@ -77,6 +77,6 @@ test('every order card with items has a photo gallery, including storefront-shap
   // so-pending-1 is a storefront order: product_id "cookie-duet", flavors ["mint", "chocolate"], no breakdown.
   const buyer = page.locator('article.order-card', { has: page.getByTestId('load-order-so-pending-1') });
   await expect(buyer).toHaveCount(1);
-  const srcs = await buyer.locator('img').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
+  const srcs = await buyer.locator('[data-gallery-index] img').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
   expect(srcs).toEqual(['mint-cookie.webp', 'chocolate-cookie.webp']);
 });

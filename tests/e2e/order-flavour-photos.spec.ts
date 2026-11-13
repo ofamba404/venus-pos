@@ -65,7 +65,7 @@ test.describe('flavour photos once a pack is in an order', () => {
     const sheet = await addPack(page, 'commander', ['watermelon', 'watermelon', 'blueberry', 'strawberry', 'strawberry']);
     const gallery = sheet.getByTestId('line-gallery');
     await expect(gallery).toHaveAttribute('data-slides', '3');
-    const srcs = await gallery.locator('img').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
+    const srcs = await gallery.locator('[data-gallery-index] img').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
     expect(srcs).toEqual(['scout-watermelon.webp', 'scout-blueberry.webp', 'scout-strawberry.webp']);
     await expect(gallery.locator('.v-gallery__qty').first()).toHaveText('×2');
   });
@@ -77,11 +77,12 @@ test.describe('flavour photos once a pack is in an order', () => {
     const card = page.locator('article', { has: page.getByTestId('load-order-photo-order') });
     const gallery = card.getByTestId('order-gallery');
     await expect(gallery).toHaveAttribute('data-slides', '4');
-    const srcs = await gallery.locator('img').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
+    const srcs = await gallery.locator('[data-gallery-index] img').evaluateAll((els) => els.map((e) => (e as HTMLImageElement).src.split('/').pop()));
     expect(srcs).toEqual(['scout-mint.webp', 'scout-grape.webp', 'mint-cookie.webp', 'chocolate-cookie.webp']);
-    // The dots are pictures, not buttons, and the card is not made taller by them.
+    // The dots are pictures, not buttons, in a thin row below the 56px tile.
     await expect(gallery.locator('button')).toHaveCount(0);
-    expect((await gallery.boundingBox())!.height).toBeLessThanOrEqual(44);
+    expect((await gallery.locator('.v-gallery__viewport').boundingBox())!.height).toBeLessThanOrEqual(56);
+    expect((await gallery.boundingBox())!.height).toBeLessThanOrEqual(70);
   });
 
   test('a History row shows the sale\'s flavour photos, and so does its edit sheet', async ({ page }) => {

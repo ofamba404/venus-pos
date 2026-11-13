@@ -49,7 +49,7 @@ for (const width of [360, 390]) {
       const title = page.locator('.order-card__who .v-list-row__title', { hasText: 'Wolfeschlegelstein' });
       await expectWhole(page, title);
       const card = page.locator('article.v-order-card', { has: title });
-      const amount = card.locator('.order-card__top > .v-money');
+      const amount = card.locator('.order-card__headline > .v-money');
       const name = await title.boundingBox();
       const money = await amount.boundingBox();
       const cardBox = await card.boundingBox();

@@ -20,7 +20,7 @@ test.describe('flavour photo gallery on cart lines', () => {
     await addPilot(page, ['mint', 'grape']);
     const gallery = page.getByRole('dialog', { name: 'Review sale' }).getByTestId('line-gallery');
     await expect(gallery).toHaveAttribute('data-slides', '2');
-    const imgs = gallery.locator('img');
+    const imgs = gallery.locator('[data-gallery-index] img');
     await expect(imgs).toHaveCount(2);
     await expect(imgs.nth(0)).toHaveAttribute('src', /scout-mint\.webp/);
     await expect(imgs.nth(1)).toHaveAttribute('src', /scout-grape\.webp/);

@@ -29,23 +29,25 @@ export function OrderCard({
   return (
     <article class="v-order-card order-card">
       <div class="order-card__top">
-        {photos && photos.length ? <ProductGallery slides={photos} size={44} variant="mini" testId="order-gallery" /> : null}
+        {photos && photos.length ? <ProductGallery slides={photos} size={56} variant="mini" testId="order-gallery" /> : null}
         <div class="order-card__who">
-          <div class="v-list-row__title">{title}</div>
+          <div class="order-card__headline">
+            <div class="v-list-row__title">{title}</div>
+            <Money className="v-money--total" value={total} />
+          </div>
           {tags ? <div class="order-card__tags">{tags}</div> : null}
         </div>
-        <Money className="v-money--total" value={total} />
       </div>
-      <div class="order-card__mid">
+      {shown.length ? (
         <div class="order-card__lines">
           {shown.map((line, index) => (
-            <div key={`${line.name}-${index}`}>
-              <div class="v-list-row__meta">{line.name}</div>
+            <div class="order-card__line" key={`${line.name}-${index}`}>
+              <span class="v-list-row__meta">{line.name}</span>
               <FlavorSwatches breakdown={line.breakdown} productId={line.productId} />
             </div>
           ))}
         </div>
-      </div>
+      ) : null}
       {copies ? <div class="order-card__copies">{copies}</div> : null}
       {children}
     </article>

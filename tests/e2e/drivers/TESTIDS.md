@@ -49,3 +49,10 @@ Use these on v2 elements. Drivers resolve via `[data-testid="…"]`.
 - Cookie partner: `partner-batch-toggle-{n}` opens `partner-batch-detail-{n}`, showing the batch lines.
 - Hours page: `hours-page`, `store-status` (`data-state` open, closed or busy), `busy-15` / `busy-30` / `busy-60` / `busy-clear`, `hours-open`, `hours-close`, `hours-suggest-start`, `hours-suggest-end`, `hours-preview`, `hours-save`.
 - Gallery: `line-gallery` (cart line), `edit-line-gallery` (sale edit), `order-gallery` (order card), `history-gallery` (History row), each with `data-slides`; `gallery-track`, dots with `data-dot` (cart and edit lines only; order card and History dots are pictures). Sell tiles have no gallery. `line-qty` appears only for a quantity above one (muted ×N beside the line name); a pack shows none. The cart body renders twice (aside and Review sale dialog), so scope to the dialog.
+
+## v2i (real-data fixes)
+- Time picker (our own sheet, no native time input): chips `hours-open`, `hours-close`, `hours-suggest-start`, `hours-suggest-end`; sheet `clock-sheet`, wheels `clock-hour-{1..12}`, `clock-minute-{0,15,30,45}`, `clock-ampm-{am,pm}`, `clock-readout`, `clock-cancel`, `clock-clear`, `clock-done`. Test helper: `tests/e2e/helpers/clock.ts` (`setClock`, `pickOnWheels`).
+- Busy: `busy-15` / `busy-30` / `busy-60`, `busy-custom` (opens the same wheels as "Busy until"), `busy-active`, `busy-remaining`, `busy-clear`.
+- Cookie partner: tapping a sent batch (`partner-batch-toggle-N`) loads it into `partner-hero` (`data-viewing=N`, `partner-hero-kicker`, `partner-hero-dates`); `partner-back` returns. No accordion.
+- Galleries loop with clones (`data-gallery-clone`); real slides carry `data-gallery-index`. The ×N badge is `gallery-qty`, outside the photo viewport; dots sit below the tile.
+- Orders: an In sale card whose order is not in this phone's cart rebuilds the cart before opening Review sale. Cards are photo | name+price over tags | items inline | one action row (primary, Copy all, Cancel).
