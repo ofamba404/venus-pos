@@ -88,6 +88,14 @@ test.describe('store order sheet', () => {
     await expect(sheet.locator('input[type="date"], input[type="time"], input[type="datetime-local"]')).toHaveCount(0);
     await expect(sheet.locator('input')).toHaveCount(1); // the delivery fee, nothing else
     await expect(sheet.getByTestId('so-gallery').first()).toBeVisible();
+    const gallery = sheet.getByTestId('so-gallery').first();
+    const qty = gallery.locator('.v-gallery__qty');
+    await expect(qty).toHaveText('×2');
+    const photo = (await gallery.locator('.v-gallery__viewport').boundingBox())!;
+    const badge = (await qty.boundingBox())!;
+    expect(badge.y + badge.height / 2).toBeGreaterThan(photo.y + photo.height / 2);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${dir}/v2q-qty-badge.png` });
     await expect(sheet.getByTestId('so-place-value')).toContainText('Acacia Avenue');
     await expect(sheet.getByTestId('so-phone-cc')).toHaveText('+256');
     await expect(sheet.getByTestId('so-phone-value')).toHaveText('700333444');
@@ -136,10 +144,11 @@ test.describe('store order sheet', () => {
     const sheet = page.getByTestId('store-order-sheet');
     await expect(sheet.getByTestId('store-order-total')).toHaveAttribute('data-total', '30000');
     await expect(page.getByTestId('store-order-checkout')).toContainText('30,000');
-    await expect(sheet.getByTestId('store-order-fee-field')).toContainText('Paid separately to the rider (SafeBoda)');
+    await expect(sheet.getByText('Paid separately to the rider (SafeBoda)')).toHaveCount(0);
+    await expect(sheet.getByText('Recorded as paid at checkout')).toHaveCount(0);
     await sheet.getByTestId('store-order-fee').scrollIntoViewIfNeeded();
     await page.waitForTimeout(300);
-    await page.screenshot({ path: `${dir}/v2p-store-order.png` });
+    await page.screenshot({ path: `${dir}/v2q-store-order.png` });
     await sheet.getByTestId('store-order-fee').fill('9000');
     await expect(sheet.getByTestId('store-order-total')).toHaveAttribute('data-total', '30000');
     await expect(page.getByTestId('store-order-checkout')).toContainText('30,000');

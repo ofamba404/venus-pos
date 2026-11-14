@@ -58,8 +58,7 @@ function ReadField({ label, value, testId, copy }: { label: string; value: strin
 
 /**
  * A client's storefront order, read only. It is not the cart: items, drop-off, phone and time are as the client
- * placed them. The delivery fee is an editable SafeBoda amount, paid separately to the rider, and is not part of
- * the sale. Checkout records the items only.
+ * placed them. The delivery fee is an editable SafeBoda amount and is not part of the sale. Checkout records the items only.
  */
 function StoreOrderBody({
   shown,
@@ -239,7 +238,6 @@ function StoreOrderBody({
                       placeholder="0"
                       onInput={(e) => setFee((e.target as HTMLInputElement).value.replace(/[^0-9]/g, ''))}
                     />
-                    <span class="v-so-fee-hint">Paid separately to the rider (SafeBoda)</span>
                   </label>
                 ) : (
                   <div class="v-field" data-testid="store-order-fee-field">
@@ -247,7 +245,6 @@ function StoreOrderBody({
                     <div class="v-field__input v-field__input--ro" data-testid="store-order-fee-value">
                       {formatUGX(feeUgx)}
                     </div>
-                    <span class="v-so-fee-hint">Paid separately to the rider (SafeBoda)</span>
                   </div>
                 )
               ) : null}
@@ -261,9 +258,9 @@ function StoreOrderBody({
             <span>Total</span>
             <Money className="v-money--total" value={items} size="xl" />
           </div>
-          {credit || open ? (
+          {credit ? (
             <div class="v-so-pay" data-testid="store-order-pay">
-              {credit ? <Tag tone="credit">On credit</Tag> : <span class="v-muted">Recorded as paid at checkout</span>}
+              <Tag tone="credit">On credit</Tag>
             </div>
           ) : null}
         </section>

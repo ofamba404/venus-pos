@@ -2357,8 +2357,15 @@ body:has(.v-sheet) .v-toast-host {
   flex: 0 0 auto;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   width: var(--gallery-size);
+}
+
+.v-gallery__frame {
+  position: relative;
+  flex: none;
+  width: var(--gallery-size);
+  height: var(--gallery-size);
 }
 
 .v-gallery__viewport {
@@ -2407,9 +2414,9 @@ body:has(.v-sheet) .v-toast-host {
 }
 
 .v-gallery__qty {
-  /* On the tile's top corner, outside the photo, with a white ring: the number is never covered or clipped by the picture. */
+  /* On the tile's bottom-right corner, outside the photo, with a white ring: the number is never covered or clipped by the picture. */
   position: absolute;
-  top: -5px;
+  bottom: -5px;
   right: -5px;
   z-index: 1;
   min-width: 20px;
@@ -2547,7 +2554,7 @@ body:has(.v-sheet) .v-toast-host {
 
 /* Mini gallery: the photo on an order card or History row. The dots sit in a thin row below the tile, never on the photo. */
 .v-gallery--mini {
-  gap: 3px;
+  gap: 6px;
 }
 
 .v-gallery--mini .v-gallery__viewport {
@@ -2555,7 +2562,7 @@ body:has(.v-sheet) .v-toast-host {
 }
 
 .v-gallery--mini .v-gallery__qty {
-  top: -4px;
+  bottom: -4px;
   right: -4px;
   min-width: 18px;
   padding: 1px 5px;
@@ -2934,11 +2941,6 @@ body:has(.v-sheet) .v-toast-host {
   gap: var(--s-3);
 }
 
-.v-so-fee-hint {
-  font: var(--t-meta);
-  color: var(--fg-2);
-}
-
 .v-so-totals__row {
   display: flex;
   align-items: center;
@@ -2949,8 +2951,6 @@ body:has(.v-sheet) .v-toast-host {
 
 .v-so-totals__row--total {
   color: var(--fg);
-  padding-top: var(--s-3);
-  border-top: 1px solid var(--line);
 }
 
 .v-so-pay {

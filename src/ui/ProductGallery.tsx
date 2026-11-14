@@ -177,8 +177,10 @@ export function ProductGallery({
   if (count === 1) {
     return (
       <div class={cls} style={style} data-testid={testId} data-slides="1">
-        <div class="v-gallery__viewport">{img(slides[0]!, true)}</div>
-        {slides[0]!.count > 1 ? <span class="v-gallery__qty">×{slides[0]!.count}</span> : null}
+        <div class="v-gallery__frame">
+          <div class="v-gallery__viewport">{img(slides[0]!, true)}</div>
+          {slides[0]!.count > 1 ? <span class="v-gallery__qty">×{slides[0]!.count}</span> : null}
+        </div>
       </div>
     );
   }
@@ -191,6 +193,7 @@ export function ProductGallery({
   ];
   return (
     <div class={`${cls} has-multiple`} ref={rootRef} style={style} data-testid={testId} data-slides={count}>
+      <div class="v-gallery__frame">
       <div class="v-gallery__viewport">
         <div
           class="v-gallery__track"
@@ -215,6 +218,7 @@ export function ProductGallery({
         </div>
       </div>
       {shownCount > 1 ? <span class="v-gallery__qty" data-testid="gallery-qty">×{shownCount}</span> : null}
+      </div>
       <div class="v-gallery__dots" role={tile ? undefined : 'tablist'} aria-label="Flavour photos" aria-hidden={tile ? 'true' : undefined}>
         {slides.map((slide, i) =>
           tile ? (
