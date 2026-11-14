@@ -8,6 +8,7 @@ import { copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
 import { itemsImageSlides } from '../../domain/product-art';
 import { formatUGX } from '../../domain/format';
 import { Button } from '../../ui/Button';
+import { IconClose } from '../../ui/icons';
 import { CopyButton } from '../../ui/CopyButton';
 import { ConfirmButton, ConfirmedTag } from '../../ui/ConfirmOrder';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
@@ -72,6 +73,12 @@ function StoreOrderBody({
   useEffect(() => {
     if (open && !inventoryFresh()) void ensureInventory().catch(() => {});
   }, []);
+  useEffect(() => {
+    setFee(order.delivery_fee_ugx != null ? String(Math.round(Number(order.delivery_fee_ugx) || 0)) : '');
+    setPaying(false);
+    setCancelling(false);
+    setAskCancel(false);
+  }, [order.id]);
 
   const items = cartTotal(mapped.lines);
   const feeUgx = delivery && fee.trim() !== '' ? Math.max(0, parseInt(fee, 10) || 0) : 0;
@@ -134,17 +141,18 @@ function StoreOrderBody({
 
   const footer = open ? (
     <div class="v-so-foot">
-      <Button size="xl" data-testid="store-order-checkout" loading={paying} onClick={() => void checkout()}>
-        {`Checkout ${formatUGX(items)}`}
-      </Button>
-      <Button
-        size="lg"
-        variant="ghost"
+      <button
+        type="button"
+        class="v-so-foot__cancel"
         data-testid="store-order-cancel"
+        aria-label="Cancel order"
         disabled={paying || cancelling}
         onClick={() => setAskCancel(true)}
       >
-        Cancel
+        <IconClose size={22} />
+      </button>
+      <Button size="xl" data-testid="store-order-checkout" loading={paying} onClick={() => void checkout()}>
+        {`Checkout ${formatUGX(items)}`}
       </Button>
     </div>
   ) : null;
@@ -176,7 +184,7 @@ function StoreOrderBody({
 
   return (
     <>
-    <Sheet open={shown} title={title} titleTestId="store-order-name" preface={preface} lead={lead} onClose={onClose} footer={footer}>
+    <Sheet open={shown} title={title} titleTestId="store-order-name" preface={preface} lead={lead} swapKey={order.id} onClose={onClose} footer={footer}>
       <div class="v-so" data-testid="store-order-sheet" data-mode={delivery ? 'delivery' : 'pickup'}>
         {open && !confirmed ? (
           <div class="v-so__top">
@@ -302,7 +310,6 @@ export function StoreOrderSheet({
   if (!held) return null;
   return (
     <StoreOrderBody
-      key={held.order.id}
       shown={Boolean(order)}
       order={held.order}
       title={held.title}

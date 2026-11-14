@@ -318,4 +318,43 @@ test.describe('store order sheet', () => {
     await expect(page.getByTestId('store-order-cancel')).toBeVisible();
     expect(driver.mock.writes.filter((w) => w.url.includes('/api/store-order/reserve'))).toHaveLength(0);
   });
+
+  test('Cancel sits in the checkout row without growing the footer, and switching orders keeps the same sheet', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    driver.mock.db.table('store_orders').push({ ...DELIVERY });
+    driver.mock.db.table('store_orders').push({
+      ...DELIVERY,
+      id: 'so-ada',
+      customer_name: 'Ada',
+      items: [DELIVERY.items[0]],
+      delivery_enabled: false,
+      delivery_fee_ugx: null,
+    });
+    await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
+    await page.getByTestId('view-order-so-delivery').click();
+    const drawer = page.locator('.v-sheet').filter({ has: page.getByTestId('store-order-sheet') });
+    await expect(drawer).toBeVisible();
+    await expect(page.getByTestId('store-order-cancel')).toHaveAttribute('aria-label', 'Cancel order');
+    const foot = drawer.locator('.v-sheet__foot');
+    const withH = (await foot.boundingBox())!.height;
+    const cancelBox = (await page.getByTestId('store-order-cancel').boundingBox())!;
+    const checkoutBox = (await page.getByTestId('store-order-checkout').boundingBox())!;
+    expect(cancelBox.width).toBe(56);
+    expect(cancelBox.height).toBe(56);
+    expect(Math.abs(cancelBox.y + cancelBox.height / 2 - (checkoutBox.y + checkoutBox.height / 2))).toBeLessThan(6);
+    await page.getByTestId('store-order-cancel').evaluate((el) => { (el as HTMLElement).style.display = 'none'; });
+    const withoutH = (await foot.boundingBox())!.height;
+    await page.getByTestId('store-order-cancel').evaluate((el) => { (el as HTMLElement).style.display = ''; });
+    expect(Math.abs(withH - withoutH)).toBeLessThan(1);
+
+    await drawer.evaluate((el) => { (window as unknown as { __vSheet?: Element }).__vSheet = el; });
+    await page.getByTestId('store-order-chip-so-ada').click();
+    await expect(page.getByTestId('store-order-name')).toHaveText('Ada');
+    expect(await page.evaluate(() => document.querySelector('.v-sheet') === (window as unknown as { __vSheet?: Element }).__vSheet)).toBe(true);
+    await expect(drawer).not.toHaveClass(/is-closing/);
+    mkdirSync(dir, { recursive: true });
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: `${dir}/review-footer-row.png` });
+  });
 });

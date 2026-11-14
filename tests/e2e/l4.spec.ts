@@ -91,12 +91,13 @@ test('the cart is still there after reload', async ({ page }) => {
   await expect(page.locator('[data-desktop-cart]').getByText('Plain').first()).toBeVisible();
 });
 
-test('stock glance, install steps, chart range, and debug capture are on the page', async ({ page }) => {
+test('stock glance, chart range, and debug capture are on the page', async ({ page }) => {
   await createNextDriver(page, { role: 'pos_admin' });
   await page.goto('/next/stock');
   await expect(page.getByTestId('stock-glance')).toContainText(/out/);
   await page.goto('/next/settings');
-  await expect(page.getByTestId('install-steps')).toContainText('Add to Home Screen');
+  await expect(page.getByTestId('install-steps')).toHaveCount(0);
+  await expect(page.getByText(/^Role:/)).toHaveCount(0);
   await page.goto('/next/insights');
   await expect(page.getByTestId('insights-today')).toBeVisible();
   await expect(page.getByTestId('insights-credit')).toBeVisible();

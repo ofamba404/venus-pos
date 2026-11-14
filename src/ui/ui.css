@@ -3046,12 +3046,35 @@ body:has(.v-sheet) .v-toast-host {
 }
 
 .v-so-foot {
-  display: grid;
-  gap: var(--s-2);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
-.v-so-foot .v-btn--ghost {
-  color: var(--fg-2);
+.v-so-foot__cancel {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid #d6d4cf;
+  border-radius: 50%;
+  background: #f4f3f0;
+  color: var(--fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.v-so-foot__cancel:disabled {
+  opacity: 0.45;
+}
+
+.v-so-foot .v-btn {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* Sale success: the storefront's "Order placed" modal in POS tokens. Centred card, 50% scrim, ink mark that draws. */
@@ -3647,4 +3670,18 @@ body:has(.v-sheet) .v-toast-host {
 
 .v-cancel-ask .v-btn--ghost {
   color: var(--fg-2);
+}
+
+
+@media (prefers-reduced-motion: no-preference) {
+  .v-sheet__title.is-swapping,
+  .v-sheet__lead.is-swapping,
+  .v-sheet__body.is-swapping {
+    animation: v-sheet-swap 150ms var(--ease-out, ease) both;
+  }
+}
+
+@keyframes v-sheet-swap {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

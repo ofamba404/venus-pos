@@ -134,8 +134,24 @@ test.describe('v2w sign-in, credit, hours, review bar, password, gallery', () =>
     await expect(page.getByTestId('store-order-queue')).toBeVisible();
     await expect(page.getByTestId('store-order-chip-so-prime')).toHaveClass(/is-active/);
     await expect(page.getByTestId('store-order-cancel')).toBeVisible();
+    await expect(page.getByTestId('store-order-cancel')).toHaveAttribute('aria-label', 'Cancel order');
+    const drawer = page.locator('.v-sheet').filter({ has: page.getByTestId('store-order-sheet') });
+    const foot = drawer.locator('.v-sheet__foot');
+    const withH = (await foot.boundingBox())!.height;
+    const cancelBox = (await page.getByTestId('store-order-cancel').boundingBox())!;
+    const checkoutBox = (await page.getByTestId('store-order-checkout').boundingBox())!;
+    expect(cancelBox.width).toBe(56);
+    expect(cancelBox.height).toBe(56);
+    expect(Math.abs(cancelBox.y + cancelBox.height / 2 - (checkoutBox.y + checkoutBox.height / 2))).toBeLessThan(6);
+    await page.getByTestId('store-order-cancel').evaluate((el) => { (el as HTMLElement).style.display = 'none'; });
+    const withoutH = (await foot.boundingBox())!.height;
+    await page.getByTestId('store-order-cancel').evaluate((el) => { (el as HTMLElement).style.display = ''; });
+    expect(Math.abs(withH - withoutH)).toBeLessThan(1);
+    await drawer.evaluate((el) => { (window as unknown as { __vSheet?: Element }).__vSheet = el; });
     await page.getByTestId('store-order-chip-so-ada').click();
     await expect(page.getByTestId('store-order-name')).toHaveText('Ada');
+    expect(await page.evaluate(() => document.querySelector('.v-sheet') === (window as unknown as { __vSheet?: Element }).__vSheet)).toBe(true);
+    await expect(drawer).not.toHaveClass(/is-closing/);
     await expect(page.getByTestId('store-order-chip-so-ada')).toHaveClass(/is-active/);
     await page.waitForTimeout(900);
     const queueBox = (await page.getByTestId('store-order-queue').boundingBox())!;
@@ -164,6 +180,7 @@ test.describe('v2w sign-in, credit, hours, review bar, password, gallery', () =>
     await page.getByTestId('success-done').click();
     await expect(page.getByTestId('store-order-sheet')).toBeVisible();
     await expect(page.getByTestId('store-order-name')).toHaveText('Venus Prime');
+    expect(await page.evaluate(() => document.querySelector('.v-sheet') === (window as unknown as { __vSheet?: Element }).__vSheet)).toBe(true);
     await expect(page.getByTestId('review-bar')).toContainText('Venus Prime · 1 item · UGX 5,000');
   });
 

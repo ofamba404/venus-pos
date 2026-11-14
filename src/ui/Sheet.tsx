@@ -23,6 +23,7 @@ export function Sheet({
   lead,
   children,
   footer,
+  swapKey,
   onClose,
   dismissible = true,
   swipeBody = false,
@@ -36,6 +37,8 @@ export function Sheet({
   lead?: ComponentChildren;
   children: ComponentChildren;
   footer?: ComponentChildren;
+  /** When this changes while the sheet stays open, the title and body fade in place instead of remounting the drawer. */
+  swapKey?: string;
   onClose: () => void;
   dismissible?: boolean;
   /** Let a downward swipe anywhere on the sheet dismiss it. By default only the handle and title bar do, so a long body can still scroll. */
@@ -46,6 +49,8 @@ export function Sheet({
   const timer = useRef<number | undefined>(undefined);
   const panel = useRef<HTMLDivElement>(null);
   const swiped = useRef(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const prevSwap = useRef<string | undefined>(undefined);
   // While it plays the close, keep showing what it showed when it was open, so the content does not blank mid-slide.
   const last = useRef({ title, titleTestId, preface, lead, children, footer });
   if (open) last.current = { title, titleTestId, preface, lead, children, footer };
@@ -72,6 +77,26 @@ export function Sheet({
     }, CLOSE_MS);
     return () => window.clearTimeout(timer.current);
   }, [open, mounted]);
+
+  useEffect(() => {
+    if (!open) {
+      prevSwap.current = undefined;
+      return;
+    }
+    const key = swapKey || '';
+    const prev = prevSwap.current;
+    prevSwap.current = key;
+    if (prev === undefined || prev === key) return;
+    const body = bodyRef.current;
+    if (body) body.scrollTop = 0;
+    if (reducedMotion()) return;
+    const fadeEls = panel.current?.querySelectorAll('.v-sheet__title, .v-sheet__lead, .v-sheet__body');
+    fadeEls?.forEach((el) => el.classList.add('is-swapping'));
+    const fade = window.setTimeout(() => {
+      fadeEls?.forEach((el) => el.classList.remove('is-swapping'));
+    }, 150);
+    return () => window.clearTimeout(fade);
+  }, [open, swapKey]);
 
   /** Drag the sheet down with a finger. Past a third of a short drag, or a quick flick, it goes. */
   function startSwipe(e: PointerEvent) {
@@ -154,7 +179,7 @@ export function Sheet({
         </div>
         {last.current.lead ? <div class="v-sheet__lead">{last.current.lead}</div> : null}
         </div>
-        <div class="v-sheet__body">{last.current.children}</div>
+        <div class="v-sheet__body" ref={bodyRef}>{last.current.children}</div>
         {last.current.footer ? <div class="v-sheet__foot">{last.current.footer}</div> : null}
       </div>
     </>

@@ -2,12 +2,11 @@ import { useState } from 'preact/hooks';
 import { enablePush } from '../../data/push';
 import { runNotificationCheck, type CheckLine } from '../../data/push-check';
 import { KEYS } from '../../data/keys';
-import { allowDevBypass, authRole, authSession, changePassword, signOut } from '../../data/auth';
+import { allowDevBypass, authSession, changePassword, signOut } from '../../data/auth';
 import { Button } from '../../ui/Button';
 import { Field } from '../../ui/Field';
 import { Sheet } from '../../ui/Sheet';
 import { showToast } from '../../ui/ToastHost';
-import { INSTALL_STEPS } from '../../domain/parity';
 
 function readJson(key: string) {
   try {
@@ -179,9 +178,6 @@ export function SettingsPage() {
           <div class="v-list-row__title">
             {authSession.value?.user?.email || (allowDevBypass() ? 'Dev session' : 'Signed in')}
           </div>
-          <div class="v-muted" style={{ color: 'var(--fg-2)' }}>
-            Role: {authRole.value || 'none'}
-          </div>
         </div>
         <button type="button" class="v-list-row" data-testid="change-password" onClick={() => setPwOpen(true)}>
           <div class="v-list-row__main">
@@ -218,14 +214,6 @@ export function SettingsPage() {
         <Button variant="secondary" onClick={() => toggleNotif('stock')}>
           Stock alerts: {notif.stock ? 'On' : 'Off'}
         </Button>
-        <div class="v-muted">
-          Enable asks the browser once, then registers this phone for order alerts. The original
-          register at / keeps its own alerts.
-        </div>
-        <div class="v-muted" data-testid="install-steps">
-          {INSTALL_STEPS.join(' ')}
-        </div>
-        <div class="v-muted">Build {typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'}</div>
         <Button variant="danger" data-testid="sign-out" onClick={logout}>
           Sign out
         </Button>
@@ -235,4 +223,3 @@ export function SettingsPage() {
   );
 }
 
-declare const __BUILD_ID__: string;
