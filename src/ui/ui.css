@@ -2806,12 +2806,16 @@ body:has(.v-sheet) .v-toast-host {
 .v-order-card {
   padding: var(--s-3);
   margin-bottom: var(--s-2);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .order-card__top {
   flex-wrap: nowrap;
   align-items: flex-start;
   gap: var(--s-3);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .order-card__who {
@@ -2832,7 +2836,7 @@ body:has(.v-sheet) .v-toast-host {
 .order-card__headline .v-list-row__title {
   /* A long name keeps its whole words. When it cannot fit beside the amount, the amount drops below. */
   flex: 1 1 7rem;
-  min-width: min-content;
+  min-width: 0;
 }
 
 .order-card__headline > .v-money {
@@ -2841,9 +2845,11 @@ body:has(.v-sheet) .v-toast-host {
 }
 
 .order-card__tags {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .order-card__tags .v-tag {
@@ -3054,18 +3060,20 @@ body:has(.v-sheet) .v-toast-host {
 
 .v-so-foot__cancel {
   flex: none;
-  width: 56px;
+  width: auto;
   height: 56px;
-  padding: 0;
+  padding: 0 16px;
   box-sizing: border-box;
   border: 1px solid #d6d4cf;
-  border-radius: 50%;
+  border-radius: var(--r-pill);
   background: #f4f3f0;
   color: var(--fg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  line-height: 0;
+  font: var(--t-title-sm);
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .v-so-foot__cancel:disabled {

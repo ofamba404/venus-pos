@@ -340,8 +340,8 @@ test.describe('store order sheet', () => {
     const withH = (await foot.boundingBox())!.height;
     const cancelBox = (await page.getByTestId('store-order-cancel').boundingBox())!;
     const checkoutBox = (await page.getByTestId('store-order-checkout').boundingBox())!;
-    expect(cancelBox.width).toBe(56);
     expect(cancelBox.height).toBe(56);
+    expect(cancelBox.width).toBeGreaterThan(56);
     expect(Math.abs(cancelBox.y + cancelBox.height / 2 - (checkoutBox.y + checkoutBox.height / 2))).toBeLessThan(6);
     await page.getByTestId('store-order-cancel').evaluate((el) => { (el as HTMLElement).style.display = 'none'; });
     const withoutH = (await foot.boundingBox())!.height;

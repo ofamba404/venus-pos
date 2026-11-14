@@ -8,7 +8,6 @@ import { copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
 import { itemsImageSlides } from '../../domain/product-art';
 import { formatUGX } from '../../domain/format';
 import { Button } from '../../ui/Button';
-import { IconClose } from '../../ui/icons';
 import { CopyButton } from '../../ui/CopyButton';
 import { ConfirmButton, ConfirmedTag } from '../../ui/ConfirmOrder';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
@@ -149,7 +148,7 @@ function StoreOrderBody({
         disabled={paying || cancelling}
         onClick={() => setAskCancel(true)}
       >
-        <IconClose size={22} />
+        Cancel
       </button>
       <Button size="xl" data-testid="store-order-checkout" loading={paying} onClick={() => void checkout()}>
         {`Checkout ${formatUGX(items)}`}
