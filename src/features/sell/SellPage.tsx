@@ -142,6 +142,7 @@ export function SellPage() {
       predictedFee: pred.predicted,
       feeManuallyEdited: false,
     });
+    if (pred.predicted == null) showToast('Place set — log more quotes to predict fee');
   }
 
   function openConfig(p: Product) {

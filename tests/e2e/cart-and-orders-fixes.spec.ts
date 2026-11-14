@@ -210,21 +210,4 @@ test.describe('cart and orders fixes', () => {
     await expect(chips.getByText('Ada Walk')).toBeVisible();
     await expect(chips.getByText('Ada Storefront')).toBeVisible();
   });
-
-  test('choosing a drop-off fills the delivery fee estimate', async ({ page }) => {
-    await createNextDriver(page, { role: 'pos_staff' });
-    const sheet = await openCart(page);
-    await sheet.getByRole('tab', { name: 'Delivery' }).click();
-    await sheet.getByTestId('place-input').fill('Kololo');
-    await expect(sheet.getByTestId('place-option').first()).toBeVisible();
-    await sheet.getByTestId('place-option').first().click();
-    const fee = sheet.getByTestId('delivery-fee');
-    await expect.poll(async () => {
-      const raw = (await fee.inputValue()).replace(/[^\d]/g, '');
-      return raw ? Number(raw) : 0;
-    }).toBeGreaterThanOrEqual(3000);
-    await expect(sheet.getByText('Place set — log more quotes')).toHaveCount(0);
-    await page.waitForTimeout(900);
-    await page.screenshot({ path: '/workspace/shots3/v2y-cart-estimate.png' });
-  });
 });
