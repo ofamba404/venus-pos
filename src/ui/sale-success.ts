@@ -26,7 +26,7 @@ let seq = 0;
 /** Shows the success sheet. When a delivery write is still running, the sheet says so until it settles. */
 export function showSaleSuccess(info: Omit<SaleSuccess, 'id' | 'savingDelivery'>, delivery?: Promise<void>) {
   const id = ++seq;
-  saleSuccess.value = { lines: [], fee: null, ...info, id, savingDelivery: Boolean(delivery) };
+  saleSuccess.value = { ...info, id, savingDelivery: Boolean(delivery) };
   if (delivery) {
     void delivery
       .catch(() => {})
