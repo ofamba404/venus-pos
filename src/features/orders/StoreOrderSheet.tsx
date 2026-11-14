@@ -146,35 +146,34 @@ function StoreOrderBody({
     </div>
   ) : null;
 
+  const preface = queue.length > 1 ? (
+    <div class="so-queue" data-testid="store-order-queue">
+      {queue.map((row) => (
+        <button
+          type="button"
+          key={row.id}
+          class={`so-queue__chip${row.id === order.id ? ' is-active' : ''}`}
+          data-testid={`store-order-chip-${row.id}`}
+          aria-pressed={row.id === order.id}
+          onClick={() => (row.id !== order.id && onSelect ? onSelect(row.id) : undefined)}
+        >
+          {storeOrderName(row)}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
   const lead = (
-    <>
-      {queue.length > 1 ? (
-        <div class="so-queue" data-testid="store-order-queue">
-          {queue.map((row) => (
-            <button
-              type="button"
-              key={row.id}
-              class={`so-queue__chip${row.id === order.id ? ' is-active' : ''}`}
-              data-testid={`store-order-chip-${row.id}`}
-              aria-pressed={row.id === order.id}
-              onClick={() => (row.id !== order.id && onSelect ? onSelect(row.id) : undefined)}
-            >
-              {storeOrderName(row)}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      <div class="v-so__tags">
-        <Tag tone={delivery ? 'bronze' : 'default'}>{delivery ? 'Delivery' : 'Pickup'}</Tag>
-        {confirmed ? <ConfirmedTag testId="store-order-confirmed" /> : null}
-        {order.status === 'cancelled' ? <Tag tone="danger">Cancelled</Tag> : null}
-        {order.status === 'checked_out' ? <Tag tone="paid">Paid</Tag> : null}
-      </div>
-    </>
+    <div class="v-so__tags">
+      <Tag tone={delivery ? 'bronze' : 'default'}>{delivery ? 'Delivery' : 'Pickup'}</Tag>
+      {confirmed ? <ConfirmedTag testId="store-order-confirmed" /> : null}
+      {order.status === 'cancelled' ? <Tag tone="danger">Cancelled</Tag> : null}
+      {order.status === 'checked_out' ? <Tag tone="paid">Paid</Tag> : null}
+    </div>
   );
 
   return (
-    <Sheet open={shown} title={title} titleTestId="store-order-name" lead={lead} onClose={onClose} footer={footer}>
+    <Sheet open={shown} title={title} titleTestId="store-order-name" preface={preface} lead={lead} onClose={onClose} footer={footer}>
       <div class="v-so" data-testid="store-order-sheet" data-mode={delivery ? 'delivery' : 'pickup'}>
         {open && !confirmed ? (
           <div class="v-so__top">

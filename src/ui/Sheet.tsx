@@ -19,6 +19,7 @@ export function Sheet({
   open,
   title,
   titleTestId,
+  preface,
   lead,
   children,
   footer,
@@ -29,7 +30,9 @@ export function Sheet({
   open: boolean;
   title: string;
   titleTestId?: string;
-  /** Sits under the title in the header, e.g. tags or a chip row. */
+  /** Sits above the title, e.g. a queue switcher. */
+  preface?: ComponentChildren;
+  /** Sits under the title in the header, e.g. tags. */
   lead?: ComponentChildren;
   children: ComponentChildren;
   footer?: ComponentChildren;
@@ -44,8 +47,8 @@ export function Sheet({
   const panel = useRef<HTMLDivElement>(null);
   const swiped = useRef(false);
   // While it plays the close, keep showing what it showed when it was open, so the content does not blank mid-slide.
-  const last = useRef({ title, titleTestId, lead, children, footer });
-  if (open) last.current = { title, titleTestId, lead, children, footer };
+  const last = useRef({ title, titleTestId, preface, lead, children, footer });
+  if (open) last.current = { title, titleTestId, preface, lead, children, footer };
 
   if (open && !mounted) setMounted(true);
 
@@ -142,6 +145,7 @@ export function Sheet({
       >
         <div class="v-sheet__grab" onPointerDown={swipeBody ? undefined : (e) => startSwipe(e as unknown as PointerEvent)}>
         <div class="v-sheet__handle" />
+        {last.current.preface ? <div class="v-sheet__preface">{last.current.preface}</div> : null}
         <div class="v-sheet__head">
           <h2 class="v-sheet__title" data-testid={last.current.titleTestId || undefined}>{last.current.title}</h2>
           <IconButton label="Close" onClick={onClose}>
