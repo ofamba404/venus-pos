@@ -165,4 +165,49 @@ test.describe('cart and orders fixes', () => {
     await expect(page.getByTestId('store-order-cancel')).toBeVisible();
     await expect(page.getByTestId('store-order-checkout')).toBeVisible();
   });
+
+  test('cart chips include a storefront-only user, and the same walk-in name appears once', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    // Staff may not get admin_list_users until store-auth is redeployed; the table read is the fallback.
+    driver.mock.setFailure({ method: 'POST', pathIncludes: '/functions/v1/store-auth', status: 403, times: 20 });
+    driver.mock.db.table('clients').push({ id: 'client-ada-walk', name: 'Ada Walk', phone: null });
+    driver.mock.db.table('store_accounts').push({
+      id: 'acc-sf-ada',
+      snapchat_name: 'Ada Storefront',
+      pos_display_name: null,
+      phone_country_code: '256',
+      phone_national: '701998877',
+      verified: true,
+    });
+    const sheet = await openCart(page);
+    const field = sheet.getByTestId('cart-client');
+    await field.fill('Ada');
+    const chips = sheet.getByTestId('client-chips');
+    await expect(chips.getByText('Ada Walk')).toBeVisible();
+    await expect(chips.getByText('Ada Storefront')).toBeVisible();
+    await expect(chips.getByTestId(/client-chip-/).first()).not.toHaveClass(/is-active/);
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: '/workspace/shots3/v2x-cart-chips.png' });
+
+    await field.fill('Test Cli');
+    await expect(chips.locator('.v-tag__name').filter({ hasText: 'Test Client A' })).toHaveCount(1);
+  });
+
+  test('cart chips also list a storefront-only user for the owner', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_admin' });
+    driver.mock.db.table('clients').push({ id: 'client-ada-walk', name: 'Ada Walk', phone: null });
+    driver.mock.db.table('store_accounts').push({
+      id: 'acc-sf-owner',
+      snapchat_name: 'Ada Storefront',
+      pos_display_name: null,
+      phone_country_code: '256',
+      phone_national: '701998877',
+      verified: true,
+    });
+    const sheet = await openCart(page);
+    await sheet.getByTestId('cart-client').fill('Ada');
+    const chips = sheet.getByTestId('client-chips');
+    await expect(chips.getByText('Ada Walk')).toBeVisible();
+    await expect(chips.getByText('Ada Storefront')).toBeVisible();
+  });
 });

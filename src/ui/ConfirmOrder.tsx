@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks';
 import { Button } from './Button';
 import { IconCheck } from './icons';
 
-/** Neutral status tag an order wears once the store has been told. */
+/** Green means done. This is the status tag an order wears once the store has been told. */
 export function ConfirmedTag({ testId }: { testId?: string }) {
   return (
     <span class="v-tag v-tag--paid v-tag--confirmed" data-testid={testId}>

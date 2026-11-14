@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { clients, loadClients, sales } from '../data/entities';
 import { loadStoreAccounts, storeAccounts } from '../data/store-accounts';
 import { postClient } from '../data/writes/clients';
@@ -24,6 +24,9 @@ type Props = {
 /** Name field plus predictive chips (no dropdown). Add client when the typed name is new. */
 export function ClientChips({ value, onChange }: Props) {
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void loadStoreAccounts().catch(() => {});
+  }, []);
   const people = clientPeople(clients.value, storeAccounts.value);
   const chips = chipClients(value, people);
   const exact = exactClientMatch(value, people);

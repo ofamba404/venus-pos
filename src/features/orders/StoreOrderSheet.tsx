@@ -20,6 +20,7 @@ import { showToast } from '../../ui/ToastHost';
 import { saleSummaryLines } from '../../domain/sale-summary';
 import { showSaleSuccess } from '../../ui/sale-success';
 import { cancelStoreOrder } from './cancel-order';
+import { CancelOrderConfirm } from './CancelOrderConfirm';
 import { confirmStoreOrder, isOrderConfirmed } from './confirm-order';
 import { storeOrderName } from '../../domain/store-order-review';
 import { orderLine } from './order-view';
@@ -66,6 +67,7 @@ function StoreOrderBody({
   const [fee, setFee] = useState(order.delivery_fee_ugx != null ? String(Math.round(Number(order.delivery_fee_ugx) || 0)) : '');
   const [paying, setPaying] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [askCancel, setAskCancel] = useState(false);
   // Warm the stock read while the sheet is being read, so Checkout does not wait on it.
   useEffect(() => {
     if (open && !inventoryFresh()) void ensureInventory().catch(() => {});
@@ -119,6 +121,7 @@ function StoreOrderBody({
     setCancelling(true);
     const result = await cancelStoreOrder(order.id);
     setCancelling(false);
+    setAskCancel(false);
     if (!result.ok) {
       showToast(result.error);
       return;
@@ -139,7 +142,7 @@ function StoreOrderBody({
         variant="ghost"
         data-testid="store-order-cancel"
         disabled={paying || cancelling}
-        onClick={() => void cancelSelected()}
+        onClick={() => setAskCancel(true)}
       >
         Cancel
       </Button>
@@ -168,11 +171,11 @@ function StoreOrderBody({
       <Tag tone={delivery ? 'bronze' : 'default'}>{delivery ? 'Delivery' : 'Pickup'}</Tag>
       {confirmed ? <ConfirmedTag testId="store-order-confirmed" /> : null}
       {order.status === 'cancelled' ? <Tag tone="danger">Cancelled</Tag> : null}
-      {order.status === 'checked_out' ? <Tag tone="paid">Paid</Tag> : null}
     </div>
   );
 
   return (
+    <>
     <Sheet open={shown} title={title} titleTestId="store-order-name" preface={preface} lead={lead} onClose={onClose} footer={footer}>
       <div class="v-so" data-testid="store-order-sheet" data-mode={delivery ? 'delivery' : 'pickup'}>
         {open && !confirmed ? (
@@ -268,6 +271,14 @@ function StoreOrderBody({
         </section>
       </div>
     </Sheet>
+    <CancelOrderConfirm
+      open={askCancel}
+      clientName={title}
+      busy={cancelling}
+      onKeep={() => setAskCancel(false)}
+      onConfirm={() => void cancelSelected()}
+    />
+    </>
   );
 }
 

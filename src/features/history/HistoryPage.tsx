@@ -131,7 +131,7 @@ export function HistoryPage() {
           productId: String(item.product_id || ''),
           breakdown: item.breakdown as Record<string, unknown>,
         }))}
-        tags={<Tag tone={credit ? 'credit' : 'paid'}>{credit ? 'Credit' : 'Paid'}</Tag>}
+        tags={credit ? <Tag tone="credit">Credit</Tag> : null}
         amount={
           credit ? (
             <span class="history-owed" data-testid={`history-owed-${s.id}`}>

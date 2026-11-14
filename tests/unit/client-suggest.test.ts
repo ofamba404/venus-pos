@@ -59,6 +59,28 @@ describe('chipClients and highlights', () => {
   });
 });
 
+describe('chipClients dedupe and storefront', () => {
+  it('dedupes two walk-ins with the same name into one chip', () => {
+    const people = clientPeople(
+      [
+        { id: 'c1', name: 'Test Client A' },
+        { id: 'c2', name: 'Test Client A' },
+      ],
+      [],
+    );
+    expect(chipClients('Test', people).map((r) => r.name)).toEqual(['Test Client A']);
+  });
+
+  it('includes a storefront-only account while typing, next to a walk-in with the same prefix', () => {
+    const people = clientPeople(
+      [{ id: 'c1', name: 'Test Client A' }],
+      [{ id: 'a1', snapchat_name: 'Test Storefront', phone_country_code: '256', phone_national: '701998877' }],
+    );
+    expect(chipClients('Test', people).map((r) => r.name).sort()).toEqual(['Test Client A', 'Test Storefront']);
+    expect(chipClients('Test', people).find((r) => r.name === 'Test Storefront')?.id).toBe('');
+  });
+});
+
 describe('Sell product groups', () => {
   it('lists 6 joint cards then 4 cookie cards', () => {
     expect(SELL_JOINTS).toHaveLength(6);

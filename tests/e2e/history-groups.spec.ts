@@ -61,4 +61,14 @@ test.describe('History grouping', () => {
     const paid = Number(sale.amount_paid_ugx || 0);
     await expect(owedRows.first()).toContainText((total - paid).toLocaleString('en-UG'));
   });
+
+  test('paid sales have no Paid tag; credit sales still show Credit', async ({ page }) => {
+    await createNextDriver(page, { role: 'pos_admin' });
+    await page.goto('/next/history');
+    const rows = page.locator('[data-testid^="history-sale-"]');
+    await rows.first().waitFor();
+    await expect(rows.getByText('Paid', { exact: true })).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Credit' }).click();
+    await expect(page.locator('[data-testid^="history-sale-"]').getByText('Credit', { exact: true }).first()).toBeVisible();
+  });
 });

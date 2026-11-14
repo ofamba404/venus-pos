@@ -206,6 +206,9 @@ test.describe('store order sheet', () => {
     await expect(page.getByTestId('store-order-cancel')).toBeVisible();
     await page.getByRole('dialog', { name: 'Store Customer' }).getByRole('button', { name: 'Close' }).click();
     await page.getByTestId('cancel-order-seed-pending-order').click();
+    const ask = page.getByRole('dialog', { name: "Cancel Store Customer's order?" });
+    await expect(ask).toBeVisible();
+    await ask.getByTestId('cancel-order-confirm').click();
     await expect(page.getByText(/Cancelled/)).toBeVisible();
     const ops = driver.mock.writes.filter((w) => w.url.includes('/api/store-order/reserve')).map((w) => (w.body as { op: string }).op);
     expect(ops).toEqual(['release']);
@@ -285,5 +288,34 @@ test.describe('store order sheet', () => {
     await page.screenshot({ path: `${dir}/v2m-phone-field.png` });
     await sheet.getByTestId('so-copy-phone').click();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('700333444');
+  });
+
+  test('Cancel on a card asks first, and Keep leaves the order', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await page.goto('/next/orders');
+    await page.getByTestId('cancel-order-seed-pending-order').click();
+    const ask = page.getByRole('dialog', { name: "Cancel Store Customer's order?" });
+    await expect(ask).toBeVisible();
+    await expect(ask.getByTestId('cancel-order-keep')).toBeVisible();
+    await expect(ask.getByTestId('cancel-order-confirm')).toBeVisible();
+    await ask.getByTestId('cancel-order-keep').click();
+    await expect(ask).toHaveCount(0);
+    await expect(page.getByTestId('order-card-seed-pending-order')).toBeVisible();
+    await expect(page.getByTestId('cancel-order-seed-pending-order')).toBeVisible();
+    expect(driver.mock.writes.filter((w) => w.url.includes('/api/store-order/reserve'))).toHaveLength(0);
+  });
+
+  test('Cancel in the review sheet footer asks first, and Keep leaves the order', async ({ page }) => {
+    const driver = await createNextDriver(page, { role: 'pos_staff' });
+    await page.goto('/next/orders');
+    await page.getByTestId('view-order-seed-pending-order').click();
+    await page.getByTestId('store-order-cancel').click();
+    const ask = page.getByRole('dialog', { name: "Cancel Store Customer's order?" });
+    await expect(ask).toBeVisible();
+    await ask.getByTestId('cancel-order-keep').click();
+    await expect(ask).toHaveCount(0);
+    await expect(page.getByTestId('store-order-sheet')).toBeVisible();
+    await expect(page.getByTestId('store-order-cancel')).toBeVisible();
+    expect(driver.mock.writes.filter((w) => w.url.includes('/api/store-order/reserve'))).toHaveLength(0);
   });
 });

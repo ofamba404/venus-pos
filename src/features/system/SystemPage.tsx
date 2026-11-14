@@ -28,7 +28,6 @@ export function SystemPage() {
       <div class="v-section-label">Money / tags / flavours</div>
       <div class="v-chip-row" style={{ alignItems: 'center' }}>
         <Money value={45000} size="xl" />
-        <Tag tone="paid">Paid</Tag>
         <Tag tone="credit">Credit</Tag>
         <Tag tone="low">Low</Tag>
         {Object.values(CAT_MAP)

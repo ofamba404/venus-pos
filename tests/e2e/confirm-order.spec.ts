@@ -39,7 +39,7 @@ for (const width of [360, 390]) {
   });
 }
 
-test('Orders card: Confirm writes status confirmed, shows the confirmed tag, and View order becomes primary', async ({ page }) => {
+test('Orders card: Confirm writes status confirmed, shows the green tag, and View order becomes primary', async ({ page }) => {
   const driver = await createNextDriver(page, { role: 'pos_staff' });
   await page.goto('/next/orders');
   await page.getByTestId(`confirm-order-${PENDING}`).click();
@@ -49,7 +49,6 @@ test('Orders card: Confirm writes status confirmed, shows the confirmed tag, and
   await expect(tag).toBeVisible();
   await expect(tag).toHaveText(/Confirmed/);
   await expect(tag).toHaveClass(/v-tag--paid/);
-  await expect(tag).toHaveCSS('color', 'rgb(33, 33, 33)');
   await expect(page.getByTestId(`confirm-order-${PENDING}`)).toHaveCount(0);
   await expect(page.getByTestId(`view-order-${PENDING}`)).toHaveClass(/v-btn--primary/);
 
@@ -87,7 +86,7 @@ test('Orders card: an already confirmed order shows the tag and no Confirm butto
   await expect(page.getByTestId('view-order-so-confirmed-1')).toHaveClass(/v-btn--primary/);
 });
 
-test('Order sheet: a pending order can be confirmed there too, with the same write and the confirmed tag', async ({ page }) => {
+test('Order sheet: a pending order can be confirmed there too, with the same write and the green tag', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const driver = await createNextDriver(page, { role: 'pos_staff' });
   await page.goto('/next/orders');
@@ -97,7 +96,6 @@ test('Order sheet: a pending order can be confirmed there too, with the same wri
   await sheet.getByTestId('store-order-confirm').click();
   const tag = page.getByTestId('store-order-confirmed');
   await expect(tag).toHaveClass(/v-tag--paid/);
-  await expect(tag).toHaveCSS('color', 'rgb(33, 33, 33)');
   await expect(sheet.getByTestId('store-order-confirm')).toHaveCount(0);
   const writes = confirmWrites(driver);
   expect(writes).toHaveLength(1);

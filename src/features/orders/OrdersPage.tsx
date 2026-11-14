@@ -12,6 +12,7 @@ import { KEYS } from '../../data/keys';
 import { deliveryTimePill } from '../../domain/delivery-time';
 import { ConfirmButton, ConfirmedTag } from '../../ui/ConfirmOrder';
 import { cancelStoreOrder } from './cancel-order';
+import { CancelOrderConfirm } from './CancelOrderConfirm';
 import { confirmStoreOrder, isOrderConfirmed } from './confirm-order';
 import { closeStoreOrder, openStoreOrder, openStoreOrderId } from './open-store-order';
 import { StoreOrderSheet } from './StoreOrderSheet';
@@ -74,6 +75,7 @@ function statusTag(seg: OrderSegment, o: StoreOrderRow) {
 export function OrdersPage() {
   const [seg, setSeg] = useState<Segment>('waiting');
   const [labels, setLabels] = useState<PosLabelIndex>(posLabels);
+  const [cancelAsk, setCancelAsk] = useState<StoreOrderRow | null>(null);
   // The order whose sheet is open. A push notification, an old link, or Next on the success sheet lands here with #order=<id>.
   const viewId = openStoreOrderId.value;
 
@@ -119,6 +121,7 @@ export function OrdersPage() {
 
   async function cancelOrder(order: StoreOrderRow) {
     const result = await cancelStoreOrder(order.id);
+    setCancelAsk(null);
     if (!result.ok) {
       showToast(result.error);
       return;
@@ -210,7 +213,7 @@ export function OrdersPage() {
                   >
                     View order
                   </Button>
-                  <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => void cancelOrder(o)}>
+                  <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => setCancelAsk(o)}>
                     Cancel
                   </Button>
                 </>
@@ -230,6 +233,13 @@ export function OrdersPage() {
           );
         })}
       </div>
+
+      <CancelOrderConfirm
+        open={Boolean(cancelAsk)}
+        clientName={cancelAsk ? orderTitle(cancelAsk, labels) : ''}
+        onKeep={() => setCancelAsk(null)}
+        onConfirm={() => cancelAsk && void cancelOrder(cancelAsk)}
+      />
 
       <StoreOrderSheet
         order={viewing}

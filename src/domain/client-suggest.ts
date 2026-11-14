@@ -1,4 +1,4 @@
-import { filterPeople, mergePeople, type Person, type PersonAccount, type PersonClient } from './people';
+import { filterPeople, mergePeople, nameKey, phoneKey, type Person, type PersonAccount, type PersonClient } from './people';
 
 export type ClientSuggestion = {
   key: string;
@@ -8,9 +8,32 @@ export type ClientSuggestion = {
   phone: string;
 };
 
+/**
+ * Drop people that share a phone or a name, keeping the richer row (storefront + client, then
+ * storefront, then walk-in). The Clients page still lists every walk-in record; chips should not.
+ */
+export function dedupeSuggestPeople(people: Person[]): Person[] {
+  const best = new Map<string, Person>();
+  const order: string[] = [];
+  const score = (p: Person) => (p.account ? 2 : 0) + (p.client ? 1 : 0);
+  for (const person of people) {
+    const pk = phoneKey(person.phone);
+    const nk = nameKey(person.name);
+    const id = pk ? `p:${pk}` : nk ? `n:${nk}` : person.key;
+    const seen = best.get(id);
+    if (!seen) {
+      best.set(id, person);
+      order.push(id);
+      continue;
+    }
+    if (score(person) > score(seen)) best.set(id, person);
+  }
+  return order.map((id) => best.get(id)!);
+}
+
 /** People the Client field can offer, from the same POS-client + store-account merge as the Clients page. */
 export function clientPeople(clients: PersonClient[], accounts: PersonAccount[]): Person[] {
-  return mergePeople(clients, accounts);
+  return dedupeSuggestPeople(mergePeople(clients, accounts));
 }
 
 /**
