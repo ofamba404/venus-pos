@@ -84,7 +84,7 @@ test.describe('store order sheet', () => {
     const sheet = page.getByTestId('store-order-sheet');
     await expect(sheet).toBeVisible();
     await expect(sheet).toHaveAttribute('data-mode', 'delivery');
-    await expect(sheet.getByTestId('store-order-name')).toHaveText('Muza Nakimuli');
+    await expect(page.getByTestId('store-order-name')).toHaveText('Muza Nakimuli');
     // Read only: no steppers, no remove, no client or date/time inputs.
     await expect(sheet.getByRole('button', { name: /Remove|Edit/ })).toHaveCount(0);
     await expect(sheet.locator('input[type="date"], input[type="time"], input[type="datetime-local"]')).toHaveCount(0);
@@ -101,9 +101,11 @@ test.describe('store order sheet', () => {
     await expect(sheet.getByTestId('so-place-value')).toContainText('Acacia Avenue');
     await expect(sheet.getByTestId('so-phone-cc')).toHaveText('+256');
     await expect(sheet.getByTestId('so-phone-value')).toHaveText('700333444');
-    await expect(sheet.getByTestId('so-when-value')).toHaveText('Tomorrow, 5:30 PM');
-    await expect(sheet.getByTestId('so-distance-value')).toHaveText('6.4 km · ~22 min');
-    await expect(sheet.getByTestId('store-order-confirmed')).toBeVisible();
+    await expect(sheet.getByTestId('so-when')).toHaveCount(0);
+    await expect(sheet.getByTestId('so-distance')).toHaveCount(0);
+    await expect(sheet.getByText('Deliver at')).toHaveCount(0);
+    await expect(sheet.getByText('Distance')).toHaveCount(0);
+    await expect(page.getByTestId('store-order-confirmed')).toBeVisible();
     // Details are labelled read-only boxes. Copy is only on Drop-off and Phone, and it is as tall as its box.
     await expect(sheet.getByRole('button', { name: /Copy/ })).toHaveCount(2);
     await expect(sheet.getByTestId('so-copy-when')).toHaveCount(0);
@@ -162,7 +164,13 @@ test.describe('store order sheet', () => {
     await expect(page.getByTestId('success-total')).toHaveText(/30,000/);
     await expect(page.getByTestId('success-client')).toHaveText('Muza Nakimuli');
     await expect(page.getByText(/Sale recorded/)).toBeVisible();
-    await expect(page.getByTestId('store-order-sheet')).toHaveCount(0);
+    await page.getByTestId('success-done').click();
+    await expect(page.getByTestId('sale-success')).toHaveCount(0);
+    const leftover = page.locator('.v-sheet').filter({ has: page.getByTestId('store-order-sheet') });
+    if (await leftover.count()) {
+      await leftover.getByLabel('Close').click();
+      await expect(page.getByTestId('store-order-sheet')).toHaveCount(0);
+    }
     // The order is marked in the background; wait for it.
     await expect.poll(() => driver.mock.writes.some((w) => w.method === 'PATCH' && w.url.includes('store_orders'))).toBe(true);
 
@@ -181,14 +189,12 @@ test.describe('store order sheet', () => {
     const reserve = driver.mock.writes.filter((w) => w.url.includes('/api/store-order/reserve')).map((w) => (w.body as { op: string }).op);
     expect(reserve).toEqual(['consume']);
 
-    // The order left Waiting for Closed. Done first: the success sheet sits over the page.
-    await page.getByTestId('success-done').click();
     await expect(page.getByTestId('view-order-so-delivery')).toHaveCount(0);
     await page.getByRole('tab', { name: /Closed/ }).click();
     await expect(page.getByTestId('status-so-delivery')).toHaveText('Completed');
   });
 
-  test('a pickup order shows no drop-off or fee, and the sheet footer has no Cancel', async ({ page }) => {
+  test('a pickup order shows no drop-off or fee, and the sheet footer has Cancel', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await page.goto('/next/orders');
     await page.getByTestId('view-order-seed-pending-order').click();
@@ -197,8 +203,8 @@ test.describe('store order sheet', () => {
     await expect(sheet.getByTestId('so-place')).toHaveCount(0);
     await expect(sheet.getByTestId('store-order-fee')).toHaveCount(0);
     await expect(sheet.getByTestId('store-order-confirm')).toBeVisible();
-    await expect(page.getByTestId('store-order-cancel')).toHaveCount(0);
-    await page.getByRole('dialog', { name: 'Store order' }).getByRole('button', { name: 'Close' }).click();
+    await expect(page.getByTestId('store-order-cancel')).toBeVisible();
+    await page.getByRole('dialog', { name: 'Store Customer' }).getByRole('button', { name: 'Close' }).click();
     await page.getByTestId('cancel-order-seed-pending-order').click();
     await expect(page.getByText(/Cancelled/)).toBeVisible();
     const ops = driver.mock.writes.filter((w) => w.url.includes('/api/store-order/reserve')).map((w) => (w.body as { op: string }).op);

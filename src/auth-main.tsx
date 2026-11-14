@@ -127,16 +127,9 @@ function AuthPage() {
   return (
     <main class="auth">
       <section class="auth-card v-page" aria-labelledby="auth-title">
-        <img class="auth-logo" src={`${import.meta.env.BASE_URL}assets/logo-ink.svg`} alt="" width="56" height="56" />
-        <p class="auth-kicker">Venus</p>
+        <img class="auth-logo" src={`${import.meta.env.BASE_URL}assets/logo-ink.svg`} alt="" width="64" height="64" />
+        <p class="auth-sub">Venus POS</p>
         <h1 id="auth-title" class="auth-title">{title}</h1>
-        <p class="auth-sub">
-          {mode === 'login'
-            ? 'The register for the Venus team.'
-            : mode === 'forgot'
-              ? 'We will email you a link to set a new password.'
-              : 'At least 8 characters. Then sign in as usual.'}
-        </p>
         {error ? (
           <p class="auth-alert" role="alert">
             {error}

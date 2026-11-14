@@ -30,6 +30,7 @@ import { flushOutbox, listOutbox, outboxCountLabel } from '../../data/outbox';
 import { clients, ensureInventory, inventory, loadClients, loadSales, loadStoreOrders, sales, storeOrders, syncLabel } from '../../data/entities';
 import { loadStoreAccounts } from '../../data/store-accounts';
 import { orderSegment } from '../../domain/order-segment';
+import { reviewBarMeta, storeOrderName } from '../../domain/store-order-review';
 import { openDebtForClientName } from '../../domain/credit';
 import { counterSellable } from '../../domain/stock-reservation';
 import { haptic } from '../../platform/haptics';
@@ -388,20 +389,6 @@ export function SellPage() {
           }}
         />
         <Segmented
-          value={payment}
-          onChange={(id) => {
-            setPayment(id);
-            debtClearedRef.current = false;
-            if (id === 'credit' && isWalkInCheckout(meta, false)) {
-              setOrderMetaPatch({ clientName: '', clientId: '' });
-            }
-          }}
-          options={[
-            { id: 'paid', label: 'Paid' },
-            { id: 'credit', label: 'On credit' },
-          ]}
-        />
-        <Segmented
           value={meta.deliveryEnabled === false ? 'pickup' : 'delivery'}
           onChange={(id) => {
             const deliveryEnabled = id === 'delivery';
@@ -424,6 +411,25 @@ export function SellPage() {
             { id: 'pickup', label: 'Pickup' },
           ]}
         />
+        <div class="credit-switch">
+          <span class="credit-switch__label" id="credit-switch-label">On credit</span>
+          <button
+            type="button"
+            class="credit-switch__ctl"
+            role="switch"
+            aria-labelledby="credit-switch-label"
+            aria-checked={payment === 'credit'}
+            data-testid="credit-toggle"
+            onClick={() => {
+              const next = payment === 'credit' ? 'paid' : 'credit';
+              setPayment(next);
+              debtClearedRef.current = false;
+              if (next === 'credit' && isWalkInCheckout(meta, false)) {
+                setOrderMetaPatch({ clientName: '', clientId: '' });
+              }
+            }}
+          />
+        </div>
         {meta.deliveryEnabled !== false ? (
           <DeliveryBlock>
             <PlaceSearch
@@ -512,12 +518,8 @@ export function SellPage() {
             data-count={confirmedOrders.length}
             onClick={() => openStoreOrder(nextConfirmed.id)}
           >
-            <span class="review-bar__meta">
-              {confirmedOrders.length === 1
-                ? String(nextConfirmed.customer_name || 'Store order')
-                : `${confirmedOrders.length} confirmed`}
-            </span>
-            <span class="review-bar__cta">Store order</span>
+            <span class="review-bar__meta">{reviewBarMeta(confirmedOrders)}</span>
+            <span class="review-bar__cta">Review</span>
           </button>
         ) : null}
       </div>
@@ -631,8 +633,10 @@ export function SellPage() {
 
       <StoreOrderSheet
         order={storeOrders.value.find((o) => o.id === openStoreOrderId.value) || null}
-        title="Store order"
+        queue={confirmedOrders}
+        title={storeOrderName(storeOrders.value.find((o) => o.id === openStoreOrderId.value) || {})}
         onClose={closeStoreOrder}
+        onSelect={openStoreOrder}
       />
 
       <Sheet

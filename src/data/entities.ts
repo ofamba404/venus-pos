@@ -204,7 +204,11 @@ async function storeDeliveries() {
 }
 
 export async function loadStoreOrders() {
-  storeOrders.value = (await fetchStoreOrders()) as StoreOrderRow[];
+  const rows = (await fetchStoreOrders()) as StoreOrderRow[];
+  // A poll every few seconds must not rewrite the signal when nothing changed:
+  // that re-render remounted order-card galleries and reset their scroll, which made the tiles glitch.
+  if (JSON.stringify(storeOrders.value) === JSON.stringify(rows)) return storeOrders.value;
+  storeOrders.value = rows;
   return storeOrders.value;
 }
 

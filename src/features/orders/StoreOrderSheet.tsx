@@ -19,27 +19,10 @@ import { Tag } from '../../ui/Tag';
 import { showToast } from '../../ui/ToastHost';
 import { saleSummaryLines } from '../../domain/sale-summary';
 import { showSaleSuccess } from '../../ui/sale-success';
+import { cancelStoreOrder } from './cancel-order';
 import { confirmStoreOrder, isOrderConfirmed } from './confirm-order';
+import { storeOrderName } from '../../domain/store-order-review';
 import { orderLine } from './order-view';
-
-function deliverAtText(order: StoreOrderRow): string {
-  const delivery = order.delivery || {};
-  const label = String(delivery.label || '').trim();
-  if (label) return label;
-  const at = String(delivery.deliverAt || '').trim();
-  if (!at) return '';
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return at;
-  return date.toLocaleString('en-GB', {
-    timeZone: 'Africa/Kampala',
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-}
 
 /** A labelled box like the cart's fields, but read only. Copy, when there is one, sits beside the box at the same height. */
 function ReadField({ label, value, testId, copy }: { label: string; value: string; testId: string; copy?: preact.ComponentChildren }) {
@@ -64,12 +47,16 @@ function StoreOrderBody({
   shown,
   order,
   title,
+  queue,
   onClose,
+  onSelect,
 }: {
   shown: boolean;
   order: StoreOrderRow;
   title: string;
+  queue: StoreOrderRow[];
   onClose: () => void;
+  onSelect?: (id: string) => void;
 }) {
   const mapped = mapStoreOrderToCart({ ...order, items: (order.items || []) as never }, { customerName: title });
   const raw = Array.isArray(order.items) ? order.items : [];
@@ -78,6 +65,7 @@ function StoreOrderBody({
   const credit = order.is_credit === true;
   const [fee, setFee] = useState(order.delivery_fee_ugx != null ? String(Math.round(Number(order.delivery_fee_ugx) || 0)) : '');
   const [paying, setPaying] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   // Warm the stock read while the sheet is being read, so Checkout does not wait on it.
   useEffect(() => {
     if (open && !inventoryFresh()) void ensureInventory().catch(() => {});
@@ -87,12 +75,10 @@ function StoreOrderBody({
   const feeUgx = delivery && fee.trim() !== '' ? Math.max(0, parseInt(fee, 10) || 0) : 0;
   const phone = String(order.phone_e164 || order.phone || '');
   const place = delivery ? String(order.location_label || '') : '';
-  const when = deliverAtText(order);
   const lat = order.location_lat;
   const lng = order.location_lng;
-  const km = order.delivery_distance_km != null ? Number(order.delivery_distance_km) : null;
-  const mins = order.delivery_duration_min != null ? Number(order.delivery_duration_min) : null;
   const confirmed = isOrderConfirmed(order);
+  const remaining = queue.filter((row) => row.id !== order.id && row.status !== 'checked_out' && row.status !== 'cancelled');
 
   async function checkout() {
     if (paying) return;
@@ -107,7 +93,9 @@ function StoreOrderBody({
       if (!('cancelled' in result && result.cancelled)) showToast(result.error);
       return;
     }
-    onClose();
+    const next = remaining[0];
+    if (next && onSelect) onSelect(next.id);
+    else onClose();
     showSaleSuccess(
       {
         total: items,
@@ -126,29 +114,73 @@ function StoreOrderBody({
     }
   }
 
+  async function cancelSelected() {
+    if (paying || cancelling) return;
+    setCancelling(true);
+    const result = await cancelStoreOrder(order.id);
+    setCancelling(false);
+    if (!result.ok) {
+      showToast(result.error);
+      return;
+    }
+    showToast(`Cancelled ${title}`);
+    const next = remaining[0];
+    if (next && onSelect) onSelect(next.id);
+    else onClose();
+  }
+
   const footer = open ? (
     <div class="v-so-foot">
       <Button size="xl" data-testid="store-order-checkout" loading={paying} onClick={() => void checkout()}>
         {`Checkout ${formatUGX(items)}`}
       </Button>
+      <Button
+        size="lg"
+        variant="ghost"
+        data-testid="store-order-cancel"
+        disabled={paying || cancelling}
+        onClick={() => void cancelSelected()}
+      >
+        Cancel
+      </Button>
     </div>
   ) : null;
 
-  return (
-    <Sheet open={shown} title="Store order" onClose={onClose} footer={footer}>
-      <div class="v-so" data-testid="store-order-sheet" data-mode={delivery ? 'delivery' : 'pickup'}>
-        <div class="v-so__top">
-          <div class="v-so__name" data-testid="store-order-name">
-            {title}
-          </div>
-          <div class="v-so__tags">
-            <Tag tone={delivery ? 'bronze' : 'default'}>{delivery ? 'Delivery' : 'Pickup'}</Tag>
-            {confirmed ? <ConfirmedTag testId="store-order-confirmed" /> : null}
-            {order.status === 'cancelled' ? <Tag tone="danger">Cancelled</Tag> : null}
-            {order.status === 'checked_out' ? <Tag tone="paid">Paid</Tag> : null}
-          </div>
-          {open && !confirmed ? <ConfirmButton testId="store-order-confirm" onConfirm={() => confirmStoreOrder(order.id)} /> : null}
+  const lead = (
+    <>
+      {queue.length > 1 ? (
+        <div class="so-queue" data-testid="store-order-queue">
+          {queue.map((row) => (
+            <button
+              type="button"
+              key={row.id}
+              class={`so-queue__chip${row.id === order.id ? ' is-active' : ''}`}
+              data-testid={`store-order-chip-${row.id}`}
+              aria-pressed={row.id === order.id}
+              onClick={() => (row.id !== order.id && onSelect ? onSelect(row.id) : undefined)}
+            >
+              {storeOrderName(row)}
+            </button>
+          ))}
         </div>
+      ) : null}
+      <div class="v-so__tags">
+        <Tag tone={delivery ? 'bronze' : 'default'}>{delivery ? 'Delivery' : 'Pickup'}</Tag>
+        {confirmed ? <ConfirmedTag testId="store-order-confirmed" /> : null}
+        {order.status === 'cancelled' ? <Tag tone="danger">Cancelled</Tag> : null}
+        {order.status === 'checked_out' ? <Tag tone="paid">Paid</Tag> : null}
+      </div>
+    </>
+  );
+
+  return (
+    <Sheet open={shown} title={title} titleTestId="store-order-name" lead={lead} onClose={onClose} footer={footer}>
+      <div class="v-so" data-testid="store-order-sheet" data-mode={delivery ? 'delivery' : 'pickup'}>
+        {open && !confirmed ? (
+          <div class="v-so__top">
+            <ConfirmButton testId="store-order-confirm" onConfirm={() => confirmStoreOrder(order.id)} />
+          </div>
+        ) : null}
 
         <section class="v-so-sec" aria-label="Items">
           <h3 class="v-so-sec__label">Items</h3>
@@ -176,7 +208,7 @@ function StoreOrderBody({
           </div>
         </section>
 
-        {place || phone || when || delivery ? (
+        {place || phone || delivery ? (
           <section class="v-so-sec" aria-label={delivery ? 'Delivery details' : 'Pickup details'}>
             <h3 class="v-so-sec__label">{delivery ? 'Delivery details' : 'Pickup details'}</h3>
             <div class="v-so-details">
@@ -196,18 +228,6 @@ function StoreOrderBody({
                   testId="so-phone"
                   copy={<CopyButton kind="phone" label="Copy" doneLabel="Copied" ariaLabel="Copy phone" compact testId="so-copy-phone" value={() => copyPhoneText(phone)} />}
                 />
-              ) : null}
-              {when || (delivery && km != null) ? (
-                <div class="v-so-pair">
-                  {when ? <ReadField label={delivery ? 'Deliver at' : 'Pick up at'} value={when} testId="so-when" /> : null}
-                  {delivery && km != null ? (
-                    <ReadField
-                      label="Distance"
-                      value={`${km.toFixed(1)} km${mins != null ? ` · ~${Math.round(mins)} min` : ''}`}
-                      testId="so-distance"
-                    />
-                  ) : null}
-                </div>
               ) : null}
               {delivery ? (
                 open ? (
@@ -255,18 +275,30 @@ function StoreOrderBody({
 export function StoreOrderSheet({
   order,
   title,
+  queue = [],
   onClose,
+  onSelect,
 }: {
   order: StoreOrderRow | null;
   title: string;
+  queue?: StoreOrderRow[];
   onClose: () => void;
+  onSelect?: (id: string) => void;
 }) {
   // Keep the last order while the sheet slides away, so it does not blank mid-close.
-  const last = useRef<{ order: StoreOrderRow; title: string } | null>(null);
-  if (order) last.current = { order, title };
+  const last = useRef<{ order: StoreOrderRow; title: string; queue: StoreOrderRow[] } | null>(null);
+  if (order) last.current = { order, title, queue };
   const held = last.current;
   if (!held) return null;
   return (
-    <StoreOrderBody key={held.order.id} shown={Boolean(order)} order={held.order} title={held.title} onClose={onClose} />
+    <StoreOrderBody
+      key={held.order.id}
+      shown={Boolean(order)}
+      order={held.order}
+      title={held.title}
+      queue={order ? queue : held.queue}
+      onClose={onClose}
+      onSelect={onSelect}
+    />
   );
 }

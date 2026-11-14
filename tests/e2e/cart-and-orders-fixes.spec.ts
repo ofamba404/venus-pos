@@ -68,8 +68,10 @@ test.describe('cart and orders fixes', () => {
       await sheet.getByRole('tab', { name: 'Delivery' }).click();
       await sheet.getByTestId('cart-client').fill('Test Cli');
       await expect(sheet.getByTestId('add-client')).toBeVisible();
-      await expect(sheet.getByRole('tab', { name: 'Paid' })).toBeVisible();
-      await expect(sheet.getByRole('tab', { name: 'On credit' })).toBeVisible();
+      await expect(sheet.getByRole('tab', { name: 'Paid' })).toHaveCount(0);
+      const credit = sheet.getByTestId('credit-toggle');
+      await expect(credit).toBeVisible();
+      await expect(credit).toHaveAttribute('aria-checked', 'false');
       await expect(sheet.getByRole('tab', { name: 'Delivery' })).toBeVisible();
       await expect(sheet.getByRole('tab', { name: 'Pickup' })).toBeVisible();
       await assertCartFitsViewport(sheet, page);
@@ -146,7 +148,7 @@ test.describe('cart and orders fixes', () => {
     expect(badge.x).toBeGreaterThan(photo.x + photo.width / 2);
   });
 
-  test('store order cards show a time pill, Waiting vs In sale, and the sheet footer has no Cancel', async ({ page }) => {
+  test('store order cards show a time pill, Waiting vs In sale, and the sheet footer has Cancel', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_staff' });
     await page.goto('/next/orders');
     await expect(page.getByRole('tab', { name: /Waiting/ })).toBeVisible();
@@ -160,7 +162,7 @@ test.describe('cart and orders fixes', () => {
     await page.getByTestId('view-order-so-confirmed-1').click();
     const sheet = page.getByTestId('store-order-sheet');
     await expect(sheet).toBeVisible();
-    await expect(page.getByTestId('store-order-cancel')).toHaveCount(0);
+    await expect(page.getByTestId('store-order-cancel')).toBeVisible();
     await expect(page.getByTestId('store-order-checkout')).toBeVisible();
   });
 });

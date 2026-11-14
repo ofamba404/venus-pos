@@ -2,8 +2,10 @@ import { useState } from 'preact/hooks';
 import { enablePush } from '../../data/push';
 import { runNotificationCheck, type CheckLine } from '../../data/push-check';
 import { KEYS } from '../../data/keys';
-import { allowDevBypass, authRole, authSession, signOut } from '../../data/auth';
+import { allowDevBypass, authRole, authSession, changePassword, signOut } from '../../data/auth';
 import { Button } from '../../ui/Button';
+import { Field } from '../../ui/Field';
+import { Sheet } from '../../ui/Sheet';
 import { showToast } from '../../ui/ToastHost';
 import { INSTALL_STEPS } from '../../domain/parity';
 
@@ -15,6 +17,94 @@ function readJson(key: string) {
   }
 }
 
+
+function ChangePasswordSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [errors, setErrors] = useState<{ current?: string; next?: string; confirm?: string }>({});
+  const [busy, setBusy] = useState(false);
+
+  function reset() {
+    setCurrent('');
+    setNext('');
+    setConfirm('');
+    setErrors({});
+    setBusy(false);
+  }
+
+  async function save(event: Event) {
+    event.preventDefault();
+    const nextErrors: { current?: string; next?: string; confirm?: string } = {};
+    if (next.length < 8) nextErrors.next = 'Use at least 8 characters.';
+    if (next !== confirm) nextErrors.confirm = 'Those passwords do not match.';
+    if (!current) nextErrors.current = 'Wrong current password.';
+    setErrors(nextErrors);
+    if (nextErrors.next || nextErrors.confirm || nextErrors.current) return;
+    setBusy(true);
+    try {
+      await changePassword(current, next);
+      reset();
+      onClose();
+      showToast('Password updated');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not update the password.';
+      if (/wrong current password/i.test(message)) setErrors({ current: 'Wrong current password.' });
+      else setErrors({ next: message });
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Sheet
+      open={open}
+      title="Change password"
+      onClose={() => {
+        reset();
+        onClose();
+      }}
+      footer={
+        <Button size="xl" type="submit" form="change-password-form" loading={busy} data-testid="change-password-save">
+          Save
+        </Button>
+      }
+    >
+      <form id="change-password-form" class="auth-form" onSubmit={save} noValidate>
+        <Field
+          label="Current password"
+          type="password"
+          name="current-password"
+          autocomplete="current-password"
+          data-testid="change-password-current"
+          value={current}
+          error={errors.current}
+          onInput={(e) => setCurrent((e.target as HTMLInputElement).value)}
+        />
+        <Field
+          label="New password"
+          type="password"
+          name="new-password"
+          autocomplete="new-password"
+          data-testid="change-password-new"
+          value={next}
+          error={errors.next}
+          onInput={(e) => setNext((e.target as HTMLInputElement).value)}
+        />
+        <Field
+          label="Confirm password"
+          type="password"
+          name="confirm-password"
+          autocomplete="new-password"
+          data-testid="change-password-confirm"
+          value={confirm}
+          error={errors.confirm}
+          onInput={(e) => setConfirm((e.target as HTMLInputElement).value)}
+        />
+      </form>
+    </Sheet>
+  );
+}
+
 export function SettingsPage() {
   const [prefs, setPrefs] = useState(() => readJson(KEYS.uiPrefs));
   const [notif, setNotif] = useState(() => ({
@@ -23,6 +113,7 @@ export function SettingsPage() {
     ...readJson(KEYS.notifPrefs),
   }));
   const [checking, setChecking] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
   const [lines, setLines] = useState<CheckLine[]>([]);
   const haptics = prefs.haptics !== false;
 
@@ -92,6 +183,14 @@ export function SettingsPage() {
             Role: {authRole.value || 'none'}
           </div>
         </div>
+        <button type="button" class="v-list-row" data-testid="change-password" onClick={() => setPwOpen(true)}>
+          <div class="v-list-row__main">
+            <div class="v-list-row__title">Change password</div>
+          </div>
+          <span class="v-list-row__chevron" aria-hidden="true">
+            ›
+          </span>
+        </button>
         <Button variant="secondary" onClick={toggleHaptics}>
           Haptics: {haptics ? 'On' : 'Off'}
         </Button>
@@ -131,6 +230,7 @@ export function SettingsPage() {
           Sign out
         </Button>
       </div>
+      <ChangePasswordSheet open={pwOpen} onClose={() => setPwOpen(false)} />
     </section>
   );
 }

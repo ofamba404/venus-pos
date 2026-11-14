@@ -220,6 +220,20 @@ export async function updatePassword(password: string, accessToken: string): Pro
   }
 }
 
+/** Confirm the current password (same endpoint as signInWithPassword), then set a new one (same as auth.updateUser). */
+export async function changePassword(current: string, next: string): Promise<void> {
+  const email = String(authSession.value?.user?.email || '').trim();
+  if (!email) throw new Error('Sign in again to change your password.');
+  try {
+    await signIn(email, current);
+  } catch {
+    throw new Error('Wrong current password.');
+  }
+  const token = peekAccessToken();
+  if (!token) throw new Error('Sign in again to change your password.');
+  await updatePassword(next, token);
+}
+
 export function signOut() {
   authSession.value = null;
   authRole.value = null;

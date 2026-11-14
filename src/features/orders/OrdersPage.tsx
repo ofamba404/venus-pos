@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
 import { loadStoreOrders, storeOrders, ensureInventory, type StoreOrderRow } from '../../data/entities';
-import { postStoreReserve } from '../../data/store-reserve';
 import { patchStoreOrder } from '../../data/writes/store-orders';
 import { Button } from '../../ui/Button';
 import { Tag } from '../../ui/Tag';
@@ -12,6 +11,7 @@ import { OrderCard } from '../../ui/OrderCard';
 import { KEYS } from '../../data/keys';
 import { deliveryTimePill } from '../../domain/delivery-time';
 import { ConfirmButton, ConfirmedTag } from '../../ui/ConfirmOrder';
+import { cancelStoreOrder } from './cancel-order';
 import { confirmStoreOrder, isOrderConfirmed } from './confirm-order';
 import { closeStoreOrder, openStoreOrder, openStoreOrderId } from './open-store-order';
 import { StoreOrderSheet } from './StoreOrderSheet';
@@ -118,22 +118,12 @@ export function OrdersPage() {
   }
 
   async function cancelOrder(order: StoreOrderRow) {
-    const result = await postStoreReserve({ op: 'release', id: order.id, cancel: true });
-    if (result.unsupported) {
-      const res = await patchStoreOrder(order.id, {
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-      });
-      if (!res.ok) {
-        showToast('Could not cancel order');
-        return;
-      }
-    } else if (!result.ok) {
-      showToast(result.message || result.error || 'Could not cancel order');
+    const result = await cancelStoreOrder(order.id);
+    if (!result.ok) {
+      showToast(result.error);
       return;
     }
     showToast(`Cancelled ${orderTitle(order, labels)}`);
-    await Promise.allSettled([loadStoreOrders(), ensureInventory()]);
   }
 
   async function dismissOrder(order: StoreOrderRow) {
@@ -244,7 +234,9 @@ export function OrdersPage() {
       <StoreOrderSheet
         order={viewing}
         title={viewing ? orderTitle(viewing, labels) : ''}
+        queue={storeOrders.value.filter((row) => orderSegment(row) === 'in_sale')}
         onClose={closeSheet}
+        onSelect={openStoreOrder}
       />
     </section>
   );

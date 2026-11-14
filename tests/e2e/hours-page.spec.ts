@@ -33,7 +33,7 @@ test.describe('Hours & availability', () => {
     await expect(page.getByTestId('busy-clear')).toHaveCount(0);
   });
 
-  test('hours are tap-to-set time chips (no native time input), Save lights up only when something changed, and the preview follows', async ({ page }) => {
+  test('hours are tap-to-set time chips (no native time input), and Save lights up only when something changed', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_admin' });
     await page.goto('/next/store');
     const open = page.getByTestId('hours-open');
@@ -45,9 +45,8 @@ test.describe('Hours & availability', () => {
     await setClock(page, 'hours-open', '08:30');
     await expect(save).toBeEnabled();
     await expect(save).toHaveText('Save hours');
-    await expect(page.getByTestId('hours-preview')).toContainText('Clients see');
-    await expect(page.getByTestId('hours-preview')).toContainText('8:30');
-    await expect(page.getByTestId('hours-preview')).not.toContainText(/suggested delivery/i);
+    await expect(page.getByTestId('hours-preview')).toHaveCount(0);
+    await expect(page.getByText('Clients see')).toHaveCount(0);
     await expect(page.getByTestId('hours-suggest-start')).toHaveCount(0);
     await save.click();
     await expect(page.getByTestId('hours-save')).toHaveText('Saved');

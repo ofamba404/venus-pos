@@ -1,4 +1,3 @@
-import { DEFAULT_CLOSE, DEFAULT_OPEN, formatClockHHmm } from '../../domain/hours';
 import { ClockField, TimePickerSheet } from '../../ui/ClockField';
 import { Button } from '../../ui/Button';
 import { busyDefaultUntil, minutesUntil, remainingLabel, type HoursState } from './use-fulfillment';
@@ -83,13 +82,6 @@ export function HoursSettings({ hours, statusOnly = false }: { hours: HoursState
           <div class="hours__grid">
             <ClockField label="Opens" testId="hours-open" value={status.openTime || ''} onChange={(v) => setTime('openTime', v)} />
             <ClockField label="Closes" testId="hours-close" value={status.closeTime || ''} onChange={(v) => setTime('closeTime', v)} />
-          </div>
-
-          <div class="hours__preview" data-testid="hours-preview">
-            <div class="v-list-row__meta">Clients see</div>
-            <div>
-              Open {formatClockHHmm(status.openTime || DEFAULT_OPEN)} to {formatClockHHmm(status.closeTime || DEFAULT_CLOSE)}
-            </div>
           </div>
 
           <Button size="lg" data-testid="hours-save" disabled={busy || !dirty || !valid} onClick={() => void saveHours()}>

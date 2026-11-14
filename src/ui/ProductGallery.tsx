@@ -1,3 +1,5 @@
+import type { Ref } from 'preact';
+import { memo } from 'preact/compat';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { productImageSlides, type ImageSlide } from '../domain/product-art';
 
@@ -7,6 +9,71 @@ const RESUME_MS = 4500;
 function reducedMotion(): boolean {
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
+
+function slideKey(slides: ImageSlide[]): string {
+  return slides.map((s) => `${s.src}:${s.count}`).join('|');
+}
+
+function GalleryImg({ slide, eager }: { slide: ImageSlide; eager: boolean }) {
+  return (
+    <img
+      class={`v-gallery__img${/\/scout-/.test(slide.src) ? ' v-gallery__img--joint' : ''}`}
+      src={slide.src}
+      alt=""
+      draggable={false}
+      loading={eager ? 'eager' : 'lazy'}
+    />
+  );
+}
+
+/**
+ * The scrollable track is memoised on the photo key so a re-render (autoplay
+ * `setActive`, or a parent poll) does not reconcile it. Reconciling the track
+ * reset scrollLeft to 0, which flashed the last-photo clone and made order
+ * tiles look like they were glitching.
+ */
+const GalleryTrack = memo(
+  function GalleryTrack({
+    slides,
+    tile,
+    trackRef,
+  }: {
+    slides: ImageSlide[];
+    tile: boolean;
+    trackRef: Ref<HTMLDivElement>;
+  }) {
+    const count = slides.length;
+    const track = [
+      { slide: slides[count - 1]!, i: -1, clone: true },
+      ...slides.map((slide, i) => ({ slide, i, clone: false })),
+      { slide: slides[0]!, i: count, clone: true },
+    ];
+    return (
+      <div
+        class="v-gallery__track"
+        ref={trackRef}
+        tabIndex={tile ? -1 : 0}
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Flavour photos"
+        data-testid="gallery-track"
+      >
+        {track.map(({ slide, i, clone }) => (
+          <div
+            class="v-gallery__slide"
+            key={`${clone ? 'clone' : 'real'}-${i}`}
+            data-gallery-index={clone ? undefined : i}
+            data-gallery-clone={clone ? 'true' : undefined}
+            aria-hidden={clone ? 'true' : undefined}
+          >
+            <GalleryImg slide={slide} eager={!clone && i === 0} />
+          </div>
+        ))}
+      </div>
+    );
+  },
+  (prev, next) => slideKey(prev.slides) === slideKey(next.slides) && prev.tile === next.tile,
+);
 
 /**
  * The line's photo. One flavour, or no flavour photos, is a plain picture. Several flavours become
@@ -36,8 +103,11 @@ export function ProductGallery({
   autoplay?: boolean;
 }) {
   const tile = variant === 'mini';
-  const slides = given || productImageSlides(productId, breakdown);
-  const key = slides.map((s) => `${s.src}:${s.count}`).join('|');
+  const incoming = given || productImageSlides(productId, breakdown);
+  const key = slideKey(incoming);
+  const held = useRef({ key, slides: incoming });
+  if (held.current.key !== key) held.current = { key, slides: incoming };
+  const slides = held.current.slides;
   const trackRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
@@ -162,61 +232,32 @@ export function ProductGallery({
   }, [key, count, autoplay]);
 
   if (!count) return null;
-  const style = ({ '--gallery-size': `${size}px` } as Record<string, string>);
+  const style = { '--gallery-size': `${size}px` } as Record<string, string>;
   const cls = `v-gallery${tile ? ' v-gallery--mini' : ''}`;
-  const img = (slide: ImageSlide, eager: boolean) => (
-    <img
-      class={`v-gallery__img${/\/scout-/.test(slide.src) ? ' v-gallery__img--joint' : ''}`}
-      src={slide.src}
-      alt=""
-      draggable={false}
-      loading={eager ? 'eager' : 'lazy'}
-    />
-  );
   if (count === 1) {
     return (
       <div class={cls} style={style} data-testid={testId} data-slides="1">
         <div class="v-gallery__frame">
-          <div class="v-gallery__viewport">{img(slides[0]!, true)}</div>
+          <div class="v-gallery__viewport">
+            <GalleryImg slide={slides[0]!} eager />
+          </div>
           {slides[0]!.count > 1 ? <span class="v-gallery__qty">×{slides[0]!.count}</span> : null}
         </div>
       </div>
     );
   }
   const shownCount = slides[Math.min(active, count - 1)]?.count ?? 1;
-  // Clones: the last photo before the first, the first after the last. Clones are hidden from assistive tech.
-  const track = [
-    { slide: slides[count - 1]!, i: -1, clone: true },
-    ...slides.map((slide, i) => ({ slide, i, clone: false })),
-    { slide: slides[0]!, i: count, clone: true },
-  ];
   return (
     <div class={`${cls} has-multiple`} ref={rootRef} style={style} data-testid={testId} data-slides={count}>
       <div class="v-gallery__frame">
-      <div class="v-gallery__viewport">
-        <div
-          class="v-gallery__track"
-          ref={trackRef}
-          tabIndex={tile ? -1 : 0}
-          role="region"
-          aria-roledescription="carousel"
-          aria-label="Flavour photos"
-          data-testid="gallery-track"
-        >
-          {track.map(({ slide, i, clone }) => (
-            <div
-              class="v-gallery__slide"
-              key={`${clone ? 'clone' : 'real'}-${i}`}
-              data-gallery-index={clone ? undefined : i}
-              data-gallery-clone={clone ? 'true' : undefined}
-              aria-hidden={clone ? 'true' : undefined}
-            >
-              {img(slide, !clone && i === 0)}
-            </div>
-          ))}
+        <div class="v-gallery__viewport">
+          <GalleryTrack slides={slides} tile={tile} trackRef={trackRef} />
         </div>
-      </div>
-      {shownCount > 1 ? <span class="v-gallery__qty" data-testid="gallery-qty">×{shownCount}</span> : null}
+        {shownCount > 1 ? (
+          <span class="v-gallery__qty" data-testid="gallery-qty">
+            ×{shownCount}
+          </span>
+        ) : null}
       </div>
       <div class="v-gallery__dots" role={tile ? undefined : 'tablist'} aria-label="Flavour photos" aria-hidden={tile ? 'true' : undefined}>
         {slides.map((slide, i) =>

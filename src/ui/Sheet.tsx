@@ -18,6 +18,8 @@ function reducedMotion(): boolean {
 export function Sheet({
   open,
   title,
+  titleTestId,
+  lead,
   children,
   footer,
   onClose,
@@ -26,6 +28,9 @@ export function Sheet({
 }: {
   open: boolean;
   title: string;
+  titleTestId?: string;
+  /** Sits under the title in the header, e.g. tags or a chip row. */
+  lead?: ComponentChildren;
   children: ComponentChildren;
   footer?: ComponentChildren;
   onClose: () => void;
@@ -39,8 +44,8 @@ export function Sheet({
   const panel = useRef<HTMLDivElement>(null);
   const swiped = useRef(false);
   // While it plays the close, keep showing what it showed when it was open, so the content does not blank mid-slide.
-  const last = useRef({ title, children, footer });
-  if (open) last.current = { title, children, footer };
+  const last = useRef({ title, titleTestId, lead, children, footer });
+  if (open) last.current = { title, titleTestId, lead, children, footer };
 
   if (open && !mounted) setMounted(true);
 
@@ -138,11 +143,12 @@ export function Sheet({
         <div class="v-sheet__grab" onPointerDown={swipeBody ? undefined : (e) => startSwipe(e as unknown as PointerEvent)}>
         <div class="v-sheet__handle" />
         <div class="v-sheet__head">
-          <h2 class="v-sheet__title">{last.current.title}</h2>
+          <h2 class="v-sheet__title" data-testid={last.current.titleTestId || undefined}>{last.current.title}</h2>
           <IconButton label="Close" onClick={onClose}>
             <IconClose size={22} />
           </IconButton>
         </div>
+        {last.current.lead ? <div class="v-sheet__lead">{last.current.lead}</div> : null}
         </div>
         <div class="v-sheet__body">{last.current.children}</div>
         {last.current.footer ? <div class="v-sheet__foot">{last.current.footer}</div> : null}
