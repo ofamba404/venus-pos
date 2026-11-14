@@ -49,6 +49,8 @@ import { cartFulfilment, saleSummaryLines } from '../../domain/sale-summary';
 import { showSaleSuccess } from '../../ui/sale-success';
 import { EmptyState } from '../../ui/EmptyState';
 import { PlaceSearch } from '../../ui/PlaceSearch';
+import { go } from '../../app/router';
+import { isAdmin } from '../../data/auth';
 import { showToast } from '../../ui/ToastHost';
 import { IconButton } from '../../ui/IconButton';
 import { IconClose } from '../../ui/icons';
@@ -472,12 +474,15 @@ export function SellPage() {
           </p>
         ) : null}
         <div class="sell-today">
-          <div
+          <button
+            type="button"
             class="today-pill"
             data-testid="today-pill"
             data-revenue={today.revenue}
             data-joints={today.joints}
             data-cookies={today.cookies}
+            aria-label="Today's sales, open Insights"
+            onClick={() => go('/insights')}
           >
             <span class="today-pill__kicker">Today</span>
             <span class="today-pill__value">
@@ -488,7 +493,7 @@ export function SellPage() {
               {today.joints ? ` · ${today.joints} joints` : ''}
               {today.cookies ? ` · ${today.cookies} cookies` : ''}
             </span>
-          </div>
+          </button>
           <div class="store-status-slot">
             <button
               type="button"
@@ -625,7 +630,7 @@ export function SellPage() {
 
 
       <Sheet open={hoursOpen} title="Hours" onClose={() => setHoursOpen(false)}>
-        <HoursSettings hours={hours} />
+        <HoursSettings hours={hours} statusOnly={!isAdmin()} />
       </Sheet>
 
       <StoreOrderSheet

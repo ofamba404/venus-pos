@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
+import { isAdmin } from '../../data/auth';
 import { CopyButton } from '../../ui/CopyButton';
 import { clients, loadClients, loadSales, sales } from '../../data/entities';
 import { loadStoreAccounts, storeAccounts } from '../../data/store-accounts';
@@ -57,6 +58,7 @@ export function ClientsPage() {
   const [confirmDelete, setConfirmDelete] = useState<'client' | 'account' | null>(null);
 
   const [searchFocused, setSearchFocused] = useState(false);
+  const admin = isAdmin();
 
   useEffect(() => {
     void Promise.allSettled([loadClients(), loadSales(), loadStoreAccounts()]).then((results) => {
@@ -338,10 +340,14 @@ export function ClientsPage() {
               <section class="person-sheet__section" data-testid="section-client">
                 <h3 class="v-section-label">Client</h3>
                 {owed > 0 ? (
+                  <p class="person-sheet__owes">
+                    Owes <Money className="v-money--total" value={owed} />
+                  </p>
+                ) : (
+                  <p class="v-muted" data-testid="settle-clear">Nothing owed.</p>
+                )}
+                {admin && owed > 0 ? (
                   <>
-                    <p class="person-sheet__owes">
-                      Owes <Money className="v-money--total" value={owed} />
-                    </p>
                     <Field
                       label="Amount (UGX)"
                       inputMode="numeric"
@@ -364,9 +370,7 @@ export function ClientsPage() {
                       {busy ? 'Saving…' : 'Record payment'}
                     </Button>
                   </>
-                ) : (
-                  <p class="v-muted" data-testid="settle-clear">Nothing owed.</p>
-                )}
+                ) : null}
                 <Field
                   label="Name"
                   data-testid="client-edit-name"
@@ -376,23 +380,25 @@ export function ClientsPage() {
                 <Button size="md" variant="secondary" data-testid="client-rename" onClick={() => void renameClient()}>
                   Save name
                 </Button>
-                {confirmDelete === 'client' ? (
-                  <div class="person-sheet__confirm" role="alert">
-                    <span>Delete {open.client.name || 'this client'}? Their past sales are kept.</span>
-                    <div class="person-sheet__confirm-row">
-                      <Button size="md" variant="ghost" data-testid="client-delete-cancel" onClick={() => setConfirmDelete(null)}>
-                        Keep
-                      </Button>
-                      <Button size="md" variant="danger" data-testid="client-delete-confirm" onClick={() => void removeClient()}>
-                        Yes, delete
-                      </Button>
+                {admin ? (
+                  confirmDelete === 'client' ? (
+                    <div class="person-sheet__confirm" role="alert">
+                      <span>Delete {open.client.name || 'this client'}? Their past sales are kept.</span>
+                      <div class="person-sheet__confirm-row">
+                        <Button size="md" variant="ghost" data-testid="client-delete-cancel" onClick={() => setConfirmDelete(null)}>
+                          Keep
+                        </Button>
+                        <Button size="md" variant="danger" data-testid="client-delete-confirm" onClick={() => void removeClient()}>
+                          Yes, delete
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <button type="button" class="v-link-danger" data-testid="client-delete" onClick={() => setConfirmDelete('client')}>
-                    Delete client
-                  </button>
-                )}
+                  ) : (
+                    <button type="button" class="v-link-danger" data-testid="client-delete" onClick={() => setConfirmDelete('client')}>
+                      Delete client
+                    </button>
+                  )
+                ) : null}
               </section>
             ) : null}
 
@@ -413,7 +419,7 @@ export function ClientsPage() {
                   >
                     Save name
                   </Button>
-                  {!open.account.verified ? (
+                  {admin && !open.account.verified ? (
                     <Button
                       size="md"
                       variant="secondary"
@@ -445,23 +451,25 @@ export function ClientsPage() {
                 ) : (
                   <p class="v-muted">A reset code lets the client set a new store password. It is shown once.</p>
                 )}
-                {confirmDelete === 'account' ? (
-                  <div class="person-sheet__confirm" role="alert">
-                    <span>Delete this storefront account? They will need to sign up again.</span>
-                    <div class="person-sheet__confirm-row">
-                      <Button size="md" variant="ghost" data-testid="store-user-delete-cancel" onClick={() => setConfirmDelete(null)}>
-                        Keep
-                      </Button>
-                      <Button size="md" variant="danger" data-testid="store-user-delete-confirm" onClick={() => void removeAccount()}>
-                        Yes, delete
-                      </Button>
+                {admin ? (
+                  confirmDelete === 'account' ? (
+                    <div class="person-sheet__confirm" role="alert">
+                      <span>Delete this storefront account? They will need to sign up again.</span>
+                      <div class="person-sheet__confirm-row">
+                        <Button size="md" variant="ghost" data-testid="store-user-delete-cancel" onClick={() => setConfirmDelete(null)}>
+                          Keep
+                        </Button>
+                        <Button size="md" variant="danger" data-testid="store-user-delete-confirm" onClick={() => void removeAccount()}>
+                          Yes, delete
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <button type="button" class="v-link-danger" data-testid="store-user-delete" onClick={() => setConfirmDelete('account')}>
-                    Delete account
-                  </button>
-                )}
+                  ) : (
+                    <button type="button" class="v-link-danger" data-testid="store-user-delete" onClick={() => setConfirmDelete('account')}>
+                      Delete account
+                    </button>
+                  )
+                ) : null}
               </section>
             ) : null}
           </div>

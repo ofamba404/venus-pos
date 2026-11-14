@@ -159,7 +159,12 @@ Deno.serve(async (req: Request) => {
       const auth = await requireUser();
       if (auth.error) return auth.error;
       const role = auth.user.app_metadata?.role;
-      const staffAllowed = action === "admin_list_pos_labels" && role === "pos_staff";
+      const staffActions = new Set([
+        "admin_list_pos_labels",
+        "admin_list_users",
+        "admin_issue_reset_code",
+      ]);
+      const staffAllowed = role === "pos_staff" && staffActions.has(action);
       if (role !== "pos_admin" && !staffAllowed) {
         return json({ error: "Admin access required." }, 403);
       }

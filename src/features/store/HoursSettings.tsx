@@ -4,7 +4,7 @@ import { Button } from '../../ui/Button';
 import { busyDefaultUntil, minutesUntil, remainingLabel, type HoursState } from './use-fulfillment';
 
 /** Hours form: busy presets, Custom busy, and Opens/Closes. */
-export function HoursSettings({ hours }: { hours: HoursState }) {
+export function HoursSettings({ hours, statusOnly = false }: { hours: HoursState; statusOnly?: boolean }) {
   const {
     status,
     busy,
@@ -60,7 +60,7 @@ export function HoursSettings({ hours }: { hours: HoursState }) {
             </div>
           </div>
           <Button size="md" variant="secondary" data-testid="busy-clear" disabled={busy} onClick={() => void setBusyMinutes(null)}>
-            Clear
+            {statusOnly ? 'Open' : 'Clear'}
           </Button>
         </div>
       ) : null}
@@ -77,22 +77,26 @@ export function HoursSettings({ hours }: { hours: HoursState }) {
         }}
       />
 
-      <h2 class="v-section-label">Opening hours</h2>
-      <div class="hours__grid">
-        <ClockField label="Opens" testId="hours-open" value={status.openTime || ''} onChange={(v) => setTime('openTime', v)} />
-        <ClockField label="Closes" testId="hours-close" value={status.closeTime || ''} onChange={(v) => setTime('closeTime', v)} />
-      </div>
+      {statusOnly ? null : (
+        <>
+          <h2 class="v-section-label">Opening hours</h2>
+          <div class="hours__grid">
+            <ClockField label="Opens" testId="hours-open" value={status.openTime || ''} onChange={(v) => setTime('openTime', v)} />
+            <ClockField label="Closes" testId="hours-close" value={status.closeTime || ''} onChange={(v) => setTime('closeTime', v)} />
+          </div>
 
-      <div class="hours__preview" data-testid="hours-preview">
-        <div class="v-list-row__meta">Clients see</div>
-        <div>
-          Open {formatClockHHmm(status.openTime || DEFAULT_OPEN)} to {formatClockHHmm(status.closeTime || DEFAULT_CLOSE)}
-        </div>
-      </div>
+          <div class="hours__preview" data-testid="hours-preview">
+            <div class="v-list-row__meta">Clients see</div>
+            <div>
+              Open {formatClockHHmm(status.openTime || DEFAULT_OPEN)} to {formatClockHHmm(status.closeTime || DEFAULT_CLOSE)}
+            </div>
+          </div>
 
-      <Button size="lg" data-testid="hours-save" disabled={busy || !dirty || !valid} onClick={() => void saveHours()}>
-        {busy ? 'Saving…' : dirty ? 'Save hours' : 'Saved'}
-      </Button>
+          <Button size="lg" data-testid="hours-save" disabled={busy || !dirty || !valid} onClick={() => void saveHours()}>
+            {busy ? 'Saving…' : dirty ? 'Save hours' : 'Saved'}
+          </Button>
+        </>
+      )}
     </>
   );
 }

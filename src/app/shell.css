@@ -396,11 +396,21 @@
   gap: 4px;
   flex: 1;
   min-width: 0;
+  margin: 0;
   padding: var(--s-3) var(--s-4);
+  border: 0;
+  font: inherit;
+  color: inherit;
   text-align: left;
   border-radius: var(--r-lg);
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--line);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button.today-pill:active {
+  background: var(--surface-sunk);
 }
 
 .store-status-slot {

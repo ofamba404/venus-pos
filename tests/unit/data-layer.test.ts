@@ -207,7 +207,14 @@ describe('data layer', () => {
     expect(signed.access_token).toBe('signed-in');
     expect(authRole.value).toBe('pos_staff');
     expect(canAccessPath('/sell')).toBe(true);
-    expect(canAccessPath('/insights')).toBe(false);
+    expect(canAccessPath('/insights')).toBe(true);
+    expect(canAccessPath('/clients')).toBe(true);
+    expect(canAccessPath('/history')).toBe(true);
+    expect(canAccessPath('/store')).toBe(false);
+    expect(canAccessPath('/cookie-partner')).toBe(false);
+    expect(canAccessPath('/delivery')).toBe(false);
+    expect(canAccessPath('/reviews')).toBe(false);
+    expect(canAccessPath('/system')).toBe(false);
     authSessionSetExpiry(30);
     const token = await getAccessToken();
     expect(token).toBe('refreshed');

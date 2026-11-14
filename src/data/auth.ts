@@ -1,4 +1,5 @@
 import { signal } from '@preact/signals';
+import { ROUTES } from '../app/router';
 import { KEYS } from './keys';
 import { SUPABASE_URL, SUPABASE_ANON_JWT } from './env';
 
@@ -9,10 +10,8 @@ export type AuthSession = {
   refresh_token?: string;
   expires_at?: number;
   expires_in?: number;
-  user?: { email?: string; app_metadata?: Record<string, unknown> };
+  user?: { id?: string; email?: string; app_metadata?: Record<string, unknown> };
 };
-
-const STAFF_PAGES = new Set(['sell', 'orders', 'stock', 'settings', 'more']);
 
 export const authSession = signal<AuthSession | null>(null);
 export const authRole = signal<PosRole | null>(null);
@@ -80,8 +79,19 @@ export function canAccessPath(path: string) {
   const role = authRole.value;
   if (!role) return false;
   if (role === 'pos_admin') return true;
-  const id = path.replace(/^\//, '').split('/')[0] || 'sell';
-  return STAFF_PAGES.has(id);
+  const clean = '/' + path.replace(/^\/next/, '').replace(/^\//, '').split('/')[0];
+  const id = clean === '/' ? '/sell' : clean;
+  const route = ROUTES.find((r) => r.path === id);
+  return Boolean(route && route.minRole === 'staff');
+}
+
+/** Signed-in user id (auth.uid), or an empty string. */
+export function authUserId() {
+  const session = authSession.value;
+  if (session?.user?.id) return String(session.user.id);
+  if (!session?.access_token) return '';
+  const payload = decodeJwtPayload(session.access_token);
+  return payload?.sub ? String(payload.sub) : '';
 }
 
 export function peekAccessToken() {

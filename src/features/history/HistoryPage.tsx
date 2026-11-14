@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { isAdmin, authUserId } from '../../data/auth';
 import { clients, loadClients, loadSales, sales, type SaleRow } from '../../data/entities';
 import { saleItems, saveSaleEdit, voidSaleRecord } from '../../data/sale-edit';
 import { postClient } from '../../data/writes/clients';
@@ -49,12 +50,15 @@ export function HistoryPage() {
     );
   }, []);
 
+  const rows = isAdmin()
+    ? sales.value
+    : sales.value.filter((s) => String(s.seller_id || '') === authUserId());
   const base =
     filter === 'credit'
-      ? sales.value.filter((s) => s.is_credit && !s.credit_cleared)
+      ? rows.filter((s) => s.is_credit && !s.credit_cleared)
       : filter === 'week'
-        ? partitionThisWeek(sales.value).thisWeek.flatMap((g) => g.sales)
-        : sales.value;
+        ? partitionThisWeek(rows).thisWeek.flatMap((g) => g.sales)
+        : rows;
 
   const groups = groupSalesByDay(base);
   // This week's days are listed (newest first, only the first one open). Older days fold into one heading per week.
@@ -269,22 +273,26 @@ export function HistoryPage() {
               collect={creditBalance(open)}
               idPrefix="history-copy-"
             />
-            <Button
-              data-testid="sale-edit"
-              onClick={() => {
-                setDraft(saleItems(open));
-                const person = clients.value.find((c) => c.id === open.client_id)?.name || '';
-                setEditName(person);
-                setEditCredit(Boolean(open.is_credit));
-                setEditCleared(Boolean(open.credit_cleared));
-                setEditing(true);
-              }}
-            >
-              Edit sale
-            </Button>
-            <Button variant="danger" data-testid="sale-void" onClick={() => setVoiding(true)}>
-              Void sale
-            </Button>
+            {isAdmin() ? (
+              <>
+                <Button
+                  data-testid="sale-edit"
+                  onClick={() => {
+                    setDraft(saleItems(open));
+                    const person = clients.value.find((c) => c.id === open.client_id)?.name || '';
+                    setEditName(person);
+                    setEditCredit(Boolean(open.is_credit));
+                    setEditCleared(Boolean(open.credit_cleared));
+                    setEditing(true);
+                  }}
+                >
+                  Edit sale
+                </Button>
+                <Button variant="danger" data-testid="sale-void" onClick={() => setVoiding(true)}>
+                  Void sale
+                </Button>
+              </>
+            ) : null}
           </div>
         ) : null}
       </Sheet>

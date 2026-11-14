@@ -10,12 +10,14 @@ import { CHART_RANGES, filterSalesByRange } from '../../domain/analytics/periods
 import { readStoredId } from '../../domain/parity';
 import { historyOrDefault } from '../../domain/insights-view';
 import type { JointCostRow } from '../../domain/joint-cost';
+import { isAdmin, authUserId } from '../../data/auth';
 import { sbFetch } from '../../data/api';
-import { fetchStaffSettlements } from '../../data/commission';
+import { fetchStaffSettlements, fetchMyCommissionSummary, type StaffCommissionSummary } from '../../data/commission';
 import { commissionLedger, type Settlement } from '../../domain/commission';
 import { KEYS } from '../../data/keys';
 import { helperSince, setHelperSince } from '../../data/helper-since';
 import { Button } from '../../ui/Button';
+import { Money } from '../../ui/Money';
 import { showToast } from '../../ui/ToastHost';
 import {
   packDriverSentence,
@@ -27,7 +29,69 @@ import {
 } from '../../domain/decisions';
 import { InsightsDecisions } from './InsightsDecisions';
 
-export function InsightsPage() {
+
+function ownSales() {
+  const id = authUserId();
+  return sales.value.filter((s) => String(s.seller_id || '') === id);
+}
+
+function StaffInsights() {
+  const [summary, setSummary] = useState<StaffCommissionSummary | null | undefined>(undefined);
+
+  useEffect(() => {
+    void loadSales().catch((e) => showToast(e instanceof Error ? e.message : 'Could not load insights'));
+    void fetchMyCommissionSummary().then(setSummary);
+  }, []);
+
+  const today = useMemo(
+    () => computeTodayStats(ownSales() as Parameters<typeof computeTodayStats>[0]),
+    [sales.value],
+  );
+
+  return (
+    <section class="insights" data-testid="staff-insights">
+      <h1 class="page-title">Insights</h1>
+      <div class="staff-insights__today" data-testid="insights-today" data-revenue={today.revenue}>
+        <span class="today-pill__kicker">Today</span>
+        <span class="today-pill__value">
+          <Money value={today.revenue} />
+        </span>
+        <span class="today-pill__meta">
+          {today.salesCount} sold
+          {today.joints ? ` · ${today.joints} joints` : ''}
+          {today.cookies ? ` · ${today.cookies} cookies` : ''}
+        </span>
+      </div>
+      <section class="decision" aria-label="Commission" data-testid="insights-commission">
+        <h2 class="decision__q">Commission</h2>
+        {summary === undefined ? (
+          <p class="v-muted">Loading…</p>
+        ) : summary ? (
+          <div class="owe__sum">
+            <div class="owe__chip" data-testid="commission-earned" data-value={summary.earned_all}>
+              <span class="owe__chip-label">Earned</span>
+              <Money value={Number(summary.earned_all) || 0} />
+            </div>
+            <div class="owe__chip owe__chip--paid" data-testid="commission-paid" data-value={summary.paid_all}>
+              <span class="owe__chip-label">Paid</span>
+              <Money value={Number(summary.paid_all) || 0} />
+            </div>
+            <div class="owe__chip" data-testid="commission-pending" data-value={summary.pending_credit}>
+              <span class="owe__chip-label">Pending</span>
+              <Money value={Number(summary.pending_credit) || 0} />
+            </div>
+          </div>
+        ) : (
+          <p class="v-muted" data-testid="commission-unavailable">
+            Commission is not available.
+          </p>
+        )}
+      </section>
+    </section>
+  );
+}
+
+function OwnerInsights() {
   const [rangeId, setRangeId] = useState(() =>
     readStoredId(
       localStorage.getItem(KEYS.chartRange),
@@ -130,4 +194,8 @@ export function InsightsPage() {
       />
     </section>
   );
+}
+
+export function InsightsPage() {
+  return isAdmin() ? <OwnerInsights /> : <StaffInsights />;
 }
