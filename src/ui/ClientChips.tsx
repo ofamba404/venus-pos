@@ -90,9 +90,11 @@ export function ClientChips({ value, onChange }: Props) {
               data-testid={`client-chip-${row.key}`}
               onClick={() => pick(row)}
             >
-              {highlightMatches(row.name, value).map((part, i) =>
-                part.hit ? <strong key={i}>{part.text}</strong> : <span key={i}>{part.text}</span>,
-              )}
+              <span class="v-tag__name">
+                {highlightMatches(row.name, value).map((part, i) =>
+                  part.hit ? <strong key={i}>{part.text}</strong> : <span key={i}>{part.text}</span>,
+                )}
+              </span>
               {owes ? ` · ${owes}` : ''}
             </button>
           );

@@ -15,6 +15,19 @@ async function openCart(page: Page) {
   return sheet;
 }
 
+async function assertCartFitsViewport(sheet: Awaited<ReturnType<typeof openCart>>, page: Page) {
+  const vw = page.viewportSize()!.width;
+  const overs = await sheet.evaluate((el, vw) => {
+    const drawer = (el.closest('.v-sheet') as HTMLElement) || (el as HTMLElement);
+    return Array.from(drawer.children).flatMap((node) => {
+      const r = (node as HTMLElement).getBoundingClientRect();
+      if (r.right <= vw + 0.5) return [];
+      return [{ className: (node as HTMLElement).className, right: r.right, vw }];
+    });
+  }, vw);
+  expect(overs, `overflow at ${vw}px: ${JSON.stringify(overs)}`).toEqual([]);
+}
+
 test.describe('cart and orders fixes', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -47,6 +60,27 @@ test.describe('cart and orders fixes', () => {
     expect(bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent' || bg === 'rgb(255, 255, 255)' || bg === 'rgb(250, 250, 248)').toBe(true);
   });
 
+  test('the cart drawer stays within the viewport at 360 and 390px while chips scroll', async ({ page }) => {
+    await createNextDriver(page, { role: 'pos_staff' });
+    for (const width of [360, 390] as const) {
+      await page.setViewportSize({ width, height: width === 360 ? 740 : 844 });
+      const sheet = await openCart(page);
+      await sheet.getByRole('tab', { name: 'Delivery' }).click();
+      await sheet.getByTestId('cart-client').fill('Test Cli');
+      await expect(sheet.getByTestId('add-client')).toBeVisible();
+      await expect(sheet.getByRole('tab', { name: 'Paid' })).toBeVisible();
+      await expect(sheet.getByRole('tab', { name: 'On credit' })).toBeVisible();
+      await expect(sheet.getByRole('tab', { name: 'Delivery' })).toBeVisible();
+      await expect(sheet.getByRole('tab', { name: 'Pickup' })).toBeVisible();
+      await assertCartFitsViewport(sheet, page);
+      if (await sheet.getByRole('button', { name: 'Close' }).isVisible()) {
+        await sheet.getByRole('button', { name: 'Close' }).click();
+        await sheet.waitFor({ state: 'hidden' });
+      }
+    }
+  });
+
+
   test('the cart has no Walk-in chip, Copy, Clear cart or Hold on this phone', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_staff' });
     const sheet = await openCart(page);
@@ -67,6 +101,15 @@ test.describe('cart and orders fixes', () => {
     const chips = sheet.getByTestId('client-chips');
     await expect(chips.getByText('Test Client A').first()).toBeVisible();
     await expect(chips.locator('strong').first()).toHaveText(/Test Cli/i);
+    const name = chips.locator('.v-tag__name').filter({ hasText: 'Test Client A' }).first();
+    await expect(name).toHaveText('Test Client A');
+    const highlightGap = await name.evaluate((el) => {
+      const strong = el.querySelector('strong');
+      const rest = strong?.nextElementSibling as HTMLElement | null;
+      if (!strong || !rest) return 0;
+      return rest.getBoundingClientRect().left - strong.getBoundingClientRect().right;
+    });
+    expect(highlightGap).toBeLessThan(1);
     await expect(sheet.getByTestId('add-client')).toBeVisible();
     const row = chips.locator('.v-chip-row');
     const rowBox = (await row.boundingBox())!;

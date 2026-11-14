@@ -1031,6 +1031,10 @@ button.kpi-tile {
   left: 0;
   right: 0;
   bottom: 0;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   max-height: min(92dvh, 900px);
   background: var(--surface);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
@@ -3474,6 +3478,15 @@ body:has(.v-sheet) .v-toast-host {
 }
 
 
+.v-tag__name,
+.v-tag__name strong,
+.v-tag__name span {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
+}
+
 .v-tag strong {
   font-weight: 700;
 }
@@ -3487,14 +3500,31 @@ body:has(.v-sheet) .v-toast-host {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .v-client-chips .v-chip-row {
   flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 0;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+}
+
+.cart-fields {
+  display: grid;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cart-fields > * {
+  min-width: 0;
+  max-width: 100%;
 }

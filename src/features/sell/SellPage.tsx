@@ -373,7 +373,7 @@ export function SellPage() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gap: 'var(--s-3)', marginTop: 'var(--s-4)' }}>
+      <div class="cart-fields">
         <ClientChips
           value={meta.clientName}
           onChange={(next) => {
