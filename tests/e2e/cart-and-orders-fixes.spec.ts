@@ -26,6 +26,8 @@ test.describe('cart and orders fixes', () => {
     const sheet = await openCart(page);
     await sheet.getByRole('tab', { name: 'Delivery' }).click();
     await sheet.getByTestId('cart-client').fill('Test Client A');
+    await sheet.getByTestId('cart-client').blur();
+    await sheet.getByTestId('client-suggest').waitFor({ state: 'hidden', timeout: 2000 }).catch(() => {});
     await expect(sheet.getByText('Deliver at', { exact: true })).toHaveCount(0);
     await expect(sheet.getByTestId('copy-all')).toHaveCount(0);
     await expect(page.getByRole('dialog', { name: 'Review sale' })).toHaveCount(0);
@@ -65,8 +67,9 @@ test.describe('cart and orders fixes', () => {
     await field.fill('Test Cli');
     const list = sheet.getByTestId('client-suggest');
     await expect(list).toBeVisible({ timeout: 10_000 });
-    await expect(list.getByText('Test Client A')).toBeVisible();
-    await list.getByText('Test Client A').click();
+    const match = list.getByText('Test Client A').first();
+    await expect(match).toBeVisible();
+    await match.click();
     await expect(sheet.getByTestId('cart-client')).toHaveValue('Test Client A');
     await expect(list).toHaveCount(0);
   });

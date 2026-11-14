@@ -79,10 +79,8 @@ test('v2c: Clients, person sheets, Orders card, loaded order, History and edit s
   await card.screenshot({ path: `${dir}/v2c-orders-pending-card.png` });
   await page.screenshot({ path: `${dir}/v2c-orders-pending-page.png` });
 
-  await page.getByTestId('load-order-seed-pending-order').click();
-  await page.waitForURL(/\/sell/);
-  await page.getByTestId('loaded-order').waitFor();
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.getByTestId('view-order-seed-pending-order').click();
+  await page.getByTestId('store-order-sheet').waitFor();
   await page.waitForTimeout(600);
   await hideNav(page);
   await page.screenshot({ path: `${dir}/v2c-loaded-order.png` });

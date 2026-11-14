@@ -18,7 +18,15 @@ test('capture sell, stock, and legacy home', async ({ page }) => {
   async function shot(name: string, url: string, width: number, height: number, ready: string) {
     await page.setViewportSize({ width, height });
     const start = Date.now();
-    await page.goto(url);
+    try {
+      await page.goto(url);
+    } catch (err) {
+      if (String(url).includes(':4173') && /CONNECTION_REFUSED|ERR_CONNECTION/.test(String(err))) {
+        rows.push(`| ${name} | ${width}×${height} | skipped (legacy preview down) |`);
+        return;
+      }
+      throw err;
+    }
     await page.locator(ready).first().waitFor({ timeout: 20_000 });
     const ms = Date.now() - start;
     await page.screenshot({ path: `${dir}/${name}.png` });

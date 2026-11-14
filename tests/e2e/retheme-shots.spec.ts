@@ -47,21 +47,23 @@ test('capture the retheme screens at 390px', async ({ page }) => {
     await page.screenshot({ path: `${dir}/retheme-${name}.png`, fullPage: full });
   }
   await go('/next/sell', '[data-testid="product-scout"]', 'sell', false);
-  await go('/next/orders', '[data-testid="load-order-rt-delivery"]', 'orders');
+  await page.goto('/next/orders');
+  await page.getByRole('tab', { name: /In sale/ }).click();
+  await page.getByTestId('view-order-rt-delivery').waitFor({ timeout: 20_000 });
+  await page.waitForTimeout(700);
+  await frame();
+  await page.addStyleTag({ content: '.shell__nav{display:none!important}' });
+  await page.screenshot({ path: `${dir}/retheme-orders.png`, fullPage: true });
   await go('/next/insights', 'h1', 'insights');
 
   await page.goto('/next/orders');
-  await page.getByTestId('load-order-rt-delivery').click();
-  await page.waitForURL(/\/sell/);
-  await page.getByTestId('loaded-order').waitFor();
-  await page.waitForTimeout(4500);
-  await page.screenshot({ path: `${dir}/retheme-loaded-order-sell.png` });
-  await page.getByTestId('cart-bar').click();
-  const review = page.getByRole('dialog', { name: 'Cart' });
-  await review.waitFor();
+  await page.getByRole('tab', { name: /In sale/ }).click();
+  await page.getByTestId('view-order-rt-delivery').click();
+  await page.getByTestId('store-order-sheet').waitFor();
   await page.waitForTimeout(500);
+  await page.screenshot({ path: `${dir}/retheme-loaded-order-sell.png` });
   await page.screenshot({ path: `${dir}/retheme-loaded-order-checkout-top.png` });
-  await review.getByTestId('copy-phone').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await page.getByTestId('so-copy-phone').evaluate((el) => el.scrollIntoView({ block: 'center' }));
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${dir}/retheme-checkout-sheet-delivery.png` });
 });

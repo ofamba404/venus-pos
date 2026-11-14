@@ -51,7 +51,10 @@ test('holding a sale keeps it on this phone and posts nothing', async ({ page })
   await page.getByTestId('product-plain_single').click();
   await page.getByTestId('config-add').click();
   const review = page.getByRole('dialog', { name: 'Cart' });
-  await review.getByTestId('hold-sale').click();
+  await review.waitFor();
+  const holdBtn = review.getByTestId('hold-sale');
+  await holdBtn.scrollIntoViewIfNeeded();
+  await holdBtn.click();
   await page.getByRole('status').filter({ hasText: /held/i }).waitFor();
   const sheet = page.getByRole('dialog', { name: 'Cart' });
   await sheet.getByTestId('held-sales').getByRole('button').click();

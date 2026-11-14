@@ -111,6 +111,7 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         const field = scope.getByTestId('cart-client');
         await field.fill(step.name);
         await field.blur();
+        await scope.getByTestId('client-suggest').waitFor({ state: 'hidden', timeout: 2000 }).catch(() => {});
         return;
       }
       case 'setCredit': {

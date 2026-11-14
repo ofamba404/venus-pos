@@ -117,7 +117,10 @@
   border-radius: 999px;
   background: var(--danger);
   color: #fff;
-  font: 700 9px/1 var(--font-sans, inherit);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
   letter-spacing: 0;
   box-shadow: 0 0 0 2px #fff;
   pointer-events: none;

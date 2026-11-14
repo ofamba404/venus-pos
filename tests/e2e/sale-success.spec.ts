@@ -144,6 +144,7 @@ test.describe('sale success sheet', () => {
     setOrders(driver, [{ ...MUZA }, { ...BRYAN }]);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     await page.getByTestId('view-order-so-muza').click();
     await expect(page.getByTestId('store-order-sheet')).toBeVisible();
     await page.getByTestId('store-order-checkout').click();

@@ -74,6 +74,7 @@ test.describe('store order sheet', () => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     driver.mock.db.table('store_orders').push({ ...DELIVERY });
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     await page.getByTestId('view-order-so-delivery').waitFor();
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${dir}/v2j-orders-waiting.png` });
@@ -140,6 +141,7 @@ test.describe('store order sheet', () => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     driver.mock.db.table('store_orders').push({ ...DELIVERY });
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     await page.getByTestId('view-order-so-delivery').click();
     const sheet = page.getByTestId('store-order-sheet');
     await expect(sheet.getByTestId('store-order-total')).toHaveAttribute('data-total', '30000');
@@ -226,6 +228,7 @@ test.describe('store order sheet', () => {
     const long = 'Plot 14 Acacia Avenue, Block C, Apartment 12B, opposite the old Shell petrol station near Kololo Hill, Kampala Central Division, Uganda';
     driver.mock.db.table('store_orders').push({ ...DELIVERY, location_label: long });
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     await page.getByTestId('view-order-so-delivery').click();
     const sheet = page.getByTestId('store-order-sheet');
     await expect(sheet).toBeVisible();
@@ -267,6 +270,7 @@ test.describe('store order sheet', () => {
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     driver.mock.db.table('store_orders').push({ ...DELIVERY });
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     await page.getByTestId('view-order-so-delivery').click();
     const sheet = page.getByTestId('store-order-sheet');
     await expect(sheet.getByTestId('so-phone-cc')).toHaveText('+256');

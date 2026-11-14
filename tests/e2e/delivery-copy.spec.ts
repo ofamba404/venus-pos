@@ -67,7 +67,24 @@ test.describe('SafeBoda copy pills', () => {
     );
     // On credit and not cleared: the rider collects what is still owed.
     const collect = async () => {
-      await page.keyboard.press('Escape');
+      const sheet = page.getByRole('dialog', { name: 'Sale' });
+      if (await sheet.isVisible().catch(() => false)) {
+        await sheet.getByRole('button', { name: 'Close' }).click();
+        await sheet.waitFor({ state: 'hidden' });
+      }
+      // Bust the in-app sales snapshot so the mutated mock row is what we copy.
+      await page.evaluate(async () => {
+        const dbs = (indexedDB.databases ? await indexedDB.databases() : []) as { name?: string }[];
+        await Promise.all(
+          dbs.filter((d) => d.name).map(
+            (d) =>
+              new Promise<void>((resolve) => {
+                const req = indexedDB.deleteDatabase(d.name!);
+                req.onsuccess = req.onerror = req.onblocked = () => resolve();
+              }),
+          ),
+        );
+      });
       await page.reload();
       await openSale(page, 'seed-sale-1');
       await page.getByTestId('history-copy-all').click();

@@ -111,6 +111,7 @@ test.describe('flavour photos once a pack is in an order', () => {
 });
 
 test('v2h shots at 390px: plain Sell tiles, a multi-flavour Review sale line, an order card', async ({ page }) => {
+  test.setTimeout(120_000);
   mkdirSync(dir, { recursive: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -145,6 +146,7 @@ test('v2h shots at 390px: plain Sell tiles, a multi-flavour Review sale line, an
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${dir}/v2h-order-card-2.png` });
   // The storefront-shaped Buyer One order (no breakdown) gets the same gallery.
+  await page.getByRole('tab', { name: /Waiting/ }).click();
   const buyer = page.locator('article.order-card', { has: page.getByTestId('view-order-so-pending-1') });
   await buyer.scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);

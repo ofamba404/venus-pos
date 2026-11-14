@@ -35,9 +35,11 @@ test.describe('toast audit', () => {
     await createNextDriver(page, { role: 'pos_admin' });
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/next/orders');
-    const all = page.locator('[data-testid^="copy-all-"]').first();
-    await all.click();
-    await expect(all).toHaveClass(/is-done/);
+    await page.getByRole('tab', { name: /In sale/ }).click();
+    await page.getByTestId('view-order-so-confirmed-1').click();
+    const copy = page.getByTestId('so-copy-phone');
+    await copy.click();
+    await expect(copy).toHaveClass(/is-done/);
     await expect(page.locator('.v-toast')).toHaveCount(0);
   });
 

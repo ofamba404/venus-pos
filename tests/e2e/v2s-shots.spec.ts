@@ -25,7 +25,7 @@ test('v2s screenshots at 390px', async ({ page }) => {
   await cart.getByTestId('client-suggest').waitFor();
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${dir}/v2s-client-autocomplete.png` });
-  await cart.getByTestId('client-suggest').getByText('Test Client A').click();
+  await cart.getByTestId('client-suggest').getByText('Test Client A').first().click();
   await cart.locator('.delivery-block').scrollIntoViewIfNeeded();
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${dir}/v2s-cart-delivery.png` });
@@ -50,7 +50,7 @@ test('v2s screenshots at 390px', async ({ page }) => {
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${dir}/v2s-clients-chips.png` });
   await page.getByTestId('client-search').fill('Test Cli');
-  await page.getByTestId('client-list').getByText('Test Client A').waitFor();
+  await page.getByTestId('client-list').getByText('Test Client A').first().waitFor();
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${dir}/v2s-clients-search-typing.png` });
   await page.getByTestId('client-search').fill('');

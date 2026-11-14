@@ -58,10 +58,8 @@ test('v2d: money chart (profit bars, sales dots), restock, loaded order at 390px
 
   await page.goto('/next/orders');
   await hideNav(page);
-  await page.getByTestId('load-order-seed-pending-order').click();
-  await page.waitForURL(/\/sell/);
-  await page.getByTestId('loaded-order').waitFor();
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.getByTestId('view-order-seed-pending-order').click();
+  await page.getByTestId('store-order-sheet').waitFor();
   await page.waitForTimeout(600);
   await hideNav(page);
   await page.screenshot({ path: `${dir}/v2d-loaded-order.png` });

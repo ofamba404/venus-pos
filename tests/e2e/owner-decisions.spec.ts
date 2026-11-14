@@ -144,6 +144,7 @@ test.describe('owner decisions', () => {
     const row = driver.mock.db.table('store_orders').find((r) => r.id === 'so-confirmed-1')!;
     row.customer_name = longName;
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     const title = page.locator('.order-card__who .v-list-row__title', { hasText: 'Bartholomew' });
     await expect(title).toBeVisible();
     await expect(title).toHaveText(longName);

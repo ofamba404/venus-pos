@@ -84,7 +84,7 @@ test.describe('real-shaped data', () => {
     driver.mock.db.table('store_orders').push(...ACCEPTED);
     // A fresh phone session: no cart at all, but both orders are already accepted on the server.
     await page.goto('/next/orders');
-    await expect(page.getByRole('tab', { name: /In sale/ })).toHaveCount(0);
+    await page.getByRole('tab', { name: /In sale/ }).click();
     await expect(page.getByTestId('view-order-real-acc-1')).toHaveText('View order');
     await expect(page.getByTestId('confirmed-real-acc-1')).toBeVisible();
     await expect(page.getByTestId('confirm-order-real-acc-1')).toHaveCount(0);
@@ -120,6 +120,7 @@ test.describe('real-shaped data', () => {
       ],
     });
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     const card = page.locator('article.order-card', { has: page.getByTestId('view-order-real-gallery') });
     const gallery = card.getByTestId('order-gallery');
     await gallery.waitFor();
