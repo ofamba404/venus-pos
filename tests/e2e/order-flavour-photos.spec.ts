@@ -36,7 +36,7 @@ async function addPack(page: Page, id: string, flavours: string[]) {
   await page.getByTestId(`product-${id}`).click();
   for (const f of flavours) await page.getByTestId(`config-flavor-${f}-inc`).click();
   await page.getByTestId('config-add').click();
-  const sheet = page.getByRole('dialog', { name: 'Review sale' });
+  const sheet = page.getByRole('dialog', { name: 'Cart' });
   await sheet.waitFor();
   return sheet;
 }
@@ -74,6 +74,7 @@ test.describe('flavour photos once a pack is in an order', () => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     driver.mock.db.table('store_orders').push(ORDER);
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     const card = page.locator('article', { has: page.getByTestId('view-order-photo-order') });
     const gallery = card.getByTestId('order-gallery');
     await expect(gallery).toHaveAttribute('data-slides', '4');
@@ -136,6 +137,7 @@ test('v2h shots at 390px: plain Sell tiles, a multi-flavour Review sale line, an
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${dir}/v2h-sell-grid-with-pack-in-cart.png` });
   await page.goto('/next/orders');
+  await page.getByRole('tab', { name: /In sale/ }).click();
   await page.getByTestId('view-order-photo-order').waitFor();
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${dir}/v2h-order-card-1.png` });

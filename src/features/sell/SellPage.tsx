@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
-import { kampalaInputToIso, kampalaLocalInput } from '../../domain/kampala-time';
 import { itemToConfigSelection } from '../../domain/pricing/pack-config';
 import { stockNotifyDecision } from '../../domain/stock-notify';
 import { KEYS } from '../../data/keys';
@@ -28,6 +27,7 @@ import {
   orderMeta,
   dispatchCart,
   setOrderMetaPatch,
+  clearCart,
   clearCartKeepMeta,
   replaceCart,
 } from '../../data/session-cart';
@@ -45,6 +45,7 @@ import { Button } from '../../ui/Button';
 import { Money } from '../../ui/Money';
 import { Sheet } from '../../ui/Sheet';
 import { Field } from '../../ui/Field';
+import { ClientSuggest } from '../../ui/ClientSuggest';
 import { Segmented } from '../../ui/Segmented';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { FlavorPicker } from '../../ui/FlavorPicker';
@@ -53,15 +54,14 @@ import { lineCount } from '../../domain/line-count';
 import { ProductGrid } from '../../ui/ProductGrid';
 import { DeliveryBlock } from '../../ui/DeliveryBlock';
 import { CopyButton } from '../../ui/CopyButton';
-import { copyAllText, copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
-import { TimePicker } from '../../ui/TimePicker';
+import { copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
 import { cartFulfilment, saleSummaryLines } from '../../domain/sale-summary';
 import { showSaleSuccess } from '../../ui/sale-success';
 import { EmptyState } from '../../ui/EmptyState';
 import { PlaceSearch } from '../../ui/PlaceSearch';
 import { showToast } from '../../ui/ToastHost';
 import { IconButton } from '../../ui/IconButton';
-import { IconClose, IconPlus } from '../../ui/icons';
+import { IconClose } from '../../ui/icons';
 import { PhoneField } from '../../ui/PhoneField';
 
 export function SellPage() {
@@ -332,6 +332,27 @@ export function SellPage() {
     setHeldSales(await listHeld());
   }
 
+
+  function clearTheCart() {
+    const snapshot = {
+      lines: cartState.value.lines,
+      meta: cartState.value.meta,
+      draft: checkoutDraft.value,
+      payment,
+    };
+    clearCart();
+    clearCheckoutDraft();
+    setPayment('paid');
+    showToast('Cart cleared', {
+      actionLabel: 'Undo',
+      onAction: () => {
+        replaceCart(snapshot.lines, snapshot.meta);
+        setCheckoutDraft(snapshot.draft);
+        setPayment(snapshot.payment);
+      },
+    });
+  }
+
   const recentClients = clients.value.slice(0, 6);
   const credit = payment === 'credit';
   const canCharge = clientReadyForCharge(meta, credit);
@@ -343,8 +364,6 @@ export function SellPage() {
         ? 'Credit needs a client name'
         : 'Add a client to continue';
 
-  // The rider collects only when this sale is unpaid: On credit. Paid never shows a Collect line.
-  const collectNow = payment === 'credit' ? cartSum.value : 0;
   const cartBody = (
     <>
       {features.holdSale && heldSales.length ? (
@@ -369,42 +388,45 @@ export function SellPage() {
             const { qty, contents } = lineCount(line);
             return (
             <div class="v-cart-line" key={line.key}>
-              <ProductGallery productId={line.productId} breakdown={line.breakdown} size={64} testId="line-gallery" />
+              <button type="button" class="v-cart-line__photo" aria-label={`Edit ${line.name}`} onClick={() => openLine(line)}>
+                <ProductGallery productId={line.productId} breakdown={line.breakdown} size={64} testId="line-gallery" />
+              </button>
               <div class="v-cart-line__main">
-                <div class="v-cart-line__head">
-                  <div class="v-list-row__title">
-                    {line.name}
-                    {qty > 1 ? (
-                      <span class="v-qty-inline" aria-label={`Quantity ${qty}`} data-testid="line-qty">
-                        ×{qty}
-                      </span>
-                    ) : null}
+                <button type="button" class="v-cart-line__info" onClick={() => openLine(line)}>
+                  <div class="v-cart-line__head">
+                    <div class="v-list-row__title">
+                      {line.name}
+                      {qty > 1 ? (
+                        <span class="v-qty-inline" aria-label={`Quantity ${qty}`} data-testid="line-qty">
+                          ×{qty}
+                        </span>
+                      ) : null}
+                    </div>
+                    <Money className="v-money--total" value={line.isReward ? 0 : line.lineTotal} />
                   </div>
-                  <Money className="v-money--total" value={line.isReward ? 0 : line.lineTotal} />
+                  {contents ? (
+                    <div class="v-cart-line__contents" data-testid="line-contents">
+                      {contents}
+                    </div>
+                  ) : null}
+                </button>
+                <div class="v-cart-line__meta">
+                  <FlavorSwatches breakdown={line.breakdown} productId={line.productId} />
+                  <IconButton
+                    size="sm"
+                    label={`Remove ${line.name}`}
+                    onClick={() => {
+                      dispatchCart({ type: 'remove_line', key: line.key });
+                      showToast('Removed', {
+                        actionLabel: 'Undo',
+                        onAction: () => dispatchCart({ type: 'add_line', line }),
+                      });
+                    }}
+                  >
+                    <IconClose size={18} />
+                  </IconButton>
                 </div>
-                {contents ? (
-                  <div class="v-cart-line__contents" data-testid="line-contents">
-                    {contents}
-                  </div>
-                ) : null}
-                <FlavorSwatches breakdown={line.breakdown} productId={line.productId} />
               </div>
-              <IconButton size="sm" label={`Edit ${line.name}`} onClick={() => openLine(line)}>
-                <IconPlus size={18} />
-              </IconButton>
-              <IconButton
-                size="sm"
-                label={`Remove ${line.name}`}
-                onClick={() => {
-                  dispatchCart({ type: 'remove_line', key: line.key });
-                  showToast('Removed', {
-                    actionLabel: 'Undo',
-                    onAction: () => dispatchCart({ type: 'add_line', line }),
-                  });
-                }}
-              >
-                <IconClose size={18} />
-              </IconButton>
             </div>
             );
           })}
@@ -415,16 +437,14 @@ export function SellPage() {
       )}
 
       <div style={{ display: 'grid', gap: 'var(--s-3)', marginTop: 'var(--s-4)' }}>
-        <Field
-          label="Client"
-          data-testid="cart-client"
+        <ClientSuggest
           value={meta.clientName}
-          placeholder="Name"
-          onInput={(e) => {
+          onChange={(next) => {
             debtClearedRef.current = false;
             setOrderMetaPatch({
-              clientName: (e.target as HTMLInputElement).value,
-              clientId: '',
+              clientName: next.name,
+              clientId: next.id,
+              ...(next.phone ? { clientPhone: next.phone } : {}),
             });
           }}
         />
@@ -542,27 +562,6 @@ export function SellPage() {
                 value={() => copyPhoneText(orderMeta.value.clientPhone)}
               />
             </div>
-            <TimePicker
-              value={kampalaLocalInput(meta.deliveryDeliverAt)}
-              onChange={(value) => setOrderMetaPatch({ deliveryDeliverAt: kampalaInputToIso(value) })}
-            />
-            <div class="v-copy-row v-copy-row--end">
-              <CopyButton
-                kind="all"
-                label="Copy all"
-                testId="copy-all"
-                value={() =>
-                  copyAllText({
-                    name: orderMeta.value.clientName,
-                    phone: orderMeta.value.clientPhone,
-                    place: checkoutDraft.value.destText || orderMeta.value.deliveryLocationLabel || '',
-                    lat: checkoutDraft.value.dest?.lat ?? null,
-                    lng: checkoutDraft.value.dest?.lng ?? null,
-                    collect: collectNow,
-                  })
-                }
-              />
-            </div>
             {draft.distanceKm != null ? (
               <p class="v-muted">
                 {Number(draft.distanceKm).toFixed(1)} km
@@ -578,6 +577,11 @@ export function SellPage() {
           <span class="cart-total__label">Total</span>
           <Money className="v-money--total" value={cartSum.value} size="xl" />
         </div>
+        {lines.length ? (
+          <Button size="md" variant="ghost" data-testid="clear-cart" onClick={clearTheCart}>
+            Clear cart
+          </Button>
+        ) : null}
         {features.holdSale && lines.length ? (
           <Button size="md" variant="ghost" data-testid="hold-sale" onClick={() => void parkSale()}>
             Hold on this phone
@@ -647,7 +651,7 @@ export function SellPage() {
           <span class="cart-bar__meta">
             {cartCount.value} item{cartCount.value === 1 ? '' : 's'} · {formatUGX(cartSum.value)}
           </span>
-          <span class="cart-bar__cta">Review sale</span>
+          <span class="cart-bar__cta">Cart</span>
         </button>
       ) : null}
 
@@ -685,7 +689,7 @@ export function SellPage() {
 
       <Sheet
         open={cartOpen}
-        title="Review sale"
+        title="Cart"
         onClose={() => setCartOpen(false)}
         dismissible={false}
         footer={

@@ -259,6 +259,7 @@ export function HistoryPage() {
               </div>
             ))}
             <DeliveryCopyRow
+              includeAll
               delivery={open.delivery_enabled === true || Boolean(String(open.location_label || ''))}
               name={clients.value.find((c) => c.id === open.client_id)?.name || ''}
               phone={String(open.client_phone || '')}

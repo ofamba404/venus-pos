@@ -48,24 +48,19 @@ test('capture the contrast pass at 390px', async ({ page }) => {
   await page.screenshot({ path: `${dir}/contrast-insights-kpi-tiles.png`, fullPage: true });
 
   await page.goto('/next/orders');
-  await page.getByTestId('load-order-ct-delivery').waitFor({ timeout: 20_000 });
+  await page.getByRole('tab', { name: /In sale/ }).click();
+  await page.getByTestId('view-order-ct-delivery').waitFor({ timeout: 20_000 });
   await page.waitForTimeout(500);
   await hideNav();
   await page.locator('article.v-order-card').first().screenshot({ path: `${dir}/contrast-order-card.png` });
 
-  await page.getByTestId('load-order-ct-delivery').click();
-  await page.waitForURL(/\/sell/);
-  await page.getByTestId('loaded-order').waitFor();
-  await page.waitForTimeout(4500);
+  await page.getByTestId('view-order-ct-delivery').click();
+  await page.getByTestId('store-order-sheet').waitFor();
+  await page.waitForTimeout(800);
   await hideNav();
   await page.screenshot({ path: `${dir}/contrast-loaded-order-card.png` });
-
-  await page.getByTestId('cart-bar').click();
-  const review = page.getByRole('dialog', { name: 'Review sale' });
-  await review.waitFor();
-  await page.waitForTimeout(4500);
   await page.screenshot({ path: `${dir}/contrast-checkout-header-and-lines.png` });
-  await review.getByTestId('copy-all').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await page.getByTestId('so-copy-place').evaluate((el) => el.scrollIntoView({ block: 'center' }));
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${dir}/contrast-checkout-delivery-block-and-total.png` });
 });

@@ -11,15 +11,15 @@ import { isFresh } from '../data/freshness';
 import { readConnection, scheduleIdlePrefetch, shouldSkipPrefetch, staleEntities } from '../data/prefetch';
 import { KEYS } from '../data/keys';
 import { SCHEDULE_POLL_MS, tickLocalSchedules } from '../domain/schedule-notify';
+import { orderSegment } from '../domain/order-segment';
 import { ToastHost, showToast } from '../ui/ToastHost';
 import { SaleSuccessSheet } from '../ui/SaleSuccessSheet';
 import { IconSell, IconOrders, IconStock, IconMore } from '../ui/icons';
-import { SellPage } from '../features/sell/SellPage';
 
 const page = (load: () => Promise<{ default: ComponentType }>) => lazy(load);
 
 const PAGES = {
-  sell: SellPage,
+  sell: page(() => import('../features/sell/SellPage').then((m) => ({ default: m.SellPage }))),
   orders: page(() => import('../features/orders/OrdersPage').then((m) => ({ default: m.OrdersPage }))),
   stock: page(() => import('../features/stock/StockPage').then((m) => ({ default: m.StockPage }))),
   more: page(() => import('../features/more/MorePage').then((m) => ({ default: m.MorePage }))),
@@ -119,9 +119,7 @@ export function App() {
 
   const ready = authReady.value;
   const route = currentRoute();
-  const waitingOrders = storeOrders.value.filter(
-    (order) => order.status === 'pending' || order.status === 'confirmed',
-  ).length;
+  const waitingOrders = storeOrders.value.filter((order) => orderSegment(order) !== 'closed').length;
 
   useEffect(() => {
     if (!ready) return;
@@ -161,13 +159,15 @@ export function App() {
               aria-current={on ? 'page' : undefined}
               onClick={() => go(r.path)}
             >
-              {Icon ? <Icon /> : null}
+              <span class="shell__nav-icon">
+                {Icon ? <Icon /> : null}
+                {r.id === 'orders' && waitingOrders > 0 ? (
+                  <span class="shell__nav-badge" data-testid="orders-badge">
+                    {waitingOrders > 9 ? '9+' : waitingOrders}
+                  </span>
+                ) : null}
+              </span>
               <span>{r.title}</span>
-              {r.id === 'orders' && waitingOrders > 0 ? (
-                <span class="shell__nav-badge" data-testid="orders-badge">
-                  {waitingOrders}
-                </span>
-              ) : null}
             </button>
           );
         })}

@@ -13,7 +13,7 @@ test('recent-client scout sale is at most 6 taps', async ({ page }) => {
   await tap(page.getByTestId('product-scout'));
   await tap(page.getByTestId('config-flavor-mint-inc'));
   await tap(page.getByTestId('config-add'));
-  const review = page.getByRole('dialog', { name: 'Review sale' });
+  const review = page.getByRole('dialog', { name: 'Cart' });
   await tap(review.getByRole('button', { name: 'Test Client A' }).first());
   await tap(review.getByTestId('charge'));
   expect(taps).toBeLessThanOrEqual(6);
@@ -39,10 +39,10 @@ test('undo puts a removed line back', async ({ page }) => {
   await page.goto('/next/sell');
   await page.getByTestId('product-plain_single').click();
   await page.getByTestId('config-add').click();
-  const review = page.getByRole('dialog', { name: 'Review sale' });
+  const review = page.getByRole('dialog', { name: 'Cart' });
   await review.getByRole('button', { name: /Remove Plain/i }).click();
   await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
-  await expect(page.getByRole('dialog', { name: 'Review sale' }).getByText('Plain').first()).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Cart' }).getByText('Plain').first()).toBeVisible();
 });
 
 test('tile to config sheet is under 100ms in the page', async ({ page }) => {
@@ -78,7 +78,7 @@ test('a recent client with credit shows an owes hint', async ({ page }) => {
   await page.goto('/next/sell');
   await page.getByTestId('product-plain_single').click();
   await page.getByTestId('config-add').click();
-  const review = page.getByRole('dialog', { name: 'Review sale' });
+  const review = page.getByRole('dialog', { name: 'Cart' });
   await expect(review.getByText(/owes UGX/).first()).toBeVisible();
 });
 

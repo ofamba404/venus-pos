@@ -129,6 +129,11 @@ test.describe('one Clients list for POS clients and storefront accounts', () => 
     await page.getByRole('status').filter({ hasText: 'User verified' }).waitFor();
     await sheet.getByTestId('store-user-reset').click();
     await expect(sheet.getByTestId('store-reset-code')).toContainText('ABCD-2345');
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await expect(sheet.getByTestId('copy-reset-code')).toBeVisible();
+    await sheet.getByTestId('copy-reset-code').click();
+    await expect(sheet.getByTestId('copy-reset-code')).toHaveText('Copied');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('ABCD-2345');
 
     const patches = driver.mock.writes.filter((w) => w.method === 'PATCH' && w.url.includes('store_accounts'));
     expect(patches.map((w) => w.body)).toEqual([{ pos_display_name: 'Counter 1' }, { verified: true }]);
@@ -281,5 +286,26 @@ test.describe('Clients visuals', () => {
     expect(payments).toHaveLength(1);
     // The schema's method column still gets a fixed default.
     expect(payments[0]!.body).toMatchObject({ amount_ugx: 5000, method: 'cash', note: 'Cleared at counter' });
+  });
+
+  test('while the search is focused, chips and Copy names hide and matches sit under the field', async ({ page }) => {
+    await createNextDriver(page, { role: 'pos_admin' });
+    await page.setViewportSize({ width: 390, height: 500 });
+    await page.goto('/next/clients');
+    await page.getByTestId('client-filters').waitFor();
+    const search = page.getByTestId('client-search');
+    await search.click();
+    await search.fill('Test Cli');
+    await expect(page.getByTestId('client-filters')).toHaveCount(0);
+    await expect(page.getByTestId('copy-client-names')).toHaveCount(0);
+    await expect(page.getByTestId('client-add')).toHaveCount(0);
+    const list = page.getByTestId('client-list');
+    const match = list.getByRole('button').first();
+    await expect(match).toBeVisible();
+    const searchBox = (await search.boundingBox())!;
+    const row = (await match.boundingBox())!;
+    expect(row.y).toBeGreaterThan(searchBox.y);
+    expect(row.y).toBeLessThan(500);
+    expect(row.y - (searchBox.y + searchBox.height)).toBeLessThan(120);
   });
 });

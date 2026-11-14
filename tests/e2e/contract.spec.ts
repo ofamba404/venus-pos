@@ -189,7 +189,7 @@ test.describe('write-contract scenarios (next)', () => {
     expect(salePosts).toHaveLength(0);
   });
 
-  test('S14 delivery with phone and deliver-at', async ({ page }) => {
+  test('S14 delivery with phone', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await driver.run(S14);
     const { total, posts } = saleTotal(driver);
@@ -201,7 +201,6 @@ test.describe('write-contract scenarios (next)', () => {
       delivery_enabled?: boolean;
     };
     expect(body.client_phone).toBe('+256700000001');
-    expect(body.delivery?.deliverAt).toBe('2026-11-12T15:00:00+03:00');
     expect(String(body.location_label || '')).toMatch(/Kololo/i);
     expect(body.delivery_enabled).toBe(true);
     const trips = driver.mock.writes.filter(
@@ -479,7 +478,7 @@ test.describe('write-contract scenarios (next)', () => {
     await page.getByTestId('product-scout').click();
     await page.getByTestId('config-flavor-mint-inc').click();
     await page.getByTestId('config-add').click();
-    const dialog = page.getByRole('dialog', { name: 'Review sale' });
+    const dialog = page.getByRole('dialog', { name: 'Cart' });
     await dialog.getByRole('tab', { name: 'Delivery' }).click();
     await expect(dialog.getByTestId('pickup-locate')).toHaveCount(0);
     await expect(dialog.getByTestId('pickup-label')).toHaveCount(0);

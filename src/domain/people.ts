@@ -169,6 +169,9 @@ export function filterPeople(people: Person[], filter: PersonFilter, query: stri
     if (!matchesFilter(person, filter)) return false;
     if (!q) return true;
     if (person.name.toLowerCase().includes(q)) return true;
+    const alias = String(person.account?.pos_display_name || '').toLowerCase();
+    const snap = String(person.account?.snapchat_name || '').toLowerCase();
+    if (alias.includes(q) || snap.includes(q)) return true;
     if (qDigits.length >= 3 && localPhoneDigits(person.phone).includes(localPhoneDigits(qDigits))) return true;
     return false;
   });

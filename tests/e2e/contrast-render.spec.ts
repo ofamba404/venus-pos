@@ -35,8 +35,10 @@ test.describe('rendered contrast on the screens with tints', () => {
       { product_id: 'variety', product_name: 'Variety Pack', line_total: 50000, breakdown: { mint: 1, strawberry: 1, blueberry: 1, watermelon: 1, grape: 1, coconut: 1, melon: 1, classic: 1 } },
     ];
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     await page.getByTestId('view-order-so-confirmed-1').waitFor();
     expect(await contrast(page)).toEqual([]);
+    await page.getByRole('tab', { name: /In sale/ }).click();
     await page.getByTestId('view-order-so-confirmed-1').click();
     await page.getByTestId('store-order-sheet').waitFor();
     expect(await contrast(page)).toEqual([]);

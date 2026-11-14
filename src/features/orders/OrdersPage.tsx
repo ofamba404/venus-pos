@@ -9,8 +9,8 @@ import { showToast } from '../../ui/ToastHost';
 import { itemsImageSlides } from '../../domain/product-art';
 import { EmptyState } from '../../ui/EmptyState';
 import { OrderCard } from '../../ui/OrderCard';
-import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
 import { KEYS } from '../../data/keys';
+import { deliveryTimePill } from '../../domain/delivery-time';
 import { ConfirmButton, ConfirmedTag } from '../../ui/ConfirmOrder';
 import { confirmStoreOrder, isOrderConfirmed } from './confirm-order';
 import { closeStoreOrder, openStoreOrder, openStoreOrderId } from './open-store-order';
@@ -63,7 +63,7 @@ function orderTitle(o: StoreOrderRow, labels: PosLabelIndex) {
   );
 }
 
-/** Where a closed order ended up: Cancelled (red), Completed or Closed (neutral). Waiting orders carry Delivery/Pickup and Confirmed tags instead. */
+/** Where a closed order ended up: Cancelled (red), Completed or Closed (neutral). Open orders carry Delivery/Pickup, time, and Confirmed tags instead. */
 function statusTag(seg: OrderSegment, o: StoreOrderRow) {
   if (seg !== 'closed') return null;
   if (o.status === 'cancelled') return <Tag tone="danger" testId={`status-${o.id}`}>Cancelled</Tag>;
@@ -96,7 +96,7 @@ export function OrdersPage() {
   }, []);
 
   const list = storeOrders.value.filter((o) => orderSegment(o) === seg);
-  const counts = { waiting: 0, closed: 0 } as Record<OrderSegment, number>;
+  const counts = { waiting: 0, in_sale: 0, closed: 0 } as Record<OrderSegment, number>;
   for (const o of storeOrders.value) counts[orderSegment(o)] += 1;
   const viewing = storeOrders.value.find((o) => o.id === viewId) || null;
 
@@ -156,6 +156,7 @@ export function OrdersPage() {
           onChange={setSeg}
           options={[
             { id: 'waiting', label: 'Waiting', count: counts.waiting },
+            { id: 'in_sale', label: 'In sale', count: counts.in_sale },
             { id: 'closed', label: 'Closed', count: counts.closed },
           ]}
         />
@@ -163,7 +164,16 @@ export function OrdersPage() {
 
       {loading ? <div class="v-skeleton" data-testid="orders-loading" /> : null}
       {!loading && !list.length ? (
-        <EmptyState title="No orders here" body="New storefront orders will show up in Waiting" />
+        <EmptyState
+          title="No orders here"
+          body={
+            seg === 'in_sale'
+              ? 'Confirmed orders you are ringing up will show up in In sale'
+              : seg === 'closed'
+                ? 'Cancelled and completed orders will show up in Closed'
+                : 'New storefront orders will show up in Waiting'
+          }
+        />
       ) : null}
 
       <div class="v-stagger">
@@ -171,25 +181,7 @@ export function OrdersPage() {
           const items = Array.isArray(o.items) ? o.items : [];
           // Storefront orders spell products and flavours their own way (cookie-duet, flavors: [...]). Read them like the lines below do.
           const photos = itemsImageSlides(items.map(orderLine));
-          const phone = String(o.phone_e164 || o.phone || '');
-          const place = String(o.location_label || '');
-          const copyRow = (
-              <DeliveryCopyRow
-                compact
-                allOnly
-                delivery={o.delivery_enabled !== false}
-                name={orderTitle(o, labels)}
-                phone={phone}
-                place={place}
-                lat={o.location_lat}
-                lng={o.location_lng}
-                // Store orders have no paid / unpaid field (status, sale_id, delivery_fee_ugx and items only),
-                // so Copy all leaves Collect out. Showing it could send a rider to collect money already paid.
-                collect={0}
-                idPrefix="copy-"
-                idSuffix={`-${o.id}`}
-              />
-          );
+          const when = deliveryTimePill(o.delivery);
           return (
           <OrderCard
             key={o.id}
@@ -205,15 +197,19 @@ export function OrdersPage() {
                 <Tag tone={o.delivery_enabled === false ? 'default' : 'bronze'}>
                   {o.delivery_enabled === false ? 'Pickup' : 'Delivery'}
                 </Tag>
+                {when ? (
+                  <Tag tone="default" testId={`time-pill-${o.id}`}>
+                    {when}
+                  </Tag>
+                ) : null}
                 {isOrderConfirmed(o) ? <ConfirmedTag testId={`confirmed-${o.id}`} /> : null}
               </>
             }
           >
             <div class="v-order-card__actions">
-              {seg === 'waiting' ? (
+              {seg === 'waiting' || seg === 'in_sale' ? (
                 <>
-                  {/* One primary action at a time: Confirm while the order is pending, View order once it is confirmed. */}
-                  {!isOrderConfirmed(o) ? (
+                  {seg === 'waiting' && !isOrderConfirmed(o) ? (
                     <ConfirmButton
                       testId={`confirm-order-${o.id}`}
                       onConfirm={() => confirmStoreOrder(o.id)}
@@ -221,19 +217,17 @@ export function OrdersPage() {
                   ) : null}
                   <Button
                     size="md"
-                    variant={isOrderConfirmed(o) ? 'primary' : 'secondary'}
+                    variant={seg === 'in_sale' || isOrderConfirmed(o) ? 'primary' : 'secondary'}
                     data-testid={`view-order-${o.id}`}
                     onClick={() => openStoreOrder(o.id)}
                   >
                     View order
                   </Button>
-                  {copyRow}
                   <Button size="md" variant="ghost" data-testid={`cancel-order-${o.id}`} onClick={() => void cancelOrder(o)}>
                     Cancel
                   </Button>
                 </>
               ) : null}
-              {seg === 'closed' ? copyRow : null}
               {seg === 'closed' && !o.dismissed_at ? (
                 <Button
                   size="md"
@@ -254,7 +248,6 @@ export function OrdersPage() {
         order={viewing}
         title={viewing ? orderTitle(viewing, labels) : ''}
         onClose={closeSheet}
-        onCancel={cancelOrder}
       />
     </section>
   );

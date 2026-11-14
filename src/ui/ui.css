@@ -185,10 +185,35 @@
   gap: 10px;
   padding: 10px 0;
   border-bottom: 1px solid var(--line);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.v-cart-line__photo,
+.v-cart-line__info {
+  appearance: none;
+  display: block;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.v-cart-line__photo {
+  flex: none;
 }
 
 .v-cart-line__main {
   flex: 1;
+  min-width: 0;
+}
+
+.v-cart-line__info {
+  width: 100%;
   min-width: 0;
 }
 
@@ -197,6 +222,31 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+}
+
+.v-cart-line__head .v-list-row__title {
+  flex: 1;
+  min-width: 0;
+}
+
+.v-cart-line__head .v-money {
+  flex: none;
+  white-space: nowrap;
+}
+
+.v-cart-line__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  min-width: 0;
+}
+
+.v-cart-line__meta .v-swatches {
+  flex: 1;
+  margin-top: 0;
 }
 
 .v-swatches {
@@ -855,9 +905,28 @@ button.kpi-tile {
 .delivery-block {
   display: grid;
   gap: 12px;
-  padding: 12px;
-  border-radius: var(--r-lg);
-  background: var(--wash);
+  padding: 0;
+  min-width: 0;
+  max-width: 100%;
+  background: transparent;
+}
+
+.delivery-block .v-field__input,
+.delivery-block .v-phone,
+.delivery-block .v-place .v-field__input {
+  background: #f4f3f0;
+  border-color: #d6d4cf;
+}
+
+.delivery-block .v-phone__cc {
+  background: #ecebe8;
+  border-right-color: #d6d4cf;
+}
+
+.delivery-block .v-field__input:focus,
+.delivery-block .v-phone:focus-within {
+  border-color: #b0aea8;
+  box-shadow: 0 0 0 3px rgb(33 33 33 / 6%);
 }
 
 .delivery-block .v-section-label {
@@ -917,18 +986,24 @@ button.kpi-tile {
   padding: 3px;
   border-radius: var(--r-pill);
   background: var(--surface-sunk);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .v-seg__btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 0;
   min-height: 44px;
-  padding: 0 var(--s-2);
+  padding: 0 8px;
   border-radius: var(--r-pill);
   font: var(--t-label);
   color: var(--fg-2);
   line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .v-seg__btn.is-on {
@@ -1045,7 +1120,9 @@ button.kpi-tile {
 }
 
 .v-sheet__body {
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-width: 0;
   padding: 0 var(--s-4) var(--s-4);
   flex: 1;
 }
@@ -2159,6 +2236,8 @@ body:has(.v-sheet) .v-toast-host {
   display: flex;
   align-items: flex-end;
   gap: var(--s-2);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .v-field-copy > :first-child {
@@ -2359,6 +2438,10 @@ body:has(.v-sheet) .v-toast-host {
   align-items: center;
   gap: 8px;
   width: var(--gallery-size);
+  max-width: var(--gallery-size);
+  min-width: var(--gallery-size);
+  overflow: visible;
+  contain: layout;
 }
 
 .v-gallery__frame {
@@ -2414,9 +2497,9 @@ body:has(.v-sheet) .v-toast-host {
 }
 
 .v-gallery__qty {
-  /* On the tile's bottom-right corner, outside the photo, with a white ring: the number is never covered or clipped by the picture. */
+  /* On the tile's top-right corner, outside the photo, with a white ring: the number is never covered or clipped by the picture. */
   position: absolute;
-  bottom: -5px;
+  top: -5px;
   right: -5px;
   z-index: 1;
   min-width: 20px;
@@ -2562,7 +2645,7 @@ body:has(.v-sheet) .v-toast-host {
 }
 
 .v-gallery--mini .v-gallery__qty {
-  bottom: -4px;
+  top: -4px;
   right: -4px;
   min-width: 18px;
   padding: 1px 5px;
@@ -3301,4 +3384,87 @@ body:has(.v-sheet) .v-toast-host {
 .v-phone--ro .v-phone__cc {
   background: #ecebe8;
   border-right-color: #d6d4cf;
+}
+
+/* Client name typeahead under the Client field. */
+.v-suggest {
+  position: relative;
+  min-width: 0;
+}
+
+.v-suggest__list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 8;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-2);
+  max-height: 220px;
+  overflow: auto;
+}
+
+.v-suggest__opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.v-suggest__opt.is-active,
+.v-suggest__opt:hover {
+  background: var(--surface-sunk);
+}
+
+.v-suggest__name {
+  font: var(--t-body);
+}
+
+.v-suggest__meta {
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
+/* Clients search stays at the top so matches sit above the keyboard. */
+.clients-search {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  margin: 0 0 12px;
+  padding: 0 0 8px;
+  background: var(--paper-0, var(--surface));
+}
+
+.v-reset-code {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.v-reset-code p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.v-reset-code .v-copy-btn {
+  flex: none;
+  background: #f4f3f0;
+  border-color: #d6d4cf;
+  color: var(--fg);
 }

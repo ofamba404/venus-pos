@@ -112,7 +112,6 @@ export function ProductGallery({
       resume = window.setTimeout(start, RESUME_MS);
     };
     const onScroll = () => {
-      setActive(index());
       window.clearTimeout(settle);
       settle = window.setTimeout(settled, 90);
     };

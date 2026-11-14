@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
+import { CopyButton } from '../../ui/CopyButton';
 import { clients, loadClients, loadSales, sales } from '../../data/entities';
 import { loadStoreAccounts, storeAccounts } from '../../data/store-accounts';
 import {
@@ -55,36 +56,48 @@ export function ClientsPage() {
   const [resetCode, setResetCode] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<'client' | 'account' | null>(null);
 
+  const [searchFocused, setSearchFocused] = useState(false);
+
   useEffect(() => {
-    void Promise.all([loadClients(), loadSales(), loadStoreAccounts()]).catch((e) =>
-      showToast(e instanceof Error ? e.message : 'Could not load clients'),
-    );
+    void Promise.allSettled([loadClients(), loadSales(), loadStoreAccounts()]).then((results) => {
+      const failed = results.find((r) => r.status === 'rejected');
+      if (failed && failed.status === 'rejected') {
+        const e = failed.reason;
+        showToast(e instanceof Error ? e.message : 'Could not load clients');
+      }
+    });
   }, []);
+
+  // Read signals during render so the list updates when any of the three finishes loading.
+  const clientRows = clients.value;
+  const saleRows = sales.value;
+  const accountRows = storeAccounts.value;
+  const searching = searchFocused || q.trim().length > 0;
 
   const people = useMemo(() => {
     const owedByClient = new Map<string, number>();
-    for (const sale of sales.value) {
+    for (const sale of saleRows) {
       const left = creditBalance(sale);
       if (left > 0 && sale.client_id) owedByClient.set(sale.client_id, (owedByClient.get(sale.client_id) || 0) + left);
     }
     const lastOrderByClient = new Map<string, string>();
-    for (const sale of sales.value) {
+    for (const sale of saleRows) {
       if (!sale.client_id || !sale.created_at) continue;
       const prev = lastOrderByClient.get(sale.client_id);
       if (!prev || new Date(sale.created_at).getTime() > new Date(prev).getTime()) {
         lastOrderByClient.set(sale.client_id, sale.created_at);
       }
     }
-    const merged = mergePeople(clients.value, storeAccounts.value, { owedByClient, lastOrderByClient });
+    const merged = mergePeople(clientRows, accountRows, { owedByClient, lastOrderByClient });
     return merged.sort((a, b) => b.owed - a.owed || a.name.localeCompare(b.name));
-  }, [clients.value, storeAccounts.value, sales.value]);
+  }, [clientRows, accountRows, saleRows]);
 
   const counts = filterCounts(people);
   const list = filterPeople(people, filter, q);
   const visible = list.slice(0, shown);
   const open = openKey ? people.find((p) => p.key === openKey) || null : null;
 
-  const openSales = open?.client ? getClientOutstandingCredit(sales.value, open.client.id) : [];
+  const openSales = open?.client ? getClientOutstandingCredit(saleRows, open.client.id) : [];
   const owed = sumCreditOwed(openSales);
 
   function openPerson(person: Person) {
@@ -200,6 +213,23 @@ export function ClientsPage() {
   return (
     <section>
       <h1 class="page-title">Clients</h1>
+      <div class={`clients-search${searching ? ' is-searching' : ''}`} data-testid="clients-search-wrap">
+      <input
+        class="v-field__input"
+        placeholder="Search name or phone"
+        aria-label="Search clients"
+        data-testid="client-search"
+        value={q}
+        onFocus={() => setSearchFocused(true)}
+        onBlur={() => setSearchFocused(false)}
+        onInput={(e) => {
+          setQ((e.target as HTMLInputElement).value);
+          setShown(PAGE);
+        }}
+      />
+      </div>
+      {!searching ? (
+      <>
       <div class="v-add-row">
         <Field
           label="New client"
@@ -211,18 +241,6 @@ export function ClientsPage() {
           Add
         </Button>
       </div>
-      <input
-        class="v-field__input"
-        placeholder="Search name or phone"
-        aria-label="Search clients"
-        data-testid="client-search"
-        value={q}
-        onInput={(e) => {
-          setQ((e.target as HTMLInputElement).value);
-          setShown(PAGE);
-        }}
-        style={{ marginBottom: 12 }}
-      />
       <div class="v-filter-row" role="tablist" aria-label="Filter people" data-testid="client-filters">
         {FILTERS.map((f) => (
           <button
@@ -248,7 +266,7 @@ export function ClientsPage() {
           variant="secondary"
           data-testid="copy-client-names"
           onClick={() => {
-            const text = clientNamesText(clients.value.map((c) => c.name));
+            const text = clientNamesText(clientRows.map((c) => c.name));
             void navigator.clipboard?.writeText(text);
             showToast(text ? 'Names copied' : 'No clients');
           }}
@@ -259,6 +277,8 @@ export function ClientsPage() {
           {list.length} {list.length === 1 ? 'person' : 'people'}
         </span>
       </div>
+      </>
+      ) : null}
 
       <div data-testid="client-list">
         {visible.map((person) => (
@@ -408,9 +428,20 @@ export function ClientsPage() {
                   </Button>
                 </div>
                 {resetCode ? (
-                  <p data-testid="store-reset-code">
-                    Give this once: <strong>{resetCode}</strong>. It expires in 24 hours and will not be shown again.
-                  </p>
+                  <div class="v-reset-code" data-testid="store-reset-code">
+                    <p>
+                      Give this once: <strong>{resetCode}</strong>. It expires in 24 hours and will not be shown again.
+                    </p>
+                    <CopyButton
+                      kind="text"
+                      label="Copy"
+                      doneLabel="Copied"
+                      ariaLabel="Copy reset code"
+                      compact
+                      testId="copy-reset-code"
+                      value={() => resetCode}
+                    />
+                  </div>
                 ) : (
                   <p class="v-muted">A reset code lets the client set a new store password. It is shown once.</p>
                 )}

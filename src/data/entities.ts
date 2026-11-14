@@ -181,6 +181,8 @@ async function storeClients() {
     return clients.value;
   }
   clients.value = rows;
+  // An empty answer is often a session or row-rule miss, not "there are no clients". Do not cache it as fresh.
+  if (!rows.length) return clients.value;
   await persistSnapshot('clients', rows);
   return clients.value;
 }

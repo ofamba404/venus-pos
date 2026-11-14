@@ -8,7 +8,7 @@ async function sellOne(page: Page) {
   await page.goto('/next/sell');
   await page.getByTestId('product-plain_single').click();
   await page.getByTestId('config-add').click();
-  const sheet = page.getByRole('dialog', { name: 'Review sale' });
+  const sheet = page.getByRole('dialog', { name: 'Cart' });
   await sheet.getByTestId('cart-client').fill('Test Client A');
   await sheet.getByTestId('charge').click();
   await expect(page.getByTestId('sale-success')).toBeVisible();
@@ -50,13 +50,13 @@ test.describe('sale success sheet', () => {
 
   test('the close button, a scrim tap and Escape each dismiss it', async ({ page }) => {
     await sellOne(page);
-    await expect(page.getByRole('dialog', { name: 'Review sale' })).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: 'Cart' })).toHaveCount(0);
     await page.getByRole('dialog', { name: 'Sale', exact: true }).getByRole('button', { name: 'Close' }).click();
     await expect(page.getByTestId('sale-success')).toHaveCount(0);
 
     await page.getByTestId('product-plain_single').click();
     await page.getByTestId('config-add').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
     await sheet.getByTestId('cart-client').fill('Test Client A');
     await sheet.getByTestId('charge').click();
     await expect(page.getByTestId('sale-success')).toBeVisible();
@@ -179,7 +179,7 @@ test.describe('sale success sheet', () => {
     await page.goto('/next/sell');
     await page.getByTestId('product-plain_single').click();
     await page.getByTestId('config-add').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
     await sheet.getByTestId('cart-client').fill('Test Client A');
     await sheet.getByTestId('charge').click();
     const dialog = page.getByTestId('sale-success');
@@ -201,7 +201,7 @@ test.describe('sale success sheet', () => {
     await page.goto('/next/sell');
     await page.getByTestId('product-plain_single').click();
     await page.getByTestId('config-add').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
     await sheet.getByTestId('cart-client').fill('Test Client A');
     const charge = sheet.getByTestId('charge');
     await page.waitForTimeout(500);
@@ -226,7 +226,7 @@ test.describe('sale success sheet', () => {
     await page.goto('/next/sell');
     await page.getByTestId('product-plain_single').click();
     await page.getByTestId('config-add').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
     await sheet.getByTestId('cart-client').fill('Test Client A');
     driver.mock.setLatency(2000);
     await sheet.getByTestId('charge').click();

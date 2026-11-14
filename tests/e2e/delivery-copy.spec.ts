@@ -13,44 +13,32 @@ test.describe('SafeBoda copy pills', () => {
     await page.setViewportSize({ width: 390, height: 844 });
   });
 
-  test('Orders list card keeps only Copy all: a labelled 44px pill with the exact text', async ({ page }) => {
+  test('Orders list cards have no Copy all', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/next/orders');
-    const all = page.getByTestId('copy-all-so-confirmed-1');
-    await expect(all).toHaveText('Copy all');
-    expect(Math.round((await all.boundingBox())!.height)).toBe(44);
-    // Copy phone and Copy location are gone from every Orders card. They live in the order sheet and in checkout.
-    await expect(page.locator('[data-testid^="copy-phone-"]')).toHaveCount(0);
-    await expect(page.locator('[data-testid^="copy-location-"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid^="copy-all-"]')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Copy all' })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
-
-    await all.click();
-    // The tick is the confirmation. No toast on top of it.
-    await expect(page.getByRole('status')).toHaveCount(0);
-    await expect(all).toHaveClass(/is-done/);
-    // Store orders carry no paid / unpaid field, so there is never a Collect line here.
-    expect(await clip(page)).toBe(['Name: Test Buyer Two', 'Phone: 700654321', 'Drop-off: Kololo Test', `Map: ${MAP}`].join('\n'));
   });
 
   test('no icon-only copy buttons anywhere', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
-    await page.goto('/next/orders');
-    await expect(page.getByTestId('copy-all-seed-pending-order')).toBeVisible();
-    const buttons = page.locator('.v-copy-btn');
+    await page.goto('/next/sell');
+    await page.getByTestId('product-plain_single').click();
+    await page.getByTestId('config-add').click();
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
+    await sheet.getByRole('tab', { name: 'Delivery' }).click();
+    const buttons = sheet.locator('.v-copy-btn');
     expect(await buttons.count()).toBeGreaterThan(0);
     for (const text of await buttons.allInnerTexts()) expect(text.trim().length).toBeGreaterThan(0);
+    await expect(sheet.getByTestId('copy-all')).toHaveCount(0);
   });
 
-  test('a pickup order card also has just Copy all, with name and phone', async ({ page }) => {
+  test('a pickup order card has no Copy all', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/next/orders');
-    await expect(page.getByTestId('copy-all-seed-pending-order')).toBeVisible();
-    await expect(page.getByTestId('copy-phone-seed-pending-order')).toHaveCount(0);
-    await expect(page.getByTestId('copy-location-seed-pending-order')).toHaveCount(0);
-    await page.getByTestId('copy-all-seed-pending-order').click();
-    expect(await clip(page)).toBe('Name: Store Customer\nPhone: 700000099');
+    await expect(page.getByTestId('order-card-seed-pending-order')).toBeVisible();
+    await expect(page.getByTestId('copy-all-seed-pending-order')).toHaveCount(0);
   });
 
   test('the sale sheet copies the same way, and collects only what is still owed', async ({ page }) => {
@@ -118,23 +106,21 @@ test.describe('SafeBoda copy pills', () => {
     await page.goto('/next/sell');
     await page.getByTestId('product-plain_single').click();
     await page.getByTestId('config-add').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
     await sheet.getByRole('tab', { name: 'Delivery' }).click();
     await sheet.getByTestId('cart-client').fill('Nakato');
     await sheet.getByTestId('delivery-phone').fill('+256700111222');
     // The country code is its own fixed segment. The box holds the national number only.
     await expect(sheet.getByTestId('delivery-phone-cc')).toHaveText('+256');
     await expect(sheet.getByTestId('delivery-phone')).toHaveValue('700111222');
-    // Beside a field, Copy is as tall as the field. Copy all is the plain 44px pill.
+    // Beside a field, Copy is as tall as the field. There is no Copy all.
     const phoneBox = (await sheet.getByTestId('delivery-phone').locator('xpath=ancestor::span[contains(@class,"v-phone")]').boundingBox())!;
     const placeBox = (await sheet.getByTestId('place-input').boundingBox())!;
     expect(Math.round((await sheet.getByTestId('copy-phone').boundingBox())!.height)).toBe(Math.round(phoneBox.height));
     expect(Math.round((await sheet.getByTestId('copy-location').boundingBox())!.height)).toBe(Math.round(placeBox.height));
-    expect(Math.round((await sheet.getByTestId('copy-all').boundingBox())!.height)).toBe(44);
+    await expect(sheet.getByTestId('copy-all')).toHaveCount(0);
     await sheet.getByTestId('copy-phone').click();
     expect(await clip(page)).toBe('700111222');
-    await sheet.getByTestId('copy-all').click();
-    expect(await clip(page)).toBe(['Name: Nakato', 'Phone: 700111222'].join('\n'));
     // Edit the phone and copy again: it reads the field at tap time.
     await sheet.getByTestId('delivery-phone').fill('0755000111');
     await sheet.getByTestId('copy-phone').click();
@@ -149,6 +135,7 @@ test.describe('SafeBoda copy pills', () => {
     // Store lines carry line_total and breakdown. The older seed shape only has a unit price.
     order.items = [{ product_id: 'scout', product_name: 'Scout Pack', line_total: 8000, breakdown: { strawberry: 1 } }];
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     await page.getByTestId('view-order-so-confirmed-1').click();
     const sheet = page.getByTestId('store-order-sheet');
     await sheet.waitFor();
@@ -189,9 +176,9 @@ test.describe('checkout lines and login', () => {
     await page.getByTestId('config-flavor-mint-inc').click();
     await page.getByTestId('config-flavor-grape-inc').click();
     await page.getByTestId('config-add').click();
-    await page.getByRole('dialog', { name: 'Review sale' }).waitFor();
+    await page.getByRole('dialog', { name: 'Cart' }).waitFor();
     await page.keyboard.press('Escape').catch(() => {});
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
     const pilot = sheet.locator('.v-cart-line').first();
     // One pack is just one pack: no ×1 chip. A quantity only shows when it is more than one.
     await expect(pilot.getByTestId('line-qty')).toHaveCount(0);

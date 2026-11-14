@@ -43,14 +43,14 @@ test('Orders card: Confirm writes status confirmed, shows the green tag, and Vie
   const driver = await createNextDriver(page, { role: 'pos_staff' });
   await page.goto('/next/orders');
   await page.getByTestId(`confirm-order-${PENDING}`).click();
-
+  await expect(page.getByText('Order confirmed')).toBeVisible();
+  await page.getByRole('tab', { name: /In sale/ }).click();
   const tag = page.getByTestId(`confirmed-${PENDING}`);
   await expect(tag).toBeVisible();
   await expect(tag).toHaveText(/Confirmed/);
   await expect(tag).toHaveClass(/v-tag--paid/);
   await expect(page.getByTestId(`confirm-order-${PENDING}`)).toHaveCount(0);
   await expect(page.getByTestId(`view-order-${PENDING}`)).toHaveClass(/v-btn--primary/);
-  await expect(page.getByText('Order confirmed')).toBeVisible();
 
   const writes = confirmWrites(driver);
   expect(writes).toHaveLength(1);
@@ -80,6 +80,7 @@ test('Orders card: a failed Confirm shows an error toast and keeps the button', 
 test('Orders card: an already confirmed order shows the tag and no Confirm button', async ({ page }) => {
   await createNextDriver(page, { role: 'pos_staff' });
   await page.goto('/next/orders');
+  await page.getByRole('tab', { name: /In sale/ }).click();
   await expect(page.getByTestId('confirmed-so-confirmed-1')).toBeVisible();
   await expect(page.getByTestId('confirm-order-so-confirmed-1')).toHaveCount(0);
   await expect(page.getByTestId('view-order-so-confirmed-1')).toHaveClass(/v-btn--primary/);

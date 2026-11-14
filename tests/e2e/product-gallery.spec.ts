@@ -6,7 +6,7 @@ async function addPilot(page: import('@playwright/test').Page, flavours: string[
   await page.getByTestId('product-pilot').click();
   for (const f of flavours) await page.getByTestId(`config-flavor-${f}-inc`).click();
   await page.getByTestId('config-add').click();
-  await page.getByRole('dialog', { name: 'Review sale' }).waitFor();
+  await page.getByRole('dialog', { name: 'Cart' }).waitFor();
 }
 
 test.describe('flavour photo gallery on cart lines', () => {
@@ -18,7 +18,7 @@ test.describe('flavour photo gallery on cart lines', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await createNextDriver(page, { role: 'pos_admin' });
     await addPilot(page, ['mint', 'grape']);
-    const gallery = page.getByRole('dialog', { name: 'Review sale' }).getByTestId('line-gallery');
+    const gallery = page.getByRole('dialog', { name: 'Cart' }).getByTestId('line-gallery');
     await expect(gallery).toHaveAttribute('data-slides', '2');
     const imgs = gallery.locator('[data-gallery-index] img');
     await expect(imgs).toHaveCount(2);
@@ -37,7 +37,7 @@ test.describe('flavour photo gallery on cart lines', () => {
   test('it advances by itself, and loops back to the first photo', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await addPilot(page, ['mint', 'grape']);
-    const gallery = page.getByRole('dialog', { name: 'Review sale' }).getByTestId('line-gallery');
+    const gallery = page.getByRole('dialog', { name: 'Cart' }).getByTestId('line-gallery');
     await expect(gallery.locator('.v-gallery__dot.is-active')).toHaveAttribute('data-dot', '1', { timeout: 6000 });
     await expect(gallery.locator('.v-gallery__dot.is-active')).toHaveAttribute('data-dot', '0', { timeout: 6000 });
   });
@@ -45,7 +45,7 @@ test.describe('flavour photo gallery on cart lines', () => {
   test('one flavour is a single plain photo with no dots, and a count badge when more than one', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_admin' });
     await addPilot(page, ['mint', 'mint']);
-    const gallery = page.getByRole('dialog', { name: 'Review sale' }).getByTestId('line-gallery');
+    const gallery = page.getByRole('dialog', { name: 'Cart' }).getByTestId('line-gallery');
     await expect(gallery).toHaveAttribute('data-slides', '1');
     await expect(gallery.locator('.v-gallery__dot')).toHaveCount(0);
     await expect(gallery.locator('img')).toHaveAttribute('src', /scout-mint\.webp/);

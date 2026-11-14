@@ -44,13 +44,13 @@ test('capture 390px screens', async ({ page, browser, baseURL }) => {
   await page.getByRole('dialog').last().getByRole('button', { name: 'Close' }).click();
   await page.getByTestId('product-plain_single').click();
   await page.getByTestId('config-add').click();
-  await page.getByRole('dialog', { name: 'Review sale' }).waitFor();
-  await page.getByRole('dialog', { name: 'Review sale' }).getByRole('tab', { name: 'Delivery' }).click();
-  await page.getByRole('dialog', { name: 'Review sale' }).getByTestId('delivery-phone').fill('+256700111222');
+  await page.getByRole('dialog', { name: 'Cart' }).waitFor();
+  await page.getByRole('dialog', { name: 'Cart' }).getByRole('tab', { name: 'Delivery' }).click();
+  await page.getByRole('dialog', { name: 'Cart' }).getByTestId('delivery-phone').fill('+256700111222');
   await frame();
   // The sheet is fixed to the screen, so shoot the viewport with the copy buttons scrolled into it.
   await page
-    .getByRole('dialog', { name: 'Review sale' })
+    .getByRole('dialog', { name: 'Cart' })
     .getByTestId('copy-phone')
     .evaluate((el) => el.scrollIntoView({ block: 'center' }));
   await page.screenshot({ path: `${dir}/review-sheet.png` });

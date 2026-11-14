@@ -19,6 +19,7 @@ for (const width of [390, 360]) {
     const hideNav = () => page.addStyleTag({ content: '.shell__nav{display:none!important}' });
 
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     await page.getByTestId('view-order-so-confirmed-1').waitFor({ timeout: 20_000 });
     await page.waitForTimeout(500);
     await hideNav();
@@ -44,6 +45,7 @@ for (const width of [390, 360]) {
     await page.screenshot({ path: `${dir}/namewrap-clients-${width}.png` });
 
     await page.goto('/next/orders');
+    await page.getByRole('tab', { name: /In sale/ }).click();
     await page.getByTestId('view-order-so-confirmed-1').click();
     await page.getByTestId('store-order-sheet').waitFor();
     await page.waitForTimeout(600);

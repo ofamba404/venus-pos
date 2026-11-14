@@ -46,6 +46,7 @@ for (const width of [360, 390]) {
       const driver = await createNextDriver(page, { role: 'pos_admin' });
       driver.mock.db.table('store_orders').find((r) => r.id === 'so-confirmed-1')!.customer_name = LONG;
       await page.goto('/next/orders');
+      await page.getByRole('tab', { name: /In sale/ }).click();
       const title = page.locator('.order-card__who .v-list-row__title', { hasText: 'Wolfeschlegelstein' });
       await expectWhole(page, title);
       const card = page.locator('article.v-order-card', { has: title });
@@ -67,6 +68,7 @@ for (const width of [360, 390]) {
         { product_id: 'scout', product_name: 'Scout Pack', line_total: 8000, breakdown: { strawberry: 1 } },
       ];
       await page.goto('/next/orders');
+      await page.getByRole('tab', { name: /In sale/ }).click();
       await page.getByTestId('view-order-so-confirmed-1').click();
       await expectWhole(page, page.getByTestId('store-order-name'));
     });
@@ -96,6 +98,7 @@ for (const width of [360, 390]) {
       const driver = await createNextDriver(page, { role: 'pos_admin' });
       driver.mock.db.table('store_orders').find((r) => r.id === 'so-confirmed-1')!.customer_name = 'W'.repeat(60);
       await page.goto('/next/orders');
+      await page.getByRole('tab', { name: /In sale/ }).click();
       const title = page.locator('.order-card__who .v-list-row__title', { hasText: 'WWWW' });
       await expect(title).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);

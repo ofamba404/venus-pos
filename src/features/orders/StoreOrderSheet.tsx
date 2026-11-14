@@ -65,13 +65,11 @@ function StoreOrderBody({
   order,
   title,
   onClose,
-  onCancel,
 }: {
   shown: boolean;
   order: StoreOrderRow;
   title: string;
   onClose: () => void;
-  onCancel: (order: StoreOrderRow) => Promise<void> | void;
 }) {
   const mapped = mapStoreOrderToCart({ ...order, items: (order.items || []) as never }, { customerName: title });
   const raw = Array.isArray(order.items) ? order.items : [];
@@ -80,7 +78,6 @@ function StoreOrderBody({
   const credit = order.is_credit === true;
   const [fee, setFee] = useState(order.delivery_fee_ugx != null ? String(Math.round(Number(order.delivery_fee_ugx) || 0)) : '');
   const [paying, setPaying] = useState(false);
-  const [armed, setArmed] = useState(false);
   // Warm the stock read while the sheet is being read, so Checkout does not wait on it.
   useEffect(() => {
     if (open && !inventoryFresh()) void ensureInventory().catch(() => {});
@@ -133,20 +130,6 @@ function StoreOrderBody({
     <div class="v-so-foot">
       <Button size="xl" data-testid="store-order-checkout" loading={paying} onClick={() => void checkout()}>
         {`Checkout ${formatUGX(items)}`}
-      </Button>
-      <Button
-        size="md"
-        variant="ghost"
-        data-testid="store-order-cancel"
-        onClick={() => {
-          if (!armed) {
-            setArmed(true);
-            return;
-          }
-          void Promise.resolve(onCancel(order)).then(onClose);
-        }}
-      >
-        {armed ? 'Tap again to cancel this order' : 'Cancel order'}
       </Button>
     </div>
   ) : null;
@@ -273,12 +256,10 @@ export function StoreOrderSheet({
   order,
   title,
   onClose,
-  onCancel,
 }: {
   order: StoreOrderRow | null;
   title: string;
   onClose: () => void;
-  onCancel: (order: StoreOrderRow) => Promise<void> | void;
 }) {
   // Keep the last order while the sheet slides away, so it does not blank mid-close.
   const last = useRef<{ order: StoreOrderRow; title: string } | null>(null);
@@ -286,6 +267,6 @@ export function StoreOrderSheet({
   const held = last.current;
   if (!held) return null;
   return (
-    <StoreOrderBody key={held.order.id} shown={Boolean(order)} order={held.order} title={held.title} onClose={onClose} onCancel={onCancel} />
+    <StoreOrderBody key={held.order.id} shown={Boolean(order)} order={held.order} title={held.title} onClose={onClose} />
   );
 }

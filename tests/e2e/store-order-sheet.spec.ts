@@ -49,7 +49,7 @@ test.describe('store order sheet', () => {
     await page.getByTestId('config-flavor-mint-inc').click();
     await page.getByTestId('config-flavor-grape-inc').click();
     await page.getByTestId('config-add').click();
-    const cart = page.getByRole('dialog', { name: 'Review sale' });
+    const cart = page.getByRole('dialog', { name: 'Cart' });
     await expect(cart).toBeVisible();
     await expect(cart.getByTestId('cart-client')).toBeVisible();
     await expect(cart.getByText('Store order')).toHaveCount(0);
@@ -93,7 +93,7 @@ test.describe('store order sheet', () => {
     await expect(qty).toHaveText('×2');
     const photo = (await gallery.locator('.v-gallery__viewport').boundingBox())!;
     const badge = (await qty.boundingBox())!;
-    expect(badge.y + badge.height / 2).toBeGreaterThan(photo.y + photo.height / 2);
+    expect(badge.y + badge.height / 2).toBeLessThan(photo.y + photo.height / 2);
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${dir}/v2q-qty-badge.png` });
     await expect(sheet.getByTestId('so-place-value')).toContainText('Acacia Avenue');
@@ -185,7 +185,7 @@ test.describe('store order sheet', () => {
     await expect(page.getByTestId('status-so-delivery')).toHaveText('Completed');
   });
 
-  test('a pickup order shows no drop-off or fee, and Cancel order takes two taps', async ({ page }) => {
+  test('a pickup order shows no drop-off or fee, and the sheet footer has no Cancel', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     await page.goto('/next/orders');
     await page.getByTestId('view-order-seed-pending-order').click();
@@ -194,15 +194,10 @@ test.describe('store order sheet', () => {
     await expect(sheet.getByTestId('so-place')).toHaveCount(0);
     await expect(sheet.getByTestId('store-order-fee')).toHaveCount(0);
     await expect(sheet.getByTestId('store-order-confirm')).toBeVisible();
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: `${dir}/v2j-store-order-sheet-pickup.png` });
-
-    await page.getByTestId('store-order-cancel').click();
-    await expect(page.getByTestId('store-order-cancel')).toHaveText(/again/);
-    expect(driver.mock.writes.filter((w) => w.url.includes('/api/store-order/reserve'))).toHaveLength(0);
-    await page.getByTestId('store-order-cancel').click();
+    await expect(page.getByTestId('store-order-cancel')).toHaveCount(0);
+    await page.getByRole('dialog', { name: 'Store order' }).getByRole('button', { name: 'Close' }).click();
+    await page.getByTestId('cancel-order-seed-pending-order').click();
     await expect(page.getByText(/Cancelled/)).toBeVisible();
-    await expect(page.getByTestId('store-order-sheet')).toHaveCount(0);
     const ops = driver.mock.writes.filter((w) => w.url.includes('/api/store-order/reserve')).map((w) => (w.body as { op: string }).op);
     expect(ops).toEqual(['release']);
   });
@@ -235,7 +230,6 @@ test.describe('store order sheet', () => {
     const sheet = page.getByTestId('store-order-sheet');
     await expect(sheet).toBeVisible();
     const place = sheet.getByTestId('so-place-value');
-    const phone = sheet.getByTestId('so-phone-box');
     await expect(place).toHaveText(long);
     const [pb, hb, pc, hc] = await Promise.all([
       place.boundingBox(),
@@ -259,7 +253,7 @@ test.describe('store order sheet', () => {
     await page.goto('/next/sell');
     await page.getByTestId('product-plain_single').click();
     await page.getByTestId('config-add').click();
-    const cart = page.getByRole('dialog', { name: 'Review sale' });
+    const cart = page.getByRole('dialog', { name: 'Cart' });
     const input = cart.getByTestId('place-input');
     await input.fill('Plot 14 Acacia Avenue, Block C, Apartment 12B, opposite the old Shell petrol station near Kololo Hill, Kampala Central Division, Uganda');
     const [ib, cb] = await Promise.all([input.boundingBox(), cart.getByTestId('copy-location').boundingBox()]);

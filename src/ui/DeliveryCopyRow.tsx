@@ -17,30 +17,17 @@ export type DeliveryCopyRowProps = {
   /** Added after the kind, for lists: `copy-phone-${id}`. */
   idSuffix?: string;
   compact?: boolean;
-  /** Orders list cards keep one pill, Copy all, for delivery and pickup alike. */
-  allOnly?: boolean;
+  /** History keeps a Copy all pill. Cart and order cards do not. */
+  includeAll?: boolean;
 };
 
 /** Labelled pills for pasting a delivery into SafeBoda. Shows nothing when there is nothing to copy. */
 export function DeliveryCopyRow(props: DeliveryCopyRowProps) {
-  const { delivery, idPrefix, idSuffix = '', compact, allOnly } = props;
+  const { delivery, idPrefix, idSuffix = '', compact, includeAll } = props;
   const now = () => ({ ...props, ...(props.read ? props.read() : {}) });
   const hasPhone = Boolean(copyPhoneText(props.phone) || props.read);
   const hasPlace = Boolean(String(props.place || '').trim() || props.read);
-  if (!hasPhone && !(delivery && hasPlace)) return null;
-  if (allOnly) {
-    return (
-      <div class="v-copy-row v-copy-row--compact" data-testid={`${idPrefix}row${idSuffix}`}>
-        <CopyButton
-          kind="all"
-          label="Copy all"
-          compact={compact}
-          testId={`${idPrefix}all${idSuffix}`}
-          value={() => copyAllText(now())}
-        />
-      </div>
-    );
-  }
+  if (!hasPhone && !(delivery && hasPlace) && !includeAll) return null;
   return (
     <div class={`v-copy-row${compact ? ' v-copy-row--compact' : ''}`} data-testid={`${idPrefix}row${idSuffix}`}>
       {hasPhone ? (
@@ -61,7 +48,7 @@ export function DeliveryCopyRow(props: DeliveryCopyRowProps) {
           value={() => copyLocationText(now())}
         />
       ) : null}
-      {delivery ? (
+      {includeAll && delivery ? (
         <CopyButton
           kind="all"
           label="Copy all"

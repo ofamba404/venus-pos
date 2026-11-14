@@ -3,9 +3,13 @@ import { formatUGX } from '../../domain/format';
 import { orderSegment } from '../../domain/order-segment';
 import { orderTotal } from './order-view';
 
-/** The next store order still in Waiting, in the same order the tab lists them. */
+/** The next store order still to ring up: Waiting first, then In sale, in list order. */
 export function nextWaitingOrder(orders: StoreOrderRow[]): StoreOrderRow | null {
-  return orders.find((order) => orderSegment(order) === 'waiting') || null;
+  return (
+    orders.find((order) => orderSegment(order) === 'waiting') ||
+    orders.find((order) => orderSegment(order) === 'in_sale') ||
+    null
+  );
 }
 
 /** A short name for the prompt. Uses the order's own label; the sheet may refine it with account aliases. */

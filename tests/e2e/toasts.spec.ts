@@ -14,12 +14,12 @@ test.describe('toast audit', () => {
       await page.getByTestId('product-pilot').click();
       for (const f of pair) await page.getByTestId(`config-flavor-${f}-inc`).click();
       await page.getByTestId('config-add').click();
-      await page.getByRole('dialog', { name: 'Review sale' }).waitFor();
-      await page.getByRole('dialog', { name: 'Review sale' }).getByRole('button', { name: 'Close' }).click();
+      await page.getByRole('dialog', { name: 'Cart' }).waitFor();
+      await page.getByRole('dialog', { name: 'Cart' }).getByRole('button', { name: 'Close' }).click();
       await page.getByRole('dialog').waitFor({ state: 'hidden' });
     }
     await page.getByTestId('cart-bar').click();
-    const dialog = page.getByRole('dialog', { name: 'Review sale' });
+    const dialog = page.getByRole('dialog', { name: 'Cart' });
     await dialog.getByRole('button', { name: /^Remove/ }).first().click();
     const toast = page.locator('.v-toast');
     await expect(toast).toBeVisible();

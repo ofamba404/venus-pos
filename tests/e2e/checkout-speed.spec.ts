@@ -57,7 +57,7 @@ test.describe('checkout speed @ 300ms per request', () => {
     await page.goto('/next/sell');
     await page.getByTestId('product-plain_single').click();
     await page.getByTestId('config-add').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
     await sheet.getByTestId('cart-client').fill(client);
     const result = await measure(page, driver.mock, () => sheet.getByTestId('charge').click());
     return result;

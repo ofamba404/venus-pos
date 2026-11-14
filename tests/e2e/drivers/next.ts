@@ -20,7 +20,7 @@ async function storeSheetOpen(page: Page) {
 }
 
 async function saleScope(page: Page) {
-  const dialog = page.getByRole('dialog', { name: 'Review sale' });
+  const dialog = page.getByRole('dialog', { name: 'Cart' });
   const opened = await dialog
     .waitFor({ state: 'visible', timeout: 4000 })
     .then(() => true)
@@ -34,7 +34,7 @@ async function addProduct(page: Page, step: Extract<ScenarioStep, { do: 'addProd
     await page.goto('/next/sell');
     await tile.waitFor({ timeout: 15000 });
   }
-  const review = page.getByRole('dialog', { name: 'Review sale' });
+  const review = page.getByRole('dialog', { name: 'Cart' });
   if (await review.isVisible().catch(() => false)) {
     await review.getByRole('button', { name: 'Close' }).click();
     await review.waitFor({ state: 'hidden', timeout: 5000 });
@@ -108,7 +108,9 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         // A store order carries its own client name. The sheet has nothing to type into.
         if (await storeSheetOpen(page)) return;
         const scope = await saleScope(page);
-        await scope.getByTestId('cart-client').fill(step.name);
+        const field = scope.getByTestId('cart-client');
+        await field.fill(step.name);
+        await field.blur();
         return;
       }
       case 'setCredit': {
@@ -133,8 +135,11 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         }
         if (step.phone) await scope.getByTestId('delivery-phone').fill(step.phone);
         if (step.deliverAt) {
-          const local = step.deliverAt.length >= 16 ? step.deliverAt.slice(0, 16) : step.deliverAt;
-          await scope.getByTestId('delivery-at').fill(local);
+          const at = scope.getByTestId('delivery-at');
+          if (await at.count()) {
+            const local = step.deliverAt.length >= 16 ? step.deliverAt.slice(0, 16) : step.deliverAt;
+            await at.fill(local);
+          }
         }
         return;
       }

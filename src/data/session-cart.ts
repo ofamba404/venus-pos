@@ -70,6 +70,12 @@ export function clearCartKeepMeta() {
   return dispatchCart({ type: 'clear_lines' });
 }
 
+/** Empty the cart and reset client / delivery fields. */
+export function clearCart() {
+  dispatchCart({ type: 'clear_lines' });
+  return dispatchCart({ type: 'reset_meta' });
+}
+
 export function replaceCart(lines: CartLine[], meta?: Partial<OrderMeta>) {
   return dispatchCart({
     type: 'replace_all',

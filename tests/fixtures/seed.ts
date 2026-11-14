@@ -401,6 +401,7 @@ export function buildDefaultSeed() {
       location_lat: 0.33,
       location_lng: 32.59,
       delivery_fee_ugx: 7000,
+      delivery: { mode: 'scheduled', deliverAt: '2026-11-10T13:30:00.000Z' },
     },
     {
       id: 'so-accepted-1',

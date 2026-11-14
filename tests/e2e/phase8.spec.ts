@@ -32,7 +32,7 @@ test('a paid walk-in posts no client id', async ({ page }) => {
   await page.goto('/next/sell');
   await page.getByTestId('product-plain_single').click();
   await page.getByTestId('config-add').click();
-  const review = page.getByRole('dialog', { name: 'Review sale' });
+  const review = page.getByRole('dialog', { name: 'Cart' });
   await review.getByTestId('walk-in').click();
   await review.getByTestId('charge').click();
   await page.getByText(/Sale recorded/).first().waitFor({ timeout: 10000 });
@@ -50,10 +50,10 @@ test('holding a sale keeps it on this phone and posts nothing', async ({ page })
   await page.goto('/next/sell');
   await page.getByTestId('product-plain_single').click();
   await page.getByTestId('config-add').click();
-  const review = page.getByRole('dialog', { name: 'Review sale' });
+  const review = page.getByRole('dialog', { name: 'Cart' });
   await review.getByTestId('hold-sale').click();
   await page.getByRole('status').filter({ hasText: /held/i }).waitFor();
-  const sheet = page.getByRole('dialog', { name: 'Review sale' });
+  const sheet = page.getByRole('dialog', { name: 'Cart' });
   await sheet.getByTestId('held-sales').getByRole('button').click();
   await expect(sheet.getByText('Plain').first()).toBeVisible();
   expect(driver.mock.writes.some((row) => row.method === 'POST' && row.url.includes('/rest/v1/sales'))).toBe(

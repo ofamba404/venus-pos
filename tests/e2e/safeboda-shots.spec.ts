@@ -39,9 +39,9 @@ test('capture the SafeBoda copy screens at 390px', async ({ page }) => {
   const hideNav = () => page.addStyleTag({ content: '.shell__nav{display:none!important}' });
 
   await page.goto('/next/orders');
-  await page.getByTestId('copy-all-sb-delivery').waitFor({ timeout: 20_000 });
+  await page.getByRole('tab', { name: /In sale/ }).click();
+  await page.getByTestId('order-card-sb-delivery').waitFor({ timeout: 20_000 });
   await hideNav();
-  await page.getByTestId('copy-all-sb-delivery').click();
   await page.waitForTimeout(250);
   await page.locator('article.v-order-card').first().screenshot({ path: `${dir}/safeboda-order-card.png` });
   await page.screenshot({ path: `${dir}/safeboda-orders-list.png` });
@@ -49,7 +49,5 @@ test('capture the SafeBoda copy screens at 390px', async ({ page }) => {
   await page.getByTestId('view-order-sb-delivery').click();
   await page.getByTestId('store-order-sheet').waitFor();
   await page.waitForTimeout(600);
-  await page.getByTestId('so-copy-all').click();
-  await page.waitForTimeout(250);
   await page.screenshot({ path: `${dir}/safeboda-order-sheet.png` });
 });

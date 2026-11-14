@@ -22,7 +22,7 @@ test.describe('v2f shots at 390px', () => {
     await page.getByTestId('product-commander').click();
     for (const f of ['mint', 'mint', 'grape', 'grape', 'strawberry']) await page.getByTestId(`config-flavor-${f}-inc`).click();
     await page.getByTestId('config-add').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
     await sheet.waitFor();
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${dir}/v2f-pack-carousel-1.png` });

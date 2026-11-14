@@ -13,7 +13,7 @@ test.describe('Review sale polish', () => {
     await page.getByTestId('product-pilot').click();
     for (const f of ['mint', 'grape']) await page.getByTestId(`config-flavor-${f}-inc`).click();
     await page.getByTestId('config-add').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
     await sheet.waitFor();
     const gallery = sheet.getByTestId('line-gallery');
     const box = await gallery.locator('.v-gallery__viewport').boundingBox();
@@ -31,7 +31,7 @@ test.describe('Review sale polish', () => {
     await page.getByTestId('product-plain_single').click();
     for (let i = 0; i < 2; i += 1) await page.getByTestId('config-qty-inc').click();
     await page.getByTestId('config-add').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
     await expect(sheet.getByTestId('line-qty')).toHaveText('×3');
   });
 
@@ -41,7 +41,7 @@ test.describe('Review sale polish', () => {
     await page.getByTestId('product-plain_single').click();
     await page.getByTestId('config-qty-inc').click();
     await page.getByTestId('config-add').click();
-    const sheet = page.getByRole('dialog', { name: 'Review sale' });
+    const sheet = page.getByRole('dialog', { name: 'Cart' });
     const charge = sheet.getByTestId('charge');
     await expect(charge).toBeDisabled();
     const reason = sheet.getByTestId('charge-reason');

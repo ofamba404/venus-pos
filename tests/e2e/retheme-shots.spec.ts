@@ -57,7 +57,7 @@ test('capture the retheme screens at 390px', async ({ page }) => {
   await page.waitForTimeout(4500);
   await page.screenshot({ path: `${dir}/retheme-loaded-order-sell.png` });
   await page.getByTestId('cart-bar').click();
-  const review = page.getByRole('dialog', { name: 'Review sale' });
+  const review = page.getByRole('dialog', { name: 'Cart' });
   await review.waitFor();
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${dir}/retheme-loaded-order-checkout-top.png` });
