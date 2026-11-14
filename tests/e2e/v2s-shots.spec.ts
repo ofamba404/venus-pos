@@ -22,10 +22,10 @@ test('v2s screenshots at 390px', async ({ page }) => {
   await page.screenshot({ path: `${dir}/v2s-cart-top.png` });
   await cart.getByRole('tab', { name: 'Delivery' }).click();
   await cart.getByTestId('cart-client').fill('Test Cli');
-  await cart.getByTestId('client-suggest').waitFor();
+  await cart.getByTestId('client-chips').waitFor();
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${dir}/v2s-client-autocomplete.png` });
-  await cart.getByTestId('client-suggest').getByText('Test Client A').first().click();
+  await cart.getByTestId('client-chips').getByText('Test Client A').first().click();
   await cart.locator('.delivery-block').scrollIntoViewIfNeeded();
   await page.waitForTimeout(200);
   await page.screenshot({ path: `${dir}/v2s-cart-delivery.png` });

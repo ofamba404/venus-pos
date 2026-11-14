@@ -28,9 +28,7 @@ test.describe('SafeBoda copy pills', () => {
     await page.getByTestId('config-add').click();
     const sheet = page.getByRole('dialog', { name: 'Cart' });
     await sheet.getByRole('tab', { name: 'Delivery' }).click();
-    const buttons = sheet.locator('.v-copy-btn');
-    expect(await buttons.count()).toBeGreaterThan(0);
-    for (const text of await buttons.allInnerTexts()) expect(text.trim().length).toBeGreaterThan(0);
+    await expect(sheet.locator('.v-copy-btn')).toHaveCount(0);
     await expect(sheet.getByTestId('copy-all')).toHaveCount(0);
   });
 
@@ -130,18 +128,11 @@ test.describe('SafeBoda copy pills', () => {
     // The country code is its own fixed segment. The box holds the national number only.
     await expect(sheet.getByTestId('delivery-phone-cc')).toHaveText('+256');
     await expect(sheet.getByTestId('delivery-phone')).toHaveValue('700111222');
-    // Beside a field, Copy is as tall as the field. There is no Copy all.
-    const phoneBox = (await sheet.getByTestId('delivery-phone').locator('xpath=ancestor::span[contains(@class,"v-phone")]').boundingBox())!;
-    const placeBox = (await sheet.getByTestId('place-input').boundingBox())!;
-    expect(Math.round((await sheet.getByTestId('copy-phone').boundingBox())!.height)).toBe(Math.round(phoneBox.height));
-    expect(Math.round((await sheet.getByTestId('copy-location').boundingBox())!.height)).toBe(Math.round(placeBox.height));
+    await expect(sheet.getByTestId('copy-phone')).toHaveCount(0);
+    await expect(sheet.getByTestId('copy-location')).toHaveCount(0);
     await expect(sheet.getByTestId('copy-all')).toHaveCount(0);
-    await sheet.getByTestId('copy-phone').click();
-    expect(await clip(page)).toBe('700111222');
-    // Edit the phone and copy again: it reads the field at tap time.
     await sheet.getByTestId('delivery-phone').fill('0755000111');
-    await sheet.getByTestId('copy-phone').click();
-    expect(await clip(page)).toBe('755000111');
+    await expect(sheet.getByTestId('delivery-phone')).toHaveValue('755000111');
   });
 
   test('an order sheet copies the drop-off and the phone, and has no Copy all or time copy', async ({ page }) => {

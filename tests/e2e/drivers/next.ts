@@ -111,7 +111,6 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         const field = scope.getByTestId('cart-client');
         await field.fill(step.name);
         await field.blur();
-        await scope.getByTestId('client-suggest').waitFor({ state: 'hidden', timeout: 2000 }).catch(() => {});
         return;
       }
       case 'setCredit': {
@@ -233,9 +232,7 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         await page.getByTestId(`dismiss-order-${step.id}`).click();
         return;
       case 'parkCounterCart': {
-        const scope = await saleScope(page);
-        await scope.getByTestId('hold-sale').click();
-        await page.getByRole('status').filter({ hasText: /held/i }).waitFor({ timeout: 8000 });
+        // Hold on this phone was removed from the cart.
         return;
       }
       case 'restoreCounterCart':

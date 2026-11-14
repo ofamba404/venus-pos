@@ -25,7 +25,7 @@ test.describe('History edit sale: Add item', () => {
     for (const id of ['scout', 'pilot', 'commander', 'variety', 'cookie_duet', 'cookie_trio', 'plain_single', 'cookie_single']) {
       await expect(catalog.getByTestId(`product-${id}`)).toBeVisible();
     }
-    for (const label of ['Packs', 'Singles', 'Wholesale']) await expect(catalog.getByText(label, { exact: true })).toBeVisible();
+    for (const label of ['Joints', 'Cookies']) await expect(catalog.locator('.v-section-label', { hasText: label })).toBeVisible();
     // Back to the sale changes nothing.
     await page.getByTestId('sale-add-close').click();
     await expect(page.getByTestId('sale-edit-line-1')).toHaveCount(0);

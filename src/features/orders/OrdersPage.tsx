@@ -73,7 +73,6 @@ function statusTag(seg: OrderSegment, o: StoreOrderRow) {
 
 export function OrdersPage() {
   const [seg, setSeg] = useState<Segment>('waiting');
-  const [loading, setLoading] = useState(true);
   const [labels, setLabels] = useState<PosLabelIndex>(posLabels);
   // The order whose sheet is open. A push notification, an old link, or Next on the success sheet lands here with #order=<id>.
   const viewId = openStoreOrderId.value;
@@ -91,8 +90,7 @@ export function OrdersPage() {
         }
         return ensureInventory();
       })
-      .catch((e) => showToast(e instanceof Error ? e.message : 'Could not load orders'))
-      .finally(() => setLoading(false));
+      .catch((e) => showToast(e instanceof Error ? e.message : 'Could not load orders'));
   }, []);
 
   const list = storeOrders.value.filter((o) => orderSegment(o) === seg);
@@ -162,8 +160,7 @@ export function OrdersPage() {
         />
       </div>
 
-      {loading ? <div class="v-skeleton" data-testid="orders-loading" /> : null}
-      {!loading && !list.length ? (
+      {!list.length ? (
         <EmptyState
           title="No orders here"
           body={

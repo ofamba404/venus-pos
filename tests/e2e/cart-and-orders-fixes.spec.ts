@@ -27,7 +27,6 @@ test.describe('cart and orders fixes', () => {
     await sheet.getByRole('tab', { name: 'Delivery' }).click();
     await sheet.getByTestId('cart-client').fill('Test Client A');
     await sheet.getByTestId('cart-client').blur();
-    await sheet.getByTestId('client-suggest').waitFor({ state: 'hidden', timeout: 2000 }).catch(() => {});
     await expect(sheet.getByText('Deliver at', { exact: true })).toHaveCount(0);
     await expect(sheet.getByTestId('copy-all')).toHaveCount(0);
     await expect(page.getByRole('dialog', { name: 'Review sale' })).toHaveCount(0);
@@ -48,30 +47,30 @@ test.describe('cart and orders fixes', () => {
     expect(bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent' || bg === 'rgb(255, 255, 255)' || bg === 'rgb(250, 250, 248)').toBe(true);
   });
 
-  test('clear cart empties the sale and Undo puts it back', async ({ page }) => {
+  test('the cart has no Walk-in chip, Copy, Clear cart or Hold on this phone', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_staff' });
     const sheet = await openCart(page);
-    await sheet.getByTestId('cart-client').fill('Nakato');
-    await sheet.getByTestId('clear-cart').click();
-    await expect(sheet.getByText('No items yet')).toBeVisible();
-    await page.getByRole('button', { name: 'Undo' }).click();
-    await expect(sheet.getByTestId('line-gallery')).toBeVisible();
-    await expect(sheet.getByTestId('cart-client')).toHaveValue('Nakato');
+    await sheet.getByRole('tab', { name: 'Delivery' }).click();
+    await expect(sheet.getByTestId('walk-in')).toHaveCount(0);
+    await expect(sheet.getByTestId('copy-phone')).toHaveCount(0);
+    await expect(sheet.getByTestId('copy-location')).toHaveCount(0);
+    await expect(sheet.getByTestId('clear-cart')).toHaveCount(0);
+    await expect(sheet.getByTestId('hold-sale')).toHaveCount(0);
+    await expect(sheet.getByTestId('held-sales')).toHaveCount(0);
   });
 
-  test('typing in Client shows matching clients and picking one fills the field', async ({ page }) => {
+  test('typing in Client filters the chips, highlights the match, and Add client appears when there is no exact name', async ({ page }) => {
     await createNextDriver(page, { role: 'pos_staff' });
     const sheet = await openCart(page);
     const field = sheet.getByTestId('cart-client');
-    await field.click();
     await field.fill('Test Cli');
-    const list = sheet.getByTestId('client-suggest');
-    await expect(list).toBeVisible({ timeout: 10_000 });
-    const match = list.getByText('Test Client A').first();
-    await expect(match).toBeVisible();
-    await match.click();
-    await expect(sheet.getByTestId('cart-client')).toHaveValue('Test Client A');
-    await expect(list).toHaveCount(0);
+    const chips = sheet.getByTestId('client-chips');
+    await expect(chips.getByText('Test Client A').first()).toBeVisible();
+    await expect(chips.locator('strong').first()).toHaveText(/Test Cli/i);
+    await expect(sheet.getByTestId('add-client')).toBeVisible();
+    await chips.getByText('Test Client A').first().click();
+    await expect(field).toHaveValue('Test Client A');
+    await expect(sheet.getByTestId('add-client')).toHaveCount(0);
   });
 
   test('the ×N badge sits at the top right of the photo', async ({ page }) => {

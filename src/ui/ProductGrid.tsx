@@ -3,11 +3,9 @@ import { formatUGX } from '../domain/format';
 import { productImageSrc } from '../domain/product-art';
 import { ProductCard } from './ProductCard';
 
-const PACKS = PRODUCTS.filter((p) => !p.retired && (p.rule === 'choose_any' || p.rule === 'choose_variety'));
-const SINGLES = PRODUCTS.filter(
-  (p) => p.rule === 'single_qty' || p.rule === 'spliff_qty' || p.rule === 'cookie_qty',
-);
-const WHOLESALE = PRODUCTS.filter((p) => p.rule === 'cookie_wholesale');
+const LIVE = PRODUCTS.filter((p) => !p.retired);
+const JOINTS = LIVE.filter((p) => !String(p.id).startsWith('cookie'));
+const COOKIES = LIVE.filter((p) => String(p.id).startsWith('cookie'));
 
 function productKind(p: Product) {
   return String(p.id).startsWith('cookie') ? 'cookie' : 'joint';
@@ -20,59 +18,44 @@ function productPriceLabel(p: Product) {
   return p.priceFrom ? `from ${formatUGX(amount)}` : formatUGX(amount);
 }
 
-/** The product tiles Sell sells from: Packs, Singles, Wholesale. History's Add item uses the very same grid. */
-export function ProductGrid({ onPick }: { onPick: (product: Product) => void }) {
+function metaFor(p: Product) {
+  if (p.joints != null) return `${p.joints} ${p.slotNoun || (Number(p.joints) === 1 ? 'joint' : 'joints')}`;
+  return p.unitLabel || 'per joint';
+}
+
+function Section({ label, products, onPick }: { label: string; products: Product[]; onPick: (p: Product) => void }) {
+  if (!products.length) return null;
   return (
     <>
-      <div class="v-section-label">Packs</div>
+      <div class="v-section-label">{label}</div>
       <div class="tile-grid">
-        {PACKS.map((p) => (
+        {products.map((p) => (
           <ProductCard
             key={p.id}
             id={p.id}
             name={p.name}
             kind={productKind(p)}
             image={productImageSrc(p.id)}
-            meta={`${p.joints} ${p.slotNoun || (Number(p.joints) === 1 ? 'joint' : 'joints')}`}
+            art={p.rule === 'cookie_wholesale' ? 'swatches' : undefined}
+            meta={metaFor(p)}
             price={productPriceLabel(p)}
             onClick={() => onPick(p)}
           />
         ))}
       </div>
-      <div class="v-section-label">Singles</div>
-      <div class="tile-grid">
-        {SINGLES.map((p) => (
-          <ProductCard
-            key={p.id}
-            id={p.id}
-            name={p.name}
-            kind={productKind(p)}
-            image={productImageSrc(p.id)}
-            meta={p.unitLabel || 'per joint'}
-            price={productPriceLabel(p)}
-            onClick={() => onPick(p)}
-          />
-        ))}
-      </div>
-      {WHOLESALE.length ? (
-        <>
-          <div class="v-section-label">Wholesale</div>
-          <div class="tile-grid">
-            {WHOLESALE.map((p) => (
-              <ProductCard
-                key={p.id}
-                id={p.id}
-                name={p.name}
-                kind={productKind(p)}
-                image={productImageSrc(p.id)}
-                art="swatches"
-                price={productPriceLabel(p)}
-                onClick={() => onPick(p)}
-              />
-            ))}
-          </div>
-        </>
-      ) : null}
     </>
   );
 }
+
+/** Sell (and History's Add item) tiles: Joints, then Cookies. */
+export function ProductGrid({ onPick }: { onPick: (product: Product) => void }) {
+  return (
+    <>
+      <Section label="Joints" products={JOINTS} onPick={onPick} />
+      <Section label="Cookies" products={COOKIES} onPick={onPick} />
+    </>
+  );
+}
+
+export const SELL_JOINTS = JOINTS;
+export const SELL_COOKIES = COOKIES;

@@ -484,15 +484,11 @@ test.describe('write-contract scenarios (next)', () => {
     await expect(dialog.getByTestId('pickup-label')).toHaveCount(0);
     await expect(dialog.getByText('Use GPS')).toHaveCount(0);
     await expect(dialog.getByText('Shop pickup')).toHaveCount(0);
-    // Copy phone is on the same line as the Phone field, to its right.
-    const field = await dialog.getByTestId('delivery-phone').boundingBox();
-    const copy = await dialog.getByTestId('copy-phone').boundingBox();
-    expect(copy!.x).toBeGreaterThanOrEqual(field!.x + field!.width - 1);
-    expect(Math.abs(copy!.y + copy!.height / 2 - (field!.y + field!.height / 2))).toBeLessThan(field!.height);
+    await expect(dialog.getByTestId('copy-phone')).toHaveCount(0);
+    await expect(dialog.getByTestId('copy-location')).toHaveCount(0);
     // Pickup mode shows none of the delivery fields.
     await dialog.getByRole('tab', { name: 'Pickup' }).click();
     await expect(dialog.getByTestId('delivery-phone')).toHaveCount(0);
-    await expect(dialog.getByTestId('copy-phone')).toHaveCount(0);
   });
 
   test('S39 add rename and delete a client', async ({ page }) => {

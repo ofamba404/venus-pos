@@ -3,7 +3,6 @@ import { PRODUCTS, CAT_MAP, type Product } from '../../domain/catalog';
 import { itemToConfigSelection } from '../../domain/pricing/pack-config';
 import { stockNotifyDecision } from '../../domain/stock-notify';
 import { KEYS } from '../../data/keys';
-import { clientOwesLabel } from '../../domain/parity';
 import { cartStockShortfalls, sellAnywayMessage } from '../../domain/stock-shortfall';
 import { formatUGX } from '../../domain/format';
 import {
@@ -11,10 +10,6 @@ import {
   cartTotal,
   clientReadyForCharge,
   isWalkInCheckout,
-  resumeHeldSale,
-  toHeldSale,
-  WALK_IN_NAME,
-  type HeldSale,
 } from '../../domain/cart';
 import { configReady, configTarget } from '../../domain/pricing/pack-config';
 import { getProgress } from '../../domain/pricing/flavored-bulk';
@@ -23,21 +18,18 @@ import {
   cartLines,
   cartSum,
   cartCount,
-  cartState,
   orderMeta,
   dispatchCart,
   setOrderMetaPatch,
-  clearCart,
   clearCartKeepMeta,
-  replaceCart,
 } from '../../data/session-cart';
 import { checkoutDraft, clearCheckoutDraft, setCheckoutDraft } from '../../data/checkout-draft';
 import { ensureDeliveryModel, quoteFeeForDest } from '../../data/delivery-model';
 import { runCheckout } from '../../data/checkout';
-import { features } from '../../data/env';
-import { deleteHeld, listHeld, saveHeld } from '../../data/held';
 import { flushOutbox, listOutbox, outboxCountLabel } from '../../data/outbox';
-import { clients, ensureInventory, inventory, loadClients, loadSales, sales, syncLabel } from '../../data/entities';
+import { clients, ensureInventory, inventory, loadClients, loadSales, loadStoreOrders, sales, storeOrders, syncLabel } from '../../data/entities';
+import { loadStoreAccounts } from '../../data/store-accounts';
+import { orderSegment } from '../../domain/order-segment';
 import { openDebtForClientName } from '../../domain/credit';
 import { counterSellable } from '../../domain/stock-reservation';
 import { haptic } from '../../platform/haptics';
@@ -45,7 +37,7 @@ import { Button } from '../../ui/Button';
 import { Money } from '../../ui/Money';
 import { Sheet } from '../../ui/Sheet';
 import { Field } from '../../ui/Field';
-import { ClientSuggest } from '../../ui/ClientSuggest';
+import { ClientChips } from '../../ui/ClientChips';
 import { Segmented } from '../../ui/Segmented';
 import { FlavorSwatches } from '../../ui/FlavorSwatches';
 import { FlavorPicker } from '../../ui/FlavorPicker';
@@ -53,8 +45,6 @@ import { ProductGallery } from '../../ui/ProductGallery';
 import { lineCount } from '../../domain/line-count';
 import { ProductGrid } from '../../ui/ProductGrid';
 import { DeliveryBlock } from '../../ui/DeliveryBlock';
-import { CopyButton } from '../../ui/CopyButton';
-import { copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
 import { cartFulfilment, saleSummaryLines } from '../../domain/sale-summary';
 import { showSaleSuccess } from '../../ui/sale-success';
 import { EmptyState } from '../../ui/EmptyState';
@@ -63,6 +53,10 @@ import { showToast } from '../../ui/ToastHost';
 import { IconButton } from '../../ui/IconButton';
 import { IconClose } from '../../ui/icons';
 import { PhoneField } from '../../ui/PhoneField';
+import { HoursSettings } from '../store/HoursSettings';
+import { useFulfillment } from '../store/use-fulfillment';
+import { StoreOrderSheet } from '../orders/StoreOrderSheet';
+import { closeStoreOrder, openStoreOrder, openStoreOrderId } from '../orders/open-store-order';
 
 export function SellPage() {
   const [configProduct, setConfigProduct] = useState<Product | null>(null);
@@ -70,7 +64,8 @@ export function SellPage() {
   const [cartOpen, setCartOpen] = useState(false);
   const [paying, setPaying] = useState(false);
   const [payment, setPayment] = useState<'paid' | 'credit'>('paid');
-  const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
+  const [hoursOpen, setHoursOpen] = useState(false);
+  const hours = useFulfillment();
   const [waiting, setWaiting] = useState(0);
   const [debtAsk, setDebtAsk] = useState<{ name: string; owed: number } | null>(null);
   const debtClearedRef = useRef(false);
@@ -86,7 +81,8 @@ export function SellPage() {
   useEffect(() => {
     void loadSales().catch(() => {});
     void loadClients().catch(() => {});
-    void listHeld().then(setHeldSales).catch(() => {});
+    void loadStoreAccounts().catch(() => {});
+    void loadStoreOrders().catch(() => {});
     const refreshQueue = () => {
       void flushOutbox()
         .catch(() => {})
@@ -303,57 +299,12 @@ export function SellPage() {
     );
   }
 
-  async function parkSale() {
-    const snap = toHeldSale(cartState.value);
-    if (!snap) return;
-    try {
-      await saveHeld(snap);
-    } catch {
-      showToast('Could not hold this sale');
-      return;
-    }
-    clearCartKeepMeta();
-    setOrderMetaPatch({ clientName: '', clientId: '', isCredit: false });
-    setHeldSales(await listHeld());
-    showToast('Held on this phone');
-  }
-
-  async function resumeSale(id: string) {
-    const row = (await listHeld()).find((item) => item.id === id);
-    if (!row) return;
-    if (lines.length) {
-      const current = toHeldSale(cartState.value);
-      if (current) await saveHeld(current);
-    }
-    const next = resumeHeldSale(row);
-    replaceCart(next.lines, next.meta);
-    setPayment(next.meta.isCredit ? 'credit' : 'paid');
-    await deleteHeld(id);
-    setHeldSales(await listHeld());
-  }
-
-
-  function clearTheCart() {
-    const snapshot = {
-      lines: cartState.value.lines,
-      meta: cartState.value.meta,
-      draft: checkoutDraft.value,
-      payment,
-    };
-    clearCart();
-    clearCheckoutDraft();
-    setPayment('paid');
-    showToast('Cart cleared', {
-      actionLabel: 'Undo',
-      onAction: () => {
-        replaceCart(snapshot.lines, snapshot.meta);
-        setCheckoutDraft(snapshot.draft);
-        setPayment(snapshot.payment);
-      },
-    });
-  }
-
-  const recentClients = clients.value.slice(0, 6);
+  const confirmedOrders = storeOrders.value
+    .filter((order) => orderSegment(order) === 'in_sale')
+    .sort((a, b) =>
+      String(a.confirmed_at || a.created_at || '').localeCompare(String(b.confirmed_at || b.created_at || '')),
+    );
+  const nextConfirmed = confirmedOrders[0] || null;
   const credit = payment === 'credit';
   const canCharge = clientReadyForCharge(meta, credit);
   const chargeReason = !lines.length
@@ -366,20 +317,6 @@ export function SellPage() {
 
   const cartBody = (
     <>
-      {features.holdSale && heldSales.length ? (
-        <div class="v-chip-row" data-testid="held-sales">
-          {heldSales.map((sale) => (
-            <button
-              key={sale.id}
-              type="button"
-              class="v-tag"
-              onClick={() => void resumeSale(sale.id)}
-            >
-              {sale.name}
-            </button>
-          ))}
-        </div>
-      ) : null}
       {lines.length === 0 ? (
         <EmptyState title="No items yet" body="Tap a product to start the sale" />
       ) : (
@@ -437,7 +374,7 @@ export function SellPage() {
       )}
 
       <div style={{ display: 'grid', gap: 'var(--s-3)', marginTop: 'var(--s-4)' }}>
-        <ClientSuggest
+        <ClientChips
           value={meta.clientName}
           onChange={(next) => {
             debtClearedRef.current = false;
@@ -448,35 +385,6 @@ export function SellPage() {
             });
           }}
         />
-        {(features.walkInClient || recentClients.length) ? (
-          <div class="v-chip-row">
-            {features.walkInClient && !credit ? (
-              <button
-                type="button"
-                class={isWalkInCheckout(meta, false) ? 'v-tag is-active' : 'v-tag'}
-                data-testid="walk-in"
-                onClick={() =>
-                  setOrderMetaPatch({ clientName: WALK_IN_NAME, clientId: '', isCredit: false })
-                }
-              >
-                Walk-in
-              </button>
-            ) : null}
-            {recentClients.map((c) => {
-              const owes = clientOwesLabel(openDebtForClientName(c.name || '', clients.value, sales.value));
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  class="v-tag"
-                  onClick={() => setOrderMetaPatch({ clientName: c.name || '', clientId: c.id })}
-                >
-                  {owes ? `${c.name} · ${owes}` : c.name}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
         <Segmented
           value={payment}
           onChange={(id) => {
@@ -516,26 +424,10 @@ export function SellPage() {
         />
         {meta.deliveryEnabled !== false ? (
           <DeliveryBlock>
-            <div class="v-field-copy">
-              <PlaceSearch
-                value={draft.destText || meta.deliveryLocationLabel || ''}
-                onPick={onPlacePick}
-              />
-              <CopyButton
-                kind="place"
-                label="Copy"
-                ariaLabel="Copy location"
-                compact
-                testId="copy-location"
-                value={() =>
-                  copyLocationText({
-                    place: checkoutDraft.value.destText || orderMeta.value.deliveryLocationLabel || '',
-                    lat: checkoutDraft.value.dest?.lat ?? null,
-                    lng: checkoutDraft.value.dest?.lng ?? null,
-                  })
-                }
-              />
-            </div>
+            <PlaceSearch
+              value={draft.destText || meta.deliveryLocationLabel || ''}
+              onPick={onPlacePick}
+            />
             <Field
               label="Delivery fee (UGX)"
               inputMode="numeric"
@@ -547,21 +439,11 @@ export function SellPage() {
                 setCheckoutDraft({ feeValue, feeManuallyEdited: true });
               }}
             />
-            <div class="v-field-copy">
-              <PhoneField
-                testId="delivery-phone"
-                value={meta.clientPhone}
-                onChange={(clientPhone) => setOrderMetaPatch({ clientPhone })}
-              />
-              <CopyButton
-                kind="phone"
-                label="Copy"
-                ariaLabel="Copy phone"
-                compact
-                testId="copy-phone"
-                value={() => copyPhoneText(orderMeta.value.clientPhone)}
-              />
-            </div>
+            <PhoneField
+              testId="delivery-phone"
+              value={meta.clientPhone}
+              onChange={(clientPhone) => setOrderMetaPatch({ clientPhone })}
+            />
             {draft.distanceKm != null ? (
               <p class="v-muted">
                 {Number(draft.distanceKm).toFixed(1)} km
@@ -577,16 +459,6 @@ export function SellPage() {
           <span class="cart-total__label">Total</span>
           <Money className="v-money--total" value={cartSum.value} size="xl" />
         </div>
-        {lines.length ? (
-          <Button size="md" variant="ghost" data-testid="clear-cart" onClick={clearTheCart}>
-            Clear cart
-          </Button>
-        ) : null}
-        {features.holdSale && lines.length ? (
-          <Button size="md" variant="ghost" data-testid="hold-sale" onClick={() => void parkSale()}>
-            Hold on this phone
-          </Button>
-        ) : null}
       </div>
     </>
   );
@@ -599,25 +471,52 @@ export function SellPage() {
             {outboxCountLabel(waiting)}
           </p>
         ) : null}
-        <button
-          type="button"
-          class="today-pill"
-          data-testid="today-pill"
-          data-revenue={today.revenue}
-          data-joints={today.joints}
-          data-cookies={today.cookies}
-        >
-          <span class="today-pill__kicker">Today</span>
-          <span class="today-pill__value">
-            <Money value={today.revenue} />
-          </span>
-          <span class="today-pill__meta">
-            {today.salesCount} sold
-            {today.joints ? ` · ${today.joints} joints` : ''}
-            {today.cookies ? ` · ${today.cookies} cookies` : ''}
-          </span>
-        </button>
+        <div class="sell-today">
+          <div
+            class="today-pill"
+            data-testid="today-pill"
+            data-revenue={today.revenue}
+            data-joints={today.joints}
+            data-cookies={today.cookies}
+          >
+            <span class="today-pill__kicker">Today</span>
+            <span class="today-pill__value">
+              <Money value={today.revenue} />
+            </span>
+            <span class="today-pill__meta">
+              {today.salesCount} sold
+              {today.joints ? ` · ${today.joints} joints` : ''}
+              {today.cookies ? ` · ${today.cookies} cookies` : ''}
+            </span>
+          </div>
+          <button
+            type="button"
+            class={`store-status-btn is-${hours.tone}`}
+            data-testid="store-status-btn"
+            data-state={hours.tone}
+            aria-label={`Store is ${hours.headline}. Hours.`}
+            onClick={() => setHoursOpen(true)}
+          >
+            <span class="store-status-btn__dot" />
+          </button>
+        </div>
         <ProductGrid onPick={openConfig} />
+        {nextConfirmed ? (
+          <button
+            type="button"
+            class="review-bar"
+            data-testid="review-bar"
+            data-count={confirmedOrders.length}
+            onClick={() => openStoreOrder(nextConfirmed.id)}
+          >
+            <span class="review-bar__meta">
+              {confirmedOrders.length === 1
+                ? String(nextConfirmed.customer_name || 'Store order')
+                : `${confirmedOrders.length} confirmed`}
+            </span>
+            <span class="review-bar__cta">Store order</span>
+          </button>
+        ) : null}
       </div>
 
       <aside class="sell-cart-pane" data-desktop-cart>
@@ -647,7 +546,12 @@ export function SellPage() {
       </aside>
 
       {cartCount.value > 0 ? (
-        <button type="button" class="cart-bar" data-testid="cart-bar" onClick={() => setCartOpen(true)}>
+        <button
+          type="button"
+          class={`cart-bar${nextConfirmed ? ' is-under-review' : ''}`}
+          data-testid="cart-bar"
+          onClick={() => setCartOpen(true)}
+        >
           <span class="cart-bar__meta">
             {cartCount.value} item{cartCount.value === 1 ? '' : 's'} · {formatUGX(cartSum.value)}
           </span>
@@ -716,6 +620,17 @@ export function SellPage() {
       >
         {cartBody}
       </Sheet>
+
+
+      <Sheet open={hoursOpen} title="Hours" onClose={() => setHoursOpen(false)}>
+        <HoursSettings hours={hours} />
+      </Sheet>
+
+      <StoreOrderSheet
+        order={storeOrders.value.find((o) => o.id === openStoreOrderId.value) || null}
+        title="Store order"
+        onClose={closeStoreOrder}
+      />
 
       <Sheet
         open={Boolean(debtAsk)}

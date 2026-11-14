@@ -35,12 +35,13 @@ test.describe('store order sheet', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
   });
 
-  test('Sell has no store-order or review card, and the cart is only for walk-in sales', async ({ page }) => {
+  test('Sell shows a review bar for a confirmed order, and the cart is only for walk-in sales', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     driver.mock.db.table('store_orders').push({ ...DELIVERY });
     await page.goto('/next/sell');
     await page.getByTestId('today-pill').waitFor();
     await expect(page.getByTestId('loaded-order')).toHaveCount(0);
+    await expect(page.getByTestId('review-bar')).toBeVisible();
     await expect(page.getByTestId('cart-bar')).toHaveCount(0);
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${dir}/v2j-sell-no-order-card.png` });
@@ -259,10 +260,8 @@ test.describe('store order sheet', () => {
     const cart = page.getByRole('dialog', { name: 'Cart' });
     const input = cart.getByTestId('place-input');
     await input.fill('Plot 14 Acacia Avenue, Block C, Apartment 12B, opposite the old Shell petrol station near Kololo Hill, Kampala Central Division, Uganda');
-    const [ib, cb] = await Promise.all([input.boundingBox(), cart.getByTestId('copy-location').boundingBox()]);
-    expect(Math.abs(ib!.height - cb!.height)).toBeLessThanOrEqual(1);
-    expect(Math.abs(ib!.y - cb!.y)).toBeLessThanOrEqual(1);
     expect(await input.evaluate((el) => getComputedStyle(el).textOverflow)).toBe('ellipsis');
+    await expect(cart.getByTestId('copy-location')).toHaveCount(0);
   });
 
   test('the phone shows +256 as its own segment and Copy gives the 9-digit national number', async ({ page }) => {
