@@ -11,6 +11,7 @@ export function nextNotificationPath(data: {
   type?: string;
 }): string {
   const orderId = data.orderId || orderIdFromPushUrl(data.url);
+  if (data.type === 'test') return '/next/settings';
   if (data.type === 'store-review' || /review/.test(String(data.url || ''))) return '/next/reviews';
   if (orderId) return `/next/orders#order=${encodeURIComponent(orderId)}`;
   return '/next/orders';

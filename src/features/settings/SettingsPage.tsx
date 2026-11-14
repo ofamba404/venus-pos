@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { enablePush } from '../../data/push';
+import { runNotificationCheck, type CheckLine } from '../../data/push-check';
 import { KEYS } from '../../data/keys';
 import { allowDevBypass, authRole, authSession, signOut } from '../../data/auth';
 import { Button } from '../../ui/Button';
@@ -21,6 +22,8 @@ export function SettingsPage() {
     stock: true,
     ...readJson(KEYS.notifPrefs),
   }));
+  const [checking, setChecking] = useState(false);
+  const [lines, setLines] = useState<CheckLine[]>([]);
   const haptics = prefs.haptics !== false;
 
   function toggleHaptics() {
@@ -51,6 +54,16 @@ export function SettingsPage() {
       return;
     }
     showToast('Notifications stay on in the app. Background signup did not finish.');
+  }
+
+  async function testNotifications() {
+    setChecking(true);
+    setLines([]);
+    try {
+      await runNotificationCheck((line) => setLines((all) => [...all, line]));
+    } finally {
+      setChecking(false);
+    }
   }
 
   function logout() {
@@ -85,6 +98,21 @@ export function SettingsPage() {
         <Button variant="secondary" data-testid="enable-notifications" onClick={enableNotifications}>
           Enable notifications
         </Button>
+        <Button variant="secondary" data-testid="test-notifications" loading={checking} onClick={testNotifications}>
+          Test notifications
+        </Button>
+        {lines.length > 0 && (
+          <div data-testid="notification-check" style={{ display: 'grid', gap: 8 }}>
+            {lines.map((line) => (
+              <div key={line.id} data-ok={line.ok ? 'true' : 'false'}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: line.ok ? 'var(--success-ink)' : 'var(--danger)' }}>
+                  {line.ok ? 'OK' : 'Problem'} · {line.label}
+                </div>
+                <div class="v-muted">{line.detail}</div>
+              </div>
+            ))}
+          </div>
+        )}
         <Button variant="secondary" onClick={() => toggleNotif('orders')}>
           Order alerts: {notif.orders ? 'On' : 'Off'}
         </Button>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { sbFetch } from '../../data/api';
 import { SUPABASE_KEY, SUPABASE_URL } from '../../data/env';
+import { peekAccessToken } from '../../data/auth';
 import { connectSupabaseRealtime, startFeed } from '../../data/realtime';
 import { Button } from '../../ui/Button';
 import { EmptyState } from '../../ui/EmptyState';
@@ -52,6 +53,7 @@ export function ReviewsPage() {
       connect: () =>
         connectSupabaseRealtime(
           `${SUPABASE_URL.replace(/^https:/, 'wss:')}/realtime/v1/websocket?apikey=${SUPABASE_KEY}`,
+          { table: 'store_reviews', token: peekAccessToken },
         ),
       refetch: () => {
         void tick().catch((e) => {

@@ -5,6 +5,8 @@ export function playOrderChime() {
     (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctx) return;
   const ctx = new Ctx();
+  // A context made outside a tap starts suspended on mobile browsers.
+  void ctx.resume?.().catch(() => {});
   const now = ctx.currentTime;
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0.0001, now);

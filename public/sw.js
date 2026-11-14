@@ -11,23 +11,26 @@ function orderIdFrom(url) {
   return match ? decodeURIComponent(match[1]) : '';
 }
 
+// Keep in step with src/domain/push-target.ts (tests/unit/sw-push.test.ts runs this file against it).
 function nextNotificationUrl(data) {
   const orderId = data.orderId || orderIdFrom(data.url);
+  if (data.type === 'test') return `${SCOPE_BASE}settings`;
   if (data.type === 'store-review' || /review/.test(String(data.url || ''))) {
     return `${SCOPE_BASE}reviews`;
   }
-  if (orderId) return `${SCOPE_BASE}sell#load-store-order=${encodeURIComponent(orderId)}`;
+  if (orderId) return `${SCOPE_BASE}orders#order=${encodeURIComponent(orderId)}`;
   return `${SCOPE_BASE}orders`;
 }
 
 self.addEventListener('push', (event) => {
   let data = {};
   try {
-    data = event.data ? event.data.json() : {};
+    data = (event.data ? event.data.json() : {}) || {};
   } catch {
     data = { body: event.data ? event.data.text() : '' };
   }
   const title = data.title || 'New order';
+  const isOrder = !data.type || data.type === 'storefront-order';
   const target = nextNotificationUrl(data);
   event.waitUntil(
     self.registration.showNotification(title, {
@@ -36,6 +39,8 @@ self.addEventListener('push', (event) => {
       badge: `${SCOPE_BASE}assets/logo-badge.png`,
       tag: data.tag || `venus-next-${Date.now()}`,
       renotify: true,
+      requireInteraction: data.requireInteraction !== false && data.type !== 'test',
+      vibrate: Array.isArray(data.vibrate) ? data.vibrate : isOrder ? [220, 80, 220, 80, 400] : [200],
       data: { url: target, type: data.type || 'storefront-order' },
     }),
   );

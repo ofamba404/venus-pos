@@ -2,7 +2,7 @@ import { useEffect } from 'preact/hooks';
 import { lazy, Suspense } from 'preact/compat';
 import type { ComponentType } from 'preact';
 import { bootRouter, currentRoute, go, routeId, ROUTES } from './router';
-import { hydrateAuth, allowDevBypass, canAccessPath, authReady } from '../data/auth';
+import { hydrateAuth, allowDevBypass, canAccessPath, authReady, peekAccessToken } from '../data/auth';
 import { bootstrapEntities, loadClients, loadDeliveries, loadSales, loadStoreOrders, storeOrders, syncLabel, ensureInventory } from '../data/entities';
 import { connectSupabaseRealtime, startFeed } from '../data/realtime';
 import { SUPABASE_KEY, SUPABASE_URL } from '../data/env';
@@ -104,6 +104,7 @@ export function App() {
       connect: () =>
         connectSupabaseRealtime(
           `${SUPABASE_URL.replace(/^https:/, 'wss:')}/realtime/v1/websocket?apikey=${SUPABASE_KEY}`,
+          { table: 'store_orders', token: peekAccessToken },
         ),
       refetch: watchOrders,
       pollMs: 4000,
