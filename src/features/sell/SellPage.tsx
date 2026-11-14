@@ -55,6 +55,7 @@ import { DeliveryBlock } from '../../ui/DeliveryBlock';
 import { CopyButton } from '../../ui/CopyButton';
 import { copyAllText, copyLocationText, copyPhoneText } from '../../domain/delivery-copy';
 import { TimePicker } from '../../ui/TimePicker';
+import { saleFee, saleSummaryLines } from '../../domain/sale-summary';
 import { showSaleSuccess } from '../../ui/sale-success';
 import { EmptyState } from '../../ui/EmptyState';
 import { PlaceSearch } from '../../ui/PlaceSearch';
@@ -286,8 +287,16 @@ export function SellPage() {
     setPayment('paid');
     setCartOpen(false);
     setPaying(false);
+    const fee = saleFee(meta.deliveryEnabled !== false, draft.feeValue);
     showSaleSuccess(
-      { total: soldTotal, client: soldClient, credit: soldOnCredit, queued: Boolean(result.queued) },
+      {
+        total: soldTotal + (fee || 0),
+        client: soldClient,
+        credit: soldOnCredit,
+        queued: Boolean(result.queued),
+        lines: saleSummaryLines(lines),
+        fee,
+      },
       result.delivery,
     );
   }

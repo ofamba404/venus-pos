@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { storeOrders } from '../data/entities';
 import { formatUGX } from '../domain/format';
 import { go, routeId } from '../app/router';
+import { nextWaitingOrder, waitingOrderPrompt } from '../features/orders/next-waiting';
+import { openStoreOrder } from '../features/orders/open-store-order';
 import { burstConfetti, clearConfetti } from './confetti';
+import { FlavorSwatches } from './FlavorSwatches';
 import { dismissSaleSuccess, saleSuccess, type SaleSuccess } from './sale-success';
 
 const EXIT_MS = 220;
@@ -14,8 +18,9 @@ function reducedMotion(): boolean {
  * What the cashier sees after a sale. It is the storefront's "Order placed" modal, in the POS's words: a centred
  * card over a 50% scrim with an ink ring that draws, a check that draws after it, a pop and a small paper-confetti
  * bloom, then the title, the client and the amount easing in one after another. Done closes it and leaves them where
- * they were. Log another sale goes to the counter. The close button, a tap on the scrim, Escape and a swipe down close it
- * as well, so it never holds the screen.
+ * they were. If another store order is waiting, the secondary action opens that order's sheet; otherwise it is Log another
+ * sale, which goes to the counter. The close button, a tap on the scrim, Escape and a swipe down close it as well, so it
+ * never holds the screen.
  */
 export function SaleSuccessSheet() {
   const info = saleSuccess.value;
@@ -166,6 +171,8 @@ export function SaleSuccessSheet() {
   const view = info || last.current;
   if (!mounted || !view) return null;
   const title = view.credit ? 'Recorded on credit' : view.queued ? 'Saved on this phone' : 'Sale recorded';
+  const next = nextWaitingOrder(storeOrders.value);
+  const nextLabel = next ? waitingOrderPrompt(next).label : 'Log another sale';
   const hint = view.queued
     ? 'It will sync when the signal returns.'
     : view.savingDelivery
@@ -206,13 +213,33 @@ export function SaleSuccessSheet() {
                 <strong>Client</strong>
                 <span data-testid="success-client">{view.client}</span>
               </p>
-              <div class="v-ok__amount-block">
-                <p class="v-ok__label">Amount</p>
-                <p class="v-ok__amount" data-testid="success-total">
-                  {formatUGX(view.total)}
-                </p>
-                {hint ? <p class="v-ok__hint">{hint}</p> : null}
+              <div class="v-ok__sum" data-testid="success-summary">
+                {(view.lines || []).map((line, i) => (
+                  <div class="v-ok__sum-line" key={`${line.name}-${i}`} data-testid="success-line">
+                    <div class="v-ok__sum-name">
+                      <span>
+                        {line.name}
+                        {line.qty > 1 ? <span class="v-qty-inline">×{line.qty}</span> : null}
+                      </span>
+                      <FlavorSwatches breakdown={line.breakdown} productId={line.productId} />
+                    </div>
+                    <span class="v-ok__sum-amt">{formatUGX(line.total)}</span>
+                  </div>
+                ))}
+                {view.fee != null ? (
+                  <div class="v-ok__sum-row" data-testid="success-fee">
+                    <span>Delivery fee</span>
+                    <span class="v-ok__sum-amt">{formatUGX(view.fee)}</span>
+                  </div>
+                ) : null}
+                <div class="v-ok__sum-row v-ok__sum-row--total">
+                  <span>Total</span>
+                  <span class="v-ok__amount" data-testid="success-total">
+                    {formatUGX(view.total)}
+                  </span>
+                </div>
               </div>
+              {hint ? <p class="v-ok__hint">{hint}</p> : null}
             </div>
             <div class="v-ok__actions">
               <button type="button" class="v-ok__btn v-ok__btn--primary" data-testid="success-done" onClick={dismissSaleSuccess}>
@@ -224,10 +251,15 @@ export function SaleSuccessSheet() {
                 data-testid="success-another"
                 onClick={() => {
                   dismissSaleSuccess();
+                  if (next) {
+                    openStoreOrder(next.id);
+                    go(`/orders#order=${encodeURIComponent(next.id)}`);
+                    return;
+                  }
                   if (routeId.value !== 'sell') go('/sell');
                 }}
               >
-                Log another sale
+                {nextLabel}
               </button>
             </div>
           </div>

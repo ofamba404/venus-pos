@@ -2871,7 +2871,7 @@ body:has(.v-sheet) .v-toast-host {
   gap: var(--s-3);
 }
 
-/* Read-only fields: the cart's labelled boxes, on the warm wash so they do not read as inputs. */
+/* Read-only fields: the cart's labelled boxes, in a light gray so they do not read as inputs. */
 .v-field__input--ro {
   /* One line, always. A long location scrolls sideways inside the box instead of making it taller. */
   display: block;
@@ -2879,8 +2879,8 @@ body:has(.v-sheet) .v-toast-host {
   min-height: var(--hit);
   padding: 0 var(--s-3);
   line-height: var(--hit);
-  background: var(--wash);
-  border-color: transparent;
+  background: #f4f3f0;
+  border-color: #d6d4cf;
   white-space: nowrap;
   overflow-x: auto;
   overflow-y: hidden;
@@ -3101,29 +3101,84 @@ body:has(.v-sheet) .v-toast-host {
   color: var(--fg);
 }
 
-.v-ok__amount-block {
+.v-ok__sum {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  gap: 6px;
 }
 
-.v-ok__label {
+.v-ok__sum-line,
+.v-ok__sum-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
   margin: 0;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--fg-2);
+  font: var(--t-body);
+  color: var(--fg);
+}
+
+.v-ok__sum-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.v-ok__sum-name .v-swatches {
+  margin-top: 0;
+  gap: 4px;
+}
+
+.v-ok__sum-name .v-swatch,
+.v-ok__sum-name .v-swatch-more {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+}
+
+.v-ok__sum-name .v-swatch--count {
+  width: auto;
+  padding: 0 6px 0 5px;
+}
+
+.v-ok__sum-name .v-swatch__dot {
+  width: 8px;
+  height: 8px;
+}
+
+.v-ok__sum-name .v-swatch__qty,
+.v-ok__sum-name .v-swatch-more {
+  font: 600 11px/1 var(--font-ui);
+}
+
+.v-ok__sum-name .v-swatch-sep {
+  height: 12px;
+  margin: 0 2px;
+}
+
+.v-ok__sum-amt {
+  flex: none;
+  font: 600 14px/1.3 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--money);
+}
+
+.v-ok__sum-row--total {
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-strong);
+  font-weight: 700;
 }
 
 .v-ok__amount {
   margin: 0;
-  padding: var(--s-3);
-  border: 1px solid var(--line-strong);
-  border-radius: 0.75rem;
-  background: var(--wash);
-  font: var(--t-display);
+  flex: none;
+  font: 700 20px/1.2 var(--font-ui);
+  font-variant-numeric: tabular-nums;
   color: var(--money);
-  user-select: none;
 }
 
 .v-ok__hint {
@@ -3234,11 +3289,11 @@ body:has(.v-sheet) .v-toast-host {
 
 .v-phone--ro {
   flex: 1 1 auto;
-  background: var(--wash);
-  border-color: transparent;
+  background: #f4f3f0;
+  border-color: #d6d4cf;
 }
 
 .v-phone--ro .v-phone__cc {
-  background: color-mix(in srgb, var(--wash-strong) 70%, var(--wash));
-  border-right-color: transparent;
+  background: #ecebe8;
+  border-right-color: #d6d4cf;
 }

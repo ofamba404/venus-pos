@@ -13,6 +13,7 @@ import { DeliveryCopyRow } from '../../ui/DeliveryCopyRow';
 import { KEYS } from '../../data/keys';
 import { ConfirmButton, ConfirmedTag } from '../../ui/ConfirmOrder';
 import { confirmStoreOrder, isOrderConfirmed } from './confirm-order';
+import { closeStoreOrder, openStoreOrder, openStoreOrderId } from './open-store-order';
 import { StoreOrderSheet } from './StoreOrderSheet';
 import { orderLine, orderTotal } from './order-view';
 import { orderSegment, type OrderSegment } from '../../domain/order-segment';
@@ -74,8 +75,8 @@ export function OrdersPage() {
   const [seg, setSeg] = useState<Segment>('waiting');
   const [loading, setLoading] = useState(true);
   const [labels, setLabels] = useState<PosLabelIndex>(posLabels);
-  // The order whose sheet is open. A push notification or an old link lands here with #order=<id>.
-  const [viewId, setViewId] = useState('');
+  // The order whose sheet is open. A push notification, an old link, or Next on the success sheet lands here with #order=<id>.
+  const viewId = openStoreOrderId.value;
 
   useEffect(() => {
     void loadPosLabels()
@@ -104,7 +105,7 @@ export function OrdersPage() {
       const hash = window.location.hash.replace(/^#/, '');
       const params = new URLSearchParams(hash);
       const id = params.get('order') || params.get('load-store-order');
-      if (id) setViewId(id);
+      if (id) openStoreOrder(id);
     };
     open();
     window.addEventListener('hashchange', open);
@@ -112,7 +113,7 @@ export function OrdersPage() {
   }, []);
 
   function closeSheet() {
-    setViewId('');
+    closeStoreOrder();
     if (/order=|load-store-order=/.test(window.location.hash)) {
       history.replaceState(null, '', window.location.pathname + window.location.search);
     }
@@ -193,7 +194,7 @@ export function OrdersPage() {
           <OrderCard
             key={o.id}
             testId={`order-card-${o.id}`}
-            onOpen={() => setViewId(o.id)}
+            onOpen={() => openStoreOrder(o.id)}
             title={orderTitle(o, labels)}
             total={orderTotal(o)}
             photos={photos}
@@ -222,7 +223,7 @@ export function OrdersPage() {
                     size="md"
                     variant={isOrderConfirmed(o) ? 'primary' : 'secondary'}
                     data-testid={`view-order-${o.id}`}
-                    onClick={() => setViewId(o.id)}
+                    onClick={() => openStoreOrder(o.id)}
                   >
                     View order
                   </Button>

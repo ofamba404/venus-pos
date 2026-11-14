@@ -124,7 +124,7 @@ test.describe('store order sheet', () => {
 
     await page.getByTestId('store-order-checkout').click();
     await expect(page.getByTestId('sale-success')).toBeVisible();
-    await expect(page.getByTestId('success-total')).toHaveText(/30,000/);
+    await expect(page.getByTestId('success-total')).toHaveText(/39,000/);
     await expect(page.getByTestId('success-client')).toHaveText('Muza Nakimuli');
     await expect(page.getByText(/Sale recorded/)).toBeVisible();
     await expect(page.getByTestId('store-order-sheet')).toHaveCount(0);
