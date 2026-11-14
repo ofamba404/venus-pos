@@ -47,13 +47,14 @@ test.describe('Hours & availability', () => {
     await expect(save).toHaveText('Save hours');
     await expect(page.getByTestId('hours-preview')).toContainText('Clients see');
     await expect(page.getByTestId('hours-preview')).toContainText('8:30');
-    await setClock(page, 'hours-suggest-start', '12:00');
-    await setClock(page, 'hours-suggest-end', '17:00');
-    await expect(page.getByTestId('hours-preview')).toContainText('Suggested delivery: 12:00');
+    await expect(page.getByTestId('hours-preview')).not.toContainText(/suggested delivery/i);
+    await expect(page.getByTestId('hours-suggest-start')).toHaveCount(0);
     await save.click();
     await expect(page.getByTestId('hours-save')).toHaveText('Saved');
     const body = driver.mock.writes.filter((w) => w.method === 'PATCH' && w.url.includes('store_fulfillment')).at(-1)!.body as Record<string, string>;
-    expect(body).toMatchObject({ open_time: '08:30', suggest_start: '12:00', suggest_end: '17:00' });
+    expect(body).toMatchObject({ open_time: '08:30' });
+    expect(body).not.toHaveProperty('suggest_start');
+    expect(body).not.toHaveProperty('suggest_end');
   });
 
   test('clearing an opening time cannot be saved', async ({ page }) => {

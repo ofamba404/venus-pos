@@ -186,8 +186,6 @@ test.describe('real-shaped data', () => {
     // Set applies.
     await setClock(page, 'hours-open', '09:45');
     await expect(page.getByTestId('hours-open')).toContainText(/9:45/);
-    await setClock(page, 'hours-suggest-start', '13:30');
-    await expect(page.getByTestId('hours-suggest-start')).toContainText(/(^|\D)(1|13):30/);
 
     // Custom busy: "until" a time on the same wheels. Two and a quarter hours from now, on a quarter-hour.
     const target = new Date(Date.now() + 135 * 60_000);

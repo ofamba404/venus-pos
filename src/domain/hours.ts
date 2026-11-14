@@ -5,8 +5,6 @@ export type BusyFor = 'delivery' | 'pickup' | 'both';
 export type FulfillmentStatus = {
   busyUntil?: string | null;
   busyFor?: BusyFor;
-  suggestStart?: string | null;
-  suggestEnd?: string | null;
   openTime?: string | null;
   closeTime?: string | null;
   updatedAt?: string | null;
@@ -177,8 +175,6 @@ export function fulfillmentFromSnapshot(raw: unknown): FulfillmentStatus | null 
   return {
     busyUntil: row.busyUntil ? String(row.busyUntil) : row.busy_until ? String(row.busy_until) : null,
     busyFor,
-    suggestStart: toHHmm(row.suggestStart ?? row.suggest_start),
-    suggestEnd: toHHmm(row.suggestEnd ?? row.suggest_end),
     openTime: toHHmm(row.openTime ?? row.open_time) || DEFAULT_OPEN,
     closeTime: toHHmm(row.closeTime ?? row.close_time) || DEFAULT_CLOSE,
     updatedAt: updated ? String(updated) : null,

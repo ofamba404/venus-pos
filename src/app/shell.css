@@ -59,7 +59,11 @@
 }
 
 .shell__main:has(.review-bar) {
-  padding-bottom: calc(var(--nav-h) + 150px);
+  padding-bottom: calc(var(--nav-h) + 10px + var(--hit-xl) + 16px);
+}
+
+.shell__main:has(.review-bar.is-with-cart) {
+  padding-bottom: calc(var(--nav-h) + 10px + var(--hit-xl) + 10px + var(--hit-xl) + 16px);
 }
 
 .shell__nav {
@@ -199,7 +203,8 @@
   }
 }
 
-.cart-bar {
+.cart-bar,
+.review-bar {
   position: fixed;
   left: var(--gutter);
   right: var(--gutter);
@@ -217,15 +222,30 @@
   box-shadow: var(--e-1);
 }
 
-.cart-bar__meta {
-  font: var(--t-label);
-  line-height: 1.2;
+.review-bar {
+  z-index: 26;
 }
 
-.cart-bar__cta {
+.review-bar.is-with-cart {
+  bottom: calc(var(--nav-h) + 10px + var(--hit-xl) + 10px);
+}
+
+.cart-bar__meta,
+.review-bar__meta {
+  font: var(--t-label);
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cart-bar__cta,
+.review-bar__cta {
   font: var(--t-title-sm);
   line-height: 1.2;
   color: var(--wash-strong);
+  flex: none;
 }
 
 .cart-total {
@@ -253,14 +273,11 @@
     display: none;
   }
 
-  .review-bar {
+  .review-bar,
+  .review-bar.is-with-cart {
     position: static;
     width: 100%;
     margin: 0 0 var(--s-4);
-  }
-
-  .cart-bar.is-under-review {
-    bottom: auto;
   }
 }
 
@@ -369,7 +386,7 @@
 
 .sell-today {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: var(--s-3);
   margin: 0 0 var(--s-4);
 }
@@ -386,73 +403,78 @@
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
+.store-status-slot {
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
+  display: flex;
+}
+
 .store-status-btn {
-  flex: 0 0 48px;
-  width: 48px;
-  border-radius: 999px;
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-sizing: border-box;
+  width: 72px;
+  height: 72px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
   display: grid;
   place-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform var(--d-fast) var(--ease-out),
+    background-color var(--d-fast) var(--ease-out),
+    box-shadow var(--d-fast) var(--ease-out),
+    color var(--d-fast) var(--ease-out);
 }
 
-.store-status-btn__dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background: var(--fg-3);
+.store-status-btn__word {
+  font: 500 12px/1 var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
 }
 
-.store-status-btn.is-open .store-status-btn__dot {
-  background: var(--success);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 22%, transparent);
+.store-status-btn.is-open {
+  background: var(--action);
+  color: var(--on-action);
+  box-shadow: inset 0 0 0 1px var(--action);
 }
 
-.store-status-btn.is-busy .store-status-btn__dot {
-  background: var(--bronze);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--bronze) 24%, transparent);
-}
-
-.store-status-btn.is-closed .store-status-btn__dot {
-  background: var(--fg-3);
-}
-
-.review-bar {
-  position: fixed;
-  left: var(--gutter);
-  right: var(--gutter);
-  bottom: calc(var(--nav-h) + 10px);
-  z-index: 26;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-3);
-  min-height: 48px;
-  padding: 0 var(--s-4);
-  border-radius: var(--r-pill);
-  background: var(--surface);
-  color: var(--fg);
-  box-shadow: inset 0 0 0 1px var(--line), var(--e-1);
-}
-
-.review-bar__meta {
-  font: var(--t-label);
-  line-height: 1.2;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.review-bar__cta {
-  font: var(--t-title-sm);
-  line-height: 1.2;
+.store-status-btn.is-busy {
+  background: var(--wash);
   color: var(--bronze);
-  flex: none;
+  box-shadow: inset 0 0 0 1.5px var(--bronze);
 }
 
-.cart-bar.is-under-review {
-  bottom: calc(var(--nav-h) + 66px);
+.store-status-btn.is-closed {
+  background: var(--surface);
+  color: var(--fg-3);
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+}
+
+.store-status-btn:active {
+  transform: scale(0.96);
+}
+
+.store-status-btn.is-open:active {
+  background: var(--ink-700);
+}
+
+.store-status-btn.is-busy:active {
+  background: var(--wash-strong);
+}
+
+.store-status-btn.is-closed:active {
+  background: var(--surface-sunk);
+}
+
+.store-status-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1.5px var(--focus),
+    0 0 0 3px color-mix(in srgb, var(--bronze) 28%, transparent);
 }
 
 .today-pill__kicker {

@@ -277,10 +277,6 @@ async function runStep(page: Page, step: ScenarioStep, mock: MockHandle) {
         await page.goto('/next/store');
         await setClock(page, 'hours-open', step.open);
         await setClock(page, 'hours-close', step.close);
-        const suggest = String(step.suggest || '');
-        const parts = suggest.split(/[–-]/);
-        if (parts[0]) await setClock(page, 'hours-suggest-start', parts[0].trim());
-        if (parts[1]) await setClock(page, 'hours-suggest-end', parts[1].trim());
         await page.getByRole('button', { name: /save hours/i }).click();
         return;
       }

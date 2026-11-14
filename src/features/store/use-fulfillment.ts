@@ -92,8 +92,6 @@ export function useFulfillment() {
         remember({
           openTime: toHHmm(row.open_time) || DEFAULT_OPEN,
           closeTime: toHHmm(row.close_time) || DEFAULT_CLOSE,
-          suggestStart: toHHmm(row.suggest_start),
-          suggestEnd: toHHmm(row.suggest_end),
           busyUntil: row.busy_until ? String(row.busy_until) : null,
           busyFor: (row.busy_for as FulfillmentStatus['busyFor']) || 'both',
         });
@@ -109,8 +107,6 @@ export function useFulfillment() {
       const res = await patchFulfillment({
         open_time: status.openTime,
         close_time: status.closeTime,
-        suggest_start: status.suggestStart,
-        suggest_end: status.suggestEnd,
       });
       if (!res.ok) throw new Error(`Could not save hours (${res.status})`);
       setSaved(status);
@@ -152,25 +148,17 @@ export function useFulfillment() {
   const openNow = isWithinOpenHours(now, status);
   const busyNow = isBusyActive(status);
   const tone: StoreTone = busyNow ? 'busy' : openNow ? 'open' : 'closed';
+  const word = busyNow ? 'Busy' : openNow ? 'Open' : 'Closed';
   const headline = busyNow ? 'Busy' : openNow ? 'Open now' : 'Closed';
   const detail = busyNow
     ? `Back to normal at ${new Date(status.busyUntil!).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
     : openNow
       ? `Closes at ${formatClockHHmm(status.closeTime || DEFAULT_CLOSE)}`
       : `Opens ${nextOpenAt(now, status).toDateString() === now.toDateString() ? 'today' : 'tomorrow'} at ${formatClockHHmm(status.openTime || DEFAULT_OPEN)}`;
-  const dirty =
-    !saved ||
-    saved.openTime !== status.openTime ||
-    saved.closeTime !== status.closeTime ||
-    (saved.suggestStart || '') !== (status.suggestStart || '') ||
-    (saved.suggestEnd || '') !== (status.suggestEnd || '');
+  const dirty = !saved || saved.openTime !== status.openTime || saved.closeTime !== status.closeTime;
   const valid = Boolean(status.openTime && status.closeTime);
-  const suggest =
-    status.suggestStart && status.suggestEnd
-      ? `${formatClockHHmm(status.suggestStart)} to ${formatClockHHmm(status.suggestEnd)}`
-      : 'Not set';
 
-  function setTime(key: 'openTime' | 'closeTime' | 'suggestStart' | 'suggestEnd', value: string) {
+  function setTime(key: 'openTime' | 'closeTime', value: string) {
     setStatus((s) => ({ ...s, [key]: value || null }));
   }
 
@@ -183,11 +171,11 @@ export function useFulfillment() {
     setBusyMinutes,
     setTime,
     tone,
+    word,
     headline,
     detail,
     dirty,
     valid,
-    suggest,
     busyNow,
   };
 }

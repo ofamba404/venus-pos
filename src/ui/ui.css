@@ -1374,6 +1374,10 @@ body:has(.v-sheet) .v-toast-host {
   scrollbar-width: none;
 }
 
+.v-chip-row::-webkit-scrollbar {
+  display: none;
+}
+
 .v-chip-row > * {
   flex: 0 0 auto;
 }
@@ -2383,8 +2387,8 @@ body:has(.v-sheet) .v-toast-host {
 }
 
 .hours__hero--open .hours__dot {
-  background: var(--success);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 22%, transparent);
+  background: var(--action);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--action) 18%, transparent);
 }
 
 .hours__hero--busy .hours__dot {
@@ -2393,7 +2397,7 @@ body:has(.v-sheet) .v-toast-host {
 }
 
 .hours__hero--closed .hours__dot {
-  background: var(--danger);
+  background: var(--fg-3);
 }
 
 .hours__state {
@@ -3479,7 +3483,18 @@ body:has(.v-sheet) .v-toast-host {
   color: var(--fg);
 }
 
+.v-client-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .v-client-chips .v-chip-row {
-  flex-wrap: wrap;
-  overflow: visible;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
 }

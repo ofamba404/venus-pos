@@ -489,22 +489,24 @@ export function SellPage() {
               {today.cookies ? ` · ${today.cookies} cookies` : ''}
             </span>
           </div>
-          <button
-            type="button"
-            class={`store-status-btn is-${hours.tone}`}
-            data-testid="store-status-btn"
-            data-state={hours.tone}
-            aria-label={`Store is ${hours.headline}. Hours.`}
-            onClick={() => setHoursOpen(true)}
-          >
-            <span class="store-status-btn__dot" />
-          </button>
+          <div class="store-status-slot">
+            <button
+              type="button"
+              class={`store-status-btn is-${hours.tone}`}
+              data-testid="store-status-btn"
+              data-state={hours.tone}
+              aria-label={`Store is ${hours.word}. Hours.`}
+              onClick={() => setHoursOpen(true)}
+            >
+              <span class="store-status-btn__word">{hours.word}</span>
+            </button>
+          </div>
         </div>
         <ProductGrid onPick={openConfig} />
         {nextConfirmed ? (
           <button
             type="button"
-            class="review-bar"
+            class={`review-bar${cartCount.value > 0 ? ' is-with-cart' : ''}`}
             data-testid="review-bar"
             data-count={confirmedOrders.length}
             onClick={() => openStoreOrder(nextConfirmed.id)}
@@ -548,7 +550,7 @@ export function SellPage() {
       {cartCount.value > 0 ? (
         <button
           type="button"
-          class={`cart-bar${nextConfirmed ? ' is-under-review' : ''}`}
+          class="cart-bar"
           data-testid="cart-bar"
           onClick={() => setCartOpen(true)}
         >

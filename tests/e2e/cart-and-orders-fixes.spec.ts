@@ -68,6 +68,16 @@ test.describe('cart and orders fixes', () => {
     await expect(chips.getByText('Test Client A').first()).toBeVisible();
     await expect(chips.locator('strong').first()).toHaveText(/Test Cli/i);
     await expect(sheet.getByTestId('add-client')).toBeVisible();
+    const row = chips.locator('.v-chip-row');
+    const rowBox = (await row.boundingBox())!;
+    const firstChip = (await row.locator('.v-tag').first().boundingBox())!;
+    expect(rowBox.height).toBeLessThan(firstChip.height + 12);
+    const styles = await row.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { wrap: s.flexWrap, overflowX: s.overflowX };
+    });
+    expect(styles.wrap).toBe('nowrap');
+    expect(styles.overflowX).toMatch(/auto|scroll/);
     await chips.getByText('Test Client A').first().click();
     await expect(field).toHaveValue('Test Client A');
     await expect(sheet.getByTestId('add-client')).toHaveCount(0);

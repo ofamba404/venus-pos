@@ -3,7 +3,7 @@ import { ClockField, TimePickerSheet } from '../../ui/ClockField';
 import { Button } from '../../ui/Button';
 import { busyDefaultUntil, minutesUntil, remainingLabel, type HoursState } from './use-fulfillment';
 
-/** The existing Hours form: busy presets, Custom busy, Opens/Closes, delivery window. */
+/** Hours form: busy presets, Custom busy, and Opens/Closes. */
 export function HoursSettings({ hours }: { hours: HoursState }) {
   const {
     status,
@@ -18,7 +18,6 @@ export function HoursSettings({ hours }: { hours: HoursState }) {
     detail,
     dirty,
     valid,
-    suggest,
     busyNow,
   } = hours;
 
@@ -84,18 +83,11 @@ export function HoursSettings({ hours }: { hours: HoursState }) {
         <ClockField label="Closes" testId="hours-close" value={status.closeTime || ''} onChange={(v) => setTime('closeTime', v)} />
       </div>
 
-      <h2 class="v-section-label">Suggested delivery window</h2>
-      <div class="hours__grid">
-        <ClockField label="From" testId="hours-suggest-start" value={status.suggestStart || ''} onChange={(v) => setTime('suggestStart', v)} />
-        <ClockField label="To" testId="hours-suggest-end" value={status.suggestEnd || ''} onChange={(v) => setTime('suggestEnd', v)} />
-      </div>
-
       <div class="hours__preview" data-testid="hours-preview">
         <div class="v-list-row__meta">Clients see</div>
         <div>
           Open {formatClockHHmm(status.openTime || DEFAULT_OPEN)} to {formatClockHHmm(status.closeTime || DEFAULT_CLOSE)}
         </div>
-        <div>Suggested delivery: {suggest}</div>
       </div>
 
       <Button size="lg" data-testid="hours-save" disabled={busy || !dirty || !valid} onClick={() => void saveHours()}>
