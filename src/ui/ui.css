@@ -2934,6 +2934,11 @@ body:has(.v-sheet) .v-toast-host {
   gap: var(--s-3);
 }
 
+.v-so-fee-hint {
+  font: var(--t-meta);
+  color: var(--fg-2);
+}
+
 .v-so-totals__row {
   display: flex;
   align-items: center;

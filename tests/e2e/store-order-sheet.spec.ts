@@ -128,16 +128,22 @@ test.describe('store order sheet', () => {
     await page.screenshot({ path: `${dir}/v2j-store-order-sheet-delivery-scrolled.png` });
   });
 
-  test('the delivery fee updates the total, and Checkout records the sale from the order', async ({ page }) => {
+  test('the delivery fee is kept for the rider and does not change the checkout total', async ({ page }) => {
     const driver = await createNextDriver(page, { role: 'pos_staff' });
     driver.mock.db.table('store_orders').push({ ...DELIVERY });
     await page.goto('/next/orders');
     await page.getByTestId('view-order-so-delivery').click();
     const sheet = page.getByTestId('store-order-sheet');
-    await expect(sheet.getByTestId('store-order-total')).toHaveAttribute('data-total', '37000');
+    await expect(sheet.getByTestId('store-order-total')).toHaveAttribute('data-total', '30000');
+    await expect(page.getByTestId('store-order-checkout')).toContainText('30,000');
+    await expect(sheet.getByTestId('store-order-fee-field')).toContainText('Paid separately to the rider (SafeBoda)');
+    await sheet.getByTestId('store-order-fee').scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${dir}/v2p-store-order.png` });
     await sheet.getByTestId('store-order-fee').fill('9000');
-    await expect(sheet.getByTestId('store-order-total')).toHaveAttribute('data-total', '39000');
-    await expect(page.getByTestId('store-order-checkout')).toContainText('39,000');
+    await expect(sheet.getByTestId('store-order-total')).toHaveAttribute('data-total', '30000');
+    await expect(page.getByTestId('store-order-checkout')).toContainText('30,000');
+    await expect(sheet.getByTestId('store-order-fee')).toHaveValue('9000');
 
     await page.getByTestId('store-order-checkout').click();
     await expect(page.getByTestId('sale-success')).toBeVisible();

@@ -98,7 +98,7 @@ test.describe('real-shaped data', () => {
     await expect(sheet.locator('.v-cart-line')).toHaveCount(2);
     await expect(sheet).toContainText('Pilot Pack');
     await expect(sheet).toContainText('Free Coconut Joint');
-    await expect(sheet.getByTestId('store-order-total')).toHaveAttribute('data-total', String(15000 + 7500));
+    await expect(sheet.getByTestId('store-order-total')).toHaveAttribute('data-total', '15000');
     await page.keyboard.press('Escape').catch(() => {});
     await page.getByRole('dialog', { name: 'Store order' }).getByRole('button', { name: 'Close' }).click();
     await page.getByTestId('view-order-real-acc-1').click();

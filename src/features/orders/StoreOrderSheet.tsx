@@ -58,7 +58,8 @@ function ReadField({ label, value, testId, copy }: { label: string; value: strin
 
 /**
  * A client's storefront order, read only. It is not the cart: items, drop-off, phone and time are as the client
- * placed them. The delivery fee is the one editable field. Checkout records the sale from the order.
+ * placed them. The delivery fee is an editable SafeBoda amount, paid separately to the rider, and is not part of
+ * the sale. Checkout records the items only.
  */
 function StoreOrderBody({
   shown,
@@ -88,7 +89,6 @@ function StoreOrderBody({
 
   const items = cartTotal(mapped.lines);
   const feeUgx = delivery && fee.trim() !== '' ? Math.max(0, parseInt(fee, 10) || 0) : 0;
-  const total = items + feeUgx;
   const phone = String(order.phone_e164 || order.phone || '');
   const place = delivery ? String(order.location_label || '') : '';
   const when = deliverAtText(order);
@@ -133,7 +133,7 @@ function StoreOrderBody({
   const footer = open ? (
     <div class="v-so-foot">
       <Button size="xl" data-testid="store-order-checkout" loading={paying} onClick={() => void checkout()}>
-        {`Checkout ${formatUGX(total)}`}
+        {`Checkout ${formatUGX(items)}`}
       </Button>
       <Button
         size="md"
@@ -194,7 +194,7 @@ function StoreOrderBody({
           </div>
         </section>
 
-        {place || phone || when ? (
+        {place || phone || when || delivery ? (
           <section class="v-so-sec" aria-label={delivery ? 'Delivery details' : 'Pickup details'}>
             <h3 class="v-so-sec__label">{delivery ? 'Delivery details' : 'Pickup details'}</h3>
             <div class="v-so-details">
@@ -227,39 +227,39 @@ function StoreOrderBody({
                   ) : null}
                 </div>
               ) : null}
+              {delivery ? (
+                open ? (
+                  <label class="v-field" data-testid="store-order-fee-field">
+                    <span class="v-field__label">Delivery fee (UGX)</span>
+                    <input
+                      class="v-field__input"
+                      inputMode="numeric"
+                      data-testid="store-order-fee"
+                      value={fee}
+                      placeholder="0"
+                      onInput={(e) => setFee((e.target as HTMLInputElement).value.replace(/[^0-9]/g, ''))}
+                    />
+                    <span class="v-so-fee-hint">Paid separately to the rider (SafeBoda)</span>
+                  </label>
+                ) : (
+                  <div class="v-field" data-testid="store-order-fee-field">
+                    <span class="v-field__label">Delivery fee</span>
+                    <div class="v-field__input v-field__input--ro" data-testid="store-order-fee-value">
+                      {formatUGX(feeUgx)}
+                    </div>
+                    <span class="v-so-fee-hint">Paid separately to the rider (SafeBoda)</span>
+                  </div>
+                )
+              ) : null}
             </div>
           </section>
         ) : null}
 
         <section class="v-so-sec v-so-totals" aria-label="Total">
           <h3 class="v-so-sec__label">Total</h3>
-          <div class="v-so-totals__row">
-            <span>Items</span>
-            <Money value={items} />
-          </div>
-          {delivery ? (
-            open ? (
-              <label class="v-field">
-                <span class="v-field__label">Delivery fee (UGX)</span>
-                <input
-                  class="v-field__input"
-                  inputMode="numeric"
-                  data-testid="store-order-fee"
-                  value={fee}
-                  placeholder="0"
-                  onInput={(e) => setFee((e.target as HTMLInputElement).value.replace(/[^0-9]/g, ''))}
-                />
-              </label>
-            ) : (
-              <div class="v-so-totals__row">
-                <span>Delivery fee</span>
-                <Money value={feeUgx} />
-              </div>
-            )
-          ) : null}
-          <div class="v-so-totals__row v-so-totals__row--total" data-testid="store-order-total" data-total={total}>
+          <div class="v-so-totals__row v-so-totals__row--total" data-testid="store-order-total" data-total={items}>
             <span>Total</span>
-            <Money className="v-money--total" value={total} size="xl" />
+            <Money className="v-money--total" value={items} size="xl" />
           </div>
           {credit || open ? (
             <div class="v-so-pay" data-testid="store-order-pay">
