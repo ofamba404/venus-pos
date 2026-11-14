@@ -13,7 +13,7 @@ import {
 } from '../../domain/cart';
 import { configReady, configTarget } from '../../domain/pricing/pack-config';
 import { getProgress } from '../../domain/pricing/flavored-bulk';
-import { computeTodayStats } from '../../domain/today';
+import { computeTodayStats, todayUnitMeta } from '../../domain/today';
 import {
   cartLines,
   cartSum,
@@ -488,11 +488,7 @@ export function SellPage() {
             <span class="today-pill__value">
               <Money value={today.revenue} />
             </span>
-            <span class="today-pill__meta">
-              {today.salesCount} sold
-              {today.joints ? ` · ${today.joints} joints` : ''}
-              {today.cookies ? ` · ${today.cookies} cookies` : ''}
-            </span>
+            <span class="today-pill__meta">{todayUnitMeta(today)}</span>
           </button>
           <div class="store-status-slot">
             <button

@@ -36,6 +36,15 @@ function seedStaffSales(driver: Awaited<ReturnType<typeof createNextDriver>>) {
   });
 }
 
+function isGreenish(color: string) {
+  const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (!m) return false;
+  const r = Number(m[1]);
+  const g = Number(m[2]);
+  const b = Number(m[3]);
+  return g > r + 15 && g > b + 15;
+}
+
 async function moreTitles(page: Page) {
   return page.locator('section .v-list-row__title').allTextContents();
 }
@@ -97,6 +106,27 @@ test.describe('staff and owner access', () => {
     await expect(page.getByTestId('partner-summary')).toHaveCount(0);
     await expect(page.getByTestId('insights-rank')).toHaveCount(0);
     await expect(page.getByText('What do I owe?')).toHaveCount(0);
+    await expect(page.getByTestId('insights-today')).toContainText('1 sold · 1 joint');
+    await expect(page.getByTestId('insights-today')).not.toContainText('joints');
+    for (const id of ['insights-today', 'commission-earned', 'commission-paid', 'commission-pending']) {
+      const money = page.getByTestId(id).locator('.v-money');
+      const info = await money.evaluate((el: HTMLElement) => {
+        const cs = getComputedStyle(el);
+        const parent = el.closest('.staff-insights__row, .staff-insights__today') as HTMLElement;
+        return {
+          family: cs.fontFamily,
+          rows: el.getClientRects().length,
+          nowrap: cs.whiteSpace,
+          parentBg: parent ? getComputedStyle(parent).backgroundColor : '',
+        };
+      });
+      expect(info.family, id).toMatch(/Geograph/i);
+      expect(info.rows, id).toBe(1);
+      expect(info.nowrap, id).toBe('nowrap');
+      expect(isGreenish(info.parentBg), `${id} parent ${info.parentBg}`).toBe(false);
+    }
+    const paidBg = await page.getByTestId('commission-paid').evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(isGreenish(paidBg), paidBg).toBe(false);
   });
 
   test('staff Clients can issue a reset code, and cannot delete or verify', async ({ page }) => {
@@ -111,8 +141,18 @@ test.describe('staff and owner access', () => {
     await expect(page.getByTestId('store-user-verify')).toHaveCount(0);
     await expect(page.getByTestId('settle-confirm')).toHaveCount(0);
     await page.getByTestId('store-user-reset').click();
-    await expect(page.getByTestId('store-reset-code')).toBeVisible();
+    const reset = page.getByTestId('store-reset-code');
+    await expect(reset).toBeVisible();
     await expect(page.getByTestId('copy-reset-code')).toBeVisible();
+    await expect(reset).not.toContainText('Give this once');
+    await expect(reset).not.toContainText('expires in 24 hours');
+    await expect(page.getByText('A reset code lets the client set a new store password')).toHaveCount(0);
+    const copy = await page.getByTestId('copy-reset-code').evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { bg: cs.backgroundColor, shadow: cs.boxShadow };
+    });
+    expect(copy.bg).toBe('rgb(244, 243, 240)');
+    expect(copy.shadow).toMatch(/rgb\(214, 212, 207\)/);
   });
 
   test('staff History shows only their own sales and is read-only', async ({ page }) => {

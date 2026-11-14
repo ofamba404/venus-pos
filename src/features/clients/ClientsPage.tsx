@@ -435,9 +435,7 @@ export function ClientsPage() {
                 </div>
                 {resetCode ? (
                   <div class="v-reset-code" data-testid="store-reset-code">
-                    <p>
-                      Give this once: <strong>{resetCode}</strong>. It expires in 24 hours and will not be shown again.
-                    </p>
+                    <strong class="v-reset-code__value">{resetCode}</strong>
                     <CopyButton
                       kind="text"
                       label="Copy"
@@ -448,9 +446,7 @@ export function ClientsPage() {
                       value={() => resetCode}
                     />
                   </div>
-                ) : (
-                  <p class="v-muted">A reset code lets the client set a new store password. It is shown once.</p>
-                )}
+                ) : null}
                 {admin ? (
                   confirmDelete === 'account' ? (
                     <div class="person-sheet__confirm" role="alert">

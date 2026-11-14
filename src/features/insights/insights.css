@@ -520,9 +520,50 @@
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
-.staff-insights__today .owe__sum,
-.insights[data-testid="staff-insights"] .owe__sum {
+.staff-insights__today .v-money,
+.staff-insights__row .v-money {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--fg);
+}
+
+.staff-insights__today .v-money {
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.staff-insights__ledger {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--s-2);
+  margin: 0;
+  padding: 4px 0;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.staff-insights__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: 12px var(--s-4);
+}
+
+.staff-insights__row + .staff-insights__row {
+  border-top: 1px solid var(--line);
+}
+
+.staff-insights__label {
+  font: var(--t-label);
+  color: var(--fg-2);
+}
+
+.staff-insights__row .v-money {
+  font-size: 16px;
+  line-height: 1.2;
+  text-align: right;
 }

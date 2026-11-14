@@ -63,3 +63,15 @@ export function computeTodayStats(
     cookies: todays.reduce((sum, s) => sum + cookiesInSale(s), 0),
   };
 }
+
+export function countLabel(n: number, singular: string, pluralForm = `${singular}s`): string {
+  return `${n} ${n === 1 ? singular : pluralForm}`;
+}
+
+/** "1 sold · 1 joint", "3 sold · 2 joints · 1 cookie". */
+export function todayUnitMeta(stats: TodayStats): string {
+  const parts = [`${stats.salesCount} sold`];
+  if (stats.joints) parts.push(countLabel(stats.joints, 'joint'));
+  if (stats.cookies) parts.push(countLabel(stats.cookies, 'cookie'));
+  return parts.join(' · ');
+}

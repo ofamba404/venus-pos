@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { clients, ensureInventory, inventory, loadClients, loadSales, sales } from '../../data/entities';
-import { computeTodayStats } from '../../domain/today';
+import { computeTodayStats, todayUnitMeta } from '../../domain/today';
 import { expandPartnerUnitsFromSales, partnerBoard } from '../../domain/partner';
 import { fetchCookiePartnerSettle } from '../../data/writes/partner';
 import { fetchCreditPayments } from '../../data/credit-payments';
@@ -56,28 +56,24 @@ function StaffInsights() {
         <span class="today-pill__value">
           <Money value={today.revenue} />
         </span>
-        <span class="today-pill__meta">
-          {today.salesCount} sold
-          {today.joints ? ` · ${today.joints} joints` : ''}
-          {today.cookies ? ` · ${today.cookies} cookies` : ''}
-        </span>
+        <span class="today-pill__meta">{todayUnitMeta(today)}</span>
       </div>
       <section class="decision" aria-label="Commission" data-testid="insights-commission">
         <h2 class="decision__q">Commission</h2>
         {summary === undefined ? (
           <p class="v-muted">Loading…</p>
         ) : summary ? (
-          <div class="owe__sum">
-            <div class="owe__chip" data-testid="commission-earned" data-value={summary.earned_all}>
-              <span class="owe__chip-label">Earned</span>
+          <div class="staff-insights__ledger">
+            <div class="staff-insights__row" data-testid="commission-earned" data-value={summary.earned_all}>
+              <span class="staff-insights__label">Earned</span>
               <Money value={Number(summary.earned_all) || 0} />
             </div>
-            <div class="owe__chip owe__chip--paid" data-testid="commission-paid" data-value={summary.paid_all}>
-              <span class="owe__chip-label">Paid</span>
+            <div class="staff-insights__row" data-testid="commission-paid" data-value={summary.paid_all}>
+              <span class="staff-insights__label">Paid</span>
               <Money value={Number(summary.paid_all) || 0} />
             </div>
-            <div class="owe__chip" data-testid="commission-pending" data-value={summary.pending_credit}>
-              <span class="owe__chip-label">Pending</span>
+            <div class="staff-insights__row" data-testid="commission-pending" data-value={summary.pending_credit}>
+              <span class="staff-insights__label">Pending</span>
               <Money value={Number(summary.pending_credit) || 0} />
             </div>
           </div>
