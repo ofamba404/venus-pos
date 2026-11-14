@@ -77,8 +77,8 @@ export async function runNotificationCheck(onLine: (line: CheckLine) => void): P
   try {
     await reg.showNotification('Venus test (on this phone)', {
       body: 'Shown by the phone itself, no server involved.',
-      icon: `${scope}assets/logo-notif.png`,
-      badge: `${scope}assets/logo-badge.png`,
+      icon: `${scope}notif/venus-notif-icon-r2-192.png`,
+      badge: `${scope}notif/venus-notif-badge-r2-96.png`,
       tag: 'venus-test-local',
     });
     add({ id: 'local', label: 'Show a notification', ok: true, detail: 'Sent to the phone. Look for "Venus test (on this phone)". If you see nothing, the phone is hiding them (silent mode, app notifications off).' });

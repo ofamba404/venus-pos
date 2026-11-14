@@ -61,7 +61,8 @@ describe('/next service worker push handling', () => {
       renotify: true,
       requireInteraction: true,
       vibrate: [220, 80, 220],
-      icon: '/next/assets/logo-notif.png',
+      icon: '/next/notif/venus-notif-icon-r2-192.png',
+      badge: '/next/notif/venus-notif-badge-r2-96.png',
       data: { url: '/next/orders#order=ord_1' },
     });
   });
@@ -72,6 +73,21 @@ describe('/next service worker push handling', () => {
     expect(sw.shown[0]!.options).toMatchObject({ requireInteraction: false, data: { url: '/next/settings' } });
     await push(sw, undefined);
     expect(sw.shown[1]!.title).toBe('New order');
+  });
+
+  it('uses the ink brand icon and a monochrome badge, never the old green /assets art', async () => {
+    const sw = boot();
+    await push(sw, { title: 't' });
+    const { icon, badge } = sw.shown[0]!.options as { icon: string; badge: string };
+    expect(icon).not.toMatch(/assets\/logo/);
+    expect(badge).not.toMatch(/assets\/logo/);
+    for (const [url, size, mono] of [[icon, 192, false], [badge, 96, true]] as const) {
+      const file = readFileSync(`public/${url.replace('/next/', '')}`);
+      expect(file.readUInt32BE(16)).toBe(size);
+      expect(file.readUInt32BE(20)).toBe(size);
+      expect(file[25]).toBe(6); // RGBA, so it has transparency
+      void mono;
+    }
   });
 
   it('uses the same landing page as src/domain/push-target', async () => {

@@ -35,8 +35,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || 'Open Venus to see the order',
-      icon: `${SCOPE_BASE}assets/logo-notif.png`,
-      badge: `${SCOPE_BASE}assets/logo-badge.png`,
+      icon: `${SCOPE_BASE}notif/venus-notif-icon-r2-192.png`,
+      badge: `${SCOPE_BASE}notif/venus-notif-badge-r2-96.png`,
       tag: data.tag || `venus-next-${Date.now()}`,
       renotify: true,
       requireInteraction: data.requireInteraction !== false && data.type !== 'test',
