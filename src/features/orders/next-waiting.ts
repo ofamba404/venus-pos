@@ -15,13 +15,9 @@ export function waitingOrderName(order: StoreOrderRow): string {
   return String(order.customer_name || '').trim() || 'Store order';
 }
 
-/** Items plus a known delivery fee, so the prompt matches what Checkout will show. */
+/** Items only. The delivery fee is not part of the sale. */
 export function waitingOrderTotal(order: StoreOrderRow): number {
-  const items = orderTotal(order);
-  if (order.delivery_enabled === false) return items;
-  if (order.delivery_fee_ugx == null || order.delivery_fee_ugx === undefined) return items;
-  const fee = Math.round(Number(order.delivery_fee_ugx) || 0);
-  return items + Math.max(0, fee);
+  return orderTotal(order);
 }
 
 /** Secondary-button copy: "Next: {client} · UGX X". */

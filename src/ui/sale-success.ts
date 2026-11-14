@@ -1,11 +1,11 @@
 import { signal } from '@preact/signals';
-import type { SaleSummaryLine } from '../domain/sale-summary';
+import type { SaleFulfilment, SaleSummaryLine } from '../domain/sale-summary';
 
-export type { SaleSummaryLine };
+export type { SaleFulfilment, SaleSummaryLine };
 
 export type SaleSuccess = {
   id: number;
-  /** Grand total: items plus delivery fee when there is one. */
+  /** Items only. The delivery fee is not part of the sale. */
   total: number;
   /** Who the sale was for. "Walk-in" when no client was named. */
   client: string;
@@ -15,8 +15,7 @@ export type SaleSuccess = {
   savingDelivery: boolean;
   /** Item lines for the compact summary. */
   lines: SaleSummaryLine[];
-  /** Delivery fee when this sale had delivery. Null when it did not. */
-  fee: number | null;
+  fulfilment: SaleFulfilment;
 };
 
 /** The sale that was just recorded, or null. One at a time: a newer sale replaces the one on screen. */

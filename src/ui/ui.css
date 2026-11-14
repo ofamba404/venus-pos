@@ -2911,7 +2911,21 @@ body:has(.v-sheet) .v-toast-host {
 
 .v-so-field__row > .v-copy-btn {
   min-height: var(--hit);
+  min-width: 5.25rem;
   align-self: stretch;
+}
+
+/* Match the gray read-only fields. No bronze. Ink "Copied" is the brief confirmation. */
+.v-so .v-copy-btn {
+  background: #f4f3f0;
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px #d6d4cf;
+}
+
+.v-so .v-copy-btn.is-done {
+  background: var(--ink-900);
+  color: var(--on-action);
+  box-shadow: none;
 }
 
 .v-so-pair {
@@ -3084,21 +3098,25 @@ body:has(.v-sheet) .v-toast-host {
   gap: var(--s-4);
 }
 
-.v-ok__status {
-  margin: 0;
-  font-size: 0.9375rem;
-  line-height: 1.45;
-  color: var(--fg-2);
+.v-ok__who {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
 }
 
-.v-ok__status strong {
-  display: block;
-  margin-bottom: 0.25rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.v-ok__client {
+  margin: 0;
+  min-width: 0;
+  font: 600 16px/1.3 var(--font-ui);
   color: var(--fg);
+}
+
+.v-ok__who .v-tag {
+  flex: none;
+  min-height: 24px;
+  padding: 0 8px;
+  font: 500 12px/1 var(--font-ui);
 }
 
 .v-ok__sum {
@@ -3107,12 +3125,9 @@ body:has(.v-sheet) .v-toast-host {
   gap: 6px;
 }
 
-.v-ok__sum-line,
-.v-ok__sum-row {
+.v-ok__sum-line {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s-3);
+  align-items: center;
   margin: 0;
   font: var(--t-body);
   color: var(--fg);
@@ -3159,23 +3174,8 @@ body:has(.v-sheet) .v-toast-host {
   margin: 0 2px;
 }
 
-.v-ok__sum-amt {
-  flex: none;
-  font: 600 14px/1.3 var(--font-ui);
-  font-variant-numeric: tabular-nums;
-  color: var(--money);
-}
-
-.v-ok__sum-row--total {
-  margin-top: 2px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line-strong);
-  font-weight: 700;
-}
-
 .v-ok__amount {
-  margin: 0;
-  flex: none;
+  margin: 6px 0 0;
   font: 700 20px/1.2 var(--font-ui);
   font-variant-numeric: tabular-nums;
   color: var(--money);

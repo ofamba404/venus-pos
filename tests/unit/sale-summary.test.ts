@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { saleFee, saleSummaryLines, type SaleSummaryLine } from '../../src/domain/sale-summary';
+import { cartFulfilment, saleFulfilmentLabel, saleSummaryLines, type SaleSummaryLine } from '../../src/domain/sale-summary';
 import type { CartLine } from '../../src/domain/cart';
 import {
   nextWaitingOrder,
@@ -39,17 +39,23 @@ describe('saleSummaryLines', () => {
   });
 });
 
-describe('saleFee', () => {
-  it('is null when the sale had no delivery', () => {
-    expect(saleFee(false, '7000')).toBeNull();
-    expect(saleFee(false, 0)).toBeNull();
+describe('saleFulfilmentLabel', () => {
+  it('names delivery, pickup and a walk-in counter sale', () => {
+    expect(saleFulfilmentLabel('delivery')).toBe('Delivery');
+    expect(saleFulfilmentLabel('pickup')).toBe('Pickup');
+    expect(saleFulfilmentLabel('walk-in')).toBe('Walk-in');
   });
+});
 
-  it('keeps a delivery fee of 0, and ignores a blank or bad value', () => {
-    expect(saleFee(true, '0')).toBe(0);
-    expect(saleFee(true, 7000)).toBe(7000);
-    expect(saleFee(true, '')).toBeNull();
-    expect(saleFee(true, 'x')).toBeNull();
+describe('cartFulfilment', () => {
+  it('is Walk-in for a counter sale, even if the cart still defaults to delivery', () => {
+    expect(cartFulfilment({ deliveryEnabled: true, place: '' })).toBe('walk-in');
+    expect(cartFulfilment({ deliveryEnabled: true, place: '  ' })).toBe('walk-in');
+  });
+  it('is Delivery only when a drop-off was set, and Pickup when that was chosen', () => {
+    expect(cartFulfilment({ deliveryEnabled: true, place: 'Kololo' })).toBe('delivery');
+    expect(cartFulfilment({ deliveryEnabled: false, place: 'Kololo' })).toBe('pickup');
+    expect(cartFulfilment({ deliveryEnabled: false, place: '' })).toBe('pickup');
   });
 });
 
@@ -81,7 +87,7 @@ describe('nextWaitingOrder', () => {
     expect(nextWaitingOrder([])).toBeNull();
   });
 
-  it('adds a known delivery fee to the prompt total', () => {
+  it('does not count a delivery fee in the prompt total', () => {
     const row = order({
       id: 'd',
       customer_name: 'Muza',
@@ -89,9 +95,9 @@ describe('nextWaitingOrder', () => {
       delivery_fee_ugx: 7000,
       items: [{ product_id: 'pilot', line_total: 15000 }],
     });
-    expect(waitingOrderTotal(row)).toBe(22000);
+    expect(waitingOrderTotal(row)).toBe(15000);
     expect(waitingOrderName(row)).toBe('Muza');
-    expect(waitingOrderPrompt(row).label).toBe('Next: Muza · UGX 22,000');
+    expect(waitingOrderPrompt(row).label).toBe('Next: Muza · UGX 15,000');
   });
 
   it('prefers the order pos_display_name over customer_name', () => {

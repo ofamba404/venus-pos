@@ -28,8 +28,10 @@ test.describe('sale success sheet', () => {
     await expect(dialog.getByTestId('success-client')).toHaveText('Test Client A');
     await expect(dialog.getByTestId('success-label')).toHaveText('Sale recorded');
     await expect(dialog.getByTestId('success-summary')).toBeVisible();
-    await expect(dialog.getByTestId('success-line')).toContainText('Plain');
+    await expect(dialog.getByTestId('success-line')).toHaveText(/1 × Plain/);
+    await expect(dialog.getByTestId('success-fulfilment')).toHaveText('Walk-in');
     await expect(dialog.getByTestId('success-fee')).toHaveCount(0);
+    await expect(dialog.getByText(/Delivery fee/)).toHaveCount(0);
     // The store's mark: an ink ring and check, not a green blob.
     const stroke = await dialog.locator('.v-ok__mark-ring').evaluate((el) => getComputedStyle(el).stroke);
     expect(stroke).toBe('rgb(33, 33, 33)');
@@ -144,25 +146,22 @@ test.describe('sale success sheet', () => {
     await page.goto('/next/orders');
     await page.getByTestId('view-order-so-muza').click();
     await expect(page.getByTestId('store-order-sheet')).toBeVisible();
-    await page.getByTestId('so-place').scrollIntoViewIfNeeded();
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: `${dir}/v2n-store-order-gray.png` });
-    // Gray, not the bronze wash.
-    const fill = await page.getByTestId('so-place-value').evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(fill).toBe('rgb(244, 243, 240)');
-
     await page.getByTestId('store-order-checkout').click();
     const dialog = page.getByTestId('sale-success');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByTestId('success-client')).toHaveText('Muza Nakimuli');
+    await expect(dialog.getByTestId('success-fulfilment')).toHaveText('Delivery');
     await expect(dialog.getByTestId('success-line')).toHaveCount(2);
-    await expect(dialog.getByTestId('success-fee')).toHaveText(/Delivery fee.*UGX 7,000/s);
-    await expect(dialog.getByTestId('success-total')).toHaveText(/UGX 37,000/);
+    await expect(dialog.getByTestId('success-line').nth(0)).toHaveText(/1 × Pilot Pack/);
+    await expect(dialog.getByTestId('success-line').nth(1)).toHaveText(/1 × Cookie Duet/);
+    await expect(dialog.getByTestId('success-fee')).toHaveCount(0);
+    await expect(dialog.getByText(/Delivery fee/)).toHaveCount(0);
+    await expect(dialog.getByTestId('success-total')).toHaveText(/UGX 30,000/);
     await expect(dialog.getByTestId('success-another')).toHaveText('Next: Bryan · UGX 10,000');
     const font = await dialog.getByTestId('success-total').evaluate((el) => getComputedStyle(el).fontFamily);
     expect(font.toLowerCase()).toContain('geograph');
     await page.waitForTimeout(400);
-    await page.screenshot({ path: `${dir}/v2n-success-next.png` });
+    await page.screenshot({ path: `${dir}/v2o-success-next.png` });
 
     await dialog.getByTestId('success-another').click();
     await expect(page.getByTestId('sale-success')).toHaveCount(0);
@@ -186,10 +185,12 @@ test.describe('sale success sheet', () => {
     const dialog = page.getByTestId('sale-success');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByTestId('success-another')).toHaveText('Log another sale');
-    await expect(dialog.getByTestId('success-line')).toContainText('Plain');
+    await expect(dialog.getByTestId('success-fulfilment')).toHaveText('Walk-in');
+    await expect(dialog.getByTestId('success-line')).toHaveText(/1 × Plain/);
     await expect(dialog.getByTestId('success-total')).toHaveText(/UGX 5,000/);
+    await expect(dialog.getByText(/Delivery fee/)).toHaveCount(0);
     await page.waitForTimeout(400);
-    await page.screenshot({ path: `${dir}/v2n-success-none.png` });
+    await page.screenshot({ path: `${dir}/v2o-success-none.png` });
     await dialog.getByTestId('success-another').click();
     await expect(page.getByTestId('sale-success')).toHaveCount(0);
     await expect(page).toHaveURL(/\/next\/sell/);

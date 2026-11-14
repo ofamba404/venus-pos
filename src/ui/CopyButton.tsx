@@ -11,12 +11,13 @@ const KINDS = {
 
 /**
  * A labelled 44px pill that copies one thing: the phone (9 digits), the drop-off, or the whole
- * delivery block. There is no icon-only version. On compact cards the icon is left out to keep one row, and a tick appears on copy. The icon turns into a tick. No toast on success, the tick is the answer. Phone and location share the bronze style. Copy all is solid ink.
+ * delivery block. There is no icon-only version. On compact cards the icon is left out to keep one row, and a tick appears on copy. The icon turns into a tick. No toast on success, the tick (and an optional done label) is the answer. Phone and location are bronze in the cart; on the store order sheet they follow the gray fields.
  */
 export function CopyButton({
   kind,
   value,
   label,
+  doneLabel,
   ariaLabel,
   testId,
   compact,
@@ -25,6 +26,8 @@ export function CopyButton({
   /** Read at tap time, so a field that is still being typed in copies what is there. */
   value: () => string;
   label: string;
+  /** Short confirmation, e.g. "Copied", shown in place of the label while the tick is up. */
+  doneLabel?: string;
   ariaLabel?: string;
   testId?: string;
   compact?: boolean;
@@ -49,7 +52,7 @@ export function CopyButton({
           {done ? <IconCheck size={16} /> : <Icon size={18} />}
         </span>
       ) : null}
-      <span>{label}</span>
+      <span>{done && doneLabel ? doneLabel : label}</span>
     </button>
   );
 }

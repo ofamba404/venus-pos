@@ -104,6 +104,23 @@ test.describe('store order sheet', () => {
       expect(Math.abs(box.height - btn.height)).toBeLessThanOrEqual(1);
       expect(Math.abs(box.y - btn.y)).toBeLessThanOrEqual(1);
     }
+    const copy = sheet.getByTestId('so-copy-place');
+    await sheet.getByTestId('so-place').scrollIntoViewIfNeeded();
+    const copyStyle = await copy.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { bg: s.backgroundColor, shadow: s.boxShadow, color: s.color };
+    });
+    expect(copyStyle.bg).toBe('rgb(244, 243, 240)');
+    expect(copyStyle.shadow).toContain('214, 212, 207');
+    expect(copyStyle.color).not.toContain('138, 106, 58');
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${dir}/v2o-store-order.png` });
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    await copy.click();
+    await expect(copy).toHaveText('Copied');
+    await expect(copy).toHaveClass(/is-done/);
+    const doneBg = await copy.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(doneBg).toBe('rgb(33, 33, 33)');
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${dir}/v2j-store-order-sheet-delivery-top.png` });
     await page.getByTestId('store-order-sheet').evaluate((el) => el.closest('.v-sheet__body')!.scrollTo({ top: 9999 }));
@@ -124,7 +141,7 @@ test.describe('store order sheet', () => {
 
     await page.getByTestId('store-order-checkout').click();
     await expect(page.getByTestId('sale-success')).toBeVisible();
-    await expect(page.getByTestId('success-total')).toHaveText(/39,000/);
+    await expect(page.getByTestId('success-total')).toHaveText(/30,000/);
     await expect(page.getByTestId('success-client')).toHaveText('Muza Nakimuli');
     await expect(page.getByText(/Sale recorded/)).toBeVisible();
     await expect(page.getByTestId('store-order-sheet')).toHaveCount(0);

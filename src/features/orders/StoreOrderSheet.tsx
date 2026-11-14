@@ -114,12 +114,12 @@ function StoreOrderBody({
     onClose();
     showSaleSuccess(
       {
-        total: items + (delivery ? feeUgx : 0),
+        total: items,
         client: title,
         credit,
         queued: Boolean(result.queued),
         lines: saleSummaryLines(mapped.lines),
-        fee: delivery ? feeUgx : null,
+        fulfilment: delivery ? 'delivery' : 'pickup',
       },
       result.delivery,
     );
@@ -204,7 +204,7 @@ function StoreOrderBody({
                   value={place}
                   testId="so-place"
                   copy={
-                    <CopyButton kind="place" label="Copy" ariaLabel="Copy drop-off" compact testId="so-copy-place" value={() => copyLocationText({ place, lat, lng })} />
+                    <CopyButton kind="place" label="Copy" doneLabel="Copied" ariaLabel="Copy drop-off" compact testId="so-copy-place" value={() => copyLocationText({ place, lat, lng })} />
                   }
                 />
               ) : null}
@@ -212,7 +212,7 @@ function StoreOrderBody({
                 <ReadPhone
                   value={phone}
                   testId="so-phone"
-                  copy={<CopyButton kind="phone" label="Copy" ariaLabel="Copy phone" compact testId="so-copy-phone" value={() => copyPhoneText(phone)} />}
+                  copy={<CopyButton kind="phone" label="Copy" doneLabel="Copied" ariaLabel="Copy phone" compact testId="so-copy-phone" value={() => copyPhoneText(phone)} />}
                 />
               ) : null}
               {when || (delivery && km != null) ? (

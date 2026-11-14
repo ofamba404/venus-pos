@@ -1,7 +1,10 @@
 import type { CartLine } from './cart';
 import { lineCount } from './line-count';
 
-/** One line on the sale success summary: the name, how many, and what it came to. */
+/** How the sale was fulfilled. Walk-in is a counter sale, not a storefront pickup. */
+export type SaleFulfilment = 'delivery' | 'pickup' | 'walk-in';
+
+/** One line on the sale success summary: how many, the name, and flavour dots. */
 export type SaleSummaryLine = {
   name: string;
   qty: number;
@@ -24,10 +27,15 @@ export function saleSummaryLines(lines: CartLine[]): SaleSummaryLine[] {
   });
 }
 
-/** Delivery fee when this sale had delivery and a fee was set (including 0). Null when it did not. */
-export function saleFee(delivery: boolean, raw: string | number | null | undefined): number | null {
-  if (!delivery) return null;
-  const fee = typeof raw === 'number' ? raw : parseInt(String(raw ?? ''), 10);
-  if (!Number.isFinite(fee) || fee < 0) return null;
-  return Math.round(fee);
+export function saleFulfilmentLabel(kind: SaleFulfilment): string {
+  if (kind === 'delivery') return 'Delivery';
+  if (kind === 'pickup') return 'Pickup';
+  return 'Walk-in';
+}
+
+/** A walk-in cart sale: Delivery only when a drop-off was actually set, Pickup when that was chosen, otherwise Walk-in. */
+export function cartFulfilment(input: { deliveryEnabled: boolean; place?: string | null }): SaleFulfilment {
+  if (input.deliveryEnabled === false) return 'pickup';
+  if (String(input.place || '').trim()) return 'delivery';
+  return 'walk-in';
 }

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { storeOrders } from '../data/entities';
 import { formatUGX } from '../domain/format';
+import { saleFulfilmentLabel } from '../domain/sale-summary';
 import { go, routeId } from '../app/router';
 import { nextWaitingOrder, waitingOrderPrompt } from '../features/orders/next-waiting';
 import { openStoreOrder } from '../features/orders/open-store-order';
 import { burstConfetti, clearConfetti } from './confetti';
 import { FlavorSwatches } from './FlavorSwatches';
+import { Tag } from './Tag';
 import { dismissSaleSuccess, saleSuccess, type SaleSuccess } from './sale-success';
 
 const EXIT_MS = 220;
@@ -209,35 +211,29 @@ export function SaleSuccessSheet() {
               </button>
             </div>
             <div class="v-ok__bits" ref={bits}>
-              <p class="v-ok__status">
-                <strong>Client</strong>
-                <span data-testid="success-client">{view.client}</span>
-              </p>
+              <div class="v-ok__who">
+                <p class="v-ok__client" data-testid="success-client">{view.client}</p>
+                <Tag
+                  tone={view.fulfilment === 'delivery' ? 'bronze' : 'default'}
+                  testId="success-fulfilment"
+                >
+                  {saleFulfilmentLabel(view.fulfilment)}
+                </Tag>
+              </div>
               <div class="v-ok__sum" data-testid="success-summary">
                 {(view.lines || []).map((line, i) => (
                   <div class="v-ok__sum-line" key={`${line.name}-${i}`} data-testid="success-line">
                     <div class="v-ok__sum-name">
                       <span>
-                        {line.name}
-                        {line.qty > 1 ? <span class="v-qty-inline">×{line.qty}</span> : null}
+                        {line.qty} × {line.name}
                       </span>
                       <FlavorSwatches breakdown={line.breakdown} productId={line.productId} />
                     </div>
-                    <span class="v-ok__sum-amt">{formatUGX(line.total)}</span>
                   </div>
                 ))}
-                {view.fee != null ? (
-                  <div class="v-ok__sum-row" data-testid="success-fee">
-                    <span>Delivery fee</span>
-                    <span class="v-ok__sum-amt">{formatUGX(view.fee)}</span>
-                  </div>
-                ) : null}
-                <div class="v-ok__sum-row v-ok__sum-row--total">
-                  <span>Total</span>
-                  <span class="v-ok__amount" data-testid="success-total">
-                    {formatUGX(view.total)}
-                  </span>
-                </div>
+                <p class="v-ok__amount" data-testid="success-total">
+                  {formatUGX(view.total)}
+                </p>
               </div>
               {hint ? <p class="v-ok__hint">{hint}</p> : null}
             </div>
