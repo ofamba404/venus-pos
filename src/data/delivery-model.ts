@@ -33,6 +33,44 @@ type FeeRange = {
   feePointUgx?: number;
 } | null;
 
+/** Same fallback the storefront uses when quote history cannot be fitted. */
+const FALLBACK = {
+  intercept: 4000,
+  kmRate: 1100,
+  slowdownRate: 80,
+  avgSpeedKmh: 18,
+  minUgx: 3000,
+  stepUgx: 500,
+  padUgx: 1000,
+};
+
+function roundFee(fee: number, minUgx: number, stepUgx: number) {
+  return Math.max(minUgx, Math.round(fee / stepUgx) * stepUgx);
+}
+
+/** Point + range when there is no fitted deliveries model. */
+export function fallbackFeeForKm(km: number, durationMin?: number | null) {
+  const expectedMin = (km / FALLBACK.avgSpeedKmh) * 60;
+  const mins = durationMin != null && Number.isFinite(durationMin) ? durationMin : expectedMin;
+  const slowdown = Math.max(0, mins - expectedMin);
+  const point = roundFee(
+    FALLBACK.intercept + FALLBACK.kmRate * km + FALLBACK.slowdownRate * slowdown,
+    FALLBACK.minUgx,
+    FALLBACK.stepUgx,
+  );
+  const step = FALLBACK.stepUgx;
+  let lo = Math.max(FALLBACK.minUgx, Math.floor((point - FALLBACK.padUgx) / step) * step);
+  let hi = Math.max(lo + step, Math.ceil((point + FALLBACK.padUgx) / step) * step);
+  if (point < lo) lo = Math.max(FALLBACK.minUgx, Math.floor(point / step) * step);
+  if (point > hi) hi = Math.ceil(point / step) * step;
+  if (hi - lo < step) hi = lo + step;
+  return {
+    point,
+    range: { feeMinUgx: lo, feeMaxUgx: hi, feePointUgx: point } satisfies NonNullable<FeeRange>,
+    predicted: hi,
+  };
+}
+
 /** Sync estimate when Distance Matrix is unavailable (straight-line × 1.35). */
 export function predictFeeForDest(
   dest: LatLng,
@@ -47,12 +85,21 @@ export function predictFeeForDest(
   const point = predictSafeBodaFee(km, model, opts) as number | null;
   const range = predictSafeBodaFeeRange(km, model, opts) as FeeRange;
   // Legacy checkout stores the range high end (feeMaxUgx), then the point.
-  const predicted = range?.feeMaxUgx ?? point;
-  return { km, straightKm: straight, durationMin: durationMin ?? null, point, range, predicted, model };
+  let predicted = range?.feeMaxUgx ?? point;
+  let resolvedPoint = point;
+  let resolvedRange = range;
+  if (predicted == null) {
+    const fallback = fallbackFeeForKm(km, durationMin);
+    resolvedPoint = fallback.point;
+    resolvedRange = fallback.range;
+    predicted = fallback.predicted;
+  }
+  return { km, straightKm: straight, durationMin: durationMin ?? null, point: resolvedPoint, range: resolvedRange, predicted, model };
 }
 
 /** Driving km from Maps when the script loads; otherwise the haversine estimate. */
 export async function quoteFeeForDest(dest: LatLng, origin: LatLng = BASE_ORIGIN) {
+  if (!deliveryModelReady.value) await ensureDeliveryModel();
   const routed = await drivingRoute(origin, dest);
   return predictFeeForDest(dest, origin, routed?.km ?? null, routed?.durationMin ?? null);
 }
